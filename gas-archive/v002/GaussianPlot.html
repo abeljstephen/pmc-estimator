@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script type="text/javascript">
+    google.charts.load('current', { packages: ['corechart', 'line'] });
+    google.charts.setOnLoadCallback(drawChart);
+
+    function drawChart() {
+      google.script.run.withSuccessHandler(function(props) {
+        var pert_mean = parseFloat(props.PERT_MEAN);
+        var pert_std = parseFloat(props.PERT_STD);
+        var monte_carlo_90th = parseFloat(props.MONTE_CARLO_90TH);
+        
+        var data = new google.visualization.DataTable();
+        data.addColumn('number', 'X');
+        data.addColumn('number', 'Gaussian');
+        data.addColumn({type: 'string', role: 'style'});
+        data.addColumn({type: 'string', role: 'annotation'});
+        data.addColumn({type: 'string', role: 'annotationText'});
+
+        var startX = pert_mean - 3 * pert_std;
+        var endX = pert_mean + 3 * pert_std;
+        var step = (endX - startX) / 100;
+        for (var x = startX; x <= endX; x += step) {
+          var y = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - pert_mean) / pert_std, 2));
+          var style = '';
+          var annotation = null;
+          var annotationText = null;
+          if (Math.abs(x - monte_carlo_90th) < step / 2) {
+            annotation = '90th %';
+            annotationText = 'Value: ' + x.toFixed(2) + '\nDensity: ' + (y * 100).toFixed(2) + '%' +
+                             '\n90% confidence level that a randomly\nselected value from the distribution\nwill fall within this range of 0 to ' + x.toFixed(2);
+            style = 'point { size: 5; shape-type: circle; fill-color: green; }';
+          } else {
+            style = 'point { size: 5; shape-type: circle; fill-color: blue; }';
+          }
+          data.addRow([x, y, style, annotation, annotationText]);
+        }
+
+        // Add data points for 1st, 2nd, and 3rd standard deviation to the left and right
+        var stdDevs = [1, 2, 3];
+        var confidences = {1: '68%', 2: '95%', 3: '99.7%'};
+        stdDevs.forEach(function(stdDev) {
+          var leftValueStdDev = pert_mean - stdDev * pert_std;
+          var rightValueStdDev = pert_mean + stdDev * pert_std;
+          var leftYStdDev = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((leftValueStdDev - pert_mean) / pert_std, 2));
+          var rightYStdDev = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((rightValueStdDev - pert_mean) / pert_std, 2));
+
+          var annotationLeftStdDev = stdDev + 'σ Left';
+          var annotationTextLeftStdDev = 'Value: ' + leftValueStdDev.toFixed(2) + '\nDensity: ' + (leftYStdDev * 100).toFixed(2) + '%';
+          if (stdDev === 1) {
+            annotationTextLeftStdDev += '\n34% confidence level that a randomly\nselected value from the distribution\nwill fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+          } else if (stdDev === 2) {
+            annotationTextLeftStdDev += '\n2.5% confidence level that a randomly\nselected value from the distribution\nwill fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+          } else if (stdDev === 3) {
+            annotationTextLeftStdDev += '\n0.15% confidence level that a randomly\nselected value from the distribution\nwill fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+          }
+          
+          var annotationRightStdDev = stdDev + 'σ Right';
+          var annotationTextRightStdDev = 'Value: ' + rightValueStdDev.toFixed(2) + '\nDensity: ' + (rightYStdDev * 100).toFixed(2) + '%' + 
+                                           '\n' + confidences[stdDev] + ' confidence level that a randomly\nselected value from the distribution\nwill fall within this range of 0 to ' + rightValueStdDev.toFixed(2);
+
+          data.addRow([leftValueStdDev, leftYStdDev, 'point { size: 5; shape-type: circle; fill-color: blue; }', annotationLeftStdDev, annotationTextLeftStdDev]);
+          data.addRow([rightValueStdDev, rightYStdDev, 'point { size: 5; shape-type: circle; fill-color: blue; }', annotationRightStdDev, annotationTextRightStdDev]);
+        });
+
+        var options = {
+          hAxis: { title: 'Value' },
+          vAxis: { title: 'Probability Density' },
+          title: 'Gaussian Distribution with Standard Deviations',
+          series: {
+            0: { lineWidth: 0 }
+          },
+          annotations: {
+            style: 'point'
+          },
+          pointsVisible: true,
+          tooltip: { isHtml: true, trigger: 'both', ignoreBounds: true }
+        };
+
+        var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+        google.visualization.events.addListener(chart, 'onmouseover', function(e) {
+          var tooltip = document.querySelector('#chart_div .google-visualization-tooltip');
+          if (tooltip) {
+            tooltip.innerHTML = tooltip.innerHTML.replace(/\n/g, '<br>');
+          }
+          tooltip.style.width = '200px';
+          tooltip.style.height = 'auto';
+        });
+        chart.draw(data, options);
+
+      }).getProperties();
+    }
+  </script>
+</head>
+<body>
+  <div id="chart_div" style="width: 100%; height: 600px;"></div>
+</body>
+</html>
