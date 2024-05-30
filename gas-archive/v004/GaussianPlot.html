@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+ <style>
+   #slider-container {
+     position: absolute;
+     top: 20px;
+     right: 20px;
+     background: white;
+     padding: 10px;
+     border-radius: 5px;
+     box-shadow: 0 0 5px rgba(0,0,0,0.3);
+   }
+ </style>
+ <script type="text/javascript">
+   google.charts.load('current', { packages: ['corechart', 'line'] });
+   google.charts.setOnLoadCallback(drawChart);
+
+
+   var chart, data, pert_mean, pert_std, monte_carlo_90th, step, options;
+
+
+   function drawChart() {
+     google.script.run.withSuccessHandler(function(props) {
+       pert_mean = parseFloat(props.PERT_MEAN);
+       pert_std = parseFloat(props.PERT_STD);
+       monte_carlo_90th = parseFloat(props.MONTE_CARLO_90TH);
+      
+       data = new google.visualization.DataTable();
+       data.addColumn('number', 'X');
+       data.addColumn('number', 'Gaussian');
+       data.addColumn({type: 'string', role: 'style'});
+       data.addColumn({type: 'string', role: 'annotation'});
+       data.addColumn({type: 'string', role: 'annotationText'});
+
+
+       var startX = pert_mean - 3 * pert_std;
+       var endX = pert_mean + 3 * pert_std;
+       step = (endX - startX) / 100;
+       for (var x = startX; x <= endX; x += step) {
+         var y = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((x - pert_mean) / pert_std, 2));
+         var style = '';
+         var annotation = null;
+         var annotationText = null;
+         if (Math.abs(x - monte_carlo_90th) < step / 2) {
+           annotation = '90th %';
+           annotationText = 'Value: ' + x.toFixed(2) + '\nDensity: ' + (y * 100).toFixed(2) + '%' +
+                            '\n90% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + x.toFixed(2);
+           style = 'point { size: 5; shape-type: circle; fill-color: green; }';
+         } else {
+           style = 'point { size: 5; shape-type: circle; fill-color: blue; }';
+         }
+         data.addRow([x, y, style, annotation, annotationText]);
+       }
+
+
+       // Add data points for 1st, 2nd, and 3rd standard deviation to the left and right
+       var stdDevs = [1, 2, 3];
+       stdDevs.forEach(function(stdDev) {
+         var leftValueStdDev = pert_mean - stdDev * pert_std;
+         var rightValueStdDev = pert_mean + stdDev * pert_std;
+         var leftYStdDev = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((leftValueStdDev - pert_mean) / pert_std, 2));
+         var rightYStdDev = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((rightValueStdDev - pert_mean) / pert_std, 2));
+
+
+         var annotationLeftStdDev = stdDev + 'σ Left';
+         var annotationTextLeftStdDev = 'Value: ' + leftValueStdDev.toFixed(2) + '\nDensity: ' + (leftYStdDev * 100).toFixed(2) + '%';
+         if (stdDev === 1) {
+           annotationTextLeftStdDev += '\n34% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+         } else if (stdDev === 2) {
+           annotationTextLeftStdDev += '\n2.5% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+         } else if (stdDev === 3) {
+           annotationTextLeftStdDev += '\n0.15% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + leftValueStdDev.toFixed(2);
+         }
+
+
+         var annotationRightStdDev = stdDev + 'σ Right';
+         var annotationTextRightStdDev = 'Value: ' + rightValueStdDev.toFixed(2) + '\nDensity: ' + (rightYStdDev * 100).toFixed(2) + '%' +
+                                          '\n' + stdDev + 'σ confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + rightValueStdDev.toFixed(2);
+
+
+         data.addRow([leftValueStdDev, leftYStdDev, 'point { size: 5; shape-type: circle; fill-color: red; }', annotationLeftStdDev, annotationTextLeftStdDev]);
+         data.addRow([rightValueStdDev, rightYStdDev, 'point { size: 5; shape-type: circle; fill-color: red; }', annotationRightStdDev, annotationTextRightStdDev]);
+       });
+
+
+       options = {
+         hAxis: { title: 'Value' },
+         vAxis: { title: 'Probability Density' },
+         title: 'Gaussian Distribution with Standard Deviations',
+         series: {
+           0: { lineWidth: 0 }
+         },
+         annotations: {
+           style: 'point'
+         },
+         pointsVisible: true,
+         tooltip: { isHtml: true, trigger: 'both', ignoreBounds: true }
+       };
+
+
+       chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+       google.visualization.events.addListener(chart, 'onmouseover', function(e) {
+         var tooltip = document.querySelector('#chart_div .google-visualization-tooltip');
+         if (tooltip) {
+           tooltip.innerHTML = tooltip.innerHTML.replace(/\n/g, '<br>');
+         }
+         tooltip.style.width = '200px';
+         tooltip.style.height = 'auto';
+       });
+       chart.draw(data, options);
+
+
+       // Draw the initial point for the user choice
+       updateChart(50       );
+
+
+     }).getProperties();
+   }
+
+
+   function updateChart(value) {
+  // Calculate the value corresponding to the confidence level using the inverse CDF (percent-point function)
+  var userConfidence = value / 100;
+  var userX;
+
+  if (userConfidence === 1) {
+    // Find the x-coordinate of the rightmost point on the Gaussian distribution
+    var maxX = Number.MIN_VALUE;
+    var numRows = data.getNumberOfRows();
+    for (var i = 0; i < numRows; i++) {
+      var xValue = data.getValue(i, 0);
+      if (xValue > maxX) {         maxX = xValue;
+      }
+    }
+    userX = maxX;
+  } else {
+    // For other confidence levels, use inverse CDF
+    userX = pert_mean + pert_std * inverseCDF(userConfidence);
+  }
+
+  var userY = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((userX - pert_mean) / pert_std, 2));
+  var userAnnotation = value + 'th %';
+  var userAnnotationText = 'Value: ' + userX.toFixed(2) + '\nDensity: ' + (userY * 100).toFixed(2) + '%' +
+                           '\n' + value + '% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + userX.toFixed(2);
+
+  // Remove previous user choice point if any
+  var numRows = data.getNumberOfRows();
+  for (var i = numRows - 1; i >= 0; i--) {
+    if (data.getValue(i, 3) && data.getValue(i, 3).includes('th %')) {
+      data.removeRow(i);
+    }
+  }
+
+  data.addRow([userX, userY, 'point { size: 5; shape-type: circle; fill-color: yellow; }', userAnnotation, userAnnotationText]);
+
+  // Add the 90th percentile label
+var annotation90th = '90th %';
+var annotationText90th = 'Value: ' + monte_carlo_90th.toFixed(2) + '\nDensity: ' + (userY * 100).toFixed(2) + '%' +
+                         '\n90% confidence level that a randomly selected value from the distribution will fall within this range of 0 to ' + monte_carlo_90th.toFixed(2);
+var yOffset90th = (1 / (pert_std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((monte_carlo_90th - pert_mean) / pert_std, 2));
+data.addRow([monte_carlo_90th, yOffset90th, 'point { size: 5; shape-type: circle; fill-color: green; }', annotation90th, annotationText90th]);
+
+
+  chart.draw(data, options);
+}
+
+function updateSliderValue(value) {
+  document.getElementById('slider-value').innerText = value;
+  updateChart(value);
+}
+
+// Inverse CDF for the standard normal distribution (approximated)
+function inverseCDF(p) {
+  var a1 = -3.969683028665376e+01, a2 =  2.209460984245205e+02, a3 = -2.759285104469687e+02, a4 =  1.383577518672690e+02, a5 = -3.066479806614716e+01, a6 =  2.506628277459239e+00;
+  var b1 = -5.447609879822406e+01, b2 =  1.615858368580409e+02, b3 = -1.556989798598866e+02, b4 =  6.680131188771972e+01, b5 = -1.328068155288572e+01;
+  var c1 = -7.784894002430293e-03, c2 = -3.223964580411365e-01, c3 = -2.400758277161838e+00, c4 = -2.549732539343734e+00, c5 =  4.374664141464968e+00, c6 =  2.938163982698783e+00;
+  var d1 =  7.784695709041462e-03, d2 =  3.224671290700398e-01, d3 =  2.445134137142996e+00, d4 =  3.754408661907416e+00;
+
+
+  var p_low = 0.02425, p_high = 1 - p_low;
+  var q, r;
+  var retVal;
+
+
+  if ((0 < p) && (p < p_low)) {
+    q = Math.sqrt(-2 * Math.log(p));
+    retVal = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+            ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+  } else if ((p_low <= p) && (p <= p_high)) {
+    q = p - 0.5;
+    r = q * q;
+    retVal = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q /
+            (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1);
+  } else if ((p_high < p) && (p < 1)) {
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    retVal = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+              ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+  } else {
+    retVal = 0;
+  }
+
+
+  return retVal;
+}
+ </script>
+</head>
+<body>
+ <div id="chart_div" style="width: 100%; height: 600px; position: relative;"></div>
+ <div id="slider-container">
+   <input type="range" min="1" max="100" value="50" id="slider" oninput="updateSliderValue(this.value)">
+   <span id="slider-value">50</span>
+ </div>
+</body>
+</html>
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
