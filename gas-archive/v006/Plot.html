@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    #chart_div {
+      width: 100%;
+      height: 600px;
+      position: relative;
+    }
+    #slider-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+  </style>
+  <script type="text/javascript">
+    google.charts.load('current', { packages: ['corechart', 'line'] });
+    google.charts.setOnLoadCallback(initialize);
+
+    var pertMean, pertStd, min, max;
+    var alpha, beta;
+    var data, chart, options;
+    var step;
+
+    function initialize() {
+      google.script.run.withSuccessHandler(function(props) {
+        pertMean = parseFloat(props.PERT_MEAN);
+        pertStd = parseFloat(props.PERT_STD);
+        min = parseFloat(props.MIN);
+        max = parseFloat(props.MAX);
+        calculateBetaParams(pertMean, pertStd);
+        createSlider();
+      }).getProperties();
+    }
+
+    function calculateBetaParams(mean, stdDev) {
+      var range = max - min;
+      var meanScaled = (mean - min) / range;
+      var varianceScaled = Math.pow(stdDev / range, 2);
+
+      alpha = meanScaled * (meanScaled * (1 - meanScaled) / varianceScaled - 1);
+      beta = (1 - meanScaled) * (meanScaled * (1 - meanScaled) / varianceScaled - 1);
+
+      drawBetaPlot(alpha, beta);
+    }
+
+    function drawBetaPlot(alpha, beta) {
+      data = new google.visualization.DataTable();
+      data.addColumn('number', 'X');
+      data.addColumn('number', 'Beta');
+      data.addColumn({ type: 'string', role: 'style' });
+      data.addColumn({ type: 'string', role: 'annotation' });
+      data.addColumn({ type: 'string', role: 'annotationText' });
+      data.addColumn('number', 'YellowCircle'); // Separate series for the yellow circle
+
+      step = (max - min) / 100;
+      for (var x = min; x <= max; x += step) {
+        var xScaled = (x - min) / (max - min);
+        var y = betaPdf(xScaled, alpha, beta);
+        data.addRow([x, y, null, null, null, null]);
+      }
+
+      options = {
+        hAxis: { title: 'Value' },
+        vAxis: { title: 'Probability Density' },
+        title: 'Beta Distribution',
+        series: {
+          0: { lineWidth: 2 },
+          1: { pointSize: 5, lineWidth: 0, color: 'yellow' } // Yellow circle series style
+        },
+        pointsVisible: false
+      };
+
+      chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+      chart.draw(data, options);
+
+      // Draw the initial point for the user choice
+      updateChart(50);
+    }
+
+    function betaPdf(x, alpha, beta) {
+      if (x < 0 || x > 1) return 0;
+      return (Math.pow(x, alpha - 1) * Math.pow(1 - x, beta - 1)) / betaFunction(alpha, beta);
+    }
+
+    function betaFunction(alpha, beta) {
+      return gammaFunction(alpha) * gammaFunction(beta) / gammaFunction(alpha + beta);
+    }
+
+    function gammaFunction(n) {
+      var g = 7;
+      var p = [
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905,
+        -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+      ];
+
+      if (n < 0.5) {
+        return Math.PI / (Math.sin(Math.PI * n) * gammaFunction(1 - n));
+      } else {
+        n--;
+        var x = p[0];
+        for (var i = 1; i < g + 2; i++) {
+          x += p[i] / (n + i);
+        }
+        var t = n + g + 0.5;
+        return Math.sqrt(2 * Math.PI) * Math.pow(t, n + 0.5) * Math.exp(-t) * x;
+      }
+    }
+
+    function createSlider() {
+      var sliderContainer = document.createElement('div');
+      sliderContainer.id = 'slider-container';
+      sliderContainer.innerHTML = `
+        <input type="range" min="1" max="100" value="50" id="slider" oninput="updateSliderValue(this.value)">
+        <span id="slider-value">50</span>
+      `;
+      document.body.appendChild(sliderContainer);
+    }
+
+    function updateSliderValue(value) {
+      document.getElementById('slider-value').innerText = value;
+      updateChart(value);
+    }
+
+    function updateChart(value) {
+      // Calculate the value corresponding to the confidence level using the inverse CDF (percent-point function)
+      var userConfidence = value / 100;
+      var userX = min + userConfidence * (max - min);
+      var userXScaled = (userX - min) / (max - min);
+      var userY = betaPdf(userXScaled, alpha, beta);
+      var userAnnotation = value + 'th %';
+      var userAnnotationText = 'Value: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+
+      // Remove previous user choice point if any
+      var numRows = data.getNumberOfRows();
+      for (var i = 0; i < numRows; i++) {
+        data.setValue(i, 2, null);
+        data.setValue(i, 3, null);
+        data.setValue(i, 4, null);
+        data.setValue(i, 5, null);
+      }
+
+      // Add the new point for the user choice
+      for (var i = 0; i < numRows; i++) {
+        if (Math.abs(data.getValue(i, 0) - userX) < step / 2) {
+          data.setValue(i, 5, userY);
+          data.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: yellow; }');
+          data.setValue(i, 3, userAnnotation);
+          data.setValue(i, 4, userAnnotationText);
+          break;
+        }
+      }
+
+      chart.draw(data, options);
+    }
+
+  </script>
+</head>
+<body>
+  <div id="chart_div"></div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
