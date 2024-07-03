@@ -1,0 +1,398 @@
+ 
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    #chart_div {
+      width: 100%;
+      height: 600px;
+      position: relative;
+    }
+    #slider-container, #chartType-container {
+      position: absolute;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+    #slider-container {
+      top: 70px;
+      right: 20px;
+   }
+    #chartType-container {
+      top: 20px;
+      left: 20px;
+    }
+    #explanation_div {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
+    }
+  </style>
+  <script type="text/javascript">
+    google.charts.load('current', { packages: ['corechart', 'line'] });
+    google.charts.setOnLoadCallback(initialize);
+    var pertMean, pertStd, min, max, mostLikely, alpha, beta, betaMode, monteCarloBetaSamples, monteCarloBetaMode, recommendation;
+    var triangularData, triangularChart, triangularOptions, betaData, betaChart, betaOptions, monteCarloBetaData, monteCarloBetaChart, monteCarloBetaOptions, step;
+    function initialize() {
+      google.script.run.withSuccessHandler(function(props) {
+        pertMean = parseFloat(props.PERT_MEAN);
+        pertStd = parseFloat(props.PERT_STD);
+        min = parseFloat(props.MIN);
+        max = parseFloat(props.MAX);
+        mostLikely = parseFloat(props.MOST_LIKELY);
+        alpha = parseFloat(props.ALPHA);
+        beta = parseFloat(props.BETA);
+        betaMode = parseFloat(props.BETA_MODE);
+        monteCarloBetaSamples = JSON.parse(props.MONTE_CARLO_BETA_SAMPLES);
+        monteCarloBetaMode = parseFloat(props.MONTE_CARLO_BETA_MODE);
+        recommendation = props.RECOMMENDATION;  // New line to capture recommendation
+        createChartTypeDropdown();
+        drawSelectedChart();
+        createSlider();
+        displayExplanationAndRecommendation();  // New line to display the explanation and recommendation
+      }).getProperties();
+    }
+    function drawSelectedChart() {
+      var chartType = document.getElementById('chartType').value;
+      if (chartType === 'triangularPlot') {
+        drawTriangularPlot();
+      } else if (chartType === 'betaPlot') {
+        drawBetaPlot();
+      } else if (chartType === 'monteCarloBetaPlot') {
+        drawMonteCarloBetaPlot();
+      }
+      resetSlider();
+    }
+    function drawTriangularPlot() {
+      triangularData = new google.visualization.DataTable();
+      triangularData.addColumn('number', 'X');
+      triangularData.addColumn('number', 'Density');
+      triangularData.addColumn({ type: 'string', role: 'style' });
+      triangularData.addColumn({ type: 'string', role: 'annotation' });
+      triangularData.addColumn({ type: 'string', role: 'annotationText' });
+      triangularData.addColumn('number', 'Confidence');
+      triangularData.addColumn('number', 'Mode');
+      step = (max - min) / 100;
+      for (var x = min; x <= max; x += step) {
+        var y = triangularPdf(x, min, mostLikely, max);
+        triangularData.addRow([x, y, null, null, null, null, null]);
+      }
+      var modeY = triangularPdf(mostLikely, min, mostLikely, max);
+      triangularData.addRow([mostLikely, modeY, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + mostLikely.toFixed(2), null, null]);
+      triangularOptions = {
+        hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+        vAxis: { title: 'Probability Density' },
+        title: 'Triangular Distribution',
+        series: {
+          0: { lineWidth: 2 },
+          1: { pointSize: 12, lineWidth: 0, color: 'green' },
+          2: { pointSize: 12, lineWidth: 0, color: 'red', pointShape: 'circle' }
+        },
+        pointsVisible: true,
+        legend: {
+          position: 'right',
+          textStyle: { fontSize: 12 },
+          items: [
+            { text: 'Confidence', color: 'green', pointShape: 'circle' },
+            { text: 'Mode', color: 'red', pointShape: 'circle' }
+          ]
+        }
+      };
+      triangularChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+      triangularChart.draw(triangularData, triangularOptions);
+      updateTriangularChart(50);
+    }
+    function updateTriangularChart(value) {
+      var userConfidence = value / 100;
+      var userX = min + userConfidence * (max - min);
+      var userY = triangularPdf(userX, min, mostLikely, max);
+      var userAnnotation = 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+      var numRows = triangularData.getNumberOfRows();
+      for (var i = 0; i < numRows; i++) {
+        if (triangularData.getValue(i, 3) !== 'Mode') {
+          triangularData.setValue(i, 2, null);
+          triangularData.setValue(i, 3, null);
+          triangularData.setValue(i, 4, null);
+          triangularData.setValue(i, 5, null);
+        }
+      }
+      for (var i = 0; i < numRows; i++) {
+        if (Math.abs(triangularData.getValue(i, 0) - userX) < step / 2) {
+          triangularData.setValue(i, 5, userY);
+          triangularData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+          triangularData.setValue(i, 3, userAnnotation);
+          triangularData.setValue(i, 4, 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2));
+          break;
+        }
+      }
+      triangularChart.draw(triangularData, triangularOptions);
+    }
+    function triangularPdf(x, a, m, b) {
+      if (x < a || x > b) return 0;
+      if (x <= m) return (2 * (x - a)) / ((b - a) * (m - a));
+      return (2 * (b - x)) / ((b - a) * (b - m));
+    }
+    function drawBetaPlot() {
+      betaData = new google.visualization.DataTable();
+      betaData.addColumn('number', 'X');
+      betaData.addColumn('number', 'Density');
+      betaData.addColumn({ type: 'string', role: 'style' });
+      betaData.addColumn({ type: 'string', role: 'annotation' });
+      betaData.addColumn({ type: 'string', role: 'annotationText' });
+      betaData.addColumn('number', 'Confidence');
+      betaData.addColumn('number', 'Mode');
+      step = (max - min) / 100;
+      for (var x = min; x <= max; x += step) {
+        var xScaled = (x - min) / (max - min);
+        var y = betaPdf(xScaled, alpha, beta);
+        betaData.addRow([x, y, null, null, null, null, null]);
+      }
+      var modeY = betaPdf((betaMode - min) / (max - min), alpha, beta);
+      betaData.addRow([betaMode, modeY, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + betaMode.toFixed(2), null, null]);
+      betaOptions = {
+        hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+        vAxis: { title: 'Probability Density' },
+        title: 'Beta Distribution',
+        series: {
+          0: { lineWidth: 0 },
+          1: { pointSize: 12, lineWidth: 0, color: 'green' },
+          2: { pointSize: 12, lineWidth: 0, color: 'red', pointShape: 'circle' }
+        },
+        pointsVisible: true,
+        legend: {
+          position: 'right',
+          textStyle: { fontSize: 12 },
+          items: [
+            { text: 'Confidence', color: 'green', pointShape: 'circle' },
+            { text: 'Mode', color: 'red', pointShape: 'circle' }
+          ]
+        }
+      };
+      betaChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+      betaChart.draw(betaData, betaOptions);
+      updateBetaChart(50);
+    }
+    function updateBetaChart(value) {
+      var userConfidence = value / 100;
+      var userX = min + userConfidence * (max - min);
+      var userXScaled = (userX - min) / (max - min);
+      var userY = betaPdf(userXScaled, alpha, beta);
+      var userAnnotation = 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+      var numRows = betaData.getNumberOfRows();
+      for (var i = 0; i < numRows; i++) {
+        if (betaData.getValue(i, 3) !== 'Mode') {
+          betaData.setValue(i, 2, null);
+          betaData.setValue(i, 3, null);
+          betaData.setValue(i, 4, null);
+          betaData.setValue(i, 5, null);
+        }
+      }
+      for (var i = 0; i < numRows; i++) {
+        if (Math.abs(betaData.getValue(i, 0) - userX) < step / 2) {
+          betaData.setValue(i, 5, userY);
+          betaData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+          betaData.setValue(i, 3, userAnnotation);
+          betaData.setValue(i, 4, 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2));
+          break;
+        }
+      }
+      betaChart.draw(betaData, betaOptions);
+    }
+    function betaPdf(x, alpha, beta) {
+      if (x < 0 || x > 1) return 0;
+      return (Math.pow(x, alpha - 1) * Math.pow(1 - x, beta - 1)) / betaFunction(alpha, beta);
+    }
+    function betaFunction(alpha, beta) {
+      return gammaFunction(alpha) * gammaFunction(beta) / gammaFunction(alpha + beta);
+    }
+    function gammaFunction(n) {
+      var g = 7;
+      var p = [
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905,
+        -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+      ];
+      if (n < 0.5) {
+        return Math.PI / (Math.sin(Math.PI * n) * gammaFunction(1 - n));
+      } else {
+        n--;
+        var x = p[0];
+        for (var i = 1; i < g + 2; i++) {
+          x += p[i] / (n + i);
+        }
+        var t = n + g + 0.5;
+        return Math.sqrt(2 * Math.PI) * Math.pow(t, n + 0.5) * Math.exp(-t) * x;
+      }
+    }
+    function drawMonteCarloBetaPlot() {
+      monteCarloBetaData = new google.visualization.DataTable();
+      monteCarloBetaData.addColumn('number', 'X');
+      monteCarloBetaData.addColumn('number', 'Density');
+      monteCarloBetaData.addColumn({ type: 'string', role: 'style' });
+      monteCarloBetaData.addColumn({ type: 'string', role: 'annotation' });
+      monteCarloBetaData.addColumn({ type: 'string', role: 'annotationText' });
+      monteCarloBetaData.addColumn('number', 'Confidence');
+      monteCarloBetaData.addColumn('number', 'Mode'); // Added a separate column for mode
+      var histogram = generateHistogram(monteCarloBetaSamples, 100);
+      histogram.forEach(function(row) {
+        monteCarloBetaData.addRow([row.x, row.y, null, null, null, null, null]);
+      });
+      var modeY = getDensityFromHistogram(monteCarloBetaMode, monteCarloBetaData);
+      monteCarloBetaData.addRow([monteCarloBetaMode, null, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + monteCarloBetaMode.toFixed(2), null, modeY]);
+      monteCarloBetaOptions = {
+        hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+        vAxis: { title: 'Probability Density' },
+        title: 'Monte Carlo on Beta Distribution',
+        series: {
+          0: { lineWidth: 2 },
+           1: { pointSize: 10, color: 'green', lineWidth: 0, pointShape: 'circle' },
+           2: { pointSize: 10, color: 'red', lineWidth: 0, pointShape: 'circle' }
+         },
+         pointsVisible: true,
+         legend: {
+           position: 'right',
+           textStyle: { fontSize: 12 },
+           items: [
+             { text: 'Confidence', color: 'green', pointShape: 'circle' },
+             { text: 'Mode', color: 'red', pointShape: 'circle' }
+           ]
+         }
+       };
+     monteCarloBetaChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+      monteCarloBetaChart.draw(monteCarloBetaData, monteCarloBetaOptions);
+      updateMonteCarloBetaChart(50);
+    }
+    function updateMonteCarloBetaChart(value) {
+      var userConfidence = value / 100;
+      var userX = min + userConfidence * (max - min);
+      var userY = getDensityFromHistogram(userX, monteCarloBetaData);
+      var userAnnotation = 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+      var numRows = monteCarloBetaData.getNumberOfRows();
+      for (var i = 0; i < numRows; i++) {
+        if (monteCarloBetaData.getValue(i, 3) !== 'Mode') {
+          monteCarloBetaData.setValue(i, 2, null);
+          monteCarloBetaData.setValue(i, 3, null);
+          monteCarloBetaData.setValue(i, 4, null);
+          monteCarloBetaData.setValue(i, 5, null);
+        }
+      }
+      for (var i = 0; i < numRows; i++) {
+        if (Math.abs(monteCarloBetaData.getValue(i, 0) - userX) < step / 2) {
+          monteCarloBetaData.setValue(i, 5, userY);
+          monteCarloBetaData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+          monteCarloBetaData.setValue(i, 3, userAnnotation);
+          monteCarloBetaData.setValue(i, 4, 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2));
+          break;
+        }
+      }
+      monteCarloBetaChart.draw(monteCarloBetaData, monteCarloBetaOptions);
+    }
+    function generateHistogram(samples, bins) {
+      var minVal = Math.min.apply(null, samples);
+      var maxVal = Math.max.apply(null, samples);
+      var binWidth = (maxVal - minVal) / bins;
+      var histogram = [];
+      for (var i = 0; i < bins; i++) {
+        histogram.push({ x: minVal + i * binWidth, y: 0 });
+      }
+      samples.forEach(function(sample) {
+        var binIndex = Math.floor((sample - minVal) / binWidth);
+        if (binIndex >= 0 && binIndex < bins) {
+          histogram[binIndex].y += 1;
+        }
+      });
+      histogram.forEach(function(bin) {
+        bin.y = bin.y / samples.length / binWidth; // Normalize to form a density
+      });
+      return histogram;
+    }
+    function getDensityFromHistogram(x, data) {
+      var numRows = data.getNumberOfRows();
+      for (var i = 0; i < numRows; i++) {
+        if (data.getValue(i, 0) > x) {
+          return data.getValue(i - 1, 1);
+        }
+      }
+      return 0;
+    }
+    function createChartTypeDropdown() {
+      var container = document.createElement('div');
+      container.id = 'chartType-container';
+      container.innerHTML = `
+        <select id="chartType" onchange="drawSelectedChart()">
+          <option value="triangularPlot">Triangular Distribution (Shaped by Initial Estimates)</option>
+          <option value="betaPlot">Beta Distribution (Shaped by PERT)</option>
+          <option value="monteCarloBetaPlot">Monte Carlo on Beta Distribution</option>
+        </select>
+      `;
+      document.body.appendChild(container);
+    }
+    function createSlider() {
+      var sliderContainer = document.getElementById('slider-container');
+      if (!sliderContainer) {
+        sliderContainer = document.createElement('div');
+        sliderContainer.id = 'slider-container';
+        document.body.appendChild(sliderContainer);
+      }
+      sliderContainer.innerHTML = `
+        <input type="range" min="1" max="100" value="50" id="slider">
+        <span id="slider-value">50</span>
+      `;
+      var slider = document.getElementById('slider');
+      slider.addEventListener('input', function() {
+        updateSliderValue(this.value);
+      });
+    }
+    function removeSlider() {
+      var sliderContainer = document.getElementById('slider-container');
+      if (sliderContainer) {
+        sliderContainer.parentNode.removeChild(sliderContainer);
+      }
+    }
+    function resetSlider() {
+      var slider = document.getElementById('slider');
+      if (slider) {
+        slider.value = 50;
+        document.getElementById('slider-value').innerText = 50;
+      }
+    }
+    function updateSliderValue(value) {
+      var sliderValueElement = document.getElementById('slider-value');
+      if (sliderValueElement) {
+        sliderValueElement.innerText = value;
+      }
+      var chartType = document.getElementById('chartType').value;
+      if (chartType === 'triangularPlot') {
+        updateTriangularChart(value);
+      } else if (chartType === 'betaPlot') {
+        updateBetaChart(value);
+      } else if (chartType === 'monteCarloBetaPlot') {
+        updateMonteCarloBetaChart(value);
+      }
+    }
+    function displayExplanationAndRecommendation() {
+      var explanationDiv = document.createElement('div');
+      explanationDiv.id = 'explanation_div';
+      explanationDiv.innerHTML = `
+        <p>The Monte Carlo simulation generates a large number of random samples to estimate the distribution. The mode, shown as the red circle, represents the most frequently occurring value in these samples. However, the highest peak in the histogram may sometimes differ slightly from the mode due to how the samples are grouped into bins. This is a normal variation in statistical visualization.</p>
+        <p><strong>Recommendation:</strong> ${recommendation}</p>
+      `;
+      document.body.appendChild(explanationDiv);
+    }
+  </script>
+</head>
+<body>
+  <div id="chartType-container"></div>
+  <div id="chart_div"></div>
+</body>
+</html>
+
+
+ 
