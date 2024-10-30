@@ -1,0 +1,707 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    #chart_div {
+  width: 100%;
+  height: 600px;
+  position: relative;
+}
+
+#slider-container, #chartType-container {
+  position: absolute;
+  background: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  z-index: 1; /* Ensure it appears on top of other elements */
+}
+
+#chartType-container {
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+#slider-container {
+    top: 10px; /* Match the top position of the buttons */
+    right: 20px; /* Keep it aligned to the right */
+    height: 40px; /* Match the button height if they are approximately 40px in height */
+    display: flex; /* Align items horizontally */
+    align-items: center; /* Center align the slider vertically */
+    margin-left: 20px; /* Space it out to match the buttons */
+}
+
+
+.chart-button {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  cursor: pointer;
+  background-color: #e7e7e7;
+  color: #333;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.chart-button.active {
+  background-color: #007bff;
+  color: white;
+}
+
+#explanation_div {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+}
+
+#recommendation-container {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  padding: 10px;
+}
+
+  </style>
+
+  <script type="text/javascript">
+    google.charts.load('current', { packages: ['corechart', 'line'] });
+    google.charts.setOnLoadCallback(initialize);
+    var pertMean, pertStd, min, max, mostLikely, alpha, beta, betaMode, monteCarloBetaSamples, monteCarloBetaMode, recommendation;
+    var triangularData, triangularChart, triangularOptions, betaData, betaChart, betaOptions, monteCarloBetaData, monteCarloBetaChart, monteCarloBetaOptions, step;
+ 
+function initialize() {
+    google.script.run.withSuccessHandler(function(props) {
+        // Set properties
+        pertMean = parseFloat(props.PERT_MEAN);
+        pertStd = parseFloat(props.PERT_STD);
+        min = parseFloat(props.MIN);
+        max = parseFloat(props.MAX);
+        mostLikely = parseFloat(props.MOST_LIKELY);
+        alpha = parseFloat(props.ALPHA);
+        beta = parseFloat(props.BETA);
+        betaMode = parseFloat(props.BETA_MODE);
+        monteCarloBetaSamples = JSON.parse(props.MONTE_CARLO_BETA_SAMPLES);
+        monteCarloBetaMode = parseFloat(props.MONTE_CARLO_BETA_MODE);
+        recommendation = props.RECOMMENDATION;
+        confidencePercentiles = JSON.parse(props.CONFIDENCE_PERCENTILES);
+
+        // Ensure buttons are created first
+        createChartTypeButtons();  // Creates the chart selection buttons
+
+        // Ensure the slider is created
+        createSlider();  // Creates the confidence slider
+        
+        // Set the initial active chart to the triangular plot
+        setActiveChart('triangularPlot');  // Draw the triangular plot initially
+
+        // Display explanation and recommendation only if the active plot is Monte Carlo on Beta
+        if (document.getElementById('monteCarloBetaPlot').classList.contains('active')) {
+            displayExplanationAndRecommendation('monteCarloBetaPlot', recommendation);
+        }
+    }).getProperties();
+}
+
+
+function createChartTypeButtons() {
+  var container = document.getElementById('chartType-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'chartType-container';
+    document.body.appendChild(container);
+  }
+
+  container.innerHTML = `
+    <button id="triangularPlot" class="chart-button">Triangular</button>
+    <button id="betaPlot" class="chart-button">Beta</button>
+    <button id="monteCarloBetaPlot" class="chart-button active">Monte Carlo on Beta</button>
+    <button id="showRecommendation" class="chart-button">Recommendation</button>
+  `;
+
+  var buttons = container.querySelectorAll('.chart-button');
+  buttons.forEach(function(button) {
+    button.addEventListener('click', function() {
+      buttons.forEach(btn => btn.classList.remove('active'));
+      this.classList.add('active');
+      if (this.id === 'showRecommendation') {
+        showRecommendation();
+      } else {
+        drawSelectedChart();
+        removeRecommendation();
+      }
+    });
+  });
+}
+
+function showRecommendation() {
+    google.script.run.withSuccessHandler(function(props) {
+        removeRecommendation(); // Clear any existing recommendation text
+
+        // Show recommendation text for Monte Carlo on Beta plot
+        displayExplanationAndRecommendation('monteCarloBetaPlot', props.RECOMMENDATION);
+
+        // Ensure the Monte Carlo on Beta plot is drawn
+        setActiveChart('monteCarloBetaPlot');
+
+        // Reconnect the slider to the Monte Carlo on Beta plot after it's rendered
+        updateMonteCarloBetaChart(50); // Start with 50% confidence
+        resetSlider(); // Re-link the slider to the plot
+
+        // Ensure the slider updates the plot for the Recommendation context
+        document.getElementById('slider').addEventListener('input', function() {
+            updateMonteCarloBetaChart(this.value);
+            updateExactValueAnnotation(this.value); // Keep slider in sync
+        });
+
+        // Adjust button highlighting
+        document.getElementById('monteCarloBetaPlot').classList.remove('active');
+        document.getElementById('showRecommendation').classList.add('active');
+    }).getProperties();
+}
+
+
+function removeRecommendation() {
+  var explanationDiv = document.getElementById('explanation_div');
+  if (explanationDiv) {
+    explanationDiv.remove();
+  }
+}
+
+
+function displayExplanationAndRecommendation(chartType, recommendation) {
+  var explanationDiv = document.getElementById('explanation_div');
+  if (explanationDiv) {
+    explanationDiv.remove();
+  }
+
+  // Extract values for mode, 50th percentile, and 90th percentile directly from the recommendation string
+  const modeMatch = recommendation.match(/mode \(of the Monte Carlo on the beta distribution is\) ([\d.]+)/);
+  const percentile50Match = recommendation.match(/50th percentile ([\d.]+)/);
+  const percentile90Match = recommendation.match(/90th percentile ([\d.]+)/);
+
+  // Assign matches or use empty strings as fallback
+  const modeValue = modeMatch ? modeMatch[1] : '';
+  const exactValue90th = percentile90Match ? percentile90Match[1] : '';
+
+  // Use the approximate 90th percentile based on a smoothed histogram value from the plot display
+  const approximateValue90th = confidencePercentiles[90];
+
+  // Calculate Value at Risk (VaR) for the 90th percentile
+  const valueAtRisk = calculateValueAtRisk(90);
+
+  // Build the explanation content
+  explanationDiv = document.createElement('div');
+  explanationDiv.id = 'explanation_div';
+  explanationDiv.innerHTML = `
+    <p><strong>Recommendation:</strong> ${recommendation}</p>
+    <ul>
+      <li><strong>Range:</strong> Min: <strong>${min}</strong>, Max: <strong>${max}</strong>
+        <ul>
+          <li><em>What it is:</em> The range represents the minimum and maximum values within the dataset, showing the full span of possible outcomes.</li>
+          <li><em>How it’s calculated:</em> The minimum is the smallest value in the dataset, while the maximum is the largest. This simple range calculation provides an overview of the distribution’s spread.</li>
+          <li><em>Use Case:</em> Useful for visualizing the scope of possible outcomes, from best-case to worst-case, especially for planning scenarios where knowing the complete boundary of outcomes is important.</li>
+          <li><em>Actual Value Interpretation:</em> Here, the range from ${min} to ${max} represents the entire spread of potential outcomes, helping to gauge best- and worst-case boundaries.</li>
+        </ul>
+      </li>
+      <li><strong>Mode (Most Likely Value):</strong> <strong>${modeValue}</strong>
+        <ul>
+          <li><em>What it is:</em> The mode is the most frequently occurring value in the dataset, indicating the outcome that’s most expected.</li>
+          <li><em>How it’s calculated:</em> Calculated by identifying the value with the highest frequency in the Monte Carlo sample distribution.</li>
+          <li><em>Use Case:</em> The mode is ideal for projecting the typical or expected outcome in planning. This value guides baseline expectations for performance or duration under normal conditions.</li>
+          <li><em>Actual Value Interpretation:</em> With a mode of ${modeValue}, we can anticipate this outcome as the most likely occurrence within typical conditions.</li>
+        </ul>
+      </li>
+      <li><strong>Exact Value (90th Percentile):</strong> <strong>${exactValue90th}</strong>
+        <ul>
+          <li><em>What it is:</em> The exact 90th percentile reflects the value below which 90% of all outcomes are expected to fall, offering a strict upper boundary.</li>
+          <li><em>How it’s calculated:</em> By arranging all values in ascending order and locating the value at the 90th percentile position. This calculation provides a conservative upper boundary.</li>
+          <li><em>Use Case:</em> For situations with high-stakes planning, where exceeding an upper limit poses risks. The exact 90th percentile is suitable for setting precise thresholds for contingency planning.</li>
+          <li><em>Actual Value Interpretation:</em> The exact 90th percentile of ${exactValue90th} means that 90% of projected outcomes fall at or below this value, aiding in setting strict limits for safe planning.</li>
+        </ul>
+      </li>
+      <li><strong>Approximate Value (90th Percentile):</strong> <strong>${approximateValue90th}</strong>
+        <ul>
+          <li><em>What it is:</em> The approximate 90th percentile smooths minor fluctuations, providing a stable trendline to track broader distribution tendencies.</li>
+          <li><em>How it’s calculated:</em> Using a smoothed or fitted curve of the distribution, this approximates the 90th percentile value to reduce sensitivity to small variations.</li>
+          <li><em>Use Case:</em> Useful for general forecasting and long-term trend analysis, where day-to-day variations aren’t critical, but an overall trend matters for strategic planning.</li>
+          <li><em>Actual Value Interpretation:</em> Here, an approximate 90th percentile of ${approximateValue90th} indicates a stable upper boundary, less sensitive to small changes, making it ideal for planning around broader trends.</li>
+        </ul>
+      </li>
+      <li><strong>Value at Risk (VaR):</strong> <strong>${valueAtRisk.toFixed(2)}</strong>
+        <ul>
+          <li><em>What it is:</em> VaR at a 90% confidence level defines a threshold that represents the maximum expected "worst-case" outcome.</li>
+          <li><em>How it’s calculated:</em> VaR considers the distribution’s mean and standard deviation to estimate this threshold value at the 90% confidence level. It’s derived by examining values in the upper tail of the distribution.</li>
+          <li><em>Use Case:</em> VaR acts as a risk management buffer, providing a preparedness level for situations where outcomes may approach the higher end of expected values. This buffer helps allocate resources more conservatively, accounting for acceptable "worst-case" scenarios.</li>
+          <li><em>Actual Value Interpretation:</em> In this case, the VaR of ${valueAtRisk.toFixed(2)} indicates that, with 90% confidence, outcomes will not exceed this value, preparing for scenarios near the upper boundary with an acceptable level of risk.</li>
+        </ul>
+      </li>
+    </ul>
+  `;
+  document.body.appendChild(explanationDiv);
+}
+
+
+
+
+
+
+
+
+
+
+
+function drawSelectedChart() {
+    var chartType = document.querySelector('.chart-button.active').id;
+    removeRecommendation(); // Ensure recommendation text is removed for non-Monte Carlo plots
+    
+    if (chartType === 'triangularPlot') {
+        drawTriangularPlot();
+    } else if (chartType === 'betaPlot') {
+        drawBetaPlot();
+    } else if (chartType === 'monteCarloBetaPlot') {
+        drawMonteCarloBetaPlot();
+        displayExplanationAndRecommendation('monteCarloBetaPlot', recommendation); // Only show recommendation text for Monte Carlo on Beta
+    }
+    resetSlider();
+}
+
+
+
+function drawTriangularPlot() {
+  triangularData = new google.visualization.DataTable();
+  triangularData.addColumn('number', 'X');
+  triangularData.addColumn('number', 'Density');
+  triangularData.addColumn({ type: 'string', role: 'style' });
+  triangularData.addColumn({ type: 'string', role: 'annotation' });
+  triangularData.addColumn({ type: 'string', role: 'annotationText' });
+  triangularData.addColumn('number', 'Confidence');
+  triangularData.addColumn('number', 'Mode');
+  step = (max - min) / 100;
+  for (var x = min; x <= max; x += step) {
+    var y = triangularPdf(x, min, mostLikely, max);
+    triangularData.addRow([x, y, null, null, null, null, null]);
+  }
+  var modeY = triangularPdf(mostLikely, min, mostLikely, max);
+  triangularData.addRow([mostLikely, modeY, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + mostLikely.toFixed(2), null, null]);
+  triangularOptions = {
+    hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+    vAxis: { title: 'Probability Density' },
+    title: 'Triangular Distribution',
+    series: {
+      0: { lineWidth: 2 },
+      1: { pointSize: 12, lineWidth: 0, color: 'green' },
+      2: { pointSize: 12, lineWidth: 0, color: 'red', pointShape: 'circle' }
+    },
+    pointsVisible: true,
+    legend: {
+      position: 'right',
+      textStyle: { fontSize: 12 },
+      items: [
+        { text: 'Confidence', color: 'green', pointShape: 'circle' },
+        { text: 'Mode', color: 'red', pointShape: 'circle' }
+      ]
+    }
+  };
+  triangularChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+  triangularChart.draw(triangularData, triangularOptions);
+  updateTriangularChart(50);
+}
+
+function updateTriangularChart(value) {
+  var userConfidence = value / 100;
+  var userX = min + userConfidence * (max - min);
+  var userY = triangularPdf(userX, min, mostLikely, max);
+  var userAnnotation = 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+  var numRows = triangularData.getNumberOfRows();
+  for (var i = 0; i < numRows; i++) {
+    if (triangularData.getValue(i, 3) !== 'Mode') {
+      triangularData.setValue(i, 2, null);
+      triangularData.setValue(i, 3, null);
+      triangularData.setValue(i, 4, null);
+      triangularData.setValue(i, 5, null);
+    }
+  }
+  for (var i = 0; i < numRows; i++) {
+    if (Math.abs(triangularData.getValue(i, 0) - userX) < step / 2) {
+      triangularData.setValue(i, 5, userY);
+      triangularData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+      triangularData.setValue(i, 3, userAnnotation);
+      triangularData.setValue(i, 4, 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2));
+      break;
+    }
+  }
+  triangularChart.draw(triangularData, triangularOptions);
+}
+
+function triangularPdf(x, a, m, b) {
+  if (x < a || x > b) return 0;
+  if (x <= m) return (2 * (x - a)) / ((b - a) * (m - a));
+  return (2 * (b - x)) / ((b - a) * (b - m));
+}
+
+function drawBetaPlot() {
+  betaData = new google.visualization.DataTable();
+  betaData.addColumn('number', 'X');
+  betaData.addColumn('number', 'Density');
+  betaData.addColumn({ type: 'string', role: 'style' });
+  betaData.addColumn({ type: 'string', role: 'annotation' });
+  betaData.addColumn({ type: 'string', role: 'annotationText' });
+  betaData.addColumn('number', 'Confidence');
+  betaData.addColumn('number', 'Mode');
+  step = (max - min) / 100;
+  for (var x = min; x <= max; x += step) {
+    var xScaled = (x - min) / (max - min);
+    var y = betaPdf(xScaled, alpha, beta);
+    betaData.addRow([x, y, null, null, null, null, null]);
+  }
+  var modeY = betaPdf((betaMode - min) / (max - min), alpha, beta);
+  betaData.addRow([betaMode, modeY, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + betaMode.toFixed(2), null, null]);
+  betaOptions = {
+    hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+    vAxis: { title: 'Probability Density' },
+    title: 'Beta Distribution',
+    series: {
+      0: { lineWidth: 0 },
+      1: { pointSize: 12, lineWidth: 0, color: 'green' },
+      2: { pointSize: 12, lineWidth: 0, color: 'red', pointShape: 'circle' }
+    },
+    pointsVisible: true,
+    legend: {
+      position: 'right',
+      textStyle: { fontSize: 12 },
+      items: [
+        { text: 'Confidence', color: 'green', pointShape: 'circle' },
+        { text: 'Mode', color: 'red', pointShape: 'circle' }
+      ]
+    }
+  };
+  betaChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+  betaChart.draw(betaData, betaOptions);
+  updateBetaChart(50);
+}
+
+function updateBetaChart(value) {
+  var userConfidence = value / 100;
+  var userX = min + userConfidence * (max - min);
+  var userXScaled = (userX - min) / (max - min);
+  var userY = betaPdf(userXScaled, alpha, beta);
+  var userAnnotation = 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2);
+  var numRows = betaData.getNumberOfRows();
+  for (var i = 0; i < numRows; i++) {
+    if (betaData.getValue(i, 3) !== 'Mode') {
+      betaData.setValue(i, 2, null);
+      betaData.setValue(i, 3, null);
+      betaData.setValue(i, 4, null);
+      betaData.setValue(i, 5, null);
+    }
+  }
+  for (var i = 0; i < numRows; i++) {
+    if (Math.abs(betaData.getValue(i, 0) - userX) < step / 2) {
+      betaData.setValue(i, 5, userY);
+      betaData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+      betaData.setValue(i, 3, userAnnotation);
+      betaData.setValue(i, 4, 'Confidence: ' + value + '%\nValue: ' + userX.toFixed(2) + '\nDensity: ' + userY.toFixed(2));
+      break;
+    }
+  }
+  betaChart.draw(betaData, betaOptions);
+}
+
+function betaPdf(x, alpha, beta) {
+  if (x < 0 || x > 1) return 0;
+  var num = Math.pow(x, alpha - 1) * Math.pow(1 - x, beta - 1);
+  var denom = betaFunction(alpha, beta);
+  return num / denom;
+}
+
+function betaFunction(alpha, beta) {
+  return gammaFunction(alpha) * gammaFunction(beta) / gammaFunction(alpha + beta);
+}
+
+function gammaFunction(n) {
+  var g = 7;
+  var p = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
+  if (n < 0.5) {
+    return Math.PI / (Math.sin(Math.PI * n) * gammaFunction(1 - n));
+  } else {
+    n--;
+    var x = p[0];
+    for (var i = 1; i < g + 2; i++) {
+      x += p[i] / (n + i);
+    }
+    var t = n + g + 0.5;
+    return Math.sqrt(2 * Math.PI) * Math.pow(t, n + 0.5) * Math.exp(-t) * x;
+  }
+}
+
+function drawMonteCarloBetaPlot() {
+  monteCarloBetaData = new google.visualization.DataTable();
+  monteCarloBetaData.addColumn('number', 'X');
+  monteCarloBetaData.addColumn('number', 'Density');
+  monteCarloBetaData.addColumn({ type: 'string', role: 'style' });
+  monteCarloBetaData.addColumn({ type: 'string', role: 'annotation' });
+  monteCarloBetaData.addColumn({ type: 'string', role: 'annotationText' });
+  monteCarloBetaData.addColumn('number', 'Confidence');
+  monteCarloBetaData.addColumn('number', 'Mode');
+  var histogram = generateHistogram(monteCarloBetaSamples, 100);
+  histogram.forEach(function(row) {
+    monteCarloBetaData.addRow([row.x, row.y, null, null, null, null, null]);
+  });
+  var modeY = getDensityFromHistogram(monteCarloBetaMode, monteCarloBetaData);
+  monteCarloBetaData.addRow([monteCarloBetaMode, modeY, 'point { size: 10; shape-type: circle; fill-color: red; }', 'Mode', 'Mode: ' + monteCarloBetaMode.toFixed(2), null, modeY]);
+  monteCarloBetaOptions = {
+    hAxis: { title: 'Value', viewWindow: { min: min, max: max } },
+    vAxis: { title: 'Probability Density' },
+    title: 'Monte Carlo on Beta Distribution',
+    series: {
+      0: { lineWidth: 0 },
+      1: { pointSize: 10, color: 'green', lineWidth: 0, pointShape: 'circle' },
+      2: { pointSize: 10, color: 'red', lineWidth: 0, pointShape: 'circle' }
+    },
+    pointsVisible: true,
+    legend: {
+      position: 'right',
+      textStyle: { fontSize: 12 },
+      items: [
+        { text: 'Confidence', color: 'green', pointShape: 'circle' },
+        { text: 'Mode', color: 'red', pointShape: 'circle' }
+      ]
+    }
+  };
+  monteCarloBetaChart = new google.visualization.LineChart(document.getElementById('chart_div'));
+  monteCarloBetaChart.draw(monteCarloBetaData, monteCarloBetaOptions);
+  updateMonteCarloBetaChart(50);
+}
+
+function calculateValueAtRisk(confidenceLevel) {
+    // Sort the Monte Carlo samples in ascending order
+    const sortedSamples = [...monteCarloBetaSamples].sort((a, b) => a - b);
+
+    // Calculate the index for the Value at Risk (VaR) based on confidence level
+    const varIndex = Math.floor((1 - confidenceLevel / 100) * sortedSamples.length);
+
+    // Retrieve the VaR value from the sorted samples
+    return sortedSamples[varIndex];
+}
+
+function updateMonteCarloBetaChart(value) {
+    var userX = confidencePercentiles[value]; // Use the pre-calculated confidence percentiles
+    var userY = getDensityFromHistogram(userX, monteCarloBetaData);
+
+    // Calculate Value at Risk (VaR) dynamically based on the current slider confidence level
+    const valueAtRisk = calculateValueAtRisk(value); // VaR at current confidence level
+
+    // Update the annotation to include Value at Risk
+    var userAnnotation = `Confidence: ${value}%\nValue Exact: ${userX.toFixed(2)}\nValue Approximate: ${userX.toFixed(2)}\nDensity: ${userY.toFixed(2)}\nValue at Risk (VaR): ${valueAtRisk.toFixed(2)}`;
+
+    var numRows = monteCarloBetaData.getNumberOfRows();
+    for (var i = 0; i < numRows; i++) {
+        if (monteCarloBetaData.getValue(i, 3) !== 'Mode') {
+            monteCarloBetaData.setValue(i, 2, null);
+            monteCarloBetaData.setValue(i, 3, null);
+            monteCarloBetaData.setValue(i, 4, null);
+            monteCarloBetaData.setValue(i, 5, null);
+        }
+    }
+
+    for (var i = 0; i < numRows; i++) {
+        if (Math.abs(monteCarloBetaData.getValue(i, 0) - userX) < step / 2) {
+            monteCarloBetaData.setValue(i, 5, userY);
+            monteCarloBetaData.setValue(i, 2, 'point { size: 5; shape-type: circle; fill-color: green; }');
+            monteCarloBetaData.setValue(i, 3, userAnnotation);
+            monteCarloBetaData.setValue(i, 4, userAnnotation); // Update with the correct order
+            break;
+        }
+    }
+
+    monteCarloBetaChart.draw(monteCarloBetaData, monteCarloBetaOptions);
+
+    // Now, call the function to replace the "Value Exact" placeholder with the actual exact value
+    updateExactValueAnnotation(value);
+}
+
+
+
+function updateExactValueAnnotation(value) {
+  google.script.run.withSuccessHandler(function(confidencePercentilesString) {
+    if (!confidencePercentilesString) {
+      console.error("Confidence Percentiles String is empty or undefined.");
+      return;
+    }
+    var confidencePercentilesObj = JSON.parse(confidencePercentilesString);
+    var userXExact = confidencePercentilesObj[value] || confidencePercentilesObj[99]; // Use "99" if "100" is missing
+
+    if (!userXExact) {
+      console.error("Value Exact is undefined for the given confidence level.");
+      return;
+    }
+
+    // Calculate Value at Risk (VaR) based on the current confidence level
+    const valueAtRisk = calculateValueAtRisk(value);
+
+    // Find the row in the chart where the green circle is drawn
+    var numRows = monteCarloBetaData.getNumberOfRows();
+    for (var i = 0; i < numRows; i++) {
+      if (monteCarloBetaData.getValue(i, 2) !== null) { // Green circle row
+        var currentAnnotation = monteCarloBetaData.getValue(i, 4);
+
+        // Extract current values from the existing annotation
+        var valueApproximate = currentAnnotation.match(/Value Approximate: ([\d.]+)/)[1];
+        var density = currentAnnotation.match(/Density: ([\d.]+)/)[1];
+
+        // Create the updated annotation string with VaR included
+        var updatedAnnotation = `Confidence: ${value}%\nValue Exact: ${userXExact.toFixed(2)}\nValue Approximate: ${valueApproximate}\nDensity: ${density}\nValue at Risk (VaR): ${valueAtRisk.toFixed(2)}`;
+
+        // Update the annotation in the data table
+        monteCarloBetaData.setValue(i, 4, updatedAnnotation);
+        monteCarloBetaData.setValue(i, 3, updatedAnnotation); // Update the non-hover annotation as well
+        break;
+      }
+    }
+
+    // Redraw the chart with the updated annotation
+    monteCarloBetaChart.draw(monteCarloBetaData, monteCarloBetaOptions);
+  }).getConfidencePercentilesArray();
+}
+
+
+function updateSliderValue(value) {
+  var sliderValueElement = document.getElementById('slider-value');
+  if (sliderValueElement) {
+    sliderValueElement.innerText = value;
+  }
+
+  var chartType = document.querySelector('.chart-button.active').id;
+  if (chartType === 'triangularPlot') {
+    updateTriangularChart(value);
+  } else if (chartType === 'betaPlot') {
+    updateBetaChart(value);
+  } else if (chartType === 'monteCarloBetaPlot') {
+    updateMonteCarloBetaChart(value); // Ensure this is called first
+    updateExactValueAnnotation(value); // Then call this to update the annotation
+  }
+}
+
+function generateHistogram(samples, bins) {
+  var minVal = Math.min.apply(null, samples);
+  var maxVal = Math.max.apply(null, samples);
+  var binWidth = (maxVal - minVal) / bins;
+  var histogram = [];
+  for (var i = 0; i < bins; i++) {
+    histogram.push({ x: minVal + i * binWidth, y: 0 });
+  }
+  samples.forEach(function(sample) {
+    var binIndex = Math.floor((sample - minVal) / binWidth);
+    if (binIndex >= 0 && binIndex < bins) {
+      histogram[binIndex].y += 1;
+    }
+  });
+  histogram.forEach(function(bin) {
+    bin.y = bin.y / samples.length / binWidth; // Normalize to form a density
+  });
+  return histogram;
+}
+
+function getDensityFromHistogram(x, data) {
+  var numRows = data.getNumberOfRows();
+  for (var i = 0; i < numRows; i++) {
+    if (data.getValue(i, 0) > x) {
+      return data.getValue(i - 1, 1);
+    }
+  }
+  return 0;
+}
+
+function setActiveChart(chartType) {
+  var buttons = document.querySelectorAll('.chart-button');
+  buttons.forEach(function(button) {
+    button.classList.remove('active');
+  });
+
+  var selectedButton = document.getElementById(chartType);
+  if (chartType === 'showRecommendation') {
+    selectedButton.classList.add('active');
+    displayExplanationAndRecommendation();
+  } else {
+    selectedButton.classList.add('active');
+    drawSelectedChart();  // Draw the chart for the selected button
+  }
+}
+
+function createSlider() {
+  var sliderContainer = document.getElementById('slider-container');
+  if (!sliderContainer) {
+    sliderContainer = document.createElement('div');
+    sliderContainer.id = 'slider-container';
+    document.body.appendChild(sliderContainer);
+  }
+  sliderContainer.innerHTML = `
+    <label for="slider">Confidence:</label>
+    <input type="range" min="1" max="100" value="50" id="slider">
+    <span id="slider-value">50</span>
+  `;
+  // Adjust the position to align the slider to the right, ensuring it doesn't overlap the buttons
+  sliderContainer.style.position = 'absolute';
+  sliderContainer.style.top = '10px'; 
+  sliderContainer.style.right = '20px'; // Move it to the right
+  sliderContainer.style.marginLeft = 'auto'; // Push it away from the buttons
+
+  var slider = document.getElementById('slider');
+  slider.addEventListener('input', function() {
+    updateSliderValue(this.value);
+  });
+}
+
+function removeSlider() {
+  var sliderContainer = document.getElementById('slider-container');
+  if (sliderContainer) {
+    sliderContainer.parentNode.removeChild(sliderContainer);
+  }
+}
+
+function resetSlider() {
+    var slider = document.getElementById('slider');
+    if (slider) {
+        slider.value = 50; // Default value
+        document.getElementById('slider-value').innerText = 50;
+
+        slider.addEventListener('input', function() {
+            var chartType = document.querySelector('.chart-button.active').id;
+            if (chartType === 'monteCarloBetaPlot') {
+                updateMonteCarloBetaChart(this.value); // Ensure slider updates the Monte Carlo on Beta plot
+                updateExactValueAnnotation(this.value); // Update exact value annotation for Monte Carlo on Beta
+            }
+        });
+    }
+}
+
+
+</script>
+</head>
+<body>
+  <!-- Ensure the recommendation text appears first -->
+  <div id="recommendation-container"></div>
+
+  <!-- Container for chart type selection buttons -->
+  <div id="chartType-container"></div>
+
+  <!-- Container for the plot -->
+  <div id="chart_div"></div>
+
+  <!-- Slider container, ensure it's positioned correctly with CSS -->
+  <div id="slider-container"></div>
+</body>
+</html>
+
+
