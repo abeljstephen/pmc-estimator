@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 700px;
+        margin: auto;
+        padding: 1em;
+        background: #f7f7f7;
+      }
+      h2 {
+        text-align: center;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1em;
+        background: #fff;
+      }
+      td, th {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background: #f0f0f0;
+      }
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      #result {
+        margin-top: 1em;
+        text-align: center;
+      }
+      button {
+        margin-top: 1em;
+        padding: 10px 20px;
+        font-size: 1em;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Review and Submit Your Estimates</h2>
+    <form id="tasksForm">
+      <table id="tasksTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Best Case</th>
+            <th>Most Likely</th>
+            <th>Worst Case</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" onclick="submitData()">Submit Estimates</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+      function addRow(task) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" value="${task.taskName || ''}"></td>
+          <td><input type="number" min="0" value="${task.bestCase || ''}"></td>
+          <td><input type="number" min="0" value="${task.mostLikely || ''}"></td>
+          <td><input type="number" min="0" value="${task.worstCase || ''}"></td>
+        `;
+        document.querySelector('#tasksTable tbody').appendChild(tr);
+      }
+
+      // ✅ CORRECTED LINE: this outputs raw JSON, not escaped HTML
+      const prefillData = <?!= JSON.stringify(prefillData) ?>;
+
+      if (prefillData && prefillData.length) {
+        prefillData.forEach(addRow);
+      } else {
+        addRow({});
+      }
+
+      function submitData() {
+        const rows = document.querySelectorAll('#tasksTable tbody tr');
+        const tasks = Array.from(rows).map(row => {
+          const inputs = row.querySelectorAll('input');
+          return {
+            taskName: inputs[0].value.trim(),
+            bestCase: parseFloat(inputs[1].value),
+            mostLikely: parseFloat(inputs[2].value),
+            worstCase: parseFloat(inputs[3].value)
+          };
+        });
+
+        document.getElementById('result').textContent = 'Submitting...';
+
+        google.script.run.withSuccessHandler(res => {
+          document.getElementById('result').innerHTML = `
+            <p><strong>Sheet Created:</strong> <a href="${res.sheetUrl}" target="_blank">${res.sheetUrl}</a></p>
+            <p><strong>View Plot:</strong> <a href="${res.plotUrl}" target="_blank">${res.plotUrl}</a></p>
+          `;
+        }).withFailureHandler(err => {
+          document.getElementById('result').textContent = 'Error: ' + err.message;
+        }).createEstimateSheet(tasks);
+      }
+    </script>
+  </body>
+</html>
+
+
