@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; }
+      table { border-collapse: collapse; margin-top: 1em; }
+      td, th { border: 1px solid #ddd; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <h2>Submit Your Estimates</h2>
+    <form id="tasksForm">
+      <table id="tasksTable">
+        <thead>
+          <tr>
+            <th>Task Name</th>
+            <th>Best Case</th>
+            <th>Most Likely</th>
+            <th>Worst Case</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <button type="button" onclick="submitData()">Submit Estimates</button>
+    </form>
+    <div id="result" style="margin-top:1em;"></div>
+
+    <script>
+      function addRow(task) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input value="${task.taskName || ''}"></td>
+          <td><input type="number" value="${task.bestCase || ''}"></td>
+          <td><input type="number" value="${task.mostLikely || ''}"></td>
+          <td><input type="number" value="${task.worstCase || ''}"></td>
+        `;
+        document.querySelector('#tasksTable tbody').appendChild(tr);
+      }
+
+      // Prefill rows if data exists
+      if (window.prefillData) {
+        window.prefillData.forEach(addRow);
+      } else {
+        // Add one empty row by default
+        addRow({});
+      }
+
+      function submitData() {
+        const rows = document.querySelectorAll('#tasksTable tbody tr');
+        const tasks = Array.from(rows).map(row => {
+          const inputs = row.querySelectorAll('input');
+          return {
+            taskName: inputs[0].value,
+            bestCase: parseFloat(inputs[1].value),
+            mostLikely: parseFloat(inputs[2].value),
+            worstCase: parseFloat(inputs[3].value)
+          };
+        });
+
+        document.getElementById('result').textContent = 'Submitting...';
+
+        google.script.run.withSuccessHandler(res => {
+          document.getElementById('result').innerHTML = `
+            <p><strong>Sheet Created:</strong> <a href="${res.sheetUrl}" target="_blank">${res.sheetUrl}</a></p>
+            <p><strong>View Plot:</strong> <a href="${res.plotUrl}" target="_blank">${res.plotUrl}</a></p>
+          `;
+        }).withFailureHandler(err => {
+          document.getElementById('result').textContent = 'Error: ' + err.message;
+        }).createEstimateSheet(tasks);
+      }
+    </script>
+  </body>
+</html>
+
