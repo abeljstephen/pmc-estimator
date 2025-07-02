@@ -1,14 +1,19 @@
 // core.js
 
 function validateEstimates(estimates) {
-  const { bestCase, mostLikely, worstCase } = estimates;
+  let { bestCase, mostLikely, worstCase } = estimates;
+
+  // Convert strings to numbers if needed
+  bestCase = Number(bestCase);
+  mostLikely = Number(mostLikely);
+  worstCase = Number(worstCase);
 
   if (
-    typeof bestCase !== "number" ||
-    typeof mostLikely !== "number" ||
-    typeof worstCase !== "number"
+    isNaN(bestCase) ||
+    isNaN(mostLikely) ||
+    isNaN(worstCase)
   ) {
-    throw new Error("All estimates must be numbers.");
+    throw new Error("All estimates must be valid numbers.");
   }
 
   if (bestCase < 0 || mostLikely < 0 || worstCase < 0) {
@@ -18,6 +23,11 @@ function validateEstimates(estimates) {
   if (bestCase > mostLikely || mostLikely > worstCase) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
+
+  // Update the estimates object to hold numeric values
+  estimates.bestCase = bestCase;
+  estimates.mostLikely = mostLikely;
+  estimates.worstCase = worstCase;
 }
 
 function calculatePertEstimate(bestCase, mostLikely, worstCase) {
