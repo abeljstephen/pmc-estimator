@@ -1,4 +1,4 @@
-const core = require("./core");
+const core = require("../system-google-cloud-core/core");
 
 exports.pmcEstimatorAPI = (req, res) => {
   if (req.method !== "POST") {
@@ -7,9 +7,22 @@ exports.pmcEstimatorAPI = (req, res) => {
 
   try {
     const data = req.body;
-    const result = core.createEstimateResponse(data);
-    res.status(200).json(result);
+
+    if (!Array.isArray(data)) {
+      throw new Error("Request body must be an array of estimates.");
+    }
+
+    const results = data.map((estimates) => {
+      return core.createFullEstimate(estimates);
+    });
+
+    res.status(200).json({
+      results,
+      message: "Batch estimation successful"
+    });
+
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
+
