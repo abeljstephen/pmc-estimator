@@ -1,176 +1,52 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <base target="_top">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: auto;
-      padding: 2em;
-      background: #f7f7f7;
-      color: #333;
-    }
-    h2 {
-      text-align: center;
-      margin-bottom: 1em;
-      color: #444;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1em;
-      background: #fff;
-      box-shadow: 0 0 5px rgba(0,0,0,0.1);
-    }
-    td, th {
-      border: 1px solid #ddd;
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background: #f0f0f0;
-    }
-    input[type="text"],
-    input[type="number"] {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 6px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    button {
-      margin-top: 1em;
-      padding: 10px 20px;
-      font-size: 1em;
-      cursor: pointer;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      transition: background 0.3s ease;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    #result {
-      margin-top: 2em;
-      text-align: center;
-      font-size: 1.1em;
-    }
-    .link-button {
-      display: inline-block;
-      margin: 0.5em;
-      padding: 10px 15px;
-      background: #4285F4;
-      color: white;
-      text-decoration: none;
-      border-radius: 4px;
-      font-weight: bold;
-      transition: background 0.3s ease;
-    }
-    .link-button:hover {
-      background: #3367D6;
-    }
-    .error {
-      color: #b00020;
-      font-weight: bold;
-    }
-  </style>
-</head>
-<body>
-  <h2>Review and Submit Your Estimates</h2>
-  <form id="tasksForm">
-    <table id="tasksTable">
-      <thead>
-        <tr>
-          <th>Plot</th>
-          <th>Name</th>
-          <th>Best Case</th>
-          <th>Most Likely</th>
-          <th>Worst Case</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <button type="button" onclick="submitData()">Submit Estimates</button>
-  </form>
-  <div id="result"></div>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 1em;
+      }
+      input {
+        width: 100%;
+        margin-bottom: 0.5em;
+      }
+      button {
+        padding: 0.5em 1em;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Enter Your Estimates</h3>
+    <label>Best Case:</label>
+    <input type="number" id="bestCase" />
 
-  <script>
-    function addRow(task) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><input type="radio" name="plotSelection" ${task.selectedForPlot ? 'checked' : ''}></td>
-        <td><input type="text" value="${task.taskName || ''}" required></td>
-        <td><input type="number" min="0" value="${task.bestCase || ''}" required></td>
-        <td><input type="number" min="0" value="${task.mostLikely || ''}" required></td>
-        <td><input type="number" min="0" value="${task.worstCase || ''}" required></td>
-      `;
-      document.querySelector('#tasksTable tbody').appendChild(tr);
-    }
+    <label>Most Likely:</label>
+    <input type="number" id="mostLikely" />
 
-    const prefillData = <?!= JSON.stringify(prefillData) ?>;
+    <label>Worst Case:</label>
+    <input type="number" id="worstCase" />
 
-    if (prefillData && prefillData.length) {
-      prefillData.forEach(addRow);
-    } else {
-      addRow({});
-    }
+    <button onclick="submitForm()">Estimate Project</button>
 
-    function submitData() {
-      const rows = document.querySelectorAll('#tasksTable tbody tr');
-      let anySelected = false;
-      const tasks = Array.from(rows).map(row => {
-        const inputs = row.querySelectorAll('input');
-        const selected = inputs[0].checked;
-        if (selected) anySelected = true;
-        return {
-          selectedForPlot: selected,
-          taskName: inputs[1].value.trim(),
-          bestCase: parseFloat(inputs[2].value),
-          mostLikely: parseFloat(inputs[3].value),
-          worstCase: parseFloat(inputs[4].value)
+    <script>
+      function submitForm() {
+        var estimates = {
+          bestCase: parseFloat(document.getElementById("bestCase").value),
+          mostLikely: parseFloat(document.getElementById("mostLikely").value),
+          worstCase: parseFloat(document.getElementById("worstCase").value)
         };
-      });
 
-      if (!anySelected) {
-        showError("Please select one row for plotting.");
-        return;
+        google.script.run
+          .withSuccessHandler(function(result) {
+            alert("Estimation complete!\nExpected Value: " + result.expectedValue);
+          })
+          .withFailureHandler(function(error) {
+            alert("Error: " + error.message);
+          })
+          .estimateAndSave(estimates);
       }
-
-      // Validate entries
-      for (const task of tasks) {
-        if (!task.taskName) {
-          showError("Please enter a task name.");
-          return;
-        }
-        if (isNaN(task.bestCase) || isNaN(task.mostLikely) || isNaN(task.worstCase)) {
-          showError("All estimates must be numbers.");
-          return;
-        }
-        if (!(task.bestCase <= task.mostLikely && task.mostLikely <= task.worstCase)) {
-          showError(`Estimates for "${task.taskName}" must be in order: best <= most likely <= worst.`);
-          return;
-        }
-      }
-
-      document.getElementById('result').textContent = 'Submitting...';
-
-      google.script.run.withSuccessHandler(res => {
-        document.getElementById('result').innerHTML = `
-          <p><strong>Estimation Sheet Created Successfully:</strong></p>
-          <a href="${res.sheetUrl}" target="_blank" class="link-button">📄 Open Sheet</a>
-          <a href="${res.plotUrl}" target="_blank" class="link-button">📊 View Plot</a>
-        `;
-      }).withFailureHandler(err => {
-        showError('Error: ' + err.message);
-      }).createEstimateSheet(tasks);
-    }
-
-    function showError(msg) {
-      document.getElementById('result').innerHTML = `<p class="error">${msg}</p>`;
-    }
-  </script>
-</body>
+    </script>
+  </body>
 </html>
+
