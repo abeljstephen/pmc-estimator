@@ -7,9 +7,11 @@
         font-family: Arial, sans-serif;
         padding: 1em;
       }
-      input {
+      textarea {
         width: 100%;
+        height: 200px;
         margin-bottom: 0.5em;
+        font-family: monospace;
       }
       button {
         padding: 0.5em 1em;
@@ -17,34 +19,41 @@
     </style>
   </head>
   <body>
-    <h3>Enter Your Estimates</h3>
-    <label>Best Case:</label>
-    <input type="number" id="bestCase" />
-
-    <label>Most Likely:</label>
-    <input type="number" id="mostLikely" />
-
-    <label>Worst Case:</label>
-    <input type="number" id="worstCase" />
-
-    <button onclick="submitForm()">Estimate Project</button>
+    <h3>Batch Estimate Input</h3>
+    <p>Paste your estimates array in JSON format:</p>
+    <textarea id="estimatesInput">
+[
+  {"bestCase":2,"mostLikely":4,"worstCase":6},
+  {"bestCase":3,"mostLikely":6,"worstCase":9}
+]
+    </textarea>
+    <br/>
+    <button onclick="submitBatch()">Estimate Project</button>
 
     <script>
-      function submitForm() {
-        var estimates = {
-          bestCase: parseFloat(document.getElementById("bestCase").value),
-          mostLikely: parseFloat(document.getElementById("mostLikely").value),
-          worstCase: parseFloat(document.getElementById("worstCase").value)
-        };
+      function submitBatch() {
+        var rawInput = document.getElementById("estimatesInput").value;
 
-        google.script.run
-          .withSuccessHandler(function(result) {
-            alert("Estimation complete!\nExpected Value: " + result.expectedValue);
-          })
-          .withFailureHandler(function(error) {
-            alert("Error: " + error.message);
-          })
-          .estimateAndSave(estimates);
+        try {
+          var estimatesArray = JSON.parse(rawInput);
+
+          if (!Array.isArray(estimatesArray)) {
+            alert("Input must be a JSON array.");
+            return;
+          }
+
+          google.script.run
+            .withSuccessHandler(function(response) {
+              alert("Estimation complete!\nProcessed " + response.results.length + " rows.");
+            })
+            .withFailureHandler(function(error) {
+              alert("Error: " + error.message);
+            })
+            .estimateAndSave(estimatesArray);
+
+        } catch (e) {
+          alert("Invalid JSON: " + e.message);
+        }
       }
     </script>
   </body>
