@@ -167,6 +167,160 @@ function createSmoothedConfidencePercentiles(samples) {
   return percentiles;
 }
 
+
+function createFullEstimate(estimates) {
+  const { bestCase, mostLikely, worstCase } = estimates;
+
+  if (
+    typeof bestCase !== "number" ||
+    typeof mostLikely !== "number" ||
+    typeof worstCase !== "number"
+  ) {
+    throw new Error("All estimates must be numbers.");
+  }
+  if (bestCase < 0 || mostLikely < 0 || worstCase < 0) {
+    throw new Error("Estimates cannot be negative.");
+  }
+  if (bestCase > mostLikely || mostLikely > worstCase) {
+    throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
+  }
+
+  // Triangular
+  const triangleMean = (bestCase + mostLikely + worstCase) / 3;
+  const triangleVariance = (
+    Math.pow(bestCase, 2) +
+    Math.pow(mostLikely, 2) +
+    Math.pow(worstCase, 2) -
+    bestCase * mostLikely -
+    bestCase * worstCase -
+    mostLikely * worstCase
+  ) / 18;
+  const triangleSkewness = (mostLikely - triangleMean) / Math.sqrt(triangleVariance);
+  const triangleKurtosis = 2.4;
+
+  // PERT
+  const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
+  const range = worstCase - bestCase;
+  const baseStdDev = range / 6;
+  const midpoint = (bestCase + worstCase) / 2;
+  const modeDeviation = (mostLikely - midpoint) / (range / 2);
+  const skewFactor = 1 + Math.abs(modeDeviation) * 0.5;
+  const pertStdDev = baseStdDev * skewFactor;
+  const pertVariance = Math.pow(pertStdDev, 2);
+  const pertAlpha = calculateAlpha(pertMean, pertStdDev, bestCase, worstCase);
+  const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
+  const pertSkewness = (2 * (pertBeta - pertAlpha) * Math.sqrt(pertAlpha + pertBeta + 1)) / (
+    (pertAlpha + pertBeta + 2) * Math.sqrt(pertAlpha * pertBeta)
+  );
+  const pertKurtosis =
+    (6 *
+      ((pertAlpha - pertBeta) * (pertAlpha - pertBeta) * (pertAlpha + pertBeta + 1) -
+        pertAlpha * pertBeta * (pertAlpha + pertBeta + 2))) /
+      (pertAlpha * pertBeta * (pertAlpha + pertBeta + 2) * (pertAlpha + pertBeta + 3)) +
+    3;
+
+  // Beta
+  const betaAlpha = pertAlpha;
+  const betaBeta = pertBeta;
+  const betaMean = pertMean;
+  const betaVariance = pertVariance;
+  const betaSkewness = pertSkewness;
+  const betaKurtosis = pertKurtosis;
+  const betaMode = calculateBetaMode(betaAlpha, betaBeta, bestCase, worstCase);
+
+  // Monte Carlo Unsmoothed
+  const mcBetaSamples = monteCarloSamplesBetaNoNoise(betaAlpha, betaBeta, bestCase, worstCase);
+  const mcUnsmoothedMean =
+    mcBetaSamples.reduce((sum, val) => sum + val, 0) / mcBetaSamples.length;
+  const mcUnsmoothedVariance =
+    mcBetaSamples.reduce((sum, val) => sum + Math.pow(val - mcUnsmoothedMean, 2), 0) /
+    (mcBetaSamples.length - 1);
+  const mcUnsmoothedSkewness =
+    mcBetaSamples.reduce((sum, val) => sum + Math.pow(val - mcUnsmoothedMean, 3), 0) /
+    (mcBetaSamples.length * Math.pow(mcUnsmoothedVariance, 1.5));
+  const mcUnsmoothedKurtosis =
+    mcBetaSamples.reduce((sum, val) => sum + Math.pow(val - mcUnsmoothedMean, 4), 0) /
+      (mcBetaSamples.length * Math.pow(mcUnsmoothedVariance, 2)) -
+    3;
+  const mcUnsmoothedVaR90 = createConfidencePercentiles(mcBetaSamples)[90];
+  const mcUnsmoothedMAD = calculateMAD(
+    mcBetaSamples,
+    createConfidencePercentiles(mcBetaSamples)[50]
+  );
+
+  // Monte Carlo Smoothed
+  const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
+  const mcSmoothedMean =
+    smoothedHistogram.reduce((sum, bin) => sum + bin.x * bin.y, 0) /
+    smoothedHistogram.reduce((sum, bin) => sum + bin.y, 0);
+
+  const mcSmoothedVariance =
+    smoothedHistogram.reduce(
+      (sum, bin) => sum + bin.y * Math.pow(bin.x - mcSmoothedMean, 2),
+      0
+    ) /
+    smoothedHistogram.reduce((sum, bin) => sum + bin.y, 0);
+
+  const mcSmoothedSkewness =
+    smoothedHistogram.reduce(
+      (sum, bin) => sum + bin.y * Math.pow((bin.x - mcSmoothedMean) / Math.sqrt(mcSmoothedVariance), 3),
+      0
+    ) / smoothedHistogram.reduce((sum, bin) => sum + bin.y, 0);
+
+  const mcSmoothedKurtosis =
+    smoothedHistogram.reduce(
+      (sum, bin) => sum + bin.y * Math.pow((bin.x - mcSmoothedMean) / Math.sqrt(mcSmoothedVariance), 4),
+      0
+    ) / smoothedHistogram.reduce((sum, bin) => sum + bin.y, 0) - 3;
+
+  const mcSmoothedVaR90 = createSmoothedConfidencePercentiles(mcBetaSamples)[90];
+  const mcSmoothedMAD = calculateMAD(
+    mcBetaSamples,
+    createSmoothedConfidencePercentiles(mcBetaSamples)[50]
+  );
+
+  // Weighted Estimates
+  const weightedConservative = pertMean + pertStdDev;
+  const weightedNeutral = pertMean;
+  const weightedOptimistic = pertMean - pertStdDev;
+
+  return {
+    estimates,
+    triangleMean,
+    triangleVariance,
+    triangleSkewness,
+    triangleKurtosis,
+    pertMean,
+    pertStdDev,
+    pertVariance,
+    pertSkewness,
+    pertKurtosis,
+    betaAlpha,
+    betaBeta,
+    betaMean,
+    betaVariance,
+    betaSkewness,
+    betaKurtosis,
+    betaMode,
+    mcUnsmoothedMean,
+    mcUnsmoothedVariance,
+    mcUnsmoothedSkewness,
+    mcUnsmoothedKurtosis,
+    mcUnsmoothedVaR90,
+    mcUnsmoothedMAD,
+    mcSmoothedMean,
+    mcSmoothedVariance,
+    mcSmoothedSkewness,
+    mcSmoothedKurtosis,
+    mcSmoothedVaR90,
+    mcSmoothedMAD,
+    weightedConservative,
+    weightedNeutral,
+    weightedOptimistic,
+    message: "Estimation successful"
+  };
+}
+
 module.exports = {
   calculateAlpha,
   calculateBeta,
@@ -180,6 +334,7 @@ module.exports = {
   gamma,
   generateSmoothedHistogram,
   createConfidencePercentiles,
-  createSmoothedConfidencePercentiles
+  createSmoothedConfidencePercentiles,
+  createFullEstimate
 };
 
