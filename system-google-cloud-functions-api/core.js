@@ -115,11 +115,10 @@ function generateSmoothedHistogram(samples, bins) {
 function computeCdfFromHistogram(histogram) {
   let cumulative = 0;
   const step = histogram[1].x - histogram[0].x;
-  const cdf = histogram.map((p) => {
+  return histogram.map((p) => {
     cumulative += p.y * step;
     return { x: p.x, y: Math.min(cumulative, 1) };
   });
-  return cdf;
 }
 
 // Generate Triangle points
@@ -155,10 +154,28 @@ function createMonteCarloHistogram(samples, bins) {
     const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
     histogram[idx].y++;
   });
-  // Normalize
   const norm = samples.length * binWidth;
   histogram.forEach((h) => h.y /= norm);
   return histogram;
+}
+
+// ===========================================
+// New helper functions for percentiles
+// ===========================================
+function createConfidencePercentiles(samples) {
+  if (!samples || !samples.length) return {};
+  const sorted = samples.slice().sort((a, b) => a - b);
+  const percentiles = {};
+  [5, 10, 25, 50, 75, 90, 95].forEach(p => {
+    const index = Math.floor((p / 100) * sorted.length);
+    percentiles[p] = sorted[index];
+  });
+  return percentiles;
+}
+
+function createSmoothedConfidencePercentiles(samples) {
+  // For now, re-use same as unsmoothed
+  return createConfidencePercentiles(samples);
 }
 
 // ========== MAIN EXPORT FUNCTION ==========
@@ -166,9 +183,7 @@ function createMonteCarloHistogram(samples, bins) {
 function createFullEstimate(estimates) {
   const { bestCase, mostLikely, worstCase } = estimates;
 
-  // ======================================
   // Validation
-  // ======================================
   if (
     typeof bestCase !== "number" ||
     typeof mostLikely !== "number" ||
@@ -183,9 +198,7 @@ function createFullEstimate(estimates) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
 
-  // ======================================
-  // Triangle Distribution
-  // ======================================
+  // Triangle
   const triangleMean = (bestCase + mostLikely + worstCase) / 3;
   const triangleVariance = (
     Math.pow(bestCase, 2) +
@@ -196,9 +209,7 @@ function createFullEstimate(estimates) {
     mostLikely * worstCase
   ) / 18;
 
-  // ======================================
-  // PERT Distribution
-  // ======================================
+  // PERT
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
   const range = worstCase - bestCase;
   const baseStdDev = range / 6;
@@ -211,84 +222,48 @@ function createFullEstimate(estimates) {
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
-  // ======================================
-  // Monte Carlo Samples
-  // ======================================
-  const mcBetaSamples = monteCarloSamplesBetaNoNoise(
-    pertAlpha,
-    pertBeta,
-    bestCase,
-    worstCase
-  );
-
-  // Unsmoothed percentiles (from raw samples)
+  // Monte Carlo
+  const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
   const unsmoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
-
-  // Smoothed histogram
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
-
-  // Smoothed percentiles (from smoothed histogram)
   const smoothedPercentiles = createSmoothedConfidencePercentiles(mcBetaSamples);
 
-  // Smoothed mean (from smoothed histogram area)
   const smoothedSum = smoothedHistogram.reduce((sum, p) => sum + p.x * p.y, 0);
   const smoothedArea = smoothedHistogram.reduce((sum, p) => sum + p.y, 0);
   const mcSmoothedMean = smoothedArea > 0 ? smoothedSum / smoothedArea : pertMean;
 
-  // ======================================
-  // Weighted Estimates
-  // ======================================
   const weightedConservative = pertMean + pertStdDev;
   const weightedNeutral = pertMean;
   const weightedOptimistic = pertMean - pertStdDev;
 
-  // ======================================
-  // Return all results
-  // ======================================
   return {
-    // Raw input
     estimates,
-
-    // Triangle
     triangleMean,
     triangleVariance,
-
-    // PERT
     pertMean,
     pertStdDev,
     pertVariance,
     pertAlpha,
     pertBeta,
-
-    // Beta
     betaAlpha: pertAlpha,
     betaBeta: pertBeta,
     betaMode,
-
-    // Monte Carlo
-    mcBetaSamples, // keep raw samples for optional plotting (remove later if needed)
+    mcBetaSamples,
     mcSmoothedMean,
     mcSmoothedVaR90: smoothedPercentiles["90"],
     mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
     unsmoothedPercentiles,
     smoothedPercentiles,
     smoothedHistogram,
-
-    // Weighted estimates
     weightedConservative,
     weightedNeutral,
     weightedOptimistic,
-
-    // Chart points for visualizations
     trianglePoints: createTrianglePoints(bestCase, mostLikely, worstCase),
     pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
-
-    // Metadata
     message: "Estimation successful",
     timestamp: Date.now()
   };
 }
-
 
 module.exports = {
   createFullEstimate
