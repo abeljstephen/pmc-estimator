@@ -24,7 +24,58 @@ function calculateBetaMode(alpha, beta, min, max) {
   return min + mode * (max - min);
 }
 
-// Triangle PDF
+/**
+ * Creates the triangle CDF and statistics.
+ * Returns:
+ * {
+ *   points: [{x, y, confidence}],
+ *   mean,
+ *   variance,
+ *   stdDev,
+ *   skewness
+ * }
+ */
+
+function createTriangleSummary(bestCase, mostLikely, worstCase) {
+  const min = bestCase;
+  const mode = mostLikely;
+  const max = worstCase;
+
+  const mean = (min + mode + max) / 3;
+  const variance = (
+    Math.pow(min,2) +
+    Math.pow(mode,2) +
+    Math.pow(max,2) -
+    min*mode - min*max - mode*max
+  ) / 18;
+  const stdDev = Math.sqrt(variance);
+  const skewness = (Math.sqrt(2)*(min + max - 2*mode)) / (max - min);
+
+  // Compute points
+  const TRIANGLE_POINTS = [];
+  const steps = 100;
+  const step = (max - min) / steps;
+  let cumulative = 0;
+
+  for (let i = 0; i <= steps; i++) {
+    const x = min + i * step;
+    const y = trianglePdf(x, min, mode, max);
+    cumulative += y * step;
+    TRIANGLE_POINTS.push({ x, y, confidence: Math.min(cumulative * 100, 100) });
+  }
+
+  return {
+    points: TRIANGLE_POINTS,
+    mean,
+    variance,
+    stdDev,
+    skewness
+  };
+}
+
+/**
+ * Triangle PDF helper
+ */
 function trianglePdf(x, min, mode, max) {
   if (x < min || x > max) return 0;
   if (x <= mode) {
@@ -33,6 +84,8 @@ function trianglePdf(x, min, mode, max) {
     return (2 * (max - x)) / ((max - min) * (max - mode));
   }
 }
+
+
 
 // Beta PDF normalized over [min, max]
 function betaPdfNormalized(x, alpha, beta, min, max) {
@@ -68,6 +121,27 @@ function gamma(z) {
   const t = z + g + 0.5;
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
+
+
+// ----------------------------
+// Beta Distribution Metrics
+// ----------------------------
+const betaPoints = createPertPoints(bestCase, worstCase, pertAlpha, pertBeta);
+const betaPercentiles = createBetaPercentiles(pertAlpha, pertBeta, bestCase, worstCase);
+const betaMean = pertMean;
+const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
+const betaStdDev = pertStdDev;
+const betaSkewness = 0; // or computed value if you have logic
+
+result.betaMetrics = {
+  mean: betaMean,
+  mode: betaMode,
+  stdDev: betaStdDev,
+  skewness: betaSkewness,
+  percentiles: betaPercentiles
+};
+result.betaPoints = betaPoints;
+
 
 // Monte Carlo sampling of Beta
 function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
@@ -209,6 +283,10 @@ function createFullEstimate(estimates) {
     mostLikely * worstCase
   ) / 18;
 
+  // Triangle summary
+  const triangleSummary = createTriangleSummary(bestCase, mostLikely, worstCase);
+
+
   // PERT
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
   const range = worstCase - bestCase;
@@ -259,6 +337,12 @@ function createFullEstimate(estimates) {
     weightedNeutral,
     weightedOptimistic,
     trianglePoints: createTrianglePoints(bestCase, mostLikely, worstCase),
+    trianglePoints: triangleSummary.points,
+    triangleMean: triangleSummary.mean,
+    triangleVariance: triangleSummary.variance,
+    triangleStdDev: triangleSummary.stdDev,
+    triangleSkewness: triangleSummary.skewness,
+
     pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
     message: "Estimation successful",
     timestamp: Date.now()
