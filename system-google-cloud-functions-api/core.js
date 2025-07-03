@@ -1,21 +1,24 @@
 // core.js
 
-// ========== Existing Helper Functions ==========
+// ============================================================
+// ========== Helper Functions: Beta Parameter Estimation =====
+// ============================================================
 
-// Beta alpha/beta
+// Calculates alpha for Beta distribution
 function calculateAlpha(mean, stdDev, min, max) {
   const variance = Math.pow(stdDev, 2);
   const commonFactor = ((mean - min) * (max - mean)) / variance - 1;
   return commonFactor * (mean - min) / (max - min);
 }
 
+// Calculates beta for Beta distribution
 function calculateBeta(mean, stdDev, min, max) {
   const variance = Math.pow(stdDev, 2);
   const commonFactor = ((mean - min) * (max - mean)) / variance - 1;
   return commonFactor * (max - mean) / (max - min);
 }
 
-// Beta mode
+// Calculates mode for Beta distribution
 function calculateBetaMode(alpha, beta, min, max) {
   if (alpha <= 1 || beta <= 1) {
     return alpha < beta ? min : max;
@@ -24,18 +27,11 @@ function calculateBetaMode(alpha, beta, min, max) {
   return min + mode * (max - min);
 }
 
-/**
- * Creates the triangle CDF and statistics.
- * Returns:
- * {
- *   points: [{x, y, confidence}],
- *   mean,
- *   variance,
- *   stdDev,
- *   skewness
- * }
- */
+// ============================================================
+// ========== Helper Functions: Triangle Distribution =========
+// ============================================================
 
+// Creates triangle summary with CDF, mean, variance, stddev, skewness
 function createTriangleSummary(bestCase, mostLikely, worstCase) {
   const min = bestCase;
   const mode = mostLikely;
@@ -43,15 +39,16 @@ function createTriangleSummary(bestCase, mostLikely, worstCase) {
 
   const mean = (min + mode + max) / 3;
   const variance = (
-    Math.pow(min,2) +
-    Math.pow(mode,2) +
-    Math.pow(max,2) -
-    min*mode - min*max - mode*max
+    Math.pow(min, 2) +
+    Math.pow(mode, 2) +
+    Math.pow(max, 2) -
+    min * mode -
+    min * max -
+    mode * max
   ) / 18;
   const stdDev = Math.sqrt(variance);
-  const skewness = (Math.sqrt(2)*(min + max - 2*mode)) / (max - min);
+  const skewness = (Math.sqrt(2) * (min + max - 2 * mode)) / (max - min);
 
-  // Compute points
   const TRIANGLE_POINTS = [];
   const steps = 100;
   const step = (max - min) / steps;
@@ -73,9 +70,7 @@ function createTriangleSummary(bestCase, mostLikely, worstCase) {
   };
 }
 
-/**
- * Triangle PDF helper
- */
+// Triangle PDF function
 function trianglePdf(x, min, mode, max) {
   if (x < min || x > max) return 0;
   if (x <= mode) {
@@ -85,16 +80,16 @@ function trianglePdf(x, min, mode, max) {
   }
 }
 
+// ============================================================
+// ========== Helper Functions: Beta PDF & Gamma ==============
+// ============================================================
 
-
-// Beta PDF normalized over [min, max]
 function betaPdfNormalized(x, alpha, beta, min, max) {
   const scaledX = (x - min) / (max - min);
   return (
-    (Math.pow(scaledX, alpha - 1) * Math.pow(1 - scaledX, beta - 1)) /
-    betaFunction(alpha, beta) /
-    (max - min)
-  );
+    Math.pow(scaledX, alpha - 1) *
+    Math.pow(1 - scaledX, beta - 1)
+  ) / betaFunction(alpha, beta) / (max - min);
 }
 
 function betaFunction(a, b) {
@@ -122,28 +117,10 @@ function gamma(z) {
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
 
+// ============================================================
+// ========== Monte Carlo Sampling & Smoothing ================
+// ============================================================
 
-// ----------------------------
-// Beta Distribution Metrics
-// ----------------------------
-const betaPoints = createPertPoints(bestCase, worstCase, pertAlpha, pertBeta);
-const betaPercentiles = createBetaPercentiles(pertAlpha, pertBeta, bestCase, worstCase);
-const betaMean = pertMean;
-const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
-const betaStdDev = pertStdDev;
-const betaSkewness = 0; // or computed value if you have logic
-
-result.betaMetrics = {
-  mean: betaMean,
-  mode: betaMode,
-  stdDev: betaStdDev,
-  skewness: betaSkewness,
-  percentiles: betaPercentiles
-};
-result.betaPoints = betaPoints;
-
-
-// Monte Carlo sampling of Beta
 function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
   const simulations = [];
   for (let i = 0; i < 1000; i++) {
@@ -155,7 +132,6 @@ function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
   return simulations;
 }
 
-// Smoothed histogram
 function generateSmoothedHistogram(samples, bins) {
   const minVal = Math.min(...samples);
   const maxVal = Math.max(...samples);
@@ -176,7 +152,6 @@ function generateSmoothedHistogram(samples, bins) {
     bin.y = weightedSum / (samples.length * binWidth);
   });
 
-  // Normalize
   const densitySum = histogram.reduce((sum, bin) => sum + bin.y * binWidth, 0);
   if (densitySum > 0) {
     histogram.forEach((bin) => bin.y /= densitySum);
@@ -185,7 +160,6 @@ function generateSmoothedHistogram(samples, bins) {
   return histogram;
 }
 
-// Create CDF from histogram
 function computeCdfFromHistogram(histogram) {
   let cumulative = 0;
   const step = histogram[1].x - histogram[0].x;
@@ -195,7 +169,10 @@ function computeCdfFromHistogram(histogram) {
   });
 }
 
-// Generate Triangle points
+// ============================================================
+// ========== Point Generators for Charts =====================
+// ============================================================
+
 function createTrianglePoints(min, mode, max) {
   const steps = 100;
   const step = (max - min) / steps;
@@ -205,7 +182,6 @@ function createTrianglePoints(min, mode, max) {
   });
 }
 
-// Generate PERT Beta points
 function createPertPoints(min, max, alpha, beta) {
   const steps = 100;
   const step = (max - min) / steps;
@@ -215,27 +191,10 @@ function createPertPoints(min, max, alpha, beta) {
   });
 }
 
-// Monte Carlo Histogram
-function createMonteCarloHistogram(samples, bins) {
-  const min = Math.min(...samples);
-  const max = Math.max(...samples);
-  const binWidth = (max - min) / bins;
-  const histogram = Array.from({ length: bins }, (_, i) => ({
-    x: min + i * binWidth,
-    y: 0
-  }));
-  samples.forEach((s) => {
-    const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
-    histogram[idx].y++;
-  });
-  const norm = samples.length * binWidth;
-  histogram.forEach((h) => h.y /= norm);
-  return histogram;
-}
+// ============================================================
+// ========== Percentiles =====================================
+// ============================================================
 
-// ===========================================
-// New helper functions for percentiles
-// ===========================================
 function createConfidencePercentiles(samples) {
   if (!samples || !samples.length) return {};
   const sorted = samples.slice().sort((a, b) => a - b);
@@ -248,16 +207,17 @@ function createConfidencePercentiles(samples) {
 }
 
 function createSmoothedConfidencePercentiles(samples) {
-  // For now, re-use same as unsmoothed
   return createConfidencePercentiles(samples);
 }
 
-// ========== MAIN EXPORT FUNCTION ==========
+// ============================================================
+// ========== Main Exported Function ==========================
+// ============================================================
 
 function createFullEstimate(estimates) {
   const { bestCase, mostLikely, worstCase } = estimates;
 
-  // Validation
+  // Input validation
   if (
     typeof bestCase !== "number" ||
     typeof mostLikely !== "number" ||
@@ -272,22 +232,10 @@ function createFullEstimate(estimates) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
 
-  // Triangle
-  const triangleMean = (bestCase + mostLikely + worstCase) / 3;
-  const triangleVariance = (
-    Math.pow(bestCase, 2) +
-    Math.pow(mostLikely, 2) +
-    Math.pow(worstCase, 2) -
-    bestCase * mostLikely -
-    bestCase * worstCase -
-    mostLikely * worstCase
-  ) / 18;
-
-  // Triangle summary
+  // Triangle Distribution
   const triangleSummary = createTriangleSummary(bestCase, mostLikely, worstCase);
 
-
-  // PERT
+  // PERT Beta Distribution
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
   const range = worstCase - bestCase;
   const baseStdDev = range / 6;
@@ -300,7 +248,7 @@ function createFullEstimate(estimates) {
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
-  // Monte Carlo
+  // Monte Carlo Simulation
   const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
   const unsmoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
@@ -310,40 +258,40 @@ function createFullEstimate(estimates) {
   const smoothedArea = smoothedHistogram.reduce((sum, p) => sum + p.y, 0);
   const mcSmoothedMean = smoothedArea > 0 ? smoothedSum / smoothedArea : pertMean;
 
-  const weightedConservative = pertMean + pertStdDev;
-  const weightedNeutral = pertMean;
-  const weightedOptimistic = pertMean - pertStdDev;
+  // Beta metrics (moved INSIDE here to avoid errors)
+  const betaPoints = createPertPoints(bestCase, worstCase, pertAlpha, pertBeta);
+  const betaPercentiles = smoothedPercentiles;
+  const betaStdDev = pertStdDev;
+  const betaSkewness = 0;
 
   return {
     estimates,
-    triangleMean,
-    triangleVariance,
-    pertMean,
-    pertStdDev,
-    pertVariance,
-    pertAlpha,
-    pertBeta,
-    betaAlpha: pertAlpha,
-    betaBeta: pertBeta,
-    betaMode,
-    mcBetaSamples,
-    mcSmoothedMean,
-    mcSmoothedVaR90: smoothedPercentiles["90"],
-    mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
-    unsmoothedPercentiles,
-    smoothedPercentiles,
-    smoothedHistogram,
-    weightedConservative,
-    weightedNeutral,
-    weightedOptimistic,
-    trianglePoints: createTrianglePoints(bestCase, mostLikely, worstCase),
     trianglePoints: triangleSummary.points,
     triangleMean: triangleSummary.mean,
     triangleVariance: triangleSummary.variance,
     triangleStdDev: triangleSummary.stdDev,
     triangleSkewness: triangleSummary.skewness,
-
-    pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
+    pertPoints: betaPoints,
+    pertMean,
+    pertStdDev,
+    pertVariance,
+    pertAlpha,
+    pertBeta,
+    betaMode,
+    betaMetrics: {
+      mean: pertMean,
+      mode: betaMode,
+      stdDev: betaStdDev,
+      skewness: betaSkewness,
+      percentiles: betaPercentiles
+    },
+    mcBetaSamples,
+    smoothedHistogram,
+    unsmoothedPercentiles,
+    smoothedPercentiles,
+    mcSmoothedMean,
+    mcSmoothedVaR90: smoothedPercentiles["90"],
+    mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
     message: "Estimation successful",
     timestamp: Date.now()
   };
