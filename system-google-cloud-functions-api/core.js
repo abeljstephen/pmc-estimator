@@ -166,7 +166,9 @@ function createMonteCarloHistogram(samples, bins) {
 function createFullEstimate(estimates) {
   const { bestCase, mostLikely, worstCase } = estimates;
 
+  // ======================================
   // Validation
+  // ======================================
   if (
     typeof bestCase !== "number" ||
     typeof mostLikely !== "number" ||
@@ -181,7 +183,9 @@ function createFullEstimate(estimates) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
 
-  // Triangle
+  // ======================================
+  // Triangle Distribution
+  // ======================================
   const triangleMean = (bestCase + mostLikely + worstCase) / 3;
   const triangleVariance = (
     Math.pow(bestCase, 2) +
@@ -192,7 +196,9 @@ function createFullEstimate(estimates) {
     mostLikely * worstCase
   ) / 18;
 
-  // PERT
+  // ======================================
+  // PERT Distribution
+  // ======================================
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
   const range = worstCase - bestCase;
   const baseStdDev = range / 6;
@@ -205,21 +211,40 @@ function createFullEstimate(estimates) {
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
-  // Monte Carlo samples
-  const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
+  // ======================================
+  // Monte Carlo Samples
+  // ======================================
+  const mcBetaSamples = monteCarloSamplesBetaNoNoise(
+    pertAlpha,
+    pertBeta,
+    bestCase,
+    worstCase
+  );
 
-  // Derived Monte Carlo metrics
-  const mcSmoothedMean = mcBetaSamples.reduce((sum, v) => sum + v, 0) / mcBetaSamples.length;
+  // Unsmoothed percentiles (from raw samples)
   const unsmoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
+
+  // Smoothed histogram
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
+
+  // Smoothed percentiles (from smoothed histogram)
   const smoothedPercentiles = createSmoothedConfidencePercentiles(mcBetaSamples);
 
-  // Weighted
+  // Smoothed mean (from smoothed histogram area)
+  const smoothedSum = smoothedHistogram.reduce((sum, p) => sum + p.x * p.y, 0);
+  const smoothedArea = smoothedHistogram.reduce((sum, p) => sum + p.y, 0);
+  const mcSmoothedMean = smoothedArea > 0 ? smoothedSum / smoothedArea : pertMean;
+
+  // ======================================
+  // Weighted Estimates
+  // ======================================
   const weightedConservative = pertMean + pertStdDev;
   const weightedNeutral = pertMean;
   const weightedOptimistic = pertMean - pertStdDev;
 
-  // Return everything, clearly labeled
+  // ======================================
+  // Return all results
+  // ======================================
   return {
     // Raw input
     estimates,
@@ -241,7 +266,7 @@ function createFullEstimate(estimates) {
     betaMode,
 
     // Monte Carlo
-    mcBetaSamples, // raw samples—**disable later if needed**
+    mcBetaSamples, // keep raw samples for optional plotting (remove later if needed)
     mcSmoothedMean,
     mcSmoothedVaR90: smoothedPercentiles["90"],
     mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
@@ -249,12 +274,12 @@ function createFullEstimate(estimates) {
     smoothedPercentiles,
     smoothedHistogram,
 
-    // Weighted
+    // Weighted estimates
     weightedConservative,
     weightedNeutral,
     weightedOptimistic,
 
-    // Chart Points
+    // Chart points for visualizations
     trianglePoints: createTrianglePoints(bestCase, mostLikely, worstCase),
     pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
 

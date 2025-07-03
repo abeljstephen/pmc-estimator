@@ -1,4 +1,4 @@
-const core = require("../system-google-cloud-core/core");
+const core = require("./core");
 
 exports.pmcEstimatorAPI = (req, res) => {
   if (req.method !== "POST") {
