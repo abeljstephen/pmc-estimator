@@ -121,6 +121,16 @@ function gamma(z) {
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
 
+// Generate PERT Beta distribution points (THIS WAS MISSING!)
+function createPertPoints(min, max, alpha, beta) {
+  const steps = 100;
+  const step = (max - min) / steps;
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const x = min + i * step;
+    return { x, y: betaPdfNormalized(x, alpha, beta, min, max) };
+  });
+}
+
 // ==============================================
 // Monte Carlo Sampling Helpers
 // ==============================================
