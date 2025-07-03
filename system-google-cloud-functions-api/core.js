@@ -166,6 +166,7 @@ function createMonteCarloHistogram(samples, bins) {
 function createFullEstimate(estimates) {
   const { bestCase, mostLikely, worstCase } = estimates;
 
+  // Validation
   if (
     typeof bestCase !== "number" ||
     typeof mostLikely !== "number" ||
@@ -204,35 +205,65 @@ function createFullEstimate(estimates) {
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
-  // Monte Carlo
+  // Monte Carlo samples
   const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
-  const mcHistogram = createMonteCarloHistogram(mcBetaSamples, 30);
+
+  // Derived Monte Carlo metrics
+  const mcSmoothedMean = mcBetaSamples.reduce((sum, v) => sum + v, 0) / mcBetaSamples.length;
+  const unsmoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
+  const smoothedPercentiles = createSmoothedConfidencePercentiles(mcBetaSamples);
 
-  // CDFs
-  const originalCdf = computeCdfFromHistogram(smoothedHistogram);
-  const optimizedCdf = computeCdfFromHistogram(smoothedHistogram); // default sliders = no change
+  // Weighted
+  const weightedConservative = pertMean + pertStdDev;
+  const weightedNeutral = pertMean;
+  const weightedOptimistic = pertMean - pertStdDev;
 
+  // Return everything, clearly labeled
   return {
+    // Raw input
     estimates,
+
+    // Triangle
     triangleMean,
     triangleVariance,
+
+    // PERT
     pertMean,
     pertStdDev,
     pertVariance,
     pertAlpha,
     pertBeta,
+
+    // Beta
+    betaAlpha: pertAlpha,
+    betaBeta: pertBeta,
     betaMode,
-    mcBetaSamples,
+
+    // Monte Carlo
+    mcBetaSamples, // raw samples—**disable later if needed**
+    mcSmoothedMean,
+    mcSmoothedVaR90: smoothedPercentiles["90"],
+    mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
+    unsmoothedPercentiles,
+    smoothedPercentiles,
+    smoothedHistogram,
+
+    // Weighted
+    weightedConservative,
+    weightedNeutral,
+    weightedOptimistic,
+
+    // Chart Points
     trianglePoints: createTrianglePoints(bestCase, mostLikely, worstCase),
     pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
-    mcHistogram,
-    smoothedHistogram,
-    originalCdf,
-    optimizedCdf,
-    message: "Estimation successful"
+
+    // Metadata
+    message: "Estimation successful",
+    timestamp: Date.now()
   };
 }
+
 
 module.exports = {
   createFullEstimate
