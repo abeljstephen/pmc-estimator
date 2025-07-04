@@ -3,37 +3,48 @@
 'use strict';
 
 const functions = require('@google-cloud/functions-framework');
+const http = require('http');
 
-functions.http('pmcEstimatorAPI', (req, res) => {
-  // CORS headers
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST');
+// Initialize the HTTP server (required for Cloud Run health check)
+const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
-    res.status(204).send('');
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
+    res.end();
     return;
   }
+  functions.http('pmcEstimatorAPI', (req, res) => {
+    // Validate request
+    if (!req.body || !Array.isArray(req.body)) {
+      return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
+    }
 
-  // Validate request
-  if (!req.body || !Array.isArray(req.body)) {
-    return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
-  }
+    const tasks = req.body.map(task => ({
+      task: task.task || `Task ${req.body.indexOf(task) + 1}`, // Optional task field
+      optimistic: parseFloat(task.optimistic || task.bestCase),
+      mostLikely: parseFloat(task.mostLikely),
+      pessimistic: parseFloat(task.pessimistic || task.worstCase)
+    }));
 
-  const tasks = req.body.map(task => ({
-    task: task.task || `Task ${req.body.indexOf(task) + 1}`, // Optional task field
-    optimistic: parseFloat(task.optimistic || task.bestCase),
-    mostLikely: parseFloat(task.mostLikely),
-    pessimistic: parseFloat(task.pessimistic || task.worstCase)
-  }));
+    if (!tasks.every(task => 
+      !isNaN(task.optimistic) && 
+      !isNaN(task.mostLikely) && 
+      !isNaN(task.pessimistic))) {
+      return res.status(400).json({ error: "All estimates (optimistic, mostLikely, pessimistic) must be numbers." });
+    }
 
-  if (!tasks.every(task => 
-    !isNaN(task.optimistic) && 
-    !isNaN(task.mostLikely) && 
-    !isNaN(task.pessimistic))) {
-    return res.status(400).json({ error: "All estimates (optimistic, mostLikely, pessimistic) must be numbers." });
-  }
+    const results = tasks.map(processTask);
+    res.json({ results, message: "Batch estimation successful" });
+  })(req, res);
+});
 
-  const results = tasks.map(processTask);
-  res.json({ results, message: "Batch estimation successful" });
+// Start the server on the port provided by Cloud Run
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
 
 function processTask(task) {
