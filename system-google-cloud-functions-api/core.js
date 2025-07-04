@@ -28,13 +28,20 @@ function calculateBetaMode(alpha, beta, min, max) {
 // Triangle Distribution Helpers
 // ==============================================
 
-function trianglePdf(x, min, mode, max) {
-  if (x < min || x > max) return 0;
-  if (x <= mode) {
-    return (2 * (x - min)) / ((max - min) * (mode - min));
-  } else {
-    return (2 * (max - x)) / ((max - min) * (max - mode));
+function generateTrianglePoints(min, mode, max, numPoints = 100) {
+  const points = { x: [], y: [] };
+  const step = (max - min) / (numPoints - 1);
+  const peak = 2 / (max - min); // Normalize area to 1
+  for (let i = 0; i < numPoints; i++) {
+    const x = min + i * step;
+    let y;
+    if (x < min || x > max) y = 0;
+    else if (x <= mode) y = (2 * (x - min)) / ((max - min) * (mode - min));
+    else y = (2 * (max - x)) / ((max - min) * (max - mode));
+    points.x.push(x);
+    points.y.push(y);
   }
+  return points;
 }
 
 function createTriangleSummary(bestCase, mostLikely, worstCase) {
@@ -54,20 +61,11 @@ function createTriangleSummary(bestCase, mostLikely, worstCase) {
   const stdDev = Math.sqrt(variance);
   const skewness = (Math.sqrt(2) * (min + max - 2 * mode)) / (max - min);
 
-  const TRIANGLE_POINTS = [];
-  const steps = 100;
-  const step = (max - min) / steps;
-  let cumulative = 0;
-
-  for (let i = 0; i <= steps; i++) {
-    const x = min + i * step;
-    const y = trianglePdf(x, min, mode, max);
-    cumulative += y * step;
-    TRIANGLE_POINTS.push({ x, y });
-  }
+  // Use generateTrianglePoints instead of trianglePdf
+  const points = generateTrianglePoints(min, mode, max);
 
   return {
-    points: TRIANGLE_POINTS,
+    points, // Now returns { x: [], y: [] }
     mean,
     variance,
     stdDev,
@@ -223,7 +221,7 @@ function createFullEstimate(estimates) {
 
   const triangleSummary = createTriangleSummary(bestCase, mostLikely, worstCase);
   const trianglePercentiles = createConfidencePercentiles(
-    triangleSummary.points.map(p => p.x)
+    triangleSummary.points.x // Use x-values for percentiles
   );
 
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
@@ -250,7 +248,7 @@ function createFullEstimate(estimates) {
 
   return {
     estimates,
-    trianglePoints: triangleSummary.points,
+    trianglePoints: triangleSummary.points, // Now { x: [], y: [] }
     triangleMean: triangleSummary.mean,
     triangleVariance: triangleSummary.variance,
     triangleStdDev: triangleSummary.stdDev,
@@ -296,7 +294,26 @@ function createFullEstimate(estimates) {
   };
 }
 
-module.exports = {
-  createFullEstimate
-};
+// ==============================================
+// Cloud Function Handler
+// ==============================================
 
+exports.handler = async (req, res) => {
+  try {
+    const inputData = req.body; // Array of [{ bestCase, mostLikely, worstCase }, ...]
+    if (!Array.isArray(inputData)) {
+      throw new Error("Input must be an array of estimate objects.");
+    }
+
+    const results = inputData.map((estimate, index) => {
+      const result = createFullEstimate(estimate);
+      result.task = index + 1; // Add task ID
+      return result;
+    });
+
+    res.status(200).json({ results });
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
