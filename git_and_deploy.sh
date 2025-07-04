@@ -140,13 +140,14 @@ echo "2) No"
 read -r -p "Your choice: " DEPLOY
 
 if [[ "$DEPLOY" == "1" ]]; then
-  gcloud functions deploy estimateDistributions \
-    --runtime nodejs20 \
-    --gen2 \
-    --entry-point app \
-    --region us-central1 \
-    --trigger-http \
-    --allow-unauthenticated
+gcloud functions deploy estimateDistributions \
+  --runtime nodejs20 \
+  --gen2 \
+  --entry-point app \
+  --region us-central1 \
+  --trigger-http \
+  --allow-unauthenticated \
+  --source=system-google-cloud-functions-api
 else
   echo "✅ Skipped deploy."
 fi
