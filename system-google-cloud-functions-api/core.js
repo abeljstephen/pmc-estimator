@@ -170,7 +170,7 @@ function generateSmoothedHistogram(samples, bins) {
 }
 
 // ==============================================
-// Percentile Helpers
+// Percentile and Metrics Helpers
 // ==============================================
 
 function createConfidencePercentiles(samples) {
@@ -182,6 +182,22 @@ function createConfidencePercentiles(samples) {
     percentiles[p] = sorted[index];
   });
   return percentiles;
+}
+
+function computeSampleStdDev(samples) {
+  const mean = samples.reduce((sum, x) => sum + x, 0) / samples.length;
+  const variance = samples.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / samples.length;
+  return Math.sqrt(variance);
+}
+
+function computeSampleSkewness(samples) {
+  const n = samples.length;
+  const mean = samples.reduce((sum, x) => sum + x, 0) / n;
+  const stdDev = computeSampleStdDev(samples);
+  return (
+    (n / ((n - 1) * (n - 2))) *
+    samples.reduce((sum, x) => sum + Math.pow((x - mean) / stdDev, 3), 0)
+  );
 }
 
 // ==============================================
@@ -205,10 +221,11 @@ function createFullEstimate(estimates) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
 
-  // Triangle
   const triangleSummary = createTriangleSummary(bestCase, mostLikely, worstCase);
+  const trianglePercentiles = createConfidencePercentiles(
+    triangleSummary.points.map(p => p.x)
+  );
 
-  // PERT Beta
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
   const pertStdDev = (worstCase - bestCase) / 6;
   const pertVariance = Math.pow(pertStdDev, 2);
@@ -216,16 +233,17 @@ function createFullEstimate(estimates) {
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
-  // Beta and PERT points
   const betaPoints = createBetaPoints(bestCase, worstCase, pertAlpha, pertBeta);
   const pertPoints = createPertPoints(bestCase, worstCase, pertAlpha, pertBeta);
 
-  // Monte Carlo
   const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
   const smoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
 
   const mcSmoothedMean = smoothedHistogram.reduce((sum, p) => sum + p.x * p.y, 0);
+  const mcStdDev = computeSampleStdDev(mcBetaSamples);
+  const mcSkewness = computeSampleSkewness(mcBetaSamples);
+
   const weightedConservative = pertMean + pertStdDev;
   const weightedNeutral = pertMean;
   const weightedOptimistic = pertMean - pertStdDev;
@@ -237,8 +255,14 @@ function createFullEstimate(estimates) {
     triangleVariance: triangleSummary.variance,
     triangleStdDev: triangleSummary.stdDev,
     triangleSkewness: triangleSummary.skewness,
-    pertPoints,
+    triangleMetrics: {
+      mean: triangleSummary.mean,
+      stdDev: triangleSummary.stdDev,
+      skewness: triangleSummary.skewness,
+      percentiles: trianglePercentiles
+    },
     betaPoints,
+    pertPoints,
     pertMean,
     pertStdDev,
     pertVariance,
@@ -257,6 +281,12 @@ function createFullEstimate(estimates) {
     mcBetaSamples,
     smoothedHistogram,
     mcSmoothedMean,
+    mcMetrics: {
+      mean: mcSmoothedMean,
+      stdDev: mcStdDev,
+      skewness: mcSkewness,
+      percentiles: smoothedPercentiles
+    },
     mcSmoothedVaR90: smoothedPercentiles["90"],
     weightedConservative,
     weightedNeutral,
