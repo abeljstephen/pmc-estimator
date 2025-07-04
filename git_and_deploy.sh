@@ -143,7 +143,6 @@ if [[ "$DEPLOY" == "1" ]]; then
 gcloud functions deploy estimateDistributions \
   --runtime nodejs20 \
   --gen2 \
-  --entry-point app \
   --region us-central1 \
   --trigger-http \
   --allow-unauthenticated \
