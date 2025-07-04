@@ -37,11 +37,39 @@ functions.http('pmcEstimatorAPI', (req, res) => {
 
   try {
     const results = tasks.map(processTask);
-    res.json({ results, message: "Batch estimation successful" });
+    // Filter fields if specified in query parameter
+    const fields = req.query.fields ? req.query.fields.split(',') : null;
+    const filteredResults = fields
+      ? results.map(result => {
+          const filtered = { task: result.task };
+          fields.forEach(field => {
+            if (result.hasOwnProperty(field)) filtered[field] = result[field];
+          });
+          return filtered;
+        })
+      : results;
+    res.json({ results: filteredResults, message: "Batch estimation successful" });
   } catch (err) {
     console.error("Error in pmcEstimatorAPI:", err.stack);
     res.status(500).json({ error: `Internal Server Error: ${err.message}` });
   }
+});
+
+functions.http('pmcEstimatorAPIFields', (req, res) => {
+  // CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  // Return list of available fields
+  const sampleTask = { task: "Sample", optimistic: 1800, mostLikely: 2400, pessimistic: 3000 };
+  const sampleResult = processTask(sampleTask);
+  const fields = Object.keys(sampleResult);
+  res.json({ fields, message: "Available fields retrieved" });
 });
 
 function processTask(task) {
@@ -52,7 +80,7 @@ function processTask(task) {
     throw new Error(`Invalid range for task ${task.task}: pessimistic (${pessimistic}) must be greater than optimistic (${optimistic})`);
   }
   if (optimistic > mostLikely || mostLikely > pessimistic) {
-    throw new Error(`Invalid passage order for task ${task.task}: optimistic (${optimistic}) <= mostLikely (${mostLikely}) <= pessimistic (${pessimistic})`);
+    throw new Error(`Invalid order for task ${task.task}: optimistic (${optimistic}) <= mostLikely (${mostLikely}) <= pessimistic (${pessimistic})`);
   }
 
   // Calculate triangular distribution points (Triangle plot)
@@ -79,7 +107,7 @@ function processTask(task) {
   const betaPoints = calculateBetaDistribution(optimistic, mostLikely, pessimistic);
 
   // Generate Monte Carlo samples (Monte Carlo plot)
-  const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 10000);
+  const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 1000);
 
   // Smooth histogram (Smoothed MC plot)
   const smoothedHistogram = smoothHistogram(mcBetaSamples);
@@ -128,7 +156,7 @@ function processTask(task) {
   };
 }
 
-// Helper functions (all retained from original core.js)
+// Helper functions
 function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
   const numPoints = 100;
   const points = [];
@@ -200,7 +228,7 @@ function gamma(z) {
   }
 }
 
-function generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples = 10000) {
+function generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples = 1000) {
   const results = [];
   for (let i = 0; i < samples; i++) {
     const r1 = Math.random();
@@ -250,7 +278,7 @@ function computeVaR90(cdf) {
 function computeTargetOptimizedCdf(budget, schedule, scope, risk, vaR90) {
   const adjustment = (budget + schedule - scope + risk) / 4;
   const shift = vaR90 * adjustment;
-  const histogram = smoothHistogram(generateMonteCarloSamples(0, 0, 0));
+  const histogram = smoothHistogram(generateMonteCarloSamples(0, 0, 0, 1000));
   return histogram.map(p => ({
     x: p.x + shift,
     y: p.y
