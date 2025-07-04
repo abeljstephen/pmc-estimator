@@ -5,6 +5,7 @@ const { createFullEstimate } = require("./core");
 const app = express();
 app.use(bodyParser.json());
 
+// POST endpoint for estimates
 app.post("/", (req, res) => {
   try {
     const estimates = req.body;
@@ -37,5 +38,11 @@ app.post("/", (req, res) => {
   }
 });
 
-// Export the app for Cloud Functions
-exports.pmcEstimatorAPI = app;
+// Listen on the PORT environment variable (default 8080) and 0.0.0.0
+const port = process.env.PORT || 8080;
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server listening on port ${port}`);
+});
+
+// Export the Express app for Cloud Functions
+exports.estimateDistributions = app;
