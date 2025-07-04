@@ -3,48 +3,38 @@
 'use strict';
 
 const functions = require('@google-cloud/functions-framework');
-const http = require('http');
 
-// Initialize the HTTP server (required for Cloud Run health check)
-const server = http.createServer((req, res) => {
+functions.http('pmcEstimatorAPI', (req, res) => {
+  // CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    });
-    res.end();
+    res.status(204).send('');
     return;
   }
-  functions.http('pmcEstimatorAPI', (req, res) => {
-    // Validate request
-    if (!req.body || !Array.isArray(req.body)) {
-      return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
-    }
 
-    const tasks = req.body.map(task => ({
-      task: task.task || `Task ${req.body.indexOf(task) + 1}`, // Optional task field
-      optimistic: parseFloat(task.optimistic || task.bestCase),
-      mostLikely: parseFloat(task.mostLikely),
-      pessimistic: parseFloat(task.pessimistic || task.worstCase)
-    }));
+  // Validate request
+  if (!req.body || !Array.isArray(req.body)) {
+    return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
+  }
 
-    if (!tasks.every(task => 
-      !isNaN(task.optimistic) && 
-      !isNaN(task.mostLikely) && 
-      !isNaN(task.pessimistic))) {
-      return res.status(400).json({ error: "All estimates (optimistic, mostLikely, pessimistic) must be numbers." });
-    }
+  const tasks = req.body.map(task => ({
+    task: task.task || `Task ${req.body.indexOf(task) + 1}`, // Optional task field, consumed by Code.gs and Plot.html for task identification
+    optimistic: parseFloat(task.optimistic || task.bestCase),
+    mostLikely: parseFloat(task.mostLikely),
+    pessimistic: parseFloat(task.pessimistic || task.worstCase)
+  }));
 
-    const results = tasks.map(processTask);
-    res.json({ results, message: "Batch estimation successful" });
-  })(req, res);
-});
+  if (!tasks.every(task => 
+    !isNaN(task.optimistic) && 
+    !isNaN(task.mostLikely) && 
+    !isNaN(task.pessimistic))) {
+    return res.status(400).json({ error: "All estimates (optimistic, mostLikely, pessimistic) must be numbers." });
+  }
 
-// Start the server on the port provided by Cloud Run
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  const results = tasks.map(processTask);
+  res.json({ results, message: "Batch estimation successful" }); // Consumed by Code.gs (estimateAndSave, processDataForPlot) and Plot.html (renderPlot)
 });
 
 function processTask(task) {
@@ -65,44 +55,44 @@ function processTask(task) {
     trianglePoints.push([x, y]);
   }
 
-  const trianglePointsObj = { x: trianglePoints.map(p => p[0]), y: trianglePoints.map(p => p[1]) };
+  const trianglePointsObj = { x: trianglePoints.map(p => p[0]), y: trianglePoints.map(p => p[1]) }; // Consumed by Plot.html (renderPlot) for Triangle tab
 
   // Calculate PERT distribution points (PERT Beta plot)
-  const pertPoints = calculatePERTDistribution(optimistic, mostLikely, pessimistic);
+  const pertPoints = calculatePERTDistribution(optimistic, mostLikely, pessimistic); // Consumed by Plot.html (renderPlot) for PERT Beta tab
 
   // Calculate Beta distribution points (Beta plot)
-  const betaPoints = calculateBetaDistribution(optimistic, mostLikely, pessimistic);
+  const betaPoints = calculateBetaDistribution(optimistic, mostLikely, pessimistic); // Consumed by Plot.html (renderPlot) for Beta tab
 
   // Generate Monte Carlo samples (Monte Carlo plot)
-  const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 10000);
+  const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 10000); // Consumed by Plot.html (renderPlot) for Monte Carlo tab
 
   // Smooth histogram (Smoothed MC plot)
-  const smoothedHistogram = smoothHistogram(mcBetaSamples);
+  const smoothedHistogram = smoothHistogram(mcBetaSamples); // Consumed by Plot.html (renderPlot) for Smoothed MC tab
 
   // Compute CDFs (Optimizer and Target Explorer plots/tables)
-  const originalCdf = computeCDF(smoothedHistogram);
-  const mcSmoothedVaR90 = computeVaR90(originalCdf); // 90th percentile for optimization
-  const optimizedCdf = computeTargetOptimizedCdf(0, 0, 0, 0, mcSmoothedVaR90); // Default sliders
+  const originalCdf = computeCDF(smoothedHistogram); // Consumed by Plot.html (renderPlot) for Optimizer and Target Explorer tabs
+  const mcSmoothedVaR90 = computeVaR90(originalCdf); // Consumed by Plot.html (renderPlot) and tables for Optimizer and Target Explorer tabs
+  const optimizedCdf = computeTargetOptimizedCdf(0, 0, 0, 0, mcSmoothedVaR90); // Consumed by Plot.html (renderPlot) for Optimizer and Target Explorer tabs
 
   // Calculate metrics
-  const triangleMean = (optimistic + mostLikely + pessimistic) / 3;
-  const pertMean = (optimistic + 4 * mostLikely + pessimistic) / 6;
-  const mcMean = mcBetaSamples.reduce((a, b) => a + b, 0) / mcBetaSamples.length;
-  const mcStdDev = Math.sqrt(mcBetaSamples.reduce((a, b) => a + Math.pow(b - mcMean, 2), 0) / mcBetaSamples.length);
-  const mcSkewness = computeSkewness(mcBetaSamples, mcMean, mcStdDev);
-  const percentiles = computePercentiles(originalCdf);
-  const triangleMetrics = { mean: triangleMean, stdDev: 0, percentiles, skewness: 0 }; // Simplified
-  const betaMetrics = { mean: pertMean, stdDev: 0, percentiles, skewness: 0 }; // Simplified
-  const mcMetrics = { mean: mcMean, stdDev: mcStdDev, percentiles, skewness: mcSkewness };
+  const triangleMean = (optimistic + mostLikely + pessimistic) / 3; // Consumed by Code.gs (estimateAndSave) and Plot.html (tables) for Triangle tab
+  const pertMean = (optimistic + 4 * mostLikely + pessimistic) / 6; // Consumed by Code.gs (estimateAndSave) and Plot.html (tables) for PERT Beta tab
+  const mcMean = mcBetaSamples.reduce((a, b) => a + b, 0) / mcBetaSamples.length; // Consumed by Code.gs (estimateAndSave) and Plot.html (tables) for Monte Carlo and Smoothed MC tabs
+  const mcStdDev = Math.sqrt(mcBetaSamples.reduce((a, b) => a + Math.pow(b - mcMean, 2), 0) / mcBetaSamples.length); // Consumed by Plot.html (tables) for Monte Carlo and Smoothed MC tabs
+  const mcSkewness = computeSkewness(mcBetaSamples, mcMean, mcStdDev); // Consumed by Plot.html (tables) for Monte Carlo and Smoothed MC tabs
+  const percentiles = computePercentiles(originalCdf); // Consumed by Plot.html (tables) for all tabs
+  const triangleMetrics = { mean: triangleMean, stdDev: 0, percentiles, skewness: 0 }; // Consumed by Plot.html (tables) for Triangle tab
+  const betaMetrics = { mean: pertMean, stdDev: 0, percentiles, skewness: 0 }; // Consumed by Plot.html (tables) for Beta tab
+  const mcMetrics = { mean: mcMean, stdDev: mcStdDev, percentiles, skewness: mcSkewness }; // Consumed by Plot.html (tables) for Monte Carlo and Smoothed MC tabs
 
   // Weighted estimates
-  const weightedOptimistic = optimistic;
-  const weightedNeutral = mostLikely;
-  const weightedConservative = pessimistic;
+  const weightedOptimistic = optimistic; // Consumed by Plot.html (annotation) for Triangle tab
+  const weightedNeutral = mostLikely; // Consumed by Plot.html (annotation) for all tabs
+  const weightedConservative = pessimistic; // Consumed by Plot.html (annotation) for all tabs
 
   return {
-    task: task.task,
-    estimates: { optimistic, mostLikely, pessimistic },
+    task: task.task, // Consumed by Code.gs (estimateAndSave) and Plot.html (task identification)
+    estimates: { optimistic, mostLikely, pessimistic }, // Consumed by Code.gs (estimateAndSave)
     trianglePoints: trianglePointsObj,
     pertPoints,
     betaPoints,
@@ -140,7 +130,7 @@ function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
     }
     points.push([x, y]);
   }
-  return { x: points.map(p => p[0]), y: points.map(p => p[1]) };
+  return { x: points.map(p => p[0]), y: points.map(p => p[1]) }; // Consumed by Plot.html (renderPlot) for PERT Beta tab
 }
 
 function calculateBetaDistribution(optimistic, mostLikely, pessimistic) {
@@ -155,15 +145,15 @@ function calculateBetaDistribution(optimistic, mostLikely, pessimistic) {
     const y = t ** (alpha - 1) * (1 - t) ** (beta - 1) / betaFunction(alpha, beta);
     points.push([x, y]);
   }
-  return { x: points.map(p => p[0]), y: points.map(p => p[1]) };
+  return { x: points.map(p => p[0]), y: points.map(p => p[1]) }; // Consumed by Plot.html (renderPlot) for Beta tab
 }
 
 function betaFunction(alpha, beta) {
-  return gamma(alpha) * gamma(beta) / gamma(alpha + beta);
+  return gamma(alpha) * gamma(beta) / gamma(alpha + beta); // Helper for calculateBetaDistribution
 }
 
 function gamma(n) {
-  return (n === 1) ? 1 : n * gamma(n - 1); // Simplified for example
+  return (n === 1) ? 1 : n * gamma(n - 1); // Helper for betaFunction
 }
 
 function generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples = 10000) {
@@ -175,7 +165,7 @@ function generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples 
     const stdDev = (pessimistic - optimistic) / 6;
     results.push(mean + stdDev * (Math.sqrt(-2 * Math.log(r1)) * Math.cos(2 * Math.PI * r2)));
   }
-  return results;
+  return results; // Consumed by Plot.html (renderPlot) for Monte Carlo tab
 }
 
 function smoothHistogram(samples) {
@@ -192,7 +182,7 @@ function smoothHistogram(samples) {
   return histogram.map((count, i) => ({
     x: min + i * binWidth + binWidth / 2,
     y: count / norm
-  }));
+  })); // Consumed by Plot.html (renderPlot) for Smoothed MC tab
 }
 
 function computeCDF(histogram) {
@@ -203,14 +193,14 @@ function computeCDF(histogram) {
     cumulative += p.y * binWidth;
     cdf.push({ x: p.x, y: Math.min(cumulative, 1) });
   });
-  return cdf;
+  return cdf; // Consumed by Plot.html (renderPlot) for Optimizer and Target Explorer tabs
 }
 
 function computeVaR90(cdf) {
   for (let i = 0; i < cdf.length; i++) {
     if (cdf[i].y >= 0.9) return cdf[i].x;
   }
-  return cdf[cdf.length - 1].x;
+  return cdf[cdf.length - 1].x; // Consumed by Plot.html (renderPlot) and tables for Optimizer and Target Explorer tabs
 }
 
 function computeTargetOptimizedCdf(budget, schedule, scope, risk, vaR90) {
@@ -220,15 +210,15 @@ function computeTargetOptimizedCdf(budget, schedule, scope, risk, vaR90) {
   return histogram.map(p => ({
     x: p.x + shift,
     y: p.y
-  }));
+  })); // Consumed by Plot.html (renderPlot) for Optimizer and Target Explorer tabs
 }
 
 function computePercentiles(cdf) {
-  return { "50": cdf[Math.floor(cdf.length * 0.5)].x, "90": cdf[Math.floor(cdf.length * 0.9)].x };
+  return { "50": cdf[Math.floor(cdf.length * 0.5)].x, "90": cdf[Math.floor(cdf.length * 0.9)].x }; // Consumed by Plot.html (tables) for all tabs
 }
 
 function computeSkewness(samples, mean, stdDev) {
   const n = samples.length;
   const m3 = samples.reduce((a, b) => a + Math.pow(b - mean, 3), 0) / n;
-  return m3 / Math.pow(stdDev, 3);
+  return m3 / Math.pow(stdDev, 3); // Consumed by Plot.html (tables) for Monte Carlo and Smoothed MC tabs
 }
