@@ -160,6 +160,22 @@ function showPlot() {
   SpreadsheetApp.getUi().showModalDialog(html, "Estimation Plots & Explorer");
 }
 
+function doGet(e) {
+  const estimates = getEstimatesFromSheet();
+  const results = getEstimateResults(estimates);
+
+  const template = HtmlService.createTemplateFromFile('Plot');
+  template.estimateResults = results;
+
+  return template
+    .evaluate()
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setTitle('PMC Estimator Plot')
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME)
+    .setContentSecurityPolicy(
+      "default-src 'self' https://www.gstatic.com; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';"
+    );
+}
 
 /**
  * Returns the stored estimation JSON for plot.html.
@@ -239,3 +255,4 @@ function debugGetResults() {
   const res = getLatestEstimationResults();
   Logger.log(JSON.stringify(res, null, 2));
 }
+
