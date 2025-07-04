@@ -4,21 +4,18 @@
 // Beta Distribution Parameter Estimation Helpers
 // ==============================================
 
-// Calculate alpha parameter for Beta distribution
 function calculateAlpha(mean, stdDev, min, max) {
   const variance = Math.pow(stdDev, 2);
   const commonFactor = ((mean - min) * (max - mean)) / variance - 1;
   return commonFactor * (mean - min) / (max - min);
 }
 
-// Calculate beta parameter for Beta distribution
 function calculateBeta(mean, stdDev, min, max) {
   const variance = Math.pow(stdDev, 2);
   const commonFactor = ((mean - min) * (max - mean)) / variance - 1;
   return commonFactor * (max - mean) / (max - min);
 }
 
-// Compute Beta distribution mode
 function calculateBetaMode(alpha, beta, min, max) {
   if (alpha <= 1 || beta <= 1) {
     return alpha < beta ? min : max;
@@ -31,7 +28,15 @@ function calculateBetaMode(alpha, beta, min, max) {
 // Triangle Distribution Helpers
 // ==============================================
 
-// Create triangle distribution summary with points & statistics
+function trianglePdf(x, min, mode, max) {
+  if (x < min || x > max) return 0;
+  if (x <= mode) {
+    return (2 * (x - min)) / ((max - min) * (mode - min));
+  } else {
+    return (2 * (max - x)) / ((max - min) * (max - mode));
+  }
+}
+
 function createTriangleSummary(bestCase, mostLikely, worstCase) {
   const min = bestCase;
   const mode = mostLikely;
@@ -58,7 +63,7 @@ function createTriangleSummary(bestCase, mostLikely, worstCase) {
     const x = min + i * step;
     const y = trianglePdf(x, min, mode, max);
     cumulative += y * step;
-    TRIANGLE_POINTS.push({ x, y, confidence: Math.min(cumulative * 100, 100) });
+    TRIANGLE_POINTS.push({ x, y });
   }
 
   return {
@@ -70,36 +75,14 @@ function createTriangleSummary(bestCase, mostLikely, worstCase) {
   };
 }
 
-// Triangle probability density function
-function trianglePdf(x, min, mode, max) {
-  if (x < min || x > max) return 0;
-  if (x <= mode) {
-    return (2 * (x - min)) / ((max - min) * (mode - min));
-  } else {
-    return (2 * (max - x)) / ((max - min) * (max - mode));
-  }
-}
-
 // ==============================================
 // Beta PDF Helpers
 // ==============================================
 
-// Beta probability density normalized over [min,max]
-function betaPdfNormalized(x, alpha, beta, min, max) {
-  const scaledX = (x - min) / (max - min);
-  return (
-    (Math.pow(scaledX, alpha - 1) * Math.pow(1 - scaledX, beta - 1)) /
-    betaFunction(alpha, beta) /
-    (max - min)
-  );
-}
-
-// Beta function using gamma
 function betaFunction(a, b) {
   return gamma(a) * gamma(b) / gamma(a + b);
 }
 
-// Gamma approximation
 function gamma(z) {
   const g = 7;
   const p = [
@@ -121,8 +104,16 @@ function gamma(z) {
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
 
-// Generate PERT Beta distribution points (THIS WAS MISSING!)
-function createPertPoints(min, max, alpha, beta) {
+function betaPdfNormalized(x, alpha, beta, min, max) {
+  const scaledX = (x - min) / (max - min);
+  return (
+    (Math.pow(scaledX, alpha - 1) * Math.pow(1 - scaledX, beta - 1)) /
+    betaFunction(alpha, beta) /
+    (max - min)
+  );
+}
+
+function createBetaPoints(min, max, alpha, beta) {
   const steps = 100;
   const step = (max - min) / steps;
   return Array.from({ length: steps + 1 }, (_, i) => {
@@ -131,11 +122,14 @@ function createPertPoints(min, max, alpha, beta) {
   });
 }
 
+function createPertPoints(min, max, alpha, beta) {
+  return createBetaPoints(min, max, alpha, beta);
+}
+
 // ==============================================
 // Monte Carlo Sampling Helpers
 // ==============================================
 
-// Monte Carlo samples for Beta distribution
 function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
   const simulations = [];
   for (let i = 0; i < 1000; i++) {
@@ -147,7 +141,6 @@ function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
   return simulations;
 }
 
-// Smoothed histogram with Gaussian kernel
 function generateSmoothedHistogram(samples, bins) {
   const minVal = Math.min(...samples);
   const maxVal = Math.max(...samples);
@@ -176,34 +169,6 @@ function generateSmoothedHistogram(samples, bins) {
   return histogram;
 }
 
-// Create CDF from histogram
-function computeCdfFromHistogram(histogram) {
-  let cumulative = 0;
-  const step = histogram[1].x - histogram[0].x;
-  return histogram.map((p) => {
-    cumulative += p.y * step;
-    return { x: p.x, y: Math.min(cumulative, 1) };
-  });
-}
-
-// Create Monte Carlo histogram (raw)
-function createMonteCarloHistogram(samples, bins) {
-  const min = Math.min(...samples);
-  const max = Math.max(...samples);
-  const binWidth = (max - min) / bins;
-  const histogram = Array.from({ length: bins }, (_, i) => ({
-    x: min + i * binWidth,
-    y: 0
-  }));
-  samples.forEach((s) => {
-    const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
-    histogram[idx].y++;
-  });
-  const norm = samples.length * binWidth;
-  histogram.forEach((h) => h.y /= norm);
-  return histogram;
-}
-
 // ==============================================
 // Percentile Helpers
 // ==============================================
@@ -217,10 +182,6 @@ function createConfidencePercentiles(samples) {
     percentiles[p] = sorted[index];
   });
   return percentiles;
-}
-
-function createSmoothedConfidencePercentiles(samples) {
-  return createConfidencePercentiles(samples);
 }
 
 // ==============================================
@@ -244,32 +205,27 @@ function createFullEstimate(estimates) {
     throw new Error("Estimates must satisfy: best <= mostLikely <= worst.");
   }
 
-  // Triangle Distribution
+  // Triangle
   const triangleSummary = createTriangleSummary(bestCase, mostLikely, worstCase);
 
   // PERT Beta
   const pertMean = (bestCase + 4 * mostLikely + worstCase) / 6;
-  const range = worstCase - bestCase;
-  const baseStdDev = range / 6;
-  const midpoint = (bestCase + worstCase) / 2;
-  const modeDeviation = (mostLikely - midpoint) / (range / 2);
-  const skewFactor = 1 + Math.abs(modeDeviation) * 0.5;
-  const pertStdDev = baseStdDev * skewFactor;
+  const pertStdDev = (worstCase - bestCase) / 6;
   const pertVariance = Math.pow(pertStdDev, 2);
   const pertAlpha = calculateAlpha(pertMean, pertStdDev, bestCase, worstCase);
   const pertBeta = calculateBeta(pertMean, pertStdDev, bestCase, worstCase);
   const betaMode = calculateBetaMode(pertAlpha, pertBeta, bestCase, worstCase);
 
+  // Beta and PERT points
+  const betaPoints = createBetaPoints(bestCase, worstCase, pertAlpha, pertBeta);
+  const pertPoints = createPertPoints(bestCase, worstCase, pertAlpha, pertBeta);
+
   // Monte Carlo
   const mcBetaSamples = monteCarloSamplesBetaNoNoise(pertAlpha, pertBeta, bestCase, worstCase);
-  const unsmoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
   const smoothedHistogram = generateSmoothedHistogram(mcBetaSamples, 100);
-  const smoothedPercentiles = createSmoothedConfidencePercentiles(mcBetaSamples);
+  const smoothedPercentiles = createConfidencePercentiles(mcBetaSamples);
 
-  const smoothedSum = smoothedHistogram.reduce((sum, p) => sum + p.x * p.y, 0);
-  const smoothedArea = smoothedHistogram.reduce((sum, p) => sum + p.y, 0);
-  const mcSmoothedMean = smoothedArea > 0 ? smoothedSum / smoothedArea : pertMean;
-
+  const mcSmoothedMean = smoothedHistogram.reduce((sum, p) => sum + p.x * p.y, 0);
   const weightedConservative = pertMean + pertStdDev;
   const weightedNeutral = pertMean;
   const weightedOptimistic = pertMean - pertStdDev;
@@ -281,7 +237,8 @@ function createFullEstimate(estimates) {
     triangleVariance: triangleSummary.variance,
     triangleStdDev: triangleSummary.stdDev,
     triangleSkewness: triangleSummary.skewness,
-    pertPoints: createPertPoints(bestCase, worstCase, pertAlpha, pertBeta),
+    pertPoints,
+    betaPoints,
     pertMean,
     pertStdDev,
     pertVariance,
@@ -298,12 +255,9 @@ function createFullEstimate(estimates) {
       percentiles: smoothedPercentiles
     },
     mcBetaSamples,
-    unsmoothedPercentiles,
-    smoothedPercentiles,
     smoothedHistogram,
     mcSmoothedMean,
     mcSmoothedVaR90: smoothedPercentiles["90"],
-    mcUnsmoothedVaR90: unsmoothedPercentiles["90"],
     weightedConservative,
     weightedNeutral,
     weightedOptimistic,
