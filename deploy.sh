@@ -8,6 +8,7 @@
 # Cloud Web App URL: https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI
 # Region: us-central1
 # Billing Account: billingAccounts/010656-5E1AC1-335B03
+# Date: July 04, 2025, 03:41 PM PDT
 
 # Exit on any error
 set -e
@@ -117,6 +118,11 @@ if [ ! -f "$INDEX_FILE" ]; then
   echo -e "${RED}Error: ${INDEX_FILE} not found in ${SOURCE_DIR}${NC}"
   exit 1
 fi
+CORE_FILE="${SOURCE_DIR}/core.js"
+if [ ! -f "$CORE_FILE" ]; then
+  echo -e "${RED}Error: ${CORE_FILE} not found in ${SOURCE_DIR}${NC}"
+  exit 1
+fi
 
 # Check for Functions Framework export
 if ! grep -q 'exports.pmcEstimatorAPI' "$INDEX_FILE"; then
@@ -170,24 +176,26 @@ cd -
 # Step 8: Test Application Locally
 echo -e "${YELLOW}8. Testing application locally...${NC}"
 # Run in background and capture PID
-npm --prefix "$SOURCE_DIR" run start &
+npm --prefix "$SOURCE_DIR" run start > local_test.log 2>&1 &
 NODE_PID=$!
 sleep 5 # Wait for server to start
 
-# Test endpoint
+# Test with simple payload
+echo -e "${YELLOW}Testing with simple payload...${NC}"
 CURL_RESPONSE=$(curl -s -w "%{http_code}" -X POST http://localhost:8080 -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o curl_response.json)
 if [ "$CURL_RESPONSE" -eq 200 ]; then
-  echo -e "${GREEN}Local test successful: Server responded with status 200${NC}"
-  cat curl_response.json
+  echo -e "${GREEN}Simple payload test successful: Server responded with status 200${NC}"
 else
-  echo -e "${RED}Error: Local test failed with status ${CURL_RESPONSE}${NC}"
+  echo -e "${RED}Error: Simple payload test failed with status ${CURL_RESPONSE}${NC}"
+  echo -e "${YELLOW}Local test log:${NC}"
+  cat local_test.log
   cat curl_response.json
   kill $NODE_PID
   exit 1
 fi
 # Clean up
 kill $NODE_PID
-rm curl_response.json
+rm local_test.log curl_response.json
 
 # Step 9: Deploy to Cloud Functions
 echo -e "${YELLOW}9. Deploying to Cloud Functions...${NC}"
@@ -197,7 +205,8 @@ gcloud functions deploy "$FUNCTION_NAME" \
   --allow-unauthenticated \
   --region "$REGION" \
   --source "$SOURCE_DIR" \
-  --project "$PROJECT_ID"
+  --project "$PROJECT_ID" \
+  --memory 512MB
 
 # Step 10: Verify JSON Data Flow (Optional)
 echo -e "${YELLOW}10. Do you want to test JSON data flow?${NC}"
@@ -205,34 +214,66 @@ echo -e "  (1) Yes"
 echo -e "  (2) No"
 read -p "Enter your choice (1 or 2): " JSON_TEST_CHOICE
 if [ "$JSON_TEST_CHOICE" = "1" ]; then
-  echo -e "${YELLOW}Testing JSON data flow...${NC}"
+  echo -e "${YELLOW}Testing JSON data flow with test payload...${NC}"
   JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o json_response.json)
   if [ "$JSON_RESPONSE" -eq 200 ]; then
     echo -e "${GREEN}JSON data flow test successful: Server responded with status 200${NC}"
-    echo -e "${YELLOW}API response:${NC}"
-    cat json_response.json
     # Validate JSON structure
     if jq -e '.results[0]' json_response.json >/dev/null; then
       echo -e "${GREEN}JSON structure valid: Contains 'results' array${NC}"
       # Dynamically extract fields from results[0]
       FIELDS=($(jq -r '.results[0] | keys[]' json_response.json))
-      echo -e "${YELLOW}Select JSON piece to view raw data:${NC}"
+      echo -e "${YELLOW}Select JSON piece(s) to view raw data (comma or space-separated, e.g., 1,3,5 or 1 3 5, or 'all' for full JSON):${NC}"
       for i in "${!FIELDS[@]}"; do
         echo -e "  $((i+1))) ${FIELDS[$i]}"
       done
-      echo -e "  $(( ${#FIELDS[@]} + 1 ))) All"
-      read -p "Enter your choice (1-$(( ${#FIELDS[@]} + 1 ))): " JSON_PIECE_CHOICE
-      if [ "$JSON_PIECE_CHOICE" -ge 1 ] && [ "$JSON_PIECE_CHOICE" -le "${#FIELDS[@]}" ]; then
-        FIELD_INDEX=$((JSON_PIECE_CHOICE-1))
-        FIELD=${FIELDS[$FIELD_INDEX]}
-        echo -e "${YELLOW}Raw data for ${FIELD}:${NC}"
-        jq ".results[0].${FIELD}" json_response.json
-      elif [ "$JSON_PIECE_CHOICE" -eq $(( ${#FIELDS[@]} + 1 )) ]; then
-        echo -e "${YELLOW}Raw data for all:${NC}"
+      echo -e "  all) Full JSON"
+      read -p "Enter your choice: " JSON_PIECE_CHOICE
+      if [ "$JSON_PIECE_CHOICE" = "all" ]; then
+        echo -e "${YELLOW}Raw data for full JSON:${NC}"
         cat json_response.json
       else
-        echo -e "${RED}Error: Invalid choice. Please select 1-$(( ${#FIELDS[@]} + 1 )).${NC}"
-        exit 1
+        # Split on commas or spaces
+        SELECTED_FIELDS=($(echo "$JSON_PIECE_CHOICE" | tr ',' ' ' | tr -s ' ' | xargs -n1))
+        for field_choice in "${SELECTED_FIELDS[@]}"; do
+          if [[ "$field_choice" =~ ^[0-9]+$ ]] && [ "$field_choice" -ge 1 ] && [ "$field_choice" -le "${#FIELDS[@]}" ]; then
+            FIELD_INDEX=$((field_choice-1))
+            FIELD=${FIELDS[$FIELD_INDEX]}
+            echo -e "${YELLOW}Raw data for ${FIELD}:${NC}"
+            jq ".results[0].${FIELD}" json_response.json
+          else
+            echo -e "${RED}Error: Invalid choice ${field_choice}. Please select 1-${#FIELDS[@]}, 'all'.${NC}"
+          fi
+        done
+      fi
+      # Ask if user wants to select more fields
+      echo -e "${YELLOW}Do you want to select more JSON pieces?${NC}"
+      echo -e "  (1) Yes"
+      echo -e "  (2) No"
+      read -p "Enter your choice (1 or 2): " MORE_FIELDS
+      if [ "$MORE_FIELDS" = "1" ]; then
+        echo -e "${YELLOW}Select JSON piece(s) to view raw data (comma or space-separated, e.g., 1,3,5 or 1 3 5, or 'all' for full JSON):${NC}"
+        for i in "${!FIELDS[@]}"; do
+          echo -e "  $((i+1))) ${FIELDS[$i]}"
+        done
+        echo -e "  all) Full JSON"
+        read -p "Enter your choice: " JSON_PIECE_CHOICE
+        if [ "$JSON_PIECE_CHOICE" = "all" ]; then
+          echo -e "${YELLOW}Raw data for full JSON:${NC}"
+          cat json_response.json
+        else
+          SELECTED_FIELDS=($(echo "$JSON_PIECE_CHOICE" | tr ',' ' ' | tr -s ' ' | xargs -n1))
+          for field_choice in "${SELECTED_FIELDS[@]}"; do
+            if [[ "$field_choice" =~ ^[0-9]+$ ]] && [ "$field_choice" -ge 1 ] && [ "$field_choice" -le "${#FIELDS[@]}" ]; then
+              FIELD_INDEX=$((field_choice-1))
+              FIELD=${FIELDS[$FIELD_INDEX]}
+              echo -e "${YELLOW}Raw data for ${FIELD}:${NC}"
+              jq ".results[0].${FIELD}" json_response.json
+            else
+              echo -e "${RED}Error: Invalid choice ${field_choice}. Please select 1-${#FIELDS[@]}, 'all'.${NC}"
+            fi
+          done
+        fi
       fi
     else
       echo -e "${RED}Error: JSON structure invalid or missing 'results' array${NC}"
@@ -250,10 +291,10 @@ else
   echo -e "${GREEN}Skipping JSON data flow test${NC}"
 fi
 
-# Instructions for Apps Script
+# Instructions for Further Testing
 echo -e "${YELLOW}Next steps:${NC}"
-echo -e "  1. Ensure 'callEstimator' in Code.gs uses the URL: ${SERVICE_URL}"
-echo -e "  2. Run 'estimateAndSave' in Apps Script to test the API."
+echo -e "  1. Test the API with different payloads using curl to verify JSON fields."
+echo -e "  2. If using Apps Script, run 'estimateAndSave' to test the API with your data."
 echo -e "  3. Check 'Estimate Calculations' tab for data."
 echo -e "  4. Select 'Show Plot' to verify the triangular plot."
 echo -e "  5. Deploy the web app and test the plot rendering."
