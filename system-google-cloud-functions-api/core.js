@@ -7,7 +7,6 @@ const jstat = require('jstat');
 const functions = require('@google-cloud/functions-framework');
 
 functions.http('pmcEstimatorAPI', (req, res) => {
-  // CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,7 +15,6 @@ functions.http('pmcEstimatorAPI', (req, res) => {
     return;
   }
 
-  // Validate request
   if (!req.body || !Array.isArray(req.body)) {
     return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
   }
@@ -37,7 +35,6 @@ functions.http('pmcEstimatorAPI', (req, res) => {
 
   try {
     const results = tasks.map(processTask);
-    // Filter fields if specified in query parameter
     const fields = req.query.fields ? req.query.fields.split(',') : null;
     const filteredResults = fields
       ? results.map(result => {
@@ -56,7 +53,6 @@ functions.http('pmcEstimatorAPI', (req, res) => {
 });
 
 functions.http('pmcEstimatorAPIFields', (req, res) => {
-  // CORS headers
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -65,7 +61,6 @@ functions.http('pmcEstimatorAPIFields', (req, res) => {
     return;
   }
 
-  // Return list of available fields
   const sampleTask = { task: "Sample", optimistic: 1800, mostLikely: 2400, pessimistic: 3000 };
   const sampleResult = processTask(sampleTask);
   const fields = Object.keys(sampleResult);
@@ -75,7 +70,6 @@ functions.http('pmcEstimatorAPIFields', (req, res) => {
 function processTask(task) {
   const { optimistic, mostLikely, pessimistic } = task;
 
-  // Validate inputs
   if (pessimistic - optimistic <= 0) {
     throw new Error(`Invalid range for task ${task.task}: pessimistic (${pessimistic}) must be greater than optimistic (${optimistic})`);
   }
@@ -83,7 +77,6 @@ function processTask(task) {
     throw new Error(`Invalid order for task ${task.task}: optimistic (${optimistic}) <= mostLikely (${mostLikely}) <= pessimistic (${pessimistic})`);
   }
 
-  // Calculate triangular distribution points (Triangle plot)
   const numPoints = 100;
   const trianglePoints = [];
   const step = (pessimistic - optimistic) / (numPoints - 1);
@@ -100,24 +93,14 @@ function processTask(task) {
 
   const trianglePointsObj = { x: trianglePoints.map(p => p[0]), y: trianglePoints.map(p => p[1]) };
 
-  // Calculate PERT distribution points (PERT Beta plot)
   const pertPoints = calculatePERTDistribution(optimistic, mostLikely, pessimistic);
-
-  // Calculate Beta distribution points (Beta plot)
   const betaPoints = calculateBetaDistribution(optimistic, mostLikely, pessimistic);
-
-  // Generate Monte Carlo samples (Monte Carlo plot)
   const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 1000);
-
-  // Smooth histogram (Smoothed MC plot)
   const smoothedHistogram = smoothHistogram(mcBetaSamples);
-
-  // Compute CDFs (Optimizer and Target Explorer plots/tables)
   const originalCdf = computeCDF(smoothedHistogram);
   const mcSmoothedVaR90 = computeVaR90(originalCdf);
   const optimizedCdf = computeTargetOptimizedCdf(0, 0, 0, 0, mcSmoothedVaR90);
 
-  // Calculate metrics
   const triangleMean = (optimistic + mostLikely + pessimistic) / 3;
   const pertMean = (optimistic + 4 * mostLikely + pessimistic) / 6;
   const mcMean = mcBetaSamples.reduce((a, b) => a + b, 0) / mcBetaSamples.length;
@@ -128,7 +111,6 @@ function processTask(task) {
   const betaMetrics = { mean: pertMean, stdDev: 0, percentiles, skewness: 0 };
   const mcMetrics = { mean: mcMean, stdDev: mcStdDev, percentiles, skewness: mcSkewness };
 
-  // Weighted estimates
   const weightedOptimistic = optimistic;
   const weightedNeutral = mostLikely;
   const weightedConservative = pessimistic;
@@ -156,7 +138,6 @@ function processTask(task) {
   };
 }
 
-// Helper functions
 function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
   const numPoints = 100;
   const points = [];

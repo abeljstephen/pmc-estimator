@@ -1,258 +1,268 @@
+// Code.gs
+
 // =========================================
-// Section 1: API Call
+// Section 1: Menu Setup
 // =========================================
-/**
- * Calls your Cloud Function API with an array of estimates.
- */
-function callEstimator(estimatesArray) {
-  var url = "https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI";
-  var response = UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify(estimatesArray),
-    muteHttpExceptions: true // helpful for debugging errors
-  });
-  var parsed = JSON.parse(response.getContentText());
-  if (parsed.error) throw new Error("API Error: " + parsed.error);
-  return parsed;
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("PMC Estimator")
+    .addItem("Show Form", "showForm")
+    .addItem("Show Plot", "showPlot")
+    .addToUi();
 }
 
 // =========================================
-// Section 2: Sheet Output
+// Section 2: Sidebar Form
 // =========================================
-/**
- * Writes Estimate Calculations sheet.
- */
-function createEstimateSheet(results) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Estimate Calculations");
-  if (sheet) {
-    sheet.clear();
-  } else {
-    sheet = ss.insertSheet("Estimate Calculations");
-  }
-
-  // Headers
-  sheet.getRange(1, 1, 1, 17).setValues([
-    [
-      "Task",
-      "Best Case\n(Minimum estimate)",
-      "Most Likely\n(Most probable value)",
-      "Worst Case\n(Maximum estimate)",
-      "Triangle Mean\n(Average of min, mode, max)",
-      "Triangle Variance\n(Spread of Triangle)",
-      "PERT Mean\n(Expected value for planning)",
-      "PERT StdDev\n(Uncertainty measure)",
-      "PERT Variance\n(Spread of PERT)",
-      "Beta Alpha\n(Beta distribution shape α)",
-      "Beta Beta\n(Beta distribution shape β)",
-      "Beta Mode\n(Most frequent Beta value)",
-      "MC Smoothed Mean\n(Average from simulation)",
-      "MC Smoothed VaR90\n(90% percentile—risk buffer)",
-      "Weighted Conservative\n(PERT mean + std dev)",
-      "Weighted Neutral\n(PERT mean)",
-      "Weighted Optimistic\n(PERT mean - std dev)"
-    ]
-  ]);
-
-  // Rows
-  var rows = results.map(function(result, i) {
-    return [
-      "Task " + (i + 1),
-      result.estimates?.bestCase ?? "",
-      result.estimates?.mostLikely ?? "",
-      result.estimates?.worstCase ?? "",
-      result.triangleMean ?? "",
-      result.triangleVariance ?? "",
-      result.pertMean ?? "",
-      result.pertStdDev ?? "",
-      result.pertVariance ?? "",
-      result.pertAlpha ?? "",             // ✅ Corrected
-      result.pertBeta ?? "",              // ✅ Corrected
-      result.betaMode ?? "",
-      result.mcSmoothedMean ?? "",
-      result.mcSmoothedVaR90 ?? "",
-      result.pertMean !== undefined && result.pertStdDev !== undefined ? result.pertMean + result.pertStdDev : "",
-      result.pertMean ?? "",
-      result.pertMean !== undefined && result.pertStdDev !== undefined ? result.pertMean - result.pertStdDev : ""
-    ];
-  });
-
-  sheet.getRange(2, 1, rows.length, 17).setValues(rows);
-  sheet.getRange(2, 7, rows.length, 1).setBackground("#c6efce");
-}
-
-
-// =========================================
-// Section 3: Main Orchestration
-// =========================================
-/**
- * Master function called by "PERT" button or test manually.
- */
-function estimateAndSave() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var inputSheet = ss.getSheets()[0];
-  var data = inputSheet.getDataRange().getValues();
-
-  if (data.length < 2) {
-    SpreadsheetApp.getUi().alert("No data rows found in the input sheet.");
-    return;
-  }
-
-  var estimatesArray = [];
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    estimatesArray.push({
-      bestCase: row[1],
-      mostLikely: row[2],
-      worstCase: row[3]
-    });
-  }
-
-  var apiResponse = callEstimator(estimatesArray);
-
-  // Clone and remove large properties that exceed Apps Script property size
-  var cloned = JSON.parse(JSON.stringify(apiResponse));
-  cloned.results.forEach(function(task) {
-    delete task.mcBetaSamples;
-    delete task.unsmoothedPercentiles;
-    delete task.smoothedPercentiles;
-    delete task.smoothedHistogram;
-    delete task.trianglePoints;
-    delete task.pertPoints;
-    delete task.originalCdf;
-    delete task.optimizedCdf;
-  });
-
-  PropertiesService.getDocumentProperties().setProperty(
-    "latestEstimationResults",
-    JSON.stringify(cloned)
-  );
-
-  createEstimateSheet(apiResponse.results);
-
-  SpreadsheetApp.getUi().alert(
-    "Estimate Calculations completed. You can now open the Plot."
-  );
-}
-
-// =========================================
-// Section 4: UI Functions
-// =========================================
-/**
- * Shows the sidebar form.
- */
-function showSidebar() {
-  var html = HtmlService.createHtmlOutputFromFile("submit.html")
+function showForm() {
+  var html = HtmlService.createHtmlOutputFromFile("index")
     .setTitle("PMC Estimator");
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-/**
- * Shows the plot modal dialog.
- */
+// =========================================
+// Section 3: Plot Modal Dialog
+// =========================================
 function showPlot() {
   var template = HtmlService.createTemplateFromFile("Plot");
   template.estimateResults = getLatestEstimationResults();
   var html = template.evaluate()
     .setWidth(1000)
-    .setHeight(700);
-  SpreadsheetApp.getUi().showModalDialog(html, "Estimation Plots & Explorer");
-}
-
-function doGet(e) {
-  const estimates = getEstimatesFromSheet();
-  const results = getEstimateResults(estimates);
-
-  const template = HtmlService.createTemplateFromFile('Plot');
-  template.estimateResults = results;
-
-  return template
-    .evaluate()
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setTitle('PMC Estimator Plot')
-    .setSandboxMode(HtmlService.SandboxMode.IFRAME)
-    .setContentSecurityPolicy(
-      "default-src 'self' https://www.gstatic.com; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';"
-    );
-}
-
-/**
- * Returns the stored estimation JSON for plot.html.
- */
-function getLatestEstimationResults() {
-  var json = PropertiesService.getDocumentProperties().getProperty(
-    "latestEstimationResults"
-  );
-  return json ? JSON.parse(json) : null;
+    .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(html, "PMC Estimator Plot");
 }
 
 // =========================================
-// Section 5: Debug & Testing Helpers
+// Section 4: Data Fetching
 // =========================================
-/**
- * Test function: estimate and log.
- */
-function testEstimatorBatch() {
-  estimateAndSave();
-}
-
-/**
- * Debug function: log API response JSON.
- */
-function logApiResponse() {
+function getEstimatesFromSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var inputSheet = ss.getSheets()[0];
   var data = inputSheet.getDataRange().getValues();
 
+  if (data.length < 2) {
+    throw new Error("No data rows found in the input sheet.");
+  }
+
   var estimatesArray = [];
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
+    var optimistic = parseFloat(row[1]);
+    var mostLikely = parseFloat(row[2]);
+    var pessimistic = parseFloat(row[3]);
+
+    if (isNaN(optimistic) || isNaN(mostLikely) || isNaN(pessimistic)) {
+      Logger.log(`Row ${i + 1} skipped: Invalid numbers - Task: ${row[0]}, Optimistic: ${row[1]}, Most Likely: ${row[2]}, Pessimistic: ${row[3]}`);
+      continue;
+    }
+
     estimatesArray.push({
-      bestCase: row[1],
-      mostLikely: row[2],
-      worstCase: row[3]
+      task: row[0],
+      optimistic: optimistic,
+      mostLikely: mostLikely,
+      pessimistic: pessimistic
     });
   }
 
-  var apiResponse = callEstimator(estimatesArray);
+  if (estimatesArray.length === 0) {
+    throw new Error("No valid data rows found. All rows contain invalid numeric values.");
+  }
 
-  // Only keep summary of each result for logging
-  var summary = apiResponse.results.map(function(r, idx) {
-    return {
-      task: idx + 1,
-      triangleMean: r.triangleMean,
-      pertMean: r.pertMean,
-      pertStdDev: r.pertStdDev,
-      betaAlpha: r.betaAlpha,
-      betaBeta: r.betaBeta,
-      betaMode: r.betaMode,
-      mcSmoothedMean: r.mcSmoothedMean,
-      mcSmoothedVaR90: r.mcSmoothedVaR90,
-      weightedConservative: r.weightedConservative,
-      weightedNeutral: r.weightedNeutral,
-      weightedOptimistic: r.weightedOptimistic
+  Logger.log('Estimates sent to API: ' + JSON.stringify(estimatesArray));
+  return estimatesArray;
+}
+
+function getApiFields() {
+  var url = "https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPIFields";
+  var options = {
+    method: "get",
+    contentType: "application/json",
+    followRedirects: true,
+    muteHttpExceptions: true
+  };
+  try {
+    var response = UrlFetchApp.fetch(url, options);
+    var responseText = response.getContentText();
+    Logger.log('API fields response: ' + responseText);
+    var parsed = JSON.parse(responseText);
+    if (parsed.error) throw new Error("API Error: " + parsed.error);
+    return parsed.fields;
+  } catch (e) {
+    Logger.log('API Error fetching fields: ' + e.toString());
+    throw new Error("Failed to fetch fields: " + e.message);
+  }
+}
+
+function callEstimator(estimatesArray, fields) {
+  var url = "https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI";
+  if (fields) url += "?fields=" + encodeURIComponent(fields.join(','));
+  var sanitizedArray = estimatesArray.map(estimate => ({
+    task: estimate.task,
+    optimistic: Number(estimate.optimistic),
+    mostLikely: Number(estimate.mostLikely),
+    pessimistic: Number(estimate.pessimistic)
+  }));
+  var payload = JSON.stringify(sanitizedArray);
+  Logger.log('Sanitized payload: ' + payload);
+  try {
+    var options = {
+      method: "post",
+      contentType: "application/json",
+      payload: payload,
+      followRedirects: true,
+      muteHttpExceptions: true
     };
+    var response = UrlFetchApp.fetch(url, options);
+    var responseText = response.getContentText();
+    Logger.log('API response: ' + responseText);
+    var parsed = JSON.parse(responseText);
+    if (parsed.error) throw new Error("API Error: " + parsed.error);
+    return parsed;
+  } catch (e) {
+    Logger.log('API Error details: ' + e.toString());
+    throw new Error("Failed to fetch data: " + e.message);
+  }
+}
+
+function getInputHash() {
+  var estimates = getEstimatesFromSheet();
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(estimates))
+    .map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('');
+}
+
+function getLatestEstimationResults() {
+  var props = PropertiesService.getDocumentProperties();
+  var fields = props.getProperty("apiFields");
+  if (!fields) return null;
+  fields = JSON.parse(fields);
+  var results = [];
+  var tasks = [];
+  fields.forEach(field => {
+    for (let i = 0; i < 9; i++) { // Adjust based on number of tasks
+      var data = props.getProperty(`result_${field}_${i}`);
+      if (data) {
+        var parsed = JSON.parse(data);
+        if (!tasks.includes(parsed.task)) tasks.push(parsed.task);
+        if (!results[i]) results[i] = { task: parsed.task };
+        results[i][field] = parsed[field];
+      }
+    }
+  });
+  if (results.length === 0) return null;
+  return { results: results.filter(r => r !== null) };
+}
+
+// =========================================
+// Section 5: Main Orchestration
+// =========================================
+function estimateAndSave() {
+  var estimates = getEstimatesFromSheet();
+  var currentHash = getInputHash();
+  var props = PropertiesService.getDocumentProperties();
+  var lastHash = props.getProperty("inputHash");
+
+  // Check if recalculation is needed
+  if (currentHash === lastHash) {
+    Logger.log('No input changes detected, using cached results');
+    return;
+  }
+
+  // Fetch available fields
+  var fields = getApiFields();
+  props.setProperty("apiFields", JSON.stringify(fields));
+  Logger.log('Available fields: ' + fields);
+
+  // Required fields for Code.gs and Plot.html
+  var requiredFields = [
+    "triangleMean", "pertMean", "mcSmoothedMean",
+    "trianglePoints", "pertPoints", "betaPoints",
+    "mcBetaSamples", "smoothedHistogram",
+    "originalCdf", "optimizedCdf", "mcSmoothedVaR90",
+    "weightedOptimistic", "weightedNeutral", "weightedConservative",
+    "triangleMetrics", "betaMetrics", "mcMetrics"
+  ];
+
+  // Fetch required fields
+  var apiResponse = callEstimator(estimates, requiredFields);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var inputSheet = ss.getSheets()[0];
+  var calcSheet = ss.getSheetByName("Estimate Calculations");
+  if (!calcSheet) {
+    calcSheet = ss.insertSheet("Estimate Calculations");
+  }
+  calcSheet.clear();
+  var headers = inputSheet.getRange(1, 1, 1, inputSheet.getLastColumn()).getValues()[0];
+  calcSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  var data = inputSheet.getDataRange().getValues();
+  calcSheet.getRange(2, 1, data.length - 1, data[0].length).setValues(data.slice(1));
+
+  var apiHeaders = requiredFields;
+  var calcRange = calcSheet.getRange(1, headers.length + 1, 1, apiHeaders.length);
+  calcRange.setValues([apiHeaders]);
+  var rows = apiResponse.results.map(obj => requiredFields.map(field => 
+    typeof obj[field] === 'object' ? JSON.stringify(obj[field]) : obj[field]
+  ));
+  calcSheet.getRange(2, headers.length + 1, rows.length, apiHeaders.length).setValues(rows);
+
+  // Cache individual fields
+  apiResponse.results.forEach((result, i) => {
+    requiredFields.forEach(field => {
+      if (result[field]) {
+        var key = `result_${field}_${i}`;
+        var value = JSON.stringify({ task: result.task, [field]: result[field] });
+        if (value.length < 9216) {
+          props.setProperty(key, value);
+        } else {
+          Logger.log(`Warning: Field ${field} for task ${result.task} too large (${value.length} bytes)`);
+        }
+      }
+    });
   });
 
-  Logger.log(JSON.stringify(summary, null, 2));
+  props.setProperty("inputHash", currentHash);
+  SpreadsheetApp.getUi().alert("Estimate Calculations completed. You can now open the Plot.");
 }
 
-/**
- * Debug function: time API call.
- */
-function testApiTiming() {
-  var estimatesArray = [
-    { bestCase: 2, mostLikely: 4, worstCase: 6 }
-  ];
-  var start = new Date();
-  var response = callEstimator(estimatesArray);
-  var end = new Date();
-  Logger.log("API call duration (ms): " + (end - start));
+// =========================================
+// Section 6: Plot Data
+// =========================================
+function processDataForPlot() {
+  var results = getLatestEstimationResults();
+  if (!results || !results.results) {
+    Logger.log('No results found, returning empty array');
+    return [];
+  }
+  Logger.log('Plot data: ' + JSON.stringify(results.results));
+  return results.results.map(result => ({
+    task: result.task,
+    trianglePoints: result.trianglePoints ? JSON.parse(result.trianglePoints) : null,
+    pertPoints: result.pertPoints ? JSON.parse(result.pertPoints) : null,
+    betaPoints: result.betaPoints ? JSON.parse(result.betaPoints) : null,
+    mcBetaSamples: result.mcBetaSamples ? JSON.parse(result.mcBetaSamples) : null,
+    smoothedHistogram: result.smoothedHistogram ? JSON.parse(result.smoothedHistogram) : null,
+    originalCdf: result.originalCdf ? JSON.parse(result.originalCdf) : null,
+    optimizedCdf: result.optimizedCdf ? JSON.parse(result.optimizedCdf) : null,
+    triangleMetrics: result.triangleMetrics ? JSON.parse(result.triangleMetrics) : null,
+    betaMetrics: result.betaMetrics ? JSON.parse(result.betaMetrics) : null,
+    mcMetrics: result.mcMetrics ? JSON.parse(result.mcMetrics) : null,
+    mcSmoothedVaR90: result.mcSmoothedVaR90,
+    weightedOptimistic: result.weightedOptimistic,
+    weightedNeutral: result.weightedNeutral,
+    weightedConservative: result.weightedConservative
+  }));
 }
 
-function debugGetResults() {
-  const res = getLatestEstimationResults();
-  Logger.log(JSON.stringify(res, null, 2));
+// =========================================
+// Section 7: Web App
+// =========================================
+function doGet(e) {
+  var estimates = getEstimatesFromSheet();
+  var fields = getApiFields();
+  var results = callEstimator(estimates, fields);
+  var template = HtmlService.createTemplateFromFile('Plot');
+  template.estimateResults = results;
+  return template.evaluate()
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setTitle('PMC Estimator Plot')
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
-

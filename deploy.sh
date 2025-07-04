@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# cloud_deploy.sh
+# deploy.sh
 # Script to deploy the pmcEstimatorAPI Cloud Function and optionally verify JSON data flow with dynamic piece selection
 # Project: pmc-estimator
 # Project Number: 615922754202
@@ -8,7 +8,7 @@
 # Cloud Web App URL: https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI
 # Region: us-central1
 # Billing Account: billingAccounts/010656-5E1AC1-335B03
-# Date: July 04, 2025, 03:41 PM PDT
+# Date: July 04, 2025, 04:50 PM PDT
 
 # Exit on any error
 set -e
@@ -114,22 +114,22 @@ done
 # Step 6: Verify Application Code
 echo -e "${YELLOW}6. Verifying application code...${NC}"
 INDEX_FILE="${SOURCE_DIR}/index.js"
+CORE_FILE="${SOURCE_DIR}/core.js"
 if [ ! -f "$INDEX_FILE" ]; then
   echo -e "${RED}Error: ${INDEX_FILE} not found in ${SOURCE_DIR}${NC}"
   exit 1
 fi
-CORE_FILE="${SOURCE_DIR}/core.js"
 if [ ! -f "$CORE_FILE" ]; then
   echo -e "${RED}Error: ${CORE_FILE} not found in ${SOURCE_DIR}${NC}"
   exit 1
 fi
 
-# Check for Functions Framework export
-if ! grep -q 'exports.pmcEstimatorAPI' "$INDEX_FILE"; then
-  echo -e "${RED}Error: index.js does not export pmcEstimatorAPI. Update to exports.pmcEstimatorAPI = (req, res) => {...}${NC}"
+# Check for pmcEstimatorAPI in core.js
+if ! grep -q 'functions.http.*pmcEstimatorAPI' "$CORE_FILE"; then
+  echo -e "${RED}Error: core.js does not export pmcEstimatorAPI. Update to include functions.http('pmcEstimatorAPI', ...)${NC}"
   exit 1
 fi
-echo -e "${GREEN}${INDEX_FILE} configuration looks good${NC}"
+echo -e "${GREEN}${CORE_FILE} configuration looks good${NC}"
 
 # Step 7: Verify Dependencies
 echo -e "${YELLOW}7. Verifying dependencies...${NC}"
@@ -207,6 +207,14 @@ gcloud functions deploy "$FUNCTION_NAME" \
   --source "$SOURCE_DIR" \
   --project "$PROJECT_ID" \
   --memory 512MB
+gcloud functions deploy "pmcEstimatorAPIFields" \
+  --runtime nodejs20 \
+  --trigger-http \
+  --allow-unauthenticated \
+  --region "$REGION" \
+  --source "$SOURCE_DIR" \
+  --project "$PROJECT_ID" \
+  --memory 512MB
 
 # Step 10: Verify JSON Data Flow (Optional)
 echo -e "${YELLOW}10. Do you want to test JSON data flow?${NC}"
@@ -218,10 +226,8 @@ if [ "$JSON_TEST_CHOICE" = "1" ]; then
   JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o json_response.json)
   if [ "$JSON_RESPONSE" -eq 200 ]; then
     echo -e "${GREEN}JSON data flow test successful: Server responded with status 200${NC}"
-    # Validate JSON structure
     if jq -e '.results[0]' json_response.json >/dev/null; then
       echo -e "${GREEN}JSON structure valid: Contains 'results' array${NC}"
-      # Dynamically extract fields from results[0]
       FIELDS=($(jq -r '.results[0] | keys[]' json_response.json))
       echo -e "${YELLOW}Select JSON piece(s) to view raw data (comma or space-separated, e.g., 1,3,5 or 1 3 5, or 'all' for full JSON):${NC}"
       for i in "${!FIELDS[@]}"; do
@@ -233,7 +239,6 @@ if [ "$JSON_TEST_CHOICE" = "1" ]; then
         echo -e "${YELLOW}Raw data for full JSON:${NC}"
         cat json_response.json
       else
-        # Split on commas or spaces
         SELECTED_FIELDS=($(echo "$JSON_PIECE_CHOICE" | tr ',' ' ' | tr -s ' ' | xargs -n1))
         for field_choice in "${SELECTED_FIELDS[@]}"; do
           if [[ "$field_choice" =~ ^[0-9]+$ ]] && [ "$field_choice" -ge 1 ] && [ "$field_choice" -le "${#FIELDS[@]}" ]; then
@@ -246,35 +251,6 @@ if [ "$JSON_TEST_CHOICE" = "1" ]; then
           fi
         done
       fi
-      # Ask if user wants to select more fields
-      echo -e "${YELLOW}Do you want to select more JSON pieces?${NC}"
-      echo -e "  (1) Yes"
-      echo -e "  (2) No"
-      read -p "Enter your choice (1 or 2): " MORE_FIELDS
-      if [ "$MORE_FIELDS" = "1" ]; then
-        echo -e "${YELLOW}Select JSON piece(s) to view raw data (comma or space-separated, e.g., 1,3,5 or 1 3 5, or 'all' for full JSON):${NC}"
-        for i in "${!FIELDS[@]}"; do
-          echo -e "  $((i+1))) ${FIELDS[$i]}"
-        done
-        echo -e "  all) Full JSON"
-        read -p "Enter your choice: " JSON_PIECE_CHOICE
-        if [ "$JSON_PIECE_CHOICE" = "all" ]; then
-          echo -e "${YELLOW}Raw data for full JSON:${NC}"
-          cat json_response.json
-        else
-          SELECTED_FIELDS=($(echo "$JSON_PIECE_CHOICE" | tr ',' ' ' | tr -s ' ' | xargs -n1))
-          for field_choice in "${SELECTED_FIELDS[@]}"; do
-            if [[ "$field_choice" =~ ^[0-9]+$ ]] && [ "$field_choice" -ge 1 ] && [ "$field_choice" -le "${#FIELDS[@]}" ]; then
-              FIELD_INDEX=$((field_choice-1))
-              FIELD=${FIELDS[$FIELD_INDEX]}
-              echo -e "${YELLOW}Raw data for ${FIELD}:${NC}"
-              jq ".results[0].${FIELD}" json_response.json
-            else
-              echo -e "${RED}Error: Invalid choice ${field_choice}. Please select 1-${#FIELDS[@]}, 'all'.${NC}"
-            fi
-          done
-        fi
-      fi
     else
       echo -e "${RED}Error: JSON structure invalid or missing 'results' array${NC}"
       cat json_response.json
@@ -285,7 +261,6 @@ if [ "$JSON_TEST_CHOICE" = "1" ]; then
     cat json_response.json
     exit 1
   fi
-  # Clean up
   rm json_response.json
 else
   echo -e "${GREEN}Skipping JSON data flow test${NC}"

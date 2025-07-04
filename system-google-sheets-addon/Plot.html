@@ -1,132 +1,209 @@
+<!-- SECTION 1: HTML HEAD AND STYLES -->
 <!DOCTYPE html>
 <html>
-<head>
-  <base target="_top">
-  <!-- Materialize CSS for styling -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
-  <!-- Google Charts -->
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
-  <!-- Materialize JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    h1 {
-      margin-top: 0;
-    }
-    h2 {
-      margin-top: 40px;
-    }
-    .chart-container {
-      width: 100%;
-      height: 300px;
-      margin-bottom: 30px;
-    }
-    .slider-label {
-      font-weight: bold;
-      display: block;
-      margin-top: 10px;
-    }
-    input[type=range] {
-      width: 100%;
-    }
-    .toggle-button {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 6px 12px;
-      background-color: #eee;
-      border: 1px solid #ccc;
-      cursor: pointer;
-      font-size: 12px;
-      border-radius: 4px;
-    }
-    .toggle-button:hover {
-      background-color: #ddd;
-    }
-    .summary-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      font-size: 13px;
-    }
-    .summary-table th, .summary-table td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: center;
-    }
-    .summary-table th {
-      background-color: #f2f2f2;
-    }
-  </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      var tabs = document.querySelectorAll('.tabs');
-      M.Tabs.init(tabs);
-    });
-
-    function toggleSection(id) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.style.display = el.style.display === "none" ? "block" : "none";
-    }
-  </script>
-</head>
-<body>
-  <h4>Estimation Plots & Explorer</h4>
-
-  <div class="row">
-    <div class="col s12">
-      <ul class="tabs">
-        <li class="tab col s2"><a href="#tab-triangle" class="active">Triangle</a></li>
-        <li class="tab col s2"><a href="#tab-pert">PERT Beta</a></li>
-        <li class="tab col s2"><a href="#tab-beta">Beta</a></li>
-        <li class="tab col s2"><a href="#tab-montecarlo">Monte Carlo</a></li>
-        <li class="tab col s2"><a href="#tab-smoothed">Smoothed MC</a></li>
-        <li class="tab col s2"><a href="#tab-optimizer">Optimizer</a></li>
-        <li class="tab col s2"><a href="#tab-target">Target Explorer</a></li>
-      </ul>
-    </div>
-  </div>
-
-  <script>
-    const estimateResultsRaw = <?!= JSON.stringify(estimateResults) ?>;
-    console.log("Injected estimateResults:", estimateResultsRaw);
-
-    const estimateResults = estimateResultsRaw.results[0];
-    if (!estimateResults) {
-      console.error("No first result found!");
-    }
-
-    const MC_SMOOTHED_POINTS = estimateResults?.smoothedHistogram || [];
-    const MC_UNSMOOTHED_SAMPLES = estimateResults?.mcBetaSamples || [];
-
-    function initializePage() {
-      if (!estimateResults) {
-        console.error("estimateResults not available");
-        document.body.innerHTML = "<p style='color:red;'>No estimation data found. Please run estimation first.</p>";
-        return;
+  <head>
+    <base target="_top">
+    <!-- Plotly for charts -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- Materialize CSS for styling -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+    <!-- Materialize JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
       }
-      console.log("initializePage() called.");
-      drawTriangleChart();
-      updateTriangleSummary();
-      drawPertChart();
-      updatePertSummary();
-      drawBetaChart();
-      updateBetaSummary();
-      drawMonteCarloChart();
-      updateMonteCarloSummary();
-      drawSmoothedChart();
-      updateSmoothedSummary();
-    }
-  </script>
- 
+      h1 {
+        margin-top: 0;
+      }
+      h2 {
+        margin-top: 40px;
+      }
+      .chart-container {
+        width: 100%;
+        height: 300px;
+        margin-bottom: 30px;
+      }
+      .slider-label {
+        font-weight: bold;
+        display: block;
+        margin-top: 10px;
+      }
+      input[type=range] {
+        width: 100%;
+      }
+      .toggle-button {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 6px 12px;
+        background-color: #eee;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        font-size: 12px;
+        border-radius: 4px;
+      }
+      .toggle-button:hover {
+        background-color: #ddd;
+      }
+      .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        font-size: 13px;
+      }
+      .summary-table th, .summary-table td {
+        border: 1px solid #ccc;
+        padding: 6px;
+        text-align: center;
+      }
+      .summary-table th {
+        background-color: #f2f2f2;
+      }
+    </style>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        var tabs = document.querySelectorAll('.tabs');
+        M.Tabs.init(tabs);
+      });
 
+      function toggleSection(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = el.style.display === "none" ? "block" : "none";
+      }
+    </script>
+  </head>
 
-<!-- ============================
-Section: Triangle Tab
-============================ -->
+<!-- SECTION 2: HTML BODY -->
+  <body>
+    <h4>Estimation Plots & Explorer</h4>
+
+    <div class="row">
+      <div class="col s12">
+        <ul class="tabs">
+          <li class="tab col s2"><a href="#tab-triangle" class="active">Triangle</a></li>
+          <li class="tab col s2"><a href="#tab-pert">PERT Beta</a></li>
+          <li class="tab col s2"><a href="#tab-beta">Beta</a></li>
+          <li class="tab col s2"><a href="#tab-montecarlo">Monte Carlo</a></li>
+          <li class="tab col s2"><a href="#tab-smoothed">Smoothed MC</a></li>
+          <li class="tab col s2"><a href="#tab-optimizer">Optimizer</a></li>
+          <li class="tab col s2"><a href="#tab-target">Target Explorer</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Task Selector -->
+    <div style="margin-top: 10px;">
+      <label class="slider-label">Task: <span id="task-value-display">1</span></label>
+      <input type="range" id="task-slider" min="1" max="9" value="1" step="1">
+    </div>
+
+<!-- SECTION 3: JAVASCRIPT SETUP -->
+    <script>
+      let estimateResultsRaw = <?!= JSON.stringify(estimateResults) ?>;
+      console.log("Injected estimateResults:", estimateResultsRaw);
+
+      let estimateResults = estimateResultsRaw.results[0];
+      let currentTaskId = 1;
+
+      function computeCdfFromHistogram(histogram) {
+        try {
+          const cdf = [];
+          let cumulative = 0;
+          const binWidth = histogram.length > 1 ? histogram[1].x - histogram[0].x : 1;
+          histogram.forEach(p => {
+            cumulative += p.y * binWidth;
+            cdf.push({ x: p.x, y: Math.min(cumulative, 1) });
+          });
+          return cdf;
+        } catch (e) {
+          console.error('Compute CDF Error:', e);
+          return [];
+        }
+      }
+
+      function computeTargetOptimizedCdf(budget, schedule, scope, risk, vaR90) {
+        try {
+          const adjustment = (budget + schedule - scope + risk) / 4;
+          const shift = vaR90 * adjustment;
+          const histogram = estimateResults.smoothedHistogram || [];
+          return histogram.map(p => ({
+            x: p.x + shift,
+            y: p.y
+          }));
+        } catch (e) {
+          console.error('Compute Optimized CDF Error:', e);
+          return [];
+        }
+      }
+
+      function getProbabilityAtTarget(cdf, target) {
+        try {
+          for (let i = 0; i < cdf.length; i++) {
+            if (cdf[i].x >= target) return cdf[i].y || 0;
+          }
+          return 1;
+        } catch (e) {
+          console.error('Get Probability Error:', e);
+          return 0;
+        }
+      }
+
+      function initializePage() {
+        if (!estimateResultsRaw.results || !estimateResultsRaw.results.length) {
+          console.error("No estimation results available");
+          document.body.innerHTML = "<p style='color:red;'>No estimation data found. Please run estimation first.</p>";
+          return;
+        }
+        console.log("initializePage() called.");
+        updateTaskData();
+        drawTriangleChart();
+        updateTriangleSummary();
+        drawPertChart();
+        updatePertSummary();
+        drawBetaChart();
+        updateBetaSummary();
+        drawMonteCarloChart();
+        updateMonteCarloSummary();
+        drawSmoothedChart();
+        updateSmoothedSummary();
+        drawTargetCdfs();
+        attachOptimizerSliders();
+        attachTargetSlider();
+      }
+
+      function updateTaskData() {
+        try {
+          const taskId = parseInt(document.getElementById('task-slider').value);
+          estimateResults = estimateResultsRaw.results.find(row => row.task === taskId) || estimateResultsRaw.results[0];
+          currentTaskId = taskId;
+          document.getElementById('task-value-display').innerText = taskId;
+        } catch (e) {
+          console.error('Update Task Data Error:', e);
+        }
+      }
+
+      document.getElementById('task-slider').addEventListener('input', () => {
+        updateTaskData();
+        initializePage();
+      });
+
+      google.script.run
+        .withSuccessHandler(data => {
+          window.plotData = data;
+          estimateResultsRaw = { results: data };
+          estimateResults = data[0] || {};
+          initializePage();
+        })
+        .withFailureHandler(error => {
+          console.error('Error:', error);
+          document.body.innerHTML = "<p style='color:red;'>Error fetching data: " + error.message + "</p>";
+        })
+        .processDataForPlot();
+    </script>
+
+<!-- SECTION 4: TRIANGLE TAB -->
 <div id="tab-triangle" class="tab-content active">
   <h2>Triangle Distribution</h2>
 
@@ -195,48 +272,73 @@ Section: Triangle Tab
 </div>
 
 <script>
-// Draw chart
 function drawTriangleChart() {
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'Triangle PDF');
+  try {
+    const points = estimateResults.trianglePoints || { x: [], y: [] };
+    if (!points.x.length) {
+      document.getElementById('triangle-chart').innerHTML = "<p style='color:red;'>No triangle points available.</p>";
+      return;
+    }
 
-  const points = estimateResults.trianglePoints || [];
-  const rows = points.map(p => [p.x, p.y]);
-  data.addRows(rows);
+    const trace = {
+      x: points.x,
+      y: points.y,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'blue' }
+    };
 
-  const chart = new google.visualization.AreaChart(document.getElementById('triangle-chart'));
-  chart.draw(data, {
-    title: 'Triangle Distribution',
-    hAxis: { title: 'Estimate Value' },
-    vAxis: { title: 'Probability' },
-    legend: 'none'
-  });
+    const layout = {
+      title: `Triangle Distribution for Task ${currentTaskId}`,
+      xaxis: { title: 'Estimate' },
+      yaxis: { title: 'Density' },
+      annotations: [
+        {
+          x: estimateResults.weightedNeutral,
+          y: 2 / (estimateResults.weightedConservative - estimateResults.weightedOptimistic),
+          xref: 'x',
+          yref: 'y',
+          text: 'Mode',
+          showarrow: true,
+          arrowhead: 2,
+          ax: 20,
+          ay: -30,
+          marker: { size: 10, color: 'red' }
+        }
+      ]
+    };
+
+    Plotly.newPlot('triangle-chart', [trace], layout);
+  } catch (e) {
+    console.error('Triangle Chart Error:', e);
+    document.getElementById('triangle-chart').innerHTML = "<p style='color:red;'>Error rendering triangle chart: " + e.message + "</p>";
+  }
 }
 
-// Populate metrics
 function updateTriangleSummary() {
-  const m = estimateResults.triangleMetrics;
-  document.getElementById('triangle-50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('triangle-90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('triangle-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
-  document.getElementById('triangle-mean').innerText = m.mean.toFixed(2);
-  document.getElementById('triangle-mode').innerText = m.mode.toFixed(2);
-  document.getElementById('triangle-stddev').innerText = m.stdDev.toFixed(2);
-  document.getElementById('triangle-value').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('triangle-mean2').innerText = m.mean.toFixed(2);
-  document.getElementById('triangle-mode2').innerText = m.mode.toFixed(2);
-  document.getElementById('triangle-stddev2').innerText = m.stdDev.toFixed(2);
-  document.getElementById('triangle-skew').innerText = m.skewness.toFixed(2);
-  document.getElementById('triangle-mean3').innerText = m.mean.toFixed(2);
-  document.getElementById('triangle-90b').innerText = m.percentiles["90"].toFixed(2);
+  try {
+    const m = estimateResults.triangleMetrics || {};
+    document.getElementById('triangle-50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-range').innerText = (estimateResults.estimates?.bestCase || 'N/A') + " to " + (estimateResults.estimates?.worstCase || 'N/A');
+    document.getElementById('triangle-mean').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-mode').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-stddev').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-value').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-mean2').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-mode2').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-stddev2').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-skew').innerText = m.skewness?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-mean3').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('triangle-90b').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+  } catch (e) {
+    console.error('Triangle Summary Error:', e);
+  }
 }
 </script>
 
-
-<!-- ============================
-Section: PERT Beta Tab
-============================ -->
+<!-- SECTION 5: PERT BETA TAB -->
 <div id="tab-pert" class="tab-content" style="display:none;">
   <h2>PERT Beta Distribution</h2>
 
@@ -301,46 +403,73 @@ Section: PERT Beta Tab
 </div>
 
 <script>
-// Draw PERT Beta Chart
 function drawPertChart() {
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'PERT Beta PDF');
+  try {
+    const points = estimateResults.pertPoints || { x: [], y: [] };
+    if (!points.x.length) {
+      document.getElementById('pert-chart').innerHTML = "<p style='color:red;'>No PERT points available.</p>";
+      return;
+    }
 
-  const points = estimateResults.betaPoints || [];
-  data.addRows(points.map(p => [p.x, p.y]));
+    const trace = {
+      x: points.x,
+      y: points.y,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'green' }
+    };
 
-  const chart = new google.visualization.AreaChart(document.getElementById('pert-chart'));
-  chart.draw(data, {
-    title: 'PERT Beta Distribution',
-    hAxis: { title: 'Estimate Value' },
-    vAxis: { title: 'Probability' },
-    legend: 'none'
-  });
+    const layout = {
+      title: `PERT Beta Distribution for Task ${currentTaskId}`,
+      xaxis: { title: 'Estimate' },
+      yaxis: { title: 'Density' },
+      annotations: [
+        {
+          x: estimateResults.weightedNeutral,
+          y: 2 / (estimateResults.weightedConservative - estimateResults.weightedOptimistic),
+          xref: 'x',
+          yref: 'y',
+          text: 'Mode',
+          showarrow: true,
+          arrowhead: 2,
+          ax: 20,
+          ay: -30,
+          marker: { size: 10, color: 'red' }
+        }
+      ]
+    };
+
+    Plotly.newPlot('pert-chart', [trace], layout);
+  } catch (e) {
+    console.error('PERT Chart Error:', e);
+    document.getElementById('pert-chart').innerHTML = "<p style='color:red;'>Error rendering PERT chart: " + e.message + "</p>";
+  }
 }
 
-// Populate summary
 function updatePertSummary() {
-  const m = estimateResults.betaMetrics;
-  document.getElementById('pert-50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('pert-90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('pert-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
-  document.getElementById('pert-mean').innerText = m.mean.toFixed(2);
-  document.getElementById('pert-mode').innerText = m.mode.toFixed(2);
-  document.getElementById('pert-stddev').innerText = m.stdDev.toFixed(2);
-  document.getElementById('pert-value').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('pert-mean2').innerText = m.mean.toFixed(2);
-  document.getElementById('pert-mode2').innerText = m.mode.toFixed(2);
-  document.getElementById('pert-stddev2').innerText = m.stdDev.toFixed(2);
-  document.getElementById('pert-skew').innerText = m.skewness.toFixed(2);
-  document.getElementById('pert-mean3').innerText = m.mean.toFixed(2);
-  document.getElementById('pert-90b').innerText = m.percentiles["90"].toFixed(2);
+  try {
+    const m = estimateResults.betaMetrics || {};
+    document.getElementById('pert-50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('pert-90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('pert-range').innerText = (estimateResults.estimates?.bestCase || 'N/A') + " to " + (estimateResults.estimates?.worstCase || 'N/A');
+    document.getElementById('pert-mean').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('pert-mode').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('pert-stddev').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('pert-value').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('pert-mean2').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('pert-mode2').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('pert-stddev2').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('pert-skew').innerText = m.skewness?.toFixed(2) || 'N/A';
+    document.getElementById('pert-mean3').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('pert-90b').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+  } catch (e) {
+    console.error('PERT Summary Error:', e);
+  }
 }
 </script>
 
-<!-- ============================
-Section: Beta Distribution Tab
-============================ -->
+<!-- SECTION 6: BETA DISTRIBUTION TAB -->
 <div id="tab-beta" class="tab-content" style="display:none;">
   <h2>Beta Distribution (Alternate View)</h2>
 
@@ -405,47 +534,73 @@ Section: Beta Distribution Tab
 </div>
 
 <script>
-// Draw Beta Chart
 function drawBetaChart() {
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'Beta PDF');
+  try {
+    const points = estimateResults.betaPoints || { x: [], y: [] };
+    if (!points.x.length) {
+      document.getElementById('beta-chart').innerHTML = "<p style='color:red;'>No beta points available.</p>";
+      return;
+    }
 
-  const points = estimateResults.betaPoints || [];
-  data.addRows(points.map(p => [p.x, p.y]));
+    const trace = {
+      x: points.x,
+      y: points.y,
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'purple' }
+    };
 
-  const chart = new google.visualization.AreaChart(document.getElementById('beta-chart'));
-  chart.draw(data, {
-    title: 'Beta Distribution',
-    hAxis: { title: 'Estimate Value' },
-    vAxis: { title: 'Probability' },
-    legend: 'none'
-  });
+    const layout = {
+      title: `Beta Distribution for Task ${currentTaskId}`,
+      xaxis: { title: 'Estimate' },
+      yaxis: { title: 'Density' },
+      annotations: [
+        {
+          x: estimateResults.weightedNeutral,
+          y: 2 / (estimateResults.weightedConservative - estimateResults.weightedOptimistic),
+          xref: 'x',
+          yref: 'y',
+          text: 'Mode',
+          showarrow: true,
+          arrowhead: 2,
+          ax: 20,
+          ay: -30,
+          marker: { size: 10, color: 'red' }
+        }
+      ]
+    };
+
+    Plotly.newPlot('beta-chart', [trace], layout);
+  } catch (e) {
+    console.error('Beta Chart Error:', e);
+    document.getElementById('beta-chart').innerHTML = "<p style='color:red;'>Error rendering beta chart: " + e.message + "</p>";
+  }
 }
 
-// Populate Beta Summary
 function updateBetaSummary() {
-  const m = estimateResults.betaMetrics;
-  document.getElementById('beta-50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('beta-90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('beta-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
-  document.getElementById('beta-mean').innerText = m.mean.toFixed(2);
-  document.getElementById('beta-mode').innerText = m.mode.toFixed(2);
-  document.getElementById('beta-stddev').innerText = m.stdDev.toFixed(2);
-  document.getElementById('beta-value').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('beta-mean2').innerText = m.mean.toFixed(2);
-  document.getElementById('beta-mode2').innerText = m.mode.toFixed(2);
-  document.getElementById('beta-stddev2').innerText = m.stdDev.toFixed(2);
-  document.getElementById('beta-skew').innerText = m.skewness.toFixed(2);
-  document.getElementById('beta-mean3').innerText = m.mean.toFixed(2);
-  document.getElementById('beta-90b').innerText = m.percentiles["90"].toFixed(2);
+  try {
+    const m = estimateResults.betaMetrics || {};
+    document.getElementById('beta-50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('beta-90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('beta-range').innerText = (estimateResults.estimates?.bestCase || 'N/A') + " to " + (estimateResults.estimates?.worstCase || 'N/A');
+    document.getElementById('beta-mean').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('beta-mode').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('beta-stddev').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('beta-value').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('beta-mean2').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('beta-mode2').innerText = estimateResults.weightedNeutral?.toFixed(2) || 'N/A';
+    document.getElementById('beta-stddev2').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('beta-skew').innerText = m.skewness?.toFixed(2) || 'N/A';
+    document.getElementById('beta-mean3').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('beta-90b').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+  } catch (e) {
+    console.error('Beta Summary Error:', e);
+  }
 }
 </script>
 
-
-<!-- ============================
-Section: Monte Carlo Simulation Tab
-============================ -->
+<!-- SECTION 7: MONTE CARLO SIMULATION TAB -->
 <div id="tab-montecarlo" class="tab-content" style="display:none;">
   <h2>Monte Carlo Simulation</h2>
   <div id="mc-chart" class="chart-container"></div>
@@ -500,61 +655,69 @@ Section: Monte Carlo Simulation Tab
 </div>
 
 <script>
-// Draw Monte Carlo Histogram
 function drawMonteCarloChart() {
-  const samples = estimateResults.mcUnsmoothedSamples || [];
-  if (!samples.length) {
-    document.getElementById('mc-chart').innerHTML = "<p style='color:red;'>No Monte Carlo samples available.</p>";
-    return;
+  try {
+    const samples = estimateResults.mcBetaSamples || [];
+    if (!samples.length) {
+      document.getElementById('mc-chart').innerHTML = "<p style='color:red;'>No Monte Carlo samples available.</p>";
+      return;
+    }
+
+    const bins = 30;
+    const min = Math.min(...samples);
+    const max = Math.max(...samples);
+    const binWidth = (max - min) / bins;
+
+    const histogram = Array.from({ length: bins }, (_, i) => [min + i * binWidth, 0]);
+    samples.forEach(s => {
+      const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
+      histogram[idx][1]++;
+    });
+
+    const norm = samples.length * binWidth;
+    histogram.forEach(h => h[1] /= norm);
+
+    const trace = {
+      x: histogram.map(h => h[0]),
+      y: histogram.map(h => h[1]),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'orange' }
+    };
+
+    const layout = {
+      title: `Monte Carlo Samples Histogram for Task ${currentTaskId}`,
+      xaxis: { title: 'Estimate Value' },
+      yaxis: { title: 'Density' }
+    };
+
+    Plotly.newPlot('mc-chart', [trace], layout);
+  } catch (e) {
+    console.error('Monte Carlo Chart Error:', e);
+    document.getElementById('mc-chart').innerHTML = "<p style='color:red;'>Error rendering Monte Carlo chart: " + e.message + "</p>";
   }
-
-  const bins = 30;
-  const min = Math.min(...samples);
-  const max = Math.max(...samples);
-  const binWidth = (max - min) / bins;
-
-  const histogram = Array.from({ length: bins }, (_, i) => [min + i * binWidth, 0]);
-  samples.forEach(s => {
-    const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
-    histogram[idx][1]++;
-  });
-
-  const norm = samples.length * binWidth;
-  histogram.forEach(h => h[1] /= norm);
-
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'Density');
-  data.addRows(histogram);
-
-  const chart = new google.visualization.AreaChart(document.getElementById('mc-chart'));
-  chart.draw(data, {
-    title: 'Monte Carlo Samples Histogram',
-    hAxis: { title: 'Estimate Value' },
-    vAxis: { title: 'Density' },
-    legend: 'none'
-  });
 }
 
-// Update Monte Carlo Metrics Summary
 function updateMonteCarloSummary() {
-  const m = estimateResults.mcMetrics;
-  document.getElementById('mc-50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('mc-90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('mc-mean').innerText = m.mean.toFixed(2);
-  document.getElementById('mc-stddev').innerText = m.stdDev.toFixed(2);
-  document.getElementById('mc-p50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('mc-p90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('mc-skew').innerText = m.skewness.toFixed(2);
-  document.getElementById('mc-mean2').innerText = m.mean.toFixed(2);
-  document.getElementById('mc-90b').innerText = m.percentiles["90"].toFixed(2);
+  try {
+    const m = estimateResults.mcMetrics || {};
+    document.getElementById('mc-50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('mc-90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('mc-mean').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('mc-stddev').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('mc-p50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('mc-p90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('mc-skew').innerText = m.skewness?.toFixed(2) || 'N/A';
+    document.getElementById('mc-mean2').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('mc-90b').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+  } catch (e) {
+    console.error('Monte Carlo Summary Error:', e);
+  }
 }
 </script>
 
-
-<!-- ============================
-Section: Smoothed Monte Carlo Density Tab
-============================ -->
+<!-- SECTION 8: SMOOTHED MONTE CARLO DENSITY TAB -->
 <div id="tab-smoothed" class="tab-content" style="display:none;">
   <h2>Smoothed Monte Carlo Density</h2>
   <div id="smoothed-chart" class="chart-container"></div>
@@ -609,47 +772,55 @@ Section: Smoothed Monte Carlo Density Tab
 </div>
 
 <script>
-// Draw Smoothed Density
 function drawSmoothedChart() {
-  const points = estimateResults.smoothedHistogram || [];
-  if (!points.length) {
-    document.getElementById('smoothed-chart').innerHTML = "<p style='color:red;'>No smoothed data available.</p>";
-    return;
+  try {
+    const points = estimateResults.smoothedHistogram || [];
+    if (!points.length) {
+      document.getElementById('smoothed-chart').innerHTML = "<p style='color:red;'>No smoothed data available.</p>";
+      return;
+    }
+
+    const trace = {
+      x: points.map(p => p.x),
+      y: points.map(p => p.y),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'orange' }
+    };
+
+    const layout = {
+      title: `Smoothed Monte Carlo Density for Task ${currentTaskId}`,
+      xaxis: { title: 'Estimate Value' },
+      yaxis: { title: 'Density' }
+    };
+
+    Plotly.newPlot('smoothed-chart', [trace], layout);
+  } catch (e) {
+    console.error('Smoothed Chart Error:', e);
+    document.getElementById('smoothed-chart').innerHTML = "<p style='color:red;'>Error rendering smoothed chart: " + e.message + "</p>";
   }
-
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'Density');
-  data.addRows(points.map(p => [p.x, p.y]));
-
-  const chart = new google.visualization.AreaChart(document.getElementById('smoothed-chart'));
-  chart.draw(data, {
-    title: 'Smoothed Monte Carlo Density',
-    hAxis: { title: 'Estimate Value' },
-    vAxis: { title: 'Density' },
-    legend: 'none'
-  });
 }
 
-// Update Smoothed Summary
 function updateSmoothedSummary() {
-  const m = estimateResults.mcMetrics;
-  document.getElementById('smoothed-50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('smoothed-90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('smoothed-mean').innerText = m.mean.toFixed(2);
-  document.getElementById('smoothed-stddev').innerText = m.stdDev.toFixed(2);
-  document.getElementById('smoothed-p50').innerText = m.percentiles["50"].toFixed(2);
-  document.getElementById('smoothed-p90').innerText = m.percentiles["90"].toFixed(2);
-  document.getElementById('smoothed-skew').innerText = m.skewness.toFixed(2);
-  document.getElementById('smoothed-mean2').innerText = m.mean.toFixed(2);
-  document.getElementById('smoothed-90b').innerText = m.percentiles["90"].toFixed(2);
+  try {
+    const m = estimateResults.mcMetrics || {};
+    document.getElementById('smoothed-50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-mean').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-stddev').innerText = m.stdDev?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-p50').innerText = m.percentiles?.["50"]?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-p90').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-skew').innerText = m.skewness?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-mean2').innerText = m.mean?.toFixed(2) || 'N/A';
+    document.getElementById('smoothed-90b').innerText = m.percentiles?.["90"]?.toFixed(2) || 'N/A';
+  } catch (e) {
+    console.error('Smoothed Summary Error:', e);
+  }
 }
 </script>
 
-
-<!-- ============================
-Section: Decision Optimizer Tab
-============================ -->
+<!-- SECTION 9: DECISION OPTIMIZER TAB -->
 <div id="tab-optimizer" class="tab-content" style="display:none;">
   <h2>Decision Optimizer</h2>
 
@@ -716,69 +887,88 @@ Section: Decision Optimizer Tab
 </div>
 
 <script>
-// Draw Optimized CDF Chart
 function drawOptimizedCdf() {
-  const sliders = {
-    budget: parseFloat(document.getElementById("slider-budget").value)/100,
-    schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
-    scope: parseFloat(document.getElementById("slider-scope").value)/100,
-    risk: parseFloat(document.getElementById("slider-risk").value)/100
-  };
+  try {
+    const sliders = {
+      budget: parseFloat(document.getElementById("slider-budget").value)/100,
+      schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
+      scope: parseFloat(document.getElementById("slider-scope").value)/100,
+      risk: parseFloat(document.getElementById("slider-risk").value)/100
+    };
 
-  const optimized = computeTargetOptimizedCdf(
-    sliders.budget,
-    sliders.schedule,
-    sliders.scope,
-    sliders.risk,
-    estimateResults.mcSmoothedVaR90
-  );
+    const optimized = computeTargetOptimizedCdf(
+      sliders.budget,
+      sliders.schedule,
+      sliders.scope,
+      sliders.risk,
+      estimateResults.mcSmoothedVaR90
+    );
 
-  const data = new google.visualization.DataTable();
-  data.addColumn('number', 'X');
-  data.addColumn('number', 'CDF');
-  data.addRows(optimized.map(p => [p.x, p.y]));
+    if (!optimized.length) {
+      document.getElementById('optimized-cdf-chart').innerHTML = "<p style='color:red;'>No optimized CDF data available.</p>";
+      return;
+    }
 
-  const chart = new google.visualization.LineChart(document.getElementById('optimized-cdf-chart'));
-  chart.draw(data, {
-    title: 'Optimized CDF',
-    hAxis: { title: 'Value' },
-    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
-    legend: 'none'
-  });
+    const trace = {
+      x: optimized.map(p => p.x),
+      y: optimized.map(p => p.y),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'green' }
+    };
 
-  // Update table
-  document.getElementById('optimizer-budget-val').innerText = (sliders.budget*100).toFixed(0);
-  document.getElementById('optimizer-schedule-val').innerText = (sliders.schedule*100).toFixed(0);
-  document.getElementById('optimizer-scope-val').innerText = (sliders.scope*100).toFixed(0);
-  document.getElementById('optimizer-risk-val').innerText = (sliders.risk*100).toFixed(0);
+    const layout = {
+      title: `Optimized CDF for Task ${currentTaskId}`,
+      xaxis: { title: 'Value' },
+      yaxis: { title: 'Cumulative Probability', range: [0, 1.05] }
+    };
+
+    Plotly.newPlot('optimized-cdf-chart', [trace], layout);
+
+    // Update table
+    document.getElementById('optimizer-budget-val').innerText = (sliders.budget*100).toFixed(0);
+    document.getElementById('optimizer-schedule-val').innerText = (sliders.schedule*100).toFixed(0);
+    document.getElementById('optimizer-scope-val').innerText = (sliders.scope*100).toFixed(0);
+    document.getElementById('optimizer-risk-val').innerText = (sliders.risk*100).toFixed(0);
+  } catch (e) {
+    console.error('Optimized CDF Chart Error:', e);
+    document.getElementById('optimized-cdf-chart').innerHTML = "<p style='color:red;'>Error rendering optimized CDF chart: " + e.message + "</p>";
+  }
 }
 
-// Attach slider listeners
 function attachOptimizerSliders() {
-  ["budget","schedule","scope","risk"].forEach(s => {
-    const slider = document.getElementById("slider-"+s);
-    slider.addEventListener("input", () => {
-      document.getElementById("slider-"+s+"-value").innerText = slider.value + "%";
-      drawOptimizedCdf();
+  try {
+    ["budget","schedule","scope","risk"].forEach(s => {
+      const slider = document.getElementById("slider-"+s);
+      slider.addEventListener("input", () => {
+        document.getElementById("slider-"+s+"-value").innerText = slider.value + "%";
+        drawTargetCdfs();
+      });
     });
-  });
+  } catch (e) {
+    console.error('Optimizer Sliders Error:', e);
+  }
 }
 
-// Presets
 function setOptimizerPreset(b,s,sc,r) {
-  document.getElementById("slider-budget").value = b;
-  document.getElementById("slider-schedule").value = s;
-  document.getElementById("slider-scope").value = sc;
-  document.getElementById("slider-risk").value = r;
-  attachOptimizerSliders();
-  drawOptimizedCdf();
+  try {
+    document.getElementById("slider-budget").value = b;
+    document.getElementById("slider-schedule").value = s;
+    document.getElementById("slider-scope").value = sc;
+    document.getElementById("slider-risk").value = r;
+    document.getElementById("slider-budget-value").innerText = b + "%";
+    document.getElementById("slider-schedule-value").innerText = s + "%";
+    document.getElementById("slider-scope-value").innerText = sc + "%";
+    document.getElementById("slider-risk-value").innerText = r + "%";
+    drawTargetCdfs();
+  } catch (e) {
+    console.error('Optimizer Preset Error:', e);
+  }
 }
 </script>
 
-
-<!-- ============================
-Section: Target Probability Explorer Tab
-============================ -->
+<!-- SECTION 10: TARGET PROBABILITY EXPLORER TAB -->
 <div id="tab-target" class="tab-content" style="display:none;">
   <h2>Target Probability Explorer</h2>
 
@@ -850,90 +1040,98 @@ Section: Target Probability Explorer Tab
 </div>
 
 <script>
-// Draw CDFs for the selected target
 function drawTargetCdfs() {
-  const targetValue = parseFloat(document.getElementById("target-value-slider").value);
+  try {
+    const targetValue = parseFloat(document.getElementById("target-value-slider").value);
 
-  // Original CDF
-  const originalCdf = computeCdfFromHistogram(MC_SMOOTHED_POINTS);
-  const origData = new google.visualization.DataTable();
-  origData.addColumn('number', 'X');
-  origData.addColumn('number', 'CDF');
-  origData.addRows(originalCdf.map(p => [p.x, p.y]));
-
-  const origChart = new google.visualization.LineChart(document.getElementById('original-cdf-chart'));
-  origChart.draw(origData, {
-    title: 'Original CDF',
-    hAxis: { title: 'Value' },
-    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
-    legend: 'none'
-  });
-
-  // Optimized CDF
-  const sliders = {
-    budget: parseFloat(document.getElementById("slider-budget").value)/100,
-    schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
-    scope: parseFloat(document.getElementById("slider-scope").value)/100,
-    risk: parseFloat(document.getElementById("slider-risk").value)/100
-  };
-  const optimizedCdf = computeTargetOptimizedCdf(
-    sliders.budget,
-    sliders.schedule,
-    sliders.scope,
-    sliders.risk,
-    estimateResults.mcSmoothedVaR90
-  );
-  const optData = new google.visualization.DataTable();
-  optData.addColumn('number', 'X');
-  optData.addColumn('number', 'CDF');
-  optData.addRows(optimizedCdf.map(p => [p.x, p.y]));
-
-  const optChart = new google.visualization.LineChart(document.getElementById('optimized-cdf-chart'));
-  optChart.draw(optData, {
-    title: 'Optimized CDF',
-    hAxis: { title: 'Value' },
-    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
-    legend: 'none'
-  });
-
-  // Update Metrics
-  const originalProb = getProbabilityAtTarget(originalCdf, targetValue);
-  const optimizedProb = getProbabilityAtTarget(optimizedCdf, targetValue);
-  document.getElementById("target-value-display").innerText = targetValue.toFixed(2);
-  document.getElementById("target-metric-value").innerText = targetValue.toFixed(2);
-  document.getElementById("target-metric-original").innerText = (originalProb * 100).toFixed(1) + "%";
-  document.getElementById("target-metric-optimized").innerText = (optimizedProb * 100).toFixed(1) + "%";
-
-  // Recommendation Text
-  document.getElementById("target-recommendation-text").innerText =
-    `At a target of ${targetValue.toFixed(2)} units, your baseline probability of success is ${(originalProb*100).toFixed(1)}%. 
-     With adjustments, this increases to ${(optimizedProb*100).toFixed(1)}%.`;
-}
-
-// Get probability from CDF at target
-function getProbabilityAtTarget(cdf, target) {
-  for (let i = 0; i < cdf.length; i++) {
-    if (cdf[i].x >= target) return cdf[i].y;
-  }
-  return 1;
-}
-
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-      attachTargetSlider();
-      attachOptimizerSliders();
-    });
-  </script>
-
-  <script>
-    window.onload = function() {
-      google.charts.load('current', { packages: ['corechart'] });
-      google.charts.setOnLoadCallback(() => {
-        console.log("Google Charts loaded");
-        initializePage();
-      });
+    // Original CDF
+    const originalCdf = computeCdfFromHistogram(estimateResults.smoothedHistogram || []);
+    if (!originalCdf.length) {
+      document.getElementById('original-cdf-chart').innerHTML = "<p style='color:red;'>No original CDF data available.</p>";
+      return;
+    }
+    const origTrace = {
+      x: originalCdf.map(p => p.x),
+      y: originalCdf.map(p => p.y),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'blue' }
     };
-  </script>
-</body>
+
+    const origLayout = {
+      title: `Original CDF for Task ${currentTaskId}`,
+      xaxis: { title: 'Value' },
+      yaxis: { title: 'Cumulative Probability', range: [0, 1.05] }
+    };
+
+    Plotly.newPlot('original-cdf-chart', [origTrace], origLayout);
+
+    // Optimized CDF
+    const sliders = {
+      budget: parseFloat(document.getElementById("slider-budget").value)/100,
+      schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
+      scope: parseFloat(document.getElementById("slider-scope").value)/100,
+      risk: parseFloat(document.getElementById("slider-risk").value)/100
+    };
+    const optimizedCdf = computeTargetOptimizedCdf(
+      sliders.budget,
+      sliders.schedule,
+      sliders.scope,
+      sliders.risk,
+      estimateResults.mcSmoothedVaR90
+    );
+    if (!optimizedCdf.length) {
+      document.getElementById('optimized-cdf-chart').innerHTML = "<p style='color:red;'>No optimized CDF data available.</p>";
+      return;
+    }
+    const optTrace = {
+      x: optimizedCdf.map(p => p.x),
+      y: optimizedCdf.map(p => p.y),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Task ${currentTaskId}`,
+      line: { color: 'green' }
+    };
+
+    const optLayout = {
+      title: `Optimized CDF for Task ${currentTaskId}`,
+      xaxis: { title: 'Value' },
+      yaxis: { title: 'Cumulative Probability', range: [0, 1.05] }
+    };
+
+    Plotly.newPlot('optimized-cdf-chart', [optTrace], optLayout);
+
+    // Update Metrics
+    const originalProb = getProbabilityAtTarget(originalCdf, targetValue);
+    const optimizedProb = getProbabilityAtTarget(optimizedCdf, targetValue);
+    document.getElementById("target-value-display").innerText = targetValue.toFixed(2);
+    document.getElementById("target-metric-value").innerText = targetValue.toFixed(2);
+    document.getElementById("target-metric-original").innerText = (originalProb * 100).toFixed(1) + "%";
+    document.getElementById("target-metric-optimized").innerText = (optimizedProb * 100).toFixed(1) + "%";
+
+    // Recommendation Text
+    document.getElementById("target-recommendation-text").innerText =
+      `At a target of ${targetValue.toFixed(2)} units, your baseline probability of success is ${(originalProb*100).toFixed(1)}%. 
+       With adjustments, this increases to ${(optimizedProb*100).toFixed(1)}%.`;
+  } catch (e) {
+    console.error('Target CDFs Error:', e);
+    document.getElementById('original-cdf-chart').innerHTML = "<p style='color:red;'>Error rendering original CDF chart: " + e.message + "</p>";
+    document.getElementById('optimized-cdf-chart').innerHTML = "<p style='color:red;'>Error rendering optimized CDF chart: " + e.message + "</p>";
+  }
+}
+
+function attachTargetSlider() {
+  try {
+    const slider = document.getElementById("target-value-slider");
+    slider.addEventListener("input", () => {
+      document.getElementById("target-value-display").innerText = slider.value;
+      drawTargetCdfs();
+    });
+  } catch (e) {
+    console.error('Target Slider Error:', e);
+  }
+}
+</script>
+  </body>
 </html>
