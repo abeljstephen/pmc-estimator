@@ -1,18 +1,22 @@
 const express = require('express');
 const app = express();
 
-// Import your existing core handler
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.send('OK');
+});
+
+// Import your core handler
 const coreHandler = require('./core');
 
-// Make sure JSON body parsing is enabled
+// Parse JSON body
 app.use(express.json());
 
-// Mount your handler (assuming it's a function handling POST requests)
+// Main POST endpoint
 app.post('/', coreHandler);
 
-// Determine port: use Cloud Run-provided PORT or default locally
-const PORT = process.env.PORT || 3000;
-
+// Start server
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`✅ Server listening on port ${PORT}`);
 });
