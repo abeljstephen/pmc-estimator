@@ -218,37 +218,39 @@ function processTask(task) {
   const { optimistic, mostLikely, pessimistic } = task;
   validateEstimates(optimistic, mostLikely, pessimistic);
 
-  // Triangle
+  // PERT Calculations (needed for betaAlpha and betaBeta)
+  const pertMean = calculatePERTMean(optimistic, mostLikely, pessimistic);
+  const pertVariance = calculatePERTVariance(optimistic, mostLikely, pessimistic);
+  const pertStdDev = Math.sqrt(pertVariance);
+
+  // Beta Distribution Parameters (used in PERT and Beta distributions)
+  const betaAlpha = calculateAlpha(pertMean, pertStdDev, optimistic, pessimistic);
+  const betaBeta = calculateBeta(pertMean, pertStdDev, optimistic, pessimistic);
+
+  // Triangle Distribution
   const triangleMean = calculateTriangleMean(optimistic, mostLikely, pessimistic);
   const triangleVariance = calculateTriangleVariance(optimistic, mostLikely, pessimistic);
   const triangleSkewness = calculateTriangleSkewness(optimistic, mostLikely, pessimistic);
   const triangleKurtosis = calculateTriangleKurtosis(optimistic, mostLikely, pessimistic);
   const trianglePoints = generateDistributionPoints('TRIANGLE', optimistic, mostLikely, pessimistic);
 
-  // PERT
-  const pertMean = calculatePERTMean(optimistic, mostLikely, pessimistic);
-  const pertVariance = calculatePERTVariance(optimistic, mostLikely, pessimistic);
-  const pertStdDev = Math.sqrt(pertVariance);
+  // PERT Distribution (uses betaAlpha and betaBeta)
   const pertSkewness = calculatePERTSkewness(optimistic, mostLikely, pessimistic);
   const pertKurtosis = calculatePERTKurtosis(optimistic, mostLikely, pessimistic);
   const pertPoints = generateDistributionPoints('PERT', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta);
-  
   const weightedConservative = calculateConservativeEstimate(optimistic, mostLikely, pessimistic);
   const weightedOptimistic = calculateOptimisticEstimate(optimistic, mostLikely, pessimistic);
 
-  // Beta
-  const betaAlpha = calculateAlpha(pertMean, pertStdDev, optimistic, pessimistic);
-  const betaBeta = calculateBeta(pertMean, pertStdDev, optimistic, pessimistic);
+  // Beta Distribution
   const betaMean = calculateBetaMean(betaAlpha, betaBeta, optimistic, pessimistic);
   const betaVariance = calculateBetaVariance(betaAlpha, betaBeta, optimistic, pessimistic);
   const betaSkewness = calculateBetaSkewness(betaAlpha, betaBeta);
   const betaKurtosis = calculateBetaKurtosis(betaAlpha, betaBeta);
   const betaMode = calculateBetaMode(betaAlpha, betaBeta, optimistic, pessimistic);
   const betaPoints = generateDistributionPoints('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta);
-  
   const probExceedPertMeanBeta = calculateProbExceedPertMeanBeta(pertMean, betaAlpha, betaBeta, optimistic, pessimistic);
 
-  // Monte Carlo
+  // Monte Carlo Simulation
   const mcUnsmoothed = monteCarloSamplesBetaNoNoise(betaAlpha, betaBeta, optimistic, pessimistic);
   const mcMean = math.mean(mcUnsmoothed);
   const mcVariance = math.variance(mcUnsmoothed);
@@ -258,7 +260,7 @@ function processTask(task) {
   const mcCVaR = calculateConditionalValueAtRisk(0.9, mcUnsmoothed.map(x => ({ x })));
   const mcMAD = calculateMAD(mcUnsmoothed, mcMean);
   const mcPoints = generateDistributionPoints('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
-  
+
   const smoothedMC = calculateSmoothedMetrics(mcUnsmoothed);
   const probExceedPertMeanMCUnsmoothed = calculateProbExceedPertMeanMC(mcUnsmoothed, pertMean);
   const probExceedPertMeanMCSmoothed = calculateProbExceedPertMeanMC(smoothedMC.points.map(p => p.x), pertMean);
