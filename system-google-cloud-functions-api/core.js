@@ -200,7 +200,7 @@ function generateDistributionPoints(type, min, mode, max, alpha, beta, samples) 
       if (x < mode) y = Math.pow(x - min, 2) / ((max - min) * (mode - min));
       else y = 1 - Math.pow(max - x, 2) / ((max - min) * (max - mode));
     } else if (type === 'PERT' || type === 'BETA') {
-      y = jstat.betacdf((x - min) / (max - min), alpha, beta);
+      y = jstat.beta.cdf((x - min) / (max - min), alpha, beta);
     } else if (type === 'MC_UNSMOOTHED') {
       y = samples.filter(s => s <= x).length / samples.length;
     } else {
