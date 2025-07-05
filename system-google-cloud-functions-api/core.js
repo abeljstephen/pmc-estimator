@@ -97,7 +97,7 @@ function calculateBetaKurtosis(alpha, beta) {
 
 function calculateProbExceedPertMeanBeta(pertMean, alpha, beta, min, max) {
   const scaledPertMean = (pertMean - min) / (max - min);
-  return 1 - jstat.betacdf(scaledPertMean, alpha, beta);
+  return 1 - jstat.beta.cdf(scaledPertMean, alpha, beta);
 }
 
 /* ============================================================================
