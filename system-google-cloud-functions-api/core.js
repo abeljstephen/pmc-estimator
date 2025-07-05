@@ -26,6 +26,14 @@ function validateEstimates(optimistic, mostLikely, pessimistic) {
   }
 }
 
+/**
+ * Generates a random number between 0 and 1 for Monte Carlo simulations.
+ * Used in: Monte Carlo sampling functions.
+ */
+function random() {
+  return Math.random();
+}
+
 // --- Active Functions ---
 // These functions are currently in use and optimized for performance
 
@@ -57,7 +65,7 @@ function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
 }
 
 /**
- * Generates Monte Carlo samples for estimation.
+ * Generates Monte Carlo samples for estimation using a normal distribution approximation.
  * @param {number} optimistic - The optimistic estimate.
  * @param {number} mostLikely - The most likely estimate.
  * @param {number} pessimistic - The pessimistic estimate.
@@ -104,6 +112,25 @@ function smoothHistogram(samples) {
     x: min + i * binWidth + binWidth / 2,
     y: count / norm
   }));
+}
+
+/**
+ * Generates Monte Carlo samples for a Beta distribution without noise.
+ * @param {number} alpha - Alpha parameter of Beta distribution.
+ * @param {number} beta - Beta parameter of Beta distribution.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {Array} Array of simulated values.
+ */
+function monteCarloSamplesBetaNoNoise(alpha, beta, min, max) {
+  const simulations = [];
+  for (let suiv = 0; suiv < 1000; suiv++) {
+    const x = random();
+    const y = random();
+    const z = Math.pow(x, 1 / alpha) / (Math.pow(x, 1 / alpha) + Math.pow(y, 1 / beta));
+    simulations.push(min + z * (max - min));
+  }
+  return simulations;
 }
 
 // --- Additional Utility Functions ---
@@ -160,6 +187,338 @@ function calculateProbability(samples, target) {
   }
   const count = samples.filter(s => s <= target).length;
   return count / samples.length;
+}
+
+/**
+ * Calculates Value at Risk (VaR) at a specified confidence level from points array.
+ * @param {number} confidenceLevel - Confidence level (e.g., 90 for 90%).
+ * @param {Array} points - Array of points with x (value) and confidence properties.
+ * @returns {number} VaR value.
+ */
+function calculateValueAtRisk(confidenceLevel, points) {
+  if (!points || points.length === 0) throw new Error('Points array is missing or empty.');
+  const sortedPoints = points.slice().sort((a, b) => a.x - b.x);
+  const index = Math.floor((1 - confidenceLevel / 100) * sortedPoints.length);
+  return sortedPoints[index].x;
+}
+
+/**
+ * Calculates Conditional Value at Risk (CVaR) at a confidence level from points array.
+ * @param {number} confidenceLevel - Confidence level (e.g., 90 for 90%).
+ * @param {Array} points - Array of points with x (value) properties.
+ * @returns {number} CVaR value.
+ */
+function calculateConditionalValueAtRisk(confidenceLevel, points) {
+  if (!points || points.length === 0) throw new Error('Points array is missing or empty.');
+  const sortedPoints = points.slice().sort((a, b) => a.x - b.x);
+  const varIndex = Math.floor((1 - confidenceLevel / 100) * sortedPoints.length);
+  const tailPoints = sortedPoints.slice(0, varIndex + 1);
+  return tailPoints.reduce((sum, point) => sum + point.x, 0) / tailPoints.length;
+}
+
+/**
+ * Finds the confidence level closest to a given value in the points array.
+ * @param {number} value - Target value to find confidence for.
+ * @param {Array} points - Array of points with x (value) and confidence properties.
+ * @returns {number} Closest confidence level.
+ */
+function findConfidenceForValue(value, points) {
+  if (!points || points.length === 0) throw new Error('Points array is missing or empty.');
+  let closestConfidence = null;
+  let smallestDifference = Infinity;
+  points.forEach(point => {
+    const difference = Math.abs(point.x - value);
+    if (difference < smallestDifference) {
+      smallestDifference = difference;
+      closestConfidence = point.confidence;
+    }
+  });
+  return closestConfidence;
+}
+
+/**
+ * Creates confidence percentiles from Monte Carlo samples, extended to 1-100%.
+ * @param {Array} samples - Monte Carlo simulation samples.
+ * @returns {Object} Percentiles from 1 to 100.
+ */
+function createConfidencePercentiles(samples) {
+  if (!samples || samples.length === 0) throw new Error('Samples array is missing or empty.');
+  const sortedSamples = samples.slice().sort((a, b) => a - b);
+  const percentiles = {};
+  for (let i = 1; i <= 100; i++) {
+    const index = Math.floor(((i - 1) / 100) * sortedSamples.length);
+    percentiles[i] = sortedSamples[Math.min(index, sortedSamples.length - 1)];
+  }
+  return percentiles;
+}
+
+/**
+ * Creates smoothed confidence percentiles from Monte Carlo samples, extended to 1-100%.
+ * @param {Array} samples - Monte Carlo simulation samples.
+ * @returns {Object} Smoothed percentiles from 1 to 100.
+ */
+function createSmoothedConfidencePercentiles(samples) {
+  if (!samples || samples.length === 0) throw new Error('Samples array is missing or empty.');
+  const smoothedHistogram = generateSmoothedHistogram(samples, 100);
+  const smoothedPercentiles = {};
+  for (let i = 1; i <= 100; i++) {
+    const index = Math.floor(((i - 1) / 100) * smoothedHistogram.length);
+    smoothedPercentiles[i] = smoothedHistogram[Math.min(index, smoothedHistogram.length - 1)].x;
+  }
+  return smoothedPercentiles;
+}
+
+/**
+ * Calculates the alpha parameter for the Beta distribution.
+ * @param {number} mean - Mean of the distribution.
+ * @param {number} stdDev - Standard deviation of the distribution.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {number} Alpha parameter.
+ */
+function calculateAlpha(mean, stdDev, min, max) {
+  const variance = Math.pow(stdDev, 2);
+  const commonFactor = (mean - min) * (max - mean) / variance - 1;
+  return commonFactor * (mean - min) / (max - min);
+}
+
+/**
+ * Calculates the beta parameter for the Beta distribution.
+ * @param {number} mean - Mean of the distribution.
+ * @param {number} stdDev - Standard deviation of the distribution.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {number} Beta parameter.
+ */
+function calculateBeta(mean, stdDev, min, max) {
+  const variance = Math.pow(stdDev, 2);
+  const commonFactor = (mean - min) * (max - mean) / variance - 1;
+  return commonFactor * (max - mean) / (max - min);
+}
+
+/**
+ * Calculates the mode of the Beta distribution.
+ * @param {number} alpha - Alpha parameter.
+ * @param {number} beta - Beta parameter.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {number} Mode of the Beta distribution.
+ */
+function calculateBetaMode(alpha, beta, min, max) {
+  if (alpha <= 1 || beta <= 1) {
+    return alpha < beta ? min : max;
+  }
+  const mode = (alpha - 1) / (alpha + beta - 2);
+  return min + mode * (max - min);
+}
+
+/**
+ * Probability Density Function (PDF) for the Beta distribution.
+ * @param {number} x - Scaled value between 0 and 1.
+ * @param {number} alpha - Alpha parameter.
+ * @param {number} beta - Beta parameter.
+ * @returns {number} Density value.
+ */
+function betaPdf(x, alpha, beta) {
+  if (x < 0 || x > 1) return 0;
+  return (Math.pow(x, alpha - 1) * Math.pow(1 - x, beta - 1)) / betaFunction(alpha, beta);
+}
+
+/**
+ * Beta function for normalizing the Beta PDF.
+ * @param {number} alpha - Alpha parameter.
+ * @param {number} beta - Beta parameter.
+ * @returns {number} Beta function value.
+ */
+function betaFunction(alpha, beta) {
+  return gamma(alpha) * gamma(beta) / gamma(alpha + beta);
+}
+
+/**
+ * Gamma function approximation for Beta function calculation.
+ * @param {number} z - Input value.
+ * @returns {number} Gamma function approximation.
+ */
+function gamma(z) {
+  const g = 7;
+  const coefficients = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7,
+  ];
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  z -= 1;
+  let x = coefficients[0];
+  for (let i = 1; i < g + 2; i++) {
+    x += coefficients[i] / (z + i);
+  }
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+
+/**
+ * Probability Density Function (PDF) for the Triangular distribution.
+ * @param {number} x - Value to evaluate.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} mode - Mode (most likely).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {number} Density value.
+ */
+function trianglePdf(x, min, mode, max) {
+  if (x < min || x > max) return 0;
+  if (x <= mode) {
+    return 2 * (x - min) / ((max - min) * (mode - min));
+  } else {
+    return 2 * (max - x) / ((max - min) * (max - mode));
+  }
+}
+
+/**
+ * Cumulative Distribution Function (CDF) for the Triangular distribution.
+ * @param {number} x - Value to evaluate.
+ * @param {number} min - Minimum value (best case).
+ * @param {number} mode - Mode (most likely).
+ * @param {number} max - Maximum value (worst case).
+ * @returns {number} Cumulative probability.
+ */
+function triangleCdf(x, min, mode, max) {
+  if (x <= min) return 0;
+  if (x >= max) return 1;
+  if (x <= mode) {
+    return ((x - min) * (x - min)) / ((max - min) * (mode - min));
+  } else {
+    return 1 - ((max - x) * (max - x)) / ((max - min) * (max - mode));
+  }
+}
+
+/**
+ * Generates a smoothed histogram from samples using Gaussian kernel density estimation.
+ * @param {Array} samples - Monte Carlo simulation samples.
+ * @param {number} bins - Number of bins for histogram.
+ * @returns {Array} Smoothed histogram points with x (value) and y (density).
+ */
+function generateSmoothedHistogram(samples, bins) {
+  if (!samples || samples.length === 0) throw new Error("Samples array is empty or undefined.");
+  const minVal = Math.min(...samples);
+  const maxVal = Math.max(...samples);
+  if (minVal === maxVal) {
+    return Array.from({ length: bins }, (_, i) => ({
+      x: minVal,
+      y: i === Math.floor(bins / 2) ? 1 : 0
+    }));
+  }
+  const binWidth = (maxVal - minVal) / bins;
+  const histogram = Array.from({ length: bins }, (_, i) => ({
+    x: minVal + i * binWidth,
+    y: 0,
+  }));
+  const bandwidth = 0.05 * (maxVal - minVal);
+  const gaussianKernel = (x) => Math.exp(-0.5 * Math.pow(x / bandwidth, 2));
+  histogram.forEach((bin) => {
+    let weightedSum = 0;
+    samples.forEach((sample) => {
+      const weight = gaussianKernel(bin.x - sample);
+      weightedSum += weight;
+    });
+    bin.y = weightedSum / (samples.length * binWidth);
+  });
+  const densitySum = histogram.reduce((sum, bin) => sum + bin.y * binWidth, 0);
+  if (densitySum > 0) {
+    histogram.forEach((bin) => {
+      bin.y /= densitySum;
+    });
+  }
+  return histogram;
+}
+
+/**
+ * Calculates the Median Absolute Deviation (MAD) from a given median.
+ * @param {Array} samples - Monte Carlo simulation samples.
+ * @param {number} median - Median value.
+ * @returns {number} MAD value.
+ */
+function calculateMAD(samples, median) {
+  const deviations = samples.map(sample => Math.abs(sample - median));
+  deviations.sort((a, b) => a - b);
+  const mid = Math.floor(deviations.length / 2);
+  return deviations.length % 2 === 0 ? (deviations[mid - 1] + deviations[mid]) / 2 : deviations[mid];
+}
+
+/**
+ * Generates 100-point arrays for each distribution type for plotting.
+ * @param {string} type - Distribution type (TRIANGLE, PERT, BETA, MC_UNSMOOTHED, MC_SMOOTHED, CDF).
+ * @param {number} min - Minimum value (best case).
+ * @param {number} mode - Mode (most likely).
+ * @param {number} max - Maximum value (worst case).
+ * @param {number} [alpha] - Alpha parameter for PERT/Beta.
+ * @param {number} [beta] - Beta parameter for PERT/Beta.
+ * @param {Array} [samples] - Monte Carlo samples for MC distributions.
+ * @returns {Array} Array of points with x (value), y (density/probability), and confidence.
+ */
+function generateDistributionPoints(type, min, mode, max, alpha, beta, samples) {
+  const points = [];
+  if (type === 'TRIANGLE') {
+    for (let p = 1; p <= 100; p++) {
+      const percentile = p / 100;
+      let low = min, high = max, precision = 0.01;
+      while (high - low > precision) {
+        const mid = (low + high) / 2;
+        if (triangleCdf(mid, min, mode, max) < percentile) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      const x = (low + high) / 2;
+      const y = trianglePdf(x, min, mode, max);
+      points.push({ x: x, y: y, confidence: p });
+    }
+  } else if (type === 'PERT' || type === 'BETA') {
+    const range = max - min;
+    for (let p = 1; p <= 100; p++) {
+      const scaled = (p - 1) / 99; // 0 to 1 over 100 points
+      const x = min + scaled * range;
+      const y = betaPdf((x - min) / range, alpha, beta) / range;
+      points.push({ x: x, y: y, confidence: p });
+    }
+  } else if (type === 'MC_UNSMOOTHED') {
+    const percentiles = createConfidencePercentiles(samples);
+    for (let p = 1; p <= 100; p++) {
+      const x = percentiles[p];
+      const y = betaPdf((x - min) / (max - min), alpha, beta) / (max - min);
+      points.push({ x: x, y: y, confidence: p });
+    }
+  } else if (type === 'MC_SMOOTHED') {
+    const percentiles = createSmoothedConfidencePercentiles(samples);
+    for (let p = 1; p <= 100; p++) {
+      const x = percentiles[p];
+      const y = betaPdf((x - min) / (max - min), alpha, beta) / (max - min);
+      points.push({ x: x, y: y, confidence: p });
+    }
+  } else if (type === 'CDF') {
+    for (let p = 1; p <= 100; p++) {
+      const percentile = p / 100;
+      let low = min, high = max, precision = 0.01;
+      while (high - low > precision) {
+        const mid = (low + high) / 2;
+        if (triangleCdf(mid, min, mode, max) < percentile) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      const x = (low + high) / 2;
+      const y = p / 100;
+      points.push({ x: x, y: y, confidence: p });
+    }
+  }
+  return points;
 }
 
 // --- WARNING: Potentially Large Data Generation ---
