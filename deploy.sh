@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# deploy.sh
+# cloud_deploy.sh
 # Script to deploy the pmcEstimatorAPI Cloud Function and optionally verify JSON data flow with dynamic piece selection
 # Project: pmc-estimator
 # Project Number: 615922754202
@@ -8,7 +8,6 @@
 # Cloud Web App URL: https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI
 # Region: us-central1
 # Billing Account: billingAccounts/010656-5E1AC1-335B03
-# Date: July 04, 2025, 04:50 PM PDT
 
 # Exit on any error
 set -e
@@ -49,12 +48,6 @@ echo -e "${YELLOW}Raw billing output: ${BILLING_RAW}${NC}"
 BILLING_ENABLED=$(echo "$BILLING_RAW" | jq -r '.billingEnabled')
 if [ "$BILLING_ENABLED" != "true" ]; then
   echo -e "${RED}Error: Billing is not enabled for project ${PROJECT_ID}. Please enable billing in the Google Cloud Console.${NC}"
-  echo -e "${YELLOW}Steps to enable billing:${NC}"
-  echo -e "  1. Go to https://console.cloud.google.com/billing?project=${PROJECT_ID}"
-  echo -e "  2. Ensure your Free Trial billing account is active (expires October 1, 2025, \$300 credits)."
-  echo -e "  3. Link the billing account (billingAccounts/010656-5E1AC1-335B03) to project ${PROJECT_ID}."
-  echo -e "  4. Contact Cloud Billing Support if issues persist: https://cloud.google.com/support/billing"
-  echo -e "${YELLOW}Please enable billing and re-run this script.${NC}"
   exit 1
 else
   BILLING_ACCOUNT=$(echo "$BILLING_RAW" | jq -r '.billingAccountName')
@@ -114,22 +107,16 @@ done
 # Step 6: Verify Application Code
 echo -e "${YELLOW}6. Verifying application code...${NC}"
 INDEX_FILE="${SOURCE_DIR}/index.js"
-CORE_FILE="${SOURCE_DIR}/core.js"
 if [ ! -f "$INDEX_FILE" ]; then
   echo -e "${RED}Error: ${INDEX_FILE} not found in ${SOURCE_DIR}${NC}"
   exit 1
 fi
-if [ ! -f "$CORE_FILE" ]; then
-  echo -e "${RED}Error: ${CORE_FILE} not found in ${SOURCE_DIR}${NC}"
-  exit 1
-fi
 
-# Check for pmcEstimatorAPI in core.js
-if ! grep -q 'functions.http.*pmcEstimatorAPI' "$CORE_FILE"; then
-  echo -e "${RED}Error: core.js does not export pmcEstimatorAPI. Update to include functions.http('pmcEstimatorAPI', ...)${NC}"
+  if ! grep -Eq 'exports\.pmcEstimatorAPI|module\.exports\s*=' "$INDEX_FILE"; then
+echo -e "${RED}Error: index.js does not export pmcEstimatorAPI. Update to exports.pmcEstimatorAPI = (req, res) => {...}${NC}"
   exit 1
 fi
-echo -e "${GREEN}${CORE_FILE} configuration looks good${NC}"
+echo -e "${GREEN}${INDEX_FILE} configuration looks good${NC}"
 
 # Step 7: Verify Dependencies
 echo -e "${YELLOW}7. Verifying dependencies...${NC}"
@@ -153,16 +140,12 @@ if [ ! -f "$PACKAGE_JSON" ]; then
 EOF
 fi
 
-# Check for required dependencies
 REQUIRED_DEPS=("@google-cloud/functions-framework" "mathjs" "jstat")
 for DEP in "${REQUIRED_DEPS[@]}"; do
   if jq -e ".dependencies.\"${DEP}\"" "$PACKAGE_JSON" >/dev/null; then
     echo -e "${GREEN}${DEP} found in package.json${NC}"
   else
     echo -e "${RED}Error: ${DEP} missing in package.json${NC}"
-    echo -e "${YELLOW}Please add ${DEP} to ${PACKAGE_JSON}, e.g.:${NC}"
-    echo -e "${YELLOW}{\n  \"dependencies\": {\n    \"${DEP}\": \"^3.0.0\"\n  }\n}${NC}"
-    echo -e "${YELLOW}Then run 'npm install' in ${SOURCE_DIR}${NC}"
     exit 1
   fi
 done
@@ -174,31 +157,26 @@ npm install
 cd -
 
 # Step 8: Test Application Locally
-echo -e "${YELLOW}8. Testing application locally...${NC}"
-# Run in background and capture PID
-npm --prefix "$SOURCE_DIR" run start > local_test.log 2>&1 &
+echo -e "${YELLOW}8. Testing application locally with USE_CORE=1...${NC}"
+USE_CORE=1 npm --prefix "$SOURCE_DIR" run start &
 NODE_PID=$!
-sleep 5 # Wait for server to start
+sleep 5
 
-# Test with simple payload
-echo -e "${YELLOW}Testing with simple payload...${NC}"
 CURL_RESPONSE=$(curl -s -w "%{http_code}" -X POST http://localhost:8080 -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o curl_response.json)
 if [ "$CURL_RESPONSE" -eq 200 ]; then
-  echo -e "${GREEN}Simple payload test successful: Server responded with status 200${NC}"
+  echo -e "${GREEN}Local test successful: Server responded with status 200${NC}"
+  cat curl_response.json
 else
-  echo -e "${RED}Error: Simple payload test failed with status ${CURL_RESPONSE}${NC}"
-  echo -e "${YELLOW}Local test log:${NC}"
-  cat local_test.log
+  echo -e "${RED}Error: Local test failed with status ${CURL_RESPONSE}${NC}"
   cat curl_response.json
   kill $NODE_PID
   exit 1
 fi
-# Clean up
 kill $NODE_PID
-rm local_test.log curl_response.json
+rm curl_response.json
 
 # Step 9: Deploy to Cloud Functions
-echo -e "${YELLOW}9. Deploying to Cloud Functions...${NC}"
+echo -e "${YELLOW}9. Deploying to Cloud Functions with USE_CORE=1...${NC}"
 gcloud functions deploy "$FUNCTION_NAME" \
   --runtime nodejs20 \
   --trigger-http \
@@ -206,72 +184,117 @@ gcloud functions deploy "$FUNCTION_NAME" \
   --region "$REGION" \
   --source "$SOURCE_DIR" \
   --project "$PROJECT_ID" \
-  --memory 512MB
-gcloud functions deploy "pmcEstimatorAPIFields" \
-  --runtime nodejs20 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --region "$REGION" \
-  --source "$SOURCE_DIR" \
-  --project "$PROJECT_ID" \
-  --memory 512MB
+  --set-env-vars=USE_CORE=1
 
 # Step 10: Verify JSON Data Flow (Optional)
 echo -e "${YELLOW}10. Do you want to test JSON data flow?${NC}"
 echo -e "  (1) Yes"
 echo -e "  (2) No"
 read -p "Enter your choice (1 or 2): " JSON_TEST_CHOICE
+
 if [ "$JSON_TEST_CHOICE" = "1" ]; then
-  echo -e "${YELLOW}Testing JSON data flow with test payload...${NC}"
+  echo -e "${YELLOW}Testing JSON data flow...${NC}"
   JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o json_response.json)
   if [ "$JSON_RESPONSE" -eq 200 ]; then
-    echo -e "${GREEN}JSON data flow test successful: Server responded with status 200${NC}"
+    echo -e "${GREEN}JSON data flow test successful.${NC}"
     if jq -e '.results[0]' json_response.json >/dev/null; then
-      echo -e "${GREEN}JSON structure valid: Contains 'results' array${NC}"
-      FIELDS=($(jq -r '.results[0] | keys[]' json_response.json))
-      echo -e "${YELLOW}Select JSON piece(s) to view raw data (comma or space-separated, e.g., 1,3,5 or 1 3 5, or 'all' for full JSON):${NC}"
-      for i in "${!FIELDS[@]}"; do
-        echo -e "  $((i+1))) ${FIELDS[$i]}"
+      echo -e "${GREEN}JSON structure valid: Contains 'results' array.${NC}"
+
+      MENU_NUMBERS=()
+      MENU_PATHS=()
+      COUNT=0
+
+      TOP_KEYS=($(jq -r '.results[0] | keys[]' json_response.json))
+      echo -e "${YELLOW}Available JSON fields:${NC}"
+      for i in "${!TOP_KEYS[@]}"; do
+        KEY="${TOP_KEYS[$i]}"
+        COUNT=$((COUNT+1))
+        MENU_NUMBERS+=("$COUNT")
+        MENU_PATHS+=("$KEY")
+        echo "  $COUNT) $KEY"
+
+        TYPE=$(jq -r ".results[0].$KEY | type" json_response.json)
+        if [ "$TYPE" == "object" ]; then
+          CHILD_KEYS=($(jq -r ".results[0].$KEY | keys[]" json_response.json))
+          for j in "${!CHILD_KEYS[@]}"; do
+            SUBCOUNT="$COUNT.$((j+1))"
+            SUBPATH="$KEY.${CHILD_KEYS[$j]}"
+            MENU_NUMBERS+=("$SUBCOUNT")
+            MENU_PATHS+=("$SUBPATH")
+            echo "    $SUBCOUNT) $SUBPATH"
+          done
+        elif [ "$TYPE" == "array" ]; then
+          LENGTH=$(jq ".results[0].$KEY | length" json_response.json)
+          for ((j=0; j<"$LENGTH"; j++)); do
+            SUBCOUNT="$COUNT.$((j+1))"
+            SUBPATH="$KEY[$j]"
+            MENU_NUMBERS+=("$SUBCOUNT")
+            MENU_PATHS+=("$SUBPATH")
+            echo "    $SUBCOUNT) $SUBPATH"
+          done
+        fi
       done
-      echo -e "  all) Full JSON"
-      read -p "Enter your choice: " JSON_PIECE_CHOICE
-      if [ "$JSON_PIECE_CHOICE" = "all" ]; then
-        echo -e "${YELLOW}Raw data for full JSON:${NC}"
-        cat json_response.json
-      else
-        SELECTED_FIELDS=($(echo "$JSON_PIECE_CHOICE" | tr ',' ' ' | tr -s ' ' | xargs -n1))
-        for field_choice in "${SELECTED_FIELDS[@]}"; do
-          if [[ "$field_choice" =~ ^[0-9]+$ ]] && [ "$field_choice" -ge 1 ] && [ "$field_choice" -le "${#FIELDS[@]}" ]; then
-            FIELD_INDEX=$((field_choice-1))
-            FIELD=${FIELDS[$FIELD_INDEX]}
-            echo -e "${YELLOW}Raw data for ${FIELD}:${NC}"
-            jq ".results[0].${FIELD}" json_response.json
-          else
-            echo -e "${RED}Error: Invalid choice ${field_choice}. Please select 1-${#FIELDS[@]}, 'all'.${NC}"
+
+      ALL_OPTION=$((COUNT+1))
+      EXIT_OPTION=$((COUNT+2))
+      echo "  $ALL_OPTION) Show entire JSON"
+      echo "  $EXIT_OPTION) Exit without showing data"
+
+      echo -e "${YELLOW}Enter one or more selections separated by spaces:${NC}"
+      read -a SELECTIONS
+
+      SHOW_ALL=false
+      SHOW_EXIT=false
+      SELECTED_PATHS=()
+
+      for SEL in "${SELECTIONS[@]}"; do
+        if [ "$SEL" -eq "$ALL_OPTION" ]; then
+          SHOW_ALL=true
+        elif [ "$SEL" -eq "$EXIT_OPTION" ]; then
+          SHOW_EXIT=true
+        else
+          MATCHED=false
+          for idx in "${!MENU_NUMBERS[@]}"; do
+            if [ "${MENU_NUMBERS[$idx]}" = "$SEL" ]; then
+              SELECTED_PATHS+=("${MENU_PATHS[$idx]}")
+              MATCHED=true
+              break
+            fi
+          done
+          if [ "$MATCHED" = false ]; then
+            echo -e "${RED}Error: Invalid selection '$SEL'. Exiting.${NC}"
+            rm json_response.json
+            exit 1
           fi
+        fi
+      done
+
+      if [ "$SHOW_EXIT" = true ]; then
+        echo -e "${YELLOW}Exiting without displaying any data.${NC}"
+      elif [ "$SHOW_ALL" = true ]; then
+        echo -e "${YELLOW}Full JSON response:${NC}"
+        jq '.' json_response.json
+      else
+        for PATH in "${SELECTED_PATHS[@]}"; do
+          echo -e "${YELLOW}Raw data for '$PATH':${NC}"
+          jq ".results[0].$PATH" json_response.json
         done
       fi
+
     else
-      echo -e "${RED}Error: JSON structure invalid or missing 'results' array${NC}"
-      cat json_response.json
+      echo -e "${RED}Error: JSON does not contain expected structure.${NC}"
+      jq '.' json_response.json
+      rm json_response.json
       exit 1
     fi
   else
-    echo -e "${RED}Error: JSON data flow test failed with status ${JSON_RESPONSE}${NC}"
-    cat json_response.json
+    echo -e "${RED}Error: JSON data flow test failed with status ${JSON_RESPONSE}.${NC}"
+    jq '.' json_response.json
+    rm json_response.json
     exit 1
   fi
   rm json_response.json
 else
-  echo -e "${GREEN}Skipping JSON data flow test${NC}"
+  echo -e "${GREEN}Skipping JSON data flow test.${NC}"
 fi
 
-# Instructions for Further Testing
-echo -e "${YELLOW}Next steps:${NC}"
-echo -e "  1. Test the API with different payloads using curl to verify JSON fields."
-echo -e "  2. If using Apps Script, run 'estimateAndSave' to test the API with your data."
-echo -e "  3. Check 'Estimate Calculations' tab for data."
-echo -e "  4. Select 'Show Plot' to verify the triangular plot."
-echo -e "  5. Deploy the web app and test the plot rendering."
-
-echo -e "${GREEN}Deployment completed successfully!${NC}"
