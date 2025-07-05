@@ -134,19 +134,20 @@ git commit -m "$MESSAGE"
 git push
 
 echo "-----------------------------------------------"
-echo "🌐 Deploy to Google Cloud Functions?"
+echo "🌐 Deploy using deploy.sh script?"
 echo "1) Yes"
 echo "2) No"
 read -r -p "Your choice: " DEPLOY
 
 if [[ "$DEPLOY" == "1" ]]; then
-gcloud functions deploy estimateDistributions \
-  --runtime nodejs20 \
-  --gen2 \
-  --region us-central1 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --source=system-google-cloud-functions-api
+  DEPLOY_SCRIPT_PATH="$ROOT/deploy.sh"
+  if [[ -f "$DEPLOY_SCRIPT_PATH" ]]; then
+    echo "🚀 Running deploy.sh..."
+    bash "$DEPLOY_SCRIPT_PATH"
+  else
+    echo "❌ deploy.sh not found at $DEPLOY_SCRIPT_PATH"
+    exit 1
+  fi
 else
   echo "✅ Skipped deploy."
 fi
