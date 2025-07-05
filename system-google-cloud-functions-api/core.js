@@ -1,3 +1,4 @@
+// core.js
 // https://github.com/abeljstephen/pmc-estimator/blob/main/system-google-cloud-functions-api/core.js
 
 'use strict';
@@ -6,140 +7,38 @@ const math = require('mathjs');
 const jstat = require('jstat');
 const functions = require('@google-cloud/functions-framework');
 
-functions.http('pmcEstimatorAPI', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+// --- Utility Functions ---
+// These functions are used throughout the module for calculations and validations
 
-  if (!req.body || !Array.isArray(req.body)) {
-    return res.status(400).json({ error: "Request body must be a JSON array of tasks." });
-  }
-
-  const tasks = req.body.map(task => ({
-    task: task.task || `Task ${req.body.indexOf(task) + 1}`,
-    optimistic: parseFloat(task.optimistic || task.bestCase),
-    mostLikely: parseFloat(task.mostLikely),
-    pessimistic: parseFloat(task.pessimistic || task.worstCase)
-  }));
-
-  if (!tasks.every(task => 
-    !isNaN(task.optimistic) && 
-    !isNaN(task.mostLikely) && 
-    !isNaN(task.pessimistic))) {
-    return res.status(400).json({ error: "All estimates (optimistic, mostLikely, pessimistic) must be numbers." });
-  }
-
-  try {
-    const results = tasks.map(processTask);
-    const fields = req.query.fields ? req.query.fields.split(',') : null;
-    const filteredResults = fields
-      ? results.map(result => {
-          const filtered = { task: result.task };
-          fields.forEach(field => {
-            if (result.hasOwnProperty(field)) filtered[field] = result[field];
-          });
-          return filtered;
-        })
-      : results;
-    res.json({ results: filteredResults, message: "Batch estimation successful" });
-  } catch (err) {
-    console.error("Error in pmcEstimatorAPI:", err.stack);
-    res.status(500).json({ error: `Internal Server Error: ${err.message}` });
-  }
-});
-
-functions.http('pmcEstimatorAPIFields', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  const sampleTask = { task: "Sample", optimistic: 1800, mostLikely: 2400, pessimistic: 3000 };
-  const sampleResult = processTask(sampleTask);
-  const fields = Object.keys(sampleResult);
-  res.json({ fields, message: "Available fields retrieved" });
-});
-
-function processTask(task) {
-  const { optimistic, mostLikely, pessimistic } = task;
-
-  if (pessimistic - optimistic <= 0) {
-    throw new Error(`Invalid range for task ${task.task}: pessimistic (${pessimistic}) must be greater than optimistic (${optimistic})`);
+/**
+ * Validates the estimates to ensure optimistic <= mostLikely <= pessimistic.
+ * Throws an error if the condition is not met.
+ * @param {number} optimistic - The optimistic estimate.
+ * @param {number} mostLikely - The most likely estimate.
+ * @param {number} pessimistic - The pessimistic estimate.
+ */
+function validateEstimates(optimistic, mostLikely, pessimistic) {
+  if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+    throw new Error('Estimates must be finite numbers');
   }
   if (optimistic > mostLikely || mostLikely > pessimistic) {
-    throw new Error(`Invalid order for task ${task.task}: optimistic (${optimistic}) <= mostLikely (${mostLikely}) <= pessimistic (${pessimistic})`);
+    throw new Error('Invalid estimates: optimistic <= mostLikely <= pessimistic required');
   }
-
-  const numPoints = 100;
-  const trianglePoints = [];
-  const step = (pessimistic - optimistic) / (numPoints - 1);
-  const peak = 2 / (pessimistic - optimistic);
-
-  for (let i = 0; i < numPoints; i++) {
-    const x = optimistic + i * step;
-    let y;
-    if (x < optimistic || x > pessimistic) y = 0;
-    else if (x <= mostLikely) y = (2 * (x - optimistic)) / ((pessimistic - optimistic) * (mostLikely - optimistic));
-    else y = (2 * (pessimistic - x)) / ((pessimistic - optimistic) * (pessimistic - mostLikely));
-    trianglePoints.push([x, y]);
-  }
-
-  const trianglePointsObj = { x: trianglePoints.map(p => p[0]), y: trianglePoints.map(p => p[1]) };
-
-  const pertPoints = calculatePERTDistribution(optimistic, mostLikely, pessimistic);
-  const betaPoints = calculateBetaDistribution(optimistic, mostLikely, pessimistic);
-  const mcBetaSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic, 1000);
-  const smoothedHistogram = smoothHistogram(mcBetaSamples);
-  const originalCdf = computeCDF(smoothedHistogram);
-  const mcSmoothedVaR90 = computeVaR90(originalCdf);
-  const optimizedCdf = computeTargetOptimizedCdf(0, 0, 0, 0, mcSmoothedVaR90);
-
-  const triangleMean = (optimistic + mostLikely + pessimistic) / 3;
-  const pertMean = (optimistic + 4 * mostLikely + pessimistic) / 6;
-  const mcMean = mcBetaSamples.reduce((a, b) => a + b, 0) / mcBetaSamples.length;
-  const mcStdDev = Math.sqrt(mcBetaSamples.reduce((a, b) => a + Math.pow(b - mcMean, 2), 0) / mcBetaSamples.length);
-  const mcSkewness = computeSkewness(mcBetaSamples, mcMean, mcStdDev);
-  const percentiles = computePercentiles(originalCdf);
-  const triangleMetrics = { mean: triangleMean, stdDev: 0, percentiles, skewness: 0 };
-  const betaMetrics = { mean: pertMean, stdDev: 0, percentiles, skewness: 0 };
-  const mcMetrics = { mean: mcMean, stdDev: mcStdDev, percentiles, skewness: mcSkewness };
-
-  const weightedOptimistic = optimistic;
-  const weightedNeutral = mostLikely;
-  const weightedConservative = pessimistic;
-
-  return {
-    task: task.task,
-    estimates: { optimistic, mostLikely, pessimistic },
-    trianglePoints: trianglePointsObj,
-    pertPoints,
-    betaPoints,
-    mcBetaSamples,
-    smoothedHistogram,
-    originalCdf,
-    optimizedCdf,
-    weightedOptimistic,
-    weightedNeutral,
-    weightedConservative,
-    triangleMean,
-    pertMean,
-    mcSmoothedMean: mcMean,
-    triangleMetrics,
-    betaMetrics,
-    mcMetrics,
-    mcSmoothedVaR90
-  };
 }
 
+// --- Active Functions ---
+// These functions are currently in use and optimized for performance
+
+/**
+ * Calculates the PERT distribution points for plotting.
+ * @param {number} optimistic - The optimistic estimate.
+ * @param {number} mostLikely - The most likely estimate.
+ * @param {number} pessimistic - The pessimistic estimate.
+ * @returns {Object} An object with x and y arrays for plotting.
+ */
 function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
-  const numPoints = 100;
+  validateEstimates(optimistic, mostLikely, pessimistic);
+  const numPoints = 100; // Fixed to 100 points for performance and accuracy
   const points = [];
   const step = (pessimistic - optimistic) / (numPoints - 1);
   const scale = 6 / (pessimistic - optimistic);
@@ -157,72 +56,41 @@ function calculatePERTDistribution(optimistic, mostLikely, pessimistic) {
   return { x: points.map(p => p[0]), y: points.map(p => p[1]) };
 }
 
-function calculateBetaDistribution(optimistic, mostLikely, pessimistic) {
-  const numPoints = 100;
-  const alpha = 2 + 4 * (mostLikely - optimistic) / (pessimistic - optimistic);
-  const beta = 2 + 4 * (pessimistic - mostLikely) / (pessimistic - optimistic);
-  const points = [];
-  const step = (pessimistic - optimistic) / (numPoints - 1);
-  for (let i = 0; i < numPoints; i++) {
-    const x = optimistic + i * step;
-    const t = (x - optimistic) / (pessimistic - optimistic);
-    const y = t ** (alpha - 1) * (1 - t) ** (beta - 1) / betaFunction(alpha, beta);
-    points.push([x, y]);
-  }
-  return { x: points.map(p => p[0]), y: points.map(p => p[1]) };
-}
-
-function betaFunction(alpha, beta) {
-  return gamma(alpha) * gamma(beta) / gamma(alpha + beta);
-}
-
-function gamma(z) {
-  try {
-    if (z <= 0) throw new Error('Gamma function not defined for non-positive numbers');
-    if (z === 1) return 1;
-    if (z === 0.5) return Math.sqrt(Math.PI);
-
-    const p = [
-      0.99999999999980993,
-      676.5203681218851,
-      -1259.1392167224028,
-      771.32342877765313,
-      -176.61502916214059,
-      12.507343278686905,
-      -0.13857109526572012,
-      9.9843695780195716e-6,
-      1.5056327351493116e-7
-    ];
-    let g = 7;
-    if (z < 0.5) {
-      return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
-    }
-    z -= 1;
-    let a = p[0];
-    let t = z + g + 0.5;
-    for (let i = 1; i < p.length; i++) {
-      a += p[i] / (z + i);
-    }
-    return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * a;
-  } catch (err) {
-    throw new Error(`Gamma function error: ${err.message}`);
-  }
-}
-
+/**
+ * Generates Monte Carlo samples for estimation.
+ * @param {number} optimistic - The optimistic estimate.
+ * @param {number} mostLikely - The most likely estimate.
+ * @param {number} pessimistic - The pessimistic estimate.
+ * @param {number} [samples=1000] - The number of samples to generate.
+ * @returns {number[]} An array of Monte Carlo samples.
+ */
 function generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples = 1000) {
+  validateEstimates(optimistic, mostLikely, pessimistic);
+  if (!Number.isInteger(samples) || samples <= 0) {
+    throw new Error('Number of samples must be a positive integer');
+  }
   const results = [];
   for (let i = 0; i < samples; i++) {
     const r1 = Math.random();
     const r2 = Math.random();
     const mean = (optimistic + 4 * mostLikely + pessimistic) / 6;
     const stdDev = (pessimistic - optimistic) / 6;
-    results.push(mean + stdDev * (Math.sqrt(-2 * Math.log(r1)) * Math.cos(2 * Math.PI * r2)));
+    // Box-Muller transform for normal distribution approximation
+    results.push(mean + stdDev * Math.sqrt(-2 * Math.log(r1)) * Math.cos(2 * Math.PI * r2));
   }
   return results;
 }
 
+/**
+ * Creates a smoothed histogram from Monte Carlo samples.
+ * @param {number[]} samples - The Monte Carlo samples.
+ * @returns {Object[]} An array of objects with x and y for plotting.
+ */
 function smoothHistogram(samples) {
-  const bins = 30;
+  if (!Array.isArray(samples) || samples.length === 0) {
+    throw new Error('Samples must be a non-empty array');
+  }
+  const bins = 100; // Fixed to 100 bins for performance and accuracy
   const min = Math.min(...samples);
   const max = Math.max(...samples);
   const binWidth = (max - min) / bins;
@@ -238,40 +106,131 @@ function smoothHistogram(samples) {
   }));
 }
 
-function computeCDF(histogram) {
-  const cdf = [];
-  let cumulative = 0;
-  const binWidth = histogram.length > 1 ? histogram[1].x - histogram[0].x : 1;
-  histogram.forEach(p => {
-    cumulative += p.y * binWidth;
-    cdf.push({ x: p.x, y: Math.min(cumulative, 1) });
-  });
-  return cdf;
+// --- Additional Utility Functions ---
+// These functions provide extra calculations that may be useful in the future
+
+/**
+ * Calculates the standard deviation for a triangular distribution.
+ * @param {number} optimistic - The optimistic estimate.
+ * @param {number} mostLikely - The most likely estimate.
+ * @param {number} pessimistic - The pessimistic estimate.
+ * @returns {number} The standard deviation.
+ */
+function calculateStandardDeviation(optimistic, mostLikely, pessimistic) {
+  validateEstimates(optimistic, mostLikely, pessimistic);
+  const a = optimistic, b = mostLikely, c = pessimistic;
+  const variance = (a * a + b * b + c * c - a * b - a * c - b * c) / 18;
+  return Math.sqrt(variance);
 }
 
-function computeVaR90(cdf) {
-  for (let i = 0; i < cdf.length; i++) {
-    if (cdf[i].y >= 0.9) return cdf[i].x;
+/**
+ * Calculates the confidence interval for the estimates based on Monte Carlo samples.
+ * @param {number[]} samples - The Monte Carlo samples.
+ * @param {number} confidenceLevel - The confidence level (e.g., 0.95 for 95%).
+ * @returns {Object} An object with lower and upper bounds of the interval.
+ */
+function calculateConfidenceInterval(samples, confidenceLevel) {
+  if (!Array.isArray(samples) || samples.length === 0) {
+    throw new Error('Samples must be a non-empty array');
   }
-  return cdf[cdf.length - 1].x;
+  if (confidenceLevel <= 0 || confidenceLevel >= 1) {
+    throw new Error('Confidence level must be between 0 and 1');
+  }
+  const sorted = samples.slice().sort((a, b) => a - b);
+  const lowerIdx = Math.floor((1 - confidenceLevel) / 2 * sorted.length);
+  const upperIdx = Math.ceil((1 + confidenceLevel) / 2 * sorted.length) - 1;
+  return {
+    lower: sorted[lowerIdx],
+    upper: sorted[upperIdx]
+  };
 }
 
-function computeTargetOptimizedCdf(budget, schedule, scope, risk, vaR90) {
-  const adjustment = (budget + schedule - scope + risk) / 4;
-  const shift = vaR90 * adjustment;
-  const histogram = smoothHistogram(generateMonteCarloSamples(0, 0, 0, 1000));
-  return histogram.map(p => ({
-    x: p.x + shift,
-    y: p.y
+/**
+ * Calculates the probability of completing a task by a target value (e.g., time or cost).
+ * @param {number[]} samples - The Monte Carlo samples.
+ * @param {number} target - The target value to compare against.
+ * @returns {number} The probability (between 0 and 1) of being less than or equal to the target.
+ */
+function calculateProbability(samples, target) {
+  if (!Array.isArray(samples) || samples.length === 0) {
+    throw new Error('Samples must be a non-empty array');
+  }
+  if (!Number.isFinite(target)) {
+    throw new Error('Target must be a finite number');
+  }
+  const count = samples.filter(s => s <= target).length;
+  return count / samples.length;
+}
+
+// --- WARNING: Potentially Large Data Generation ---
+// The following functions are not currently needed or may result in JSON being too large.
+// Use with caution or modify sample sizes if necessary.
+
+/**
+ * Generates a high volume of Monte Carlo samples.
+ * @param {number} optimistic - The optimistic estimate.
+ * @param {number} mostLikely - The most likely estimate.
+ * @param {number} pessimistic - The pessimistic estimate.
+ * @returns {number[]} An array of 10,000 Monte Carlo samples.
+ */
+function generateHighVolumeSamples(optimistic, mostLikely, pessimistic) {
+  // WARNING: This may result in JSON being too large when using 10,000 samples.
+  const samples = 10000; // High sample count not currently needed
+  return generateMonteCarloSamples(optimistic, mostLikely, pessimistic, samples);
+}
+
+// --- HTTP Endpoints ---
+// These functions handle HTTP requests for the Cloud Function
+
+functions.http('pmcEstimatorAPI', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (!req.body || !Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be a JSON array of tasks.' });
+  }
+
+  const tasks = req.body.map(task => ({
+    task: task.task,
+    optimistic: parseFloat(task.optimistic),
+    mostLikely: parseFloat(task.mostLikely),
+    pessimistic: parseFloat(task.pessimistic)
   }));
-}
 
-function computePercentiles(cdf) {
-  return { "50": cdf[Math.floor(cdf.length * 0.5)].x, "90": cdf[Math.floor(cdf.length * 0.9)].x };
-}
+  try {
+    const results = tasks.map(processTask);
+    res.json({ results });
+  } catch (err) {
+    console.error('Error in pmcEstimatorAPI:', err.stack);
+    res.status(500).json({ error: `Internal Server Error: ${err.message}` });
+  }
+});
 
-function computeSkewness(samples, mean, stdDev) {
-  const n = samples.length;
-  const m3 = samples.reduce((a, b) => a + Math.pow(b - mean, 3), 0) / n;
-  return m3 / Math.pow(stdDev, 3);
+/**
+ * Processes a single task and returns its analysis.
+ * @param {Object} task - The task object with task name and estimates.
+ * @returns {Object} The analysis results for the task.
+ */
+function processTask(task) {
+  const { optimistic, mostLikely, pessimistic } = task;
+  const pertPoints = calculatePERTDistribution(optimistic, mostLikely, pessimistic);
+  const mcSamples = generateMonteCarloSamples(optimistic, mostLikely, pessimistic);
+  const histogram = smoothHistogram(mcSamples);
+  const stdDev = calculateStandardDeviation(optimistic, mostLikely, pessimistic);
+  const confidenceInterval = calculateConfidenceInterval(mcSamples, 0.95);
+  const probabilityUnderMean = calculateProbability(mcSamples, (optimistic + 4 * mostLikely + pessimistic) / 6);
+
+  return {
+    task: task.task,
+    pertPoints,
+    histogram,
+    stdDev,
+    confidenceInterval,
+    probabilityUnderMean
+  };
 }
