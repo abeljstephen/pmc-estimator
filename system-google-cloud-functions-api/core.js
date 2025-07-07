@@ -1,3 +1,20 @@
+const functions = require('@google-cloud/functions-framework');
+
+// Define the handler function
+const pmcEstimatorAPI = (req, res) => {
+  // Your function logic goes here
+  res.send('Hello from pmcEstimatorAPI!');
+};
+
+// Register the function with the framework
+functions.http('pmcEstimatorAPI', pmcEstimatorAPI);
+
+// Export the function as an object property
+module.exports = { pmcEstimatorAPI };
+
+
+
+
 function computeOriginalCdfPoints(task) {
   const baseData = processTask(task);
   return baseData.mcSmoothedCdfPoints.value;
