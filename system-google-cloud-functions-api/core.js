@@ -365,7 +365,7 @@ function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, co
     if (type === 'TRIANGLE') {
       value = calculateTriangleValueAtConfidence(min, mode, max, conf);
     } else if (type === 'PERT') {
-      value Vedva = calculatePERTValueAtConfidence(min, mode, max, alpha, beta, conf);
+      value = calculatePERTValueAtConfidence(min, mode, max, alpha, beta, conf);
     } else if (type === 'BETA') {
       value = calculateBetaValueAtConfidence(alpha, beta, min, max, conf);
     } else if (type === 'MC_UNSMOOTHED') {
