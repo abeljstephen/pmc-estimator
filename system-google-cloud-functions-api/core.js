@@ -1,4 +1,4 @@
-// core.js (Further Updated with Proactive Calculations)
+// core.js (Fully Updated with Proactive Calculations and Enhancements)
 'use strict';
 
 const math = require('mathjs');
@@ -86,13 +86,11 @@ function calculateTrianglePdfPoints(o, m, p) {
   }
   return points;
 }
-// New: Confidence interval for Triangle mean
 function calculateTriangleConfidenceInterval(mean, stdDev, sampleSize = 1000) {
   const z = 1.96; // 95% confidence
   const se = stdDev / Math.sqrt(sampleSize);
   return { lower: mean - z * se, upper: mean + z * se };
 }
-// New: Coefficient of Variation
 function calculateTriangleCoefficientOfVariation(mean, stdDev) {
   return mean !== 0 ? stdDev / mean : 0;
 }
@@ -367,7 +365,7 @@ function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, co
     if (type === 'TRIANGLE') {
       value = calculateTriangleValueAtConfidence(min, mode, max, conf);
     } else if (type === 'PERT') {
-      value = calculatePERTValueAtConfidence(min, mode, max, alpha, beta, conf);
+      value Vedva = calculatePERTValueAtConfidence(min, mode, max, alpha, beta, conf);
     } else if (type === 'BETA') {
       value = calculateBetaValueAtConfidence(alpha, beta, min, max, conf);
     } else if (type === 'MC_UNSMOOTHED') {
@@ -406,11 +404,11 @@ function calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints
   for (let i = 0; i <= 100; i++) {
     const x = min + i * step;
     const y = (
-      trianglePoints.find(p => Math.abs(p.x - x) < step / 2)?.y +
-      pertPoints.find(p => Math.abs(p.x - x) < step / 2)?.y +
-      betaPoints.find(p => Math.abs(p.x - x) < step / 2)?.y +
-      mcPoints.find(p => Math.abs(p.x - x) < step / 2)?.y
-    ) / 4 || 0;
+      (trianglePoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (pertPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (betaPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (mcPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0)
+    ) / 4;
     points.push({ x, y, confidence: y * 100 });
   }
   return points;
@@ -425,7 +423,6 @@ function calculateTargetProbabilityPoints(min, max, mean, targets = [mean * 0.9,
   return points;
 }
 
-// New: Probability of exceeding arbitrary targets
 function calculateProbExceedTargets(type, min, mode, max, alpha, beta, samples, targets) {
   const probs = {};
   for (const target of targets) {
@@ -448,7 +445,6 @@ function calculateProbExceedTargets(type, min, mode, max, alpha, beta, samples, 
   return probs;
 }
 
-// New: Kullback-Leibler Divergence between two distributions
 function calculateKLDivergence(points1, points2, step) {
   let kl = 0;
   for (let i = 0; i < points1.length; i++) {
@@ -459,12 +455,44 @@ function calculateKLDivergence(points1, points2, step) {
   return kl;
 }
 
-// New: Sensitivity analysis
 function calculateSensitivity(mean, stdDev, min, max, variation = 0.1) {
   const variedMin = min * (1 - variation);
   const variedMax = max * (1 + variation);
   const variedMean = calculateTriangleMean(variedMin, mean, variedMax);
   return { originalMean: mean, variedMean, change: variedMean - mean };
+}
+
+function adjustDistributionPoints(points, sliderValues) {
+  const { budgetFlexibility, scheduleFlexibility, scopeUncertainty, riskTolerance } = sliderValues;
+  const bfFactor = 0.5 + budgetFlexibility / 100; // 0.5 to 1.5
+  const sfFactor = 0.5 + scheduleFlexibility / 100; // 0.5 to 1.5
+  const suFactor = scopeUncertainty / 100; // 0 to 1
+  const rtFactor = 1 + riskTolerance / 100; // 1 to 2
+
+  return points.map(p => {
+    const adjustedX = p.x * bfFactor * sfFactor * (1 + suFactor);
+    const adjustedY = p.y / rtFactor;
+    return { x: adjustedX, y: adjustedY, confidence: p.confidence };
+  });
+}
+
+function calculateOptimizedMetrics(originalPoints, adjustedPoints) {
+  const originalMedian = originalPoints.find(p => p.confidence >= 50)?.x || math.median(originalPoints.map(p => p.x));
+  const optimizedMedian = adjustedPoints.find(p => p.confidence >= 50)?.x || math.median(adjustedPoints.map(p => p.x));
+  const step = (originalPoints[1].x - originalPoints[0].x) || 1;
+  const newConfidence = adjustedPoints.reduce((sum, p) => sum + p.y * step * (p.x >= optimizedMedian ? 1 : 0), 0) * 100;
+
+  return { originalMedian, optimizedMedian, newConfidence };
+}
+
+function generateAdjustedCdfPoints(points, sliderValues) {
+  const adjustedPoints = adjustDistributionPoints(points, sliderValues);
+  let cdf = 0;
+  const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
+  return adjustedPoints.map(p => {
+    cdf += p.y * step;
+    return { x: p.x, y: Math.min(cdf, 1), confidence: Math.min(cdf, 1) * 100 };
+  });
 }
 
 function calculateUnsmoothedMetrics(samples) {
@@ -503,7 +531,12 @@ function calculateUnsmoothedMetrics(samples) {
    🟪 MAIN PROCESS FUNCTION
 ============================================================================ */
 function processTask(task) {
-  const { optimistic, mostLikely, pessimistic } = task;
+  const { optimistic, mostLikely, pessimistic, sliderValues = {
+    budgetFlexibility: 50,
+    scheduleFlexibility: 50,
+    scopeUncertainty: 50,
+    riskTolerance: 50
+  } } = task;
   const isDegenerate = validateEstimates(optimistic, mostLikely, pessimistic);
 
   // PERT Calculations
@@ -525,7 +558,7 @@ function processTask(task) {
   const trianglePoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : generateDistributionPoints('TRIANGLE', optimistic, mostLikely, pessimistic);
   const trianglePdfPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTrianglePdfPoints(optimistic, mostLikely, pessimistic);
   const triangleConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('TRIANGLE', optimistic, mostLikely, pessimistic);
-  const triangleConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculateTriangleConfidenceInterval(triangleMean, triangleStdDev);
+  const triangleConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculateTriangleConfidenceInterval(triangle Mean, triangleStdDev);
   const triangleCoefficientOfVariation = isDegenerate ? 0 : calculateTriangleCoefficientOfVariation(triangleMean, triangleStdDev);
   const triangleSensitivity = isDegenerate ? { originalMean: mostLikely, variedMean: mostLikely, change: 0 } : calculateSensitivity(triangleMean, triangleStdDev, optimistic, pessimistic);
 
@@ -569,16 +602,22 @@ function processTask(task) {
   const probExceedPertMeanMCSmoothed = isDegenerate ? 0 : calculateProbExceedPertMeanMC(smoothedMC.points.map(p => p.x), pertMean);
   const mcSmoothedConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('MC_SMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
 
-  // New: Additional calculations
+  // Additional Calculations
   const probExceedTargetsTriangle = isDegenerate ? {} : calculateProbExceedTargets('TRIANGLE', optimistic, mostLikely, pessimistic, null, null, null, [triangleMean, mostLikely, pertMean]);
   const probExceedTargetsPERT = isDegenerate ? {} : calculateProbExceedTargets('PERT', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null, [triangleMean, mostLikely, pertMean]);
   const probExceedTargetsBeta = isDegenerate ? {} : calculateProbExceedTargets('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null, [triangleMean, mostLikely, pertMean]);
   const probExceedTargetsMC = isDegenerate ? {} : calculateProbExceedTargets('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, null, null, mcUnsmoothed, [triangleMean, mostLikely, pertMean]);
   const klDivergenceTrianglePERT = isDegenerate ? 0 : calculateKLDivergence(trianglePoints, pertPoints, (pessimistic - optimistic) / 100);
 
-  // Decision Optimizer and Target Probability
-  const decisionOptimizerPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, mcPoints);
+  // Decision Optimizer and Target Probability Enhancements
+  const decisionOptimizerPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, smoothedMC.points);
+  const decisionOptimizerOriginalPoints = smoothedMC.points;
+  const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, sliderValues);
+  const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
+
   const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
+  const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
+  const targetProbabilityOptimizedCdf = generateAdjustedCdfPoints(decisionOptimizerOriginalPoints, sliderValues);
 
   return {
     task: { value: task.task, description: "Task name" },
@@ -663,7 +702,12 @@ function processTask(task) {
     probExceedTargetsMC: { value: probExceedTargetsMC, description: "Monte Carlo probabilities of exceeding key targets" },
     klDivergenceTrianglePERT: { value: klDivergenceTrianglePERT, description: "KL Divergence between Triangle and PERT distributions" },
     decisionOptimizerPoints: { value: decisionOptimizerPoints, description: "Decision Optimizer aggregated points" },
-    targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" }
+    decisionOptimizerOriginalPoints: { value: decisionOptimizerOriginalPoints, description: "Decision Optimizer original distribution points" },
+    decisionOptimizerAdjustedPoints: { value: decisionOptimizerAdjustedPoints, description: "Decision Optimizer adjusted distribution points based on sliders" },
+    decisionOptimizerMetrics: { value: decisionOptimizerMetrics, description: "Decision Optimizer metrics (originalMedian, optimizedMedian, newConfidence)" },
+    targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
+    targetProbabilityOriginalCdf: { value: targetProbabilityOriginalCdf, description: "Target Probability original CDF points" },
+    targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" }
   };
 }
 
