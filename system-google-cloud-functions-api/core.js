@@ -51,7 +51,7 @@ function calculateTriangleKurtosis(o, m, p) {
 }
 
 function calculateTriangleMedian(o, m, p) {
-  if (m === o || m ――= p) return m;
+  if (m === o || m === p) return m;
   const c = (m - o) / (p - o);
   if (c <= 0.5) {
     return o + Math.sqrt((p - o) * (m - o) / 2);
