@@ -12,6 +12,8 @@ FUNCTION_NAME="pmcEstimatorAPI"
 REGION="us-central1"
 SOURCE_DIR="system-google-cloud-functions-api"
 TEST_PAYLOAD='[{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000}]'
+TEST_PAYLOAD_WITH_SLIDERS='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":2500}'
+TEST_PAYLOAD_TARGET_ONLY='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":2500,"targetProbabilityOnly":true}'
 SERVICE_URL="https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI"
 
 RED='\033[0;31m'
@@ -177,110 +179,128 @@ gcloud functions deploy "$FUNCTION_NAME" \
 
 # Step 10: Verify JSON Data Flow
 echo -e "${YELLOW}10. Test JSON data flow?${NC}"
-echo -e "  (1) Yes"
-echo -e "  (2) No"
+echo -e "  (1) Test full response (all fields)"
+echo -e "  (2) Test target probability fields only"
+echo -e "  (3) No"
 read -p "Enter your choice: " JSON_TEST_CHOICE
 
-if [ "$JSON_TEST_CHOICE" = "1" ]; then
+if [ "$JSON_TEST_CHOICE" = "1" ] || [ "$JSON_TEST_CHOICE" = "2" ]; then
   echo -e "${YELLOW}Testing JSON data flow...${NC}"
-  JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o json_response.json)
+  if [ "$JSON_TEST_CHOICE" = "1" ]; then
+    TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_WITH_SLIDERS"
+  else
+    TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_TARGET_ONLY"
+  fi
+
+  JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD_TO_USE" -o json_response.json)
   if [ "$JSON_RESPONSE" -eq 200 ]; then
     echo -e "${GREEN}Test successful.${NC}"
-    if jq -e '.results[0]' json_response.json >/dev/null; then
-      echo -e "${GREEN}JSON structure valid.${NC}"
-
-      MENU_NUMBERS=()
-      MENU_PATHS=()
-      COUNT=0
-
-      TOP_KEYS=($(jq -r '.results[0] | keys[]' json_response.json))
-      echo -e "${YELLOW}Available JSON fields:${NC}"
-      for i in "${!TOP_KEYS[@]}"; do
-        KEY="${TOP_KEYS[$i]}"
-        COUNT=$((COUNT+1))
-        MENU_NUMBERS+=("$COUNT")
-        MENU_PATHS+=("$KEY")
-        echo "  $COUNT) $KEY"
-
-        TYPE=$(jq -r ".results[0].$KEY | type" json_response.json)
-        if [ "$TYPE" == "object" ]; then
-          CHILD_KEYS=($(jq -r ".results[0].$KEY | keys[]" json_response.json))
-          for j in "${!CHILD_KEYS[@]}"; do
-            SUBCOUNT="$COUNT.$((j+1))"
-            SUBPATH="$KEY.${CHILD_KEYS[$j]}"
-            MENU_NUMBERS+=("$SUBCOUNT")
-            MENU_PATHS+=("$SUBPATH")
-            echo "    $SUBCOUNT) $SUBPATH"
-          done
-        elif [ "$TYPE" == "array" ]; then
-          LENGTH=$(jq ".results[0].$KEY | length" json_response.json)
-          for ((j=0;j<LENGTH;j++)); do
-            SUBCOUNT="$COUNT.$((j+1))"
-            SUBPATH="$KEY[$j]"
-            MENU_NUMBERS+=("$SUBCOUNT")
-            MENU_PATHS+=("$SUBPATH")
-            echo "    $SUBCOUNT) $SUBPATH"
-          done
-        fi
-      done
-
-      ALL_OPTION=$((COUNT+1))
-      EXIT_OPTION=$((COUNT+2))
-      echo "  $ALL_OPTION) Show entire JSON"
-      echo "  $EXIT_OPTION) Exit"
-
-      echo -e "${YELLOW}Enter selections (space-separated):${NC}"
-      read -a SELECTIONS
-
-      SHOW_ALL=false
-      SHOW_EXIT=false
-      SELECTED_PATHS=()
-
-      for SEL in "${SELECTIONS[@]}"; do
-        if [ "$SEL" = "$ALL_OPTION" ]; then
-          SHOW_ALL=true
-        elif [ "$SEL" = "$EXIT_OPTION" ]; then
-          SHOW_EXIT=true
-        else
-          MATCHED=false
-          for idx in "${!MENU_NUMBERS[@]}"; do
-            if [ "${MENU_NUMBERS[$idx]}" = "$SEL" ]; then
-              SELECTED_PATHS+=("${MENU_PATHS[$idx]}")
-              MATCHED=true
-              break
-            fi
-          done
-          if [ "$MATCHED" = false ]; then
-            echo -e "${RED}Invalid selection '$SEL'. Exiting.${NC}"
-            rm json_response.json
-            exit 1
-          fi
-        fi
-      done
-
-      if [ "$SHOW_EXIT" = true ]; then
-        echo -e "${YELLOW}Exiting without displaying data.${NC}"
-      elif [ "$SHOW_ALL" = true ]; then
-        jq '.' json_response.json
-      else
-        for PATH in "${SELECTED_PATHS[@]}"; do
-          echo -e "${YELLOW}Data for '$PATH':${NC}"
-          jq ".results[0].$PATH" json_response.json
-        done
-      fi
-
+    if [ "$JSON_TEST_CHOICE" = "1" ] && jq -e '.results[0]' json_response.json >/dev/null; then
+      echo -e "${GREEN}JSON structure valid (full response).${NC}"
+    elif [ "$JSON_TEST_CHOICE" = "2" ] && jq -e '.task' json_response.json >/dev/null; then
+      echo -e "${GREEN}JSON structure valid (target probability response).${NC}"
     else
       echo -e "${RED}JSON structure invalid.${NC}"
       jq '.' json_response.json
       rm json_response.json
       exit 1
     fi
+
+    MENU_NUMBERS=()
+    MENU_PATHS=()
+    COUNT=0
+
+    if [ "$JSON_TEST_CHOICE" = "1" ]; then
+      TOP_KEYS=($(jq -r '.results[0] | keys[]' json_response.json))
+    else
+      TOP_KEYS=($(jq -r 'keys[]' json_response.json))
+    fi
+    echo -e "${YELLOW}Available JSON fields:${NC}"
+    for i in "${!TOP_KEYS[@]}"; do
+      KEY="${TOP_KEYS[$i]}"
+      COUNT=$((COUNT+1))
+      MENU_NUMBERS+=("$COUNT")
+      MENU_PATHS+=("$KEY")
+      echo "  $COUNT) $KEY"
+
+      TYPE=$(jq -r ".$KEY | type" json_response.json)
+      if [ "$TYPE" == "object" ]; then
+        CHILD_KEYS=($(jq -r ".$KEY | keys[]" json_response.json))
+        for j in "${!CHILD_KEYS[@]}"; do
+          SUBCOUNT="$COUNT.$((j+1))"
+          SUBPATH="$KEY.${CHILD_KEYS[$j]}"
+          MENU_NUMBERS+=("$SUBCOUNT")
+          MENU_PATHS+=("$SUBPATH")
+          echo "    $SUBCOUNT) $SUBPATH"
+        done
+      elif [ "$TYPE" == "array" ]; then
+        LENGTH=$(jq ".$KEY | length" json_response.json)
+        for ((j=0;j<LENGTH;j++)); do
+          SUBCOUNT="$COUNT.$((j+1))"
+          SUBPATH="$KEY[$j]"
+          MENU_NUMBERS+=("$SUBCOUNT")
+          MENU_PATHS+=("$SUBPATH")
+          echo "    $SUBCOUNT) $SUBPATH"
+        done
+      fi
+    done
+
+    ALL_OPTION=$((COUNT+1))
+    EXIT_OPTION=$((COUNT+2))
+    echo "  $ALL_OPTION) Show entire JSON"
+    echo "  $EXIT_OPTION) Exit"
+
+    echo -e "${YELLOW}Enter selections (space-separated):${NC}"
+    read -a SELECTIONS
+
+    SHOW_ALL=false
+    SHOW_EXIT=false
+    SELECTED_PATHS=()
+
+    for SEL in "${SELECTIONS[@]}"; do
+      if [ "$SEL" = "$ALL_OPTION" ]; then
+        SHOW_ALL=true
+      elif [ "$SEL" = "$EXIT_OPTION" ]; then
+        SHOW_EXIT=true
+      else
+        MATCHED=false
+        for idx in "${!MENU_NUMBERS[@]}"; do
+          if [ "${MENU_NUMBERS[$idx]}" = "$SEL" ]; then
+            SELECTED_PATHS+=("${MENU_PATHS[$idx]}")
+            MATCHED=true
+            break
+          fi
+        done
+        if [ "$MATCHED" = false ]; then
+          echo -e "${RED}Invalid selection '$SEL'. Exiting.${NC}"
+          rm json_response.json
+          exit 1
+        fi
+      fi
+    done
+
+    if [ "$SHOW_EXIT" = true ]; then
+      echo -e "${YELLOW}Exiting without displaying data.${NC}"
+    elif [ "$SHOW_ALL" = true ]; then
+      jq '.' json_response.json
+    else
+      for PATH in "${SELECTED_PATHS[@]}"; do
+        echo -e "${YELLOW}Data for '$PATH':${NC}"
+        if [ "$JSON_TEST_CHOICE" = "1" ]; then
+          jq ".results[0].$PATH" json_response.json
+        else
+          jq ".$PATH" json_response.json
+        fi
+      done
+    fi
+
+    rm json_response.json
   else
     echo -e "${RED}Test failed: Status $JSON_RESPONSE${NC}"
+    jq '.' json_response.json
+    rm json_response.json
     exit 1
   fi
-  rm json_response.json
 else
   echo -e "${GREEN}Skipping JSON test.${NC}"
 fi
-
