@@ -1,4 +1,4 @@
-// core.js (Updated with Option 1 for Target Probability and All 76 Fields)
+// core.js (Updated with Option 1 for Target Probability, All 76 Fields, and New Target Probability Functions)
 'use strict';
 
 const math = require('mathjs');
@@ -241,7 +241,7 @@ function calculateBetaPdfPoints(alpha, beta, min, max) {
   const points = [];
   const step = (max - min) / 100;
   for (let i = 0; i <= 100; i++) {
-    const x = min + i * step;
+    constnette x = min + i * step;
     const scaledX = (x - min) / (max - min);
     const y = jstat.beta.pdf(scaledX, alpha, beta) / (max - min);
     points.push({ x, y: isNaN(y) ? 0 : y, confidence: null });
@@ -394,7 +394,7 @@ function generateDistributionPoints(type, min, mode, max, alpha, beta, samples) 
   return points;
 }
 
-function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, confidenceLevels = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]) {
+function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, confidenceLevels = 사랑[0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]) {
   const values = {};
   for (const conf of confidenceLevels) {
     let value;
@@ -564,16 +564,180 @@ function calculateUnsmoothedMetrics(samples) {
 }
 
 /* ============================================================================
+   🟪 TARGET PROBABILITY FUNCTIONS
+============================================================================ */
+
+/**
+ * Generates a textual description of the dynamic outcome based on slider settings and probabilities.
+ * @param {number} bf - Budget Flexibility (0 to 1)
+ * @param {number} sf - Schedule Flexibility (0 to 1)
+ * @param {number} su - Scope Uncertainty (0 to 1)
+ * @param {number} rt - Risk Tolerance (0 to 1)
+ * @param {number} origProb - Original probability
+ * @param {number} optProb - Optimized probability
+ * @param {number} targetValue - Target value for probability computation
+ * @param {number} originalMean - Original mean of the distribution
+ * @param {number} originalStdDev - Original standard deviation of the distribution
+ * @returns {string} Description of the outcome
+ */
+function generateDynamicOutcome(bf, sf, su, rt, origProb, optProb, targetValue, originalMean, originalStdDev) {
+  const meanShift = 0.2 * originalStdDev * (-bf - sf + 0.5 * su);
+  const varianceScale = 1 + 2.0 * su;
+  const skewAdjustment = -0.05 * rt + 0.2 * su;
+  const probChange = optProb - origProb;
+  const isBelowMean = targetValue < originalMean - 0.5 * originalStdDev;
+
+  let outcome = `With BF=${(bf * 100).toFixed(0)}%, SF=${(sf * 100).toFixed(0)}%, SU=${(su * 100).toFixed(0)}%, RT=${(rt * 100).toFixed(0)}%, `;
+
+  if (probChange > 0) {
+    outcome += `Opt Prob increases by ${(probChange * 100).toFixed(1)}% to ${(optProb * 100).toFixed(1)}%. `;
+  } else if (probChange < 0) {
+    outcome += `Opt Prob decreases by ${(-probChange * 100).toFixed(1)}% to ${(optProb * 100).toFixed(1)}%. `;
+  } else {
+    outcome += `Opt Prob remains at ${(optProb * 100).toFixed(1)}%. `;
+  }
+
+  if (meanShift > 0) {
+    outcome += `Mean shifts right by ${meanShift.toFixed(2)}, `;
+  } else if (meanShift < 0) {
+    outcome += `Mean shifts left by ${(-meanShift).toFixed(2)}, `;
+  } else {
+    outcome += `Mean unchanged, `;
+  }
+
+  if (varianceScale > 1) {
+    outcome += `variance increases by ${(varianceScale - 1).toFixed(2)}, `;
+  } else if (varianceScale < 1) {
+    outcome += `variance decreases by ${(1 - varianceScale).toFixed(2)}, `;
+  } else {
+    outcome += `variance unchanged, `;
+  }
+
+  if (skewAdjustment > 0) {
+    outcome += `skew increases by ${skewAdjustment.toFixed(2)}.`;
+  } else if (skewAdjustment < 0) {
+    outcome += `skew decreases by ${(-skewAdjustment).toFixed(2)}.`;
+  } else {
+    outcome += `skew unchanged.`;
+  }
+
+  if (isBelowMean) {
+    outcome += ` Target is below mean, so probability is higher.`;
+  } else {
+    outcome += ` Target is above mean, so probability is lower.`;
+  }
+
+  return outcome;
+}
+
+/**
+ * Generates a scenario summary string based on slider values, ordering them by magnitude.
+ * @param {number} bf - Budget Flexibility value (0 to 100)
+ * @param {number} sf - Schedule Flexibility value (0 to 100)
+ * @param {number} su - Scope Uncertainty value (0 to 100)
+ * @param {number} rt - Risk Tolerance value (0 to 100)
+ * @returns {string} Scenario summary string (e.g., "BF = SF < SU = RT")
+ */
+function getScenarioSummary(bf, sf, su, rt) {
+  const sliders = [
+    { name: 'BF', value: bf },
+    { name: 'SF', value: sf },
+    { name: 'SU', value: su },
+    { name: 'RT', value: rt }
+  ];
+  sliders.sort((a, b) => a.value - b.value);
+  let summary = '';
+  let currentValue = sliders[0].value;
+  let group = [sliders[0].name];
+  for (let i = 1; i < sliders.length; i++) {
+    if (sliders[i].value === currentValue) {
+      group.push(sliders[i].name);
+    } else {
+      summary += group.join(' = ') + (i < sliders.length ? ' < ' : '');
+      group = [sliders[i].name];
+      currentValue = sliders[i].value;
+    }
+  }
+  summary += group.join(' = ');
+  return summary;
+}
+
+/**
+ * Computes outcomes for all possible slider combinations.
+ * @param {Array} originalCdfPoints - Original CDF points from the distribution
+ * @param {number} targetValue - Target value for probability computation
+ * @param {number} originalMean - Original mean of the distribution
+ * @param {number} originalStdDev - Original standard deviation of the distribution
+ * @param {Array} originalPoints - Original distribution points (PDF)
+ * @returns {Array} Array of combination objects with slider settings, probabilities, and outcomes
+ */
+function computeSliderCombinations(originalCdfPoints, targetValue, originalMean, originalStdDev, originalPoints) {
+  const sliderSteps = [0, 25, 50, 75, 100];
+  const combinations = [];
+  // Compute original probability at targetValue
+  const origProb = originalCdfPoints.find(p => p.x >= targetValue)?.y || 1;
+
+  for (const bf of sliderSteps) {
+    for (const sf of sliderSteps) {
+      for (const su of sliderSteps) {
+        for (const rt of sliderSteps) {
+          const sliderValues = {
+            budgetFlexibility: bf,
+            scheduleFlexibility: sf,
+            scopeUncertainty: su,
+            riskTolerance: rt
+          };
+          const adjustedPoints = adjustDistributionPoints(originalPoints, sliderValues);
+          // Compute CDF from adjusted points
+          let cdf = 0;
+          const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
+          const cdfPoints = adjustedPoints.map(p => {
+            cdf += p.y * step;
+            return { x: p.x, y: Math.min(cdf, 1) };
+          });
+          // Find optimized probability at targetValue
+          const optProb = cdfPoints.find(p => p.x >= targetValue)?.y || 1;
+          const outcome = generateDynamicOutcome(
+            bf / 100,
+            sf / 100,
+            su / 100,
+            rt / 100,
+            origProb,
+            optProb,
+            targetValue,
+            originalMean,
+            originalStdDev
+          );
+          const scenarioSummary = getScenarioSummary(bf, sf, su, rt);
+          combinations.push({
+            bf,
+            sf,
+            su,
+            rt,
+            origProb,
+            optProb,
+            scenarioSummary,
+            expectedOutcome: outcome
+          });
+        }
+      }
+    }
+  }
+  return combinations;
+}
+
+/* ============================================================================
    🟪 MAIN PROCESS FUNCTION
 ============================================================================ */
-function processTask(task) {
+function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, targetValue }) {
   try {
-    const { optimistic, mostLikely, pessimistic, sliderValues = {
+    const defaultSliders = {
       budgetFlexibility: 50,
       scheduleFlexibility: 50,
       scopeUncertainty: 50,
       riskTolerance: 50
-    } } = task;
+    };
+    const effectiveSliders = sliderValues ? { ...defaultSliders, ...sliderValues } : defaultSliders;
     const isDegenerate = validateEstimates(optimistic, mostLikely, pessimistic);
 
     // PERT Calculations
@@ -649,14 +813,26 @@ function processTask(task) {
     // Decision Optimizer and Target Probability Enhancements
     const decisionOptimizerPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, smoothedMC.points);
     const decisionOptimizerOriginalPoints = smoothedMC.points;
-    const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, sliderValues);
+    const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, effectiveSliders);
     const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
     const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
     const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
-    const targetProbabilityOptimizedCdf = generateAdjustedCdfPoints(decisionOptimizerOriginalPoints, sliderValues);
+    const targetProbabilityOptimizedCdf = generateAdjustedCdfPoints(decisionOptimizerOriginalPoints, effectiveSliders);
+
+    // Compute Slider Combinations if targetValue is provided
+    let sliderCombinations = null;
+    if (targetValue !== undefined) {
+      sliderCombinations = computeSliderCombinations(
+        targetProbabilityOriginalCdf,
+        targetValue,
+        smoothedMC.mean,
+        smoothedMC.stdDev,
+        decisionOptimizerOriginalPoints
+      );
+    }
 
     return {
-      task: { value: task.task, description: "Task name" },
+      task: { value: task, description: "Task name" },
       bestCase: { value: optimistic, description: "Optimistic estimate" },
       mostLikely: { value: mostLikely, description: "Most likely estimate" },
       worstCase: { value: pessimistic, description: "Pessimistic estimate" },
@@ -743,10 +919,11 @@ function processTask(task) {
       decisionOptimizerMetrics: { value: decisionOptimizerMetrics, description: "Decision Optimizer metrics (originalMedian, optimizedMedian, newConfidence)" },
       targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
       targetProbabilityOriginalCdf: { value: targetProbabilityOriginalCdf, description: "Target Probability original CDF points" },
-      targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" }
+      targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" },
+      sliderCombinations: sliderCombinations ? { value: sliderCombinations, description: "Slider combinations with probabilities and outcomes" } : undefined
     };
   } catch (err) {
-    console.error(`Error processing task ${task.task}:`, err);
+    console.error(`Error processing task ${task}:`, err);
     throw new Error(`Failed to process task: ${err.message}`);
   }
 }
@@ -768,7 +945,14 @@ module.exports = {
       if (req.body.task && req.body.sliderValues && req.body.targetValue) {
         // Handle single task with sliders and target value
         const { task, sliderValues, targetValue, targetProbabilityOnly = false } = req.body;
-        const baseData = processTask({ ...task, sliderValues });
+        const baseData = processTask({
+          task: task.task,
+          optimistic: task.optimistic,
+          mostLikely: task.mostLikely,
+          pessimistic: task.pessimistic,
+          sliderValues,
+          targetValue
+        });
         const targetProbabilityPoints = calculateTargetProbabilityPoints(
           task.optimistic,
           task.pessimistic,
@@ -784,7 +968,8 @@ module.exports = {
               decisionOptimizerPoints: baseData.decisionOptimizerPoints,
               decisionOptimizerOriginalPoints: baseData.decisionOptimizerOriginalPoints,
               decisionOptimizerAdjustedPoints: baseData.decisionOptimizerAdjustedPoints,
-              decisionOptimizerMetrics: baseData.decisionOptimizerMetrics
+              decisionOptimizerMetrics: baseData.decisionOptimizerMetrics,
+              sliderCombinations: baseData.sliderCombinations
             }
           : {
               ...baseData,
@@ -796,7 +981,14 @@ module.exports = {
         // Handle array of tasks
         const results = req.body.map(task => {
           try {
-            return processTask(task);
+            return processTask({
+              task: task.task,
+              optimistic: task.optimistic,
+              mostLikely: task.mostLikely,
+              pessimistic: task.pessimistic,
+              sliderValues: task.sliderValues,
+              targetValue: task.targetValue
+            });
           } catch (err) {
             return { error: `Failed to process task ${task.task}: ${err.message}` };
           }
