@@ -241,7 +241,7 @@ function calculateBetaPdfPoints(alpha, beta, min, max) {
   const points = [];
   const step = (max - min) / 100;
   for (let i = 0; i <= 100; i++) {
-    constnette x = min + i * step;
+    const x = min + i * step;
     const scaledX = (x - min) / (max - min);
     const y = jstat.beta.pdf(scaledX, alpha, beta) / (max - min);
     points.push({ x, y: isNaN(y) ? 0 : y, confidence: null });
