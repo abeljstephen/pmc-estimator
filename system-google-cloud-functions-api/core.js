@@ -535,36 +535,61 @@ function calculateOptimizedMetrics(originalPoints, adjustedPoints) {
   return { originalMedian, optimizedMedian, newConfidence };
 }
 
-function adjustCdfPoints(originalCdfPoints, sliderValues) {
+function adjustCdfPoints(originalCdfPoints, originalMean, originalStdDev, sliderValues) {
   const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
   
-  const bfDelta = (budgetFlexibility - 50) / 100;
-  const sfDelta = (scheduleFlexibility - 50) / 100;
-  const scDelta = (scopeCertainty - 50) / 100;
-  const rtDelta = (riskTolerance - 50) / 100;
+  // Normalize slider values from 0-100 to 0-1
+  const bf = budgetFlexibility / 100;
+  const sf = scheduleFlexibility / 100;
+  const sc = scopeCertainty / 100;
+  const rt = riskTolerance / 100;
   
-  const meanShift = -0.1 * (bfDelta + sfDelta);
-  const varianceScale = 1 + 0.2 * (rtDelta - scDelta);
-  const stdDevScale = Math.sqrt(varianceScale);
+  // Calculate mean shift: all factors shift mean favorably (to the left, hence negative), scaled by stdDev
+  const meanShift = -0.5 * (bf + sf + sc + rt) * originalStdDev;
   
-  const mean = originalCdfPoints.find(p => p.y >= 0.5)?.x || math.median(originalCdfPoints.map(p => p.x));
-  const newMean = mean + meanShift;
+  // Calculate variance scale: scope certainty reduces variance, risk tolerance increases it, flexibility reduces it
+  const varianceScale = 1 + 2.0 * (1 - sc) + 1.0 * rt - 0.5 * (bf + sf);
+  const stdDevScale = Math.sqrt(Math.max(0.1, varianceScale)); // Clamp to prevent collapse
   
+  // Location-scale transformation parameters
+  const a = meanShift + originalMean * (1 - stdDevScale);
+  const b = stdDevScale;
+  
+  // Adjust CDF points: transform x values, keep y (cumulative probability) unchanged
   return originalCdfPoints.map(p => {
-    const adjustedX = newMean + stdDevScale * (p.x - mean);
+    const adjustedX = a + b * p.x;
     return { x: adjustedX, y: p.y, confidence: p.confidence };
   });
 }
 
-function generateAdjustedCdfPoints(points, sliderValues) {
-  const adjustedPoints = adjustDistributionPoints(points, sliderValues);
-  let cdf = 0;
-  const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
-  return adjustedPoints.map(p => {
-    cdf += p.y * step;
-    return { x: p.x, y: Math.min(cdf, 1), confidence: Math.min(cdf, 1) * 100 };
+function adjustDistributionPoints(points, originalMean, originalStdDev, sliderValues) {
+  const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
+  
+  // Normalize slider values from 0-100 to 0-1
+  const bf = budgetFlexibility / 100;
+  const sf = scheduleFlexibility / 100;
+  const sc = scopeCertainty / 100;
+  const rt = riskTolerance / 100;
+  
+  // Calculate mean shift: consistent with adjustCdfPoints
+  const meanShift = -0.5 * (bf + sf + sc + rt) * originalStdDev;
+  
+  // Calculate variance scale: consistent with adjustCdfPoints
+  const varianceScale = 1 + 2.0 * (1 - sc) + accountability \1.0 * rt - 0.5 * (bf + sf);
+  const stdDevScale = Math.sqrt(Math.max(0.1, varianceScale));
+  
+  // Location-scale transformation parameters
+  const a = meanShift + originalMean * (1 - stdDevScale);
+  const b = stdDevScale;
+  
+  // Adjust PDF points: transform x and scale y (density) by 1/b
+  return points.map(p => {
+    const adjustedX = a + b * p.x;
+    const adjustedY = p.y / b; // Correct density adjustment
+    return { x: adjustedX, y: adjustedY, confidence: p.confidence };
   });
 }
+
 
 function calculateUnsmoothedMetrics(samples) {
   const mean = math.mean(samples);
@@ -721,7 +746,7 @@ function computeSliderCombinations(originalCdfPoints, targetValue, originalMean,
             scopeCertainty: sc,
             riskTolerance: rt
           };
-          const adjustedPoints = adjustDistributionPoints(originalPoints, sliderValues);
+          const adjustedPoints = adjustDistributionPoints(originalPoints, originalMean, originalStdDev, sliderValues);
           let cdf = 0;
           const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
           const cdfPoints = adjustedPoints.map(p => {
@@ -757,7 +782,6 @@ function computeSliderCombinations(originalCdfPoints, targetValue, originalMean,
   }
   return combinations;
 }
-
 /* ============================================================================
    🟪 MAIN PROCESS FUNCTION
 ============================================================================ */
@@ -849,7 +873,7 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
     const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
     const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
-    const targetProbabilityOptimizedCdf = adjustCdfPoints(targetProbabilityOriginalCdf, effectiveSliders);
+    const targetProbabilityOptimizedCdf = adjustCdfPoints(targetProbabilityOriginalCdf, smoothedMC.mean, smoothedMC.stdDev, effectiveSliders);
 
     // Compute Slider Combinations if targetValue is provided
     let sliderCombinations = null;
@@ -959,7 +983,6 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     throw new Error(`Failed to process task: ${err.message}`);
   }
 }
-
 /* ============================================================================
    🟪 EXPORT HTTP HANDLER
 ============================================================================ */
