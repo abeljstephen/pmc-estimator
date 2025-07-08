@@ -506,15 +506,13 @@ function calculateSensitivity(mean, stdDev, min, max, variation = 0.1) {
   return { originalMean: mean, variedMean, change: variedMean - mean };
 }
 
-function adjustDistributionPoints(points, sliderValues) {
-  // Ensure sliderValues is an object with defaults if undefined
-  const effectiveSliders = sliderValues || {
-    budgetFlexibility: 50,
-    scheduleFlexibility: 50,
-    scopeCertainty: 50,
-    riskTolerance: 50
-  };
-  const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = effectiveSliders;
+function adjustDistributionPoints(points, sliderValues = {
+  budgetFlexibility: 50,
+  scheduleFlexibility: 50,
+  scopeCertainty: 50,
+  riskTolerance: 50
+}) {
+  const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
   
   const bfDelta = (budgetFlexibility - 50) / 100;
   const sfDelta = (scheduleFlexibility - 50) / 100;
@@ -532,7 +530,6 @@ function adjustDistributionPoints(points, sliderValues) {
     return { x: adjustedX, y: adjustedY, confidence: p.confidence };
   });
 }
-
 
 function calculateOptimizedMetrics(originalPoints, adjustedPoints) {
   const originalMedian = originalPoints.find(p => p.confidence >= 50)?.x || math.median(originalPoints.map(p => p.x));
