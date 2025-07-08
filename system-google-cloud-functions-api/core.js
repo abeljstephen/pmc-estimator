@@ -22,6 +22,13 @@ function validateEstimates(optimistic, mostLikely, pessimistic) {
   return false;
 }
 
+function calculateMedian(numbers) {
+  const sorted = numbers.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
 /* ============================================================================
    🟦 TRIANGLE DISTRIBUTION FUNCTIONS
 ============================================================================ */
