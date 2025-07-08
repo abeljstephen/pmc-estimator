@@ -1001,7 +1001,7 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
       targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
       targetProbabilityOriginalCdf: { value: targetProbabilityOriginalCdf, description: "Target Probability original CDF points" },
       targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" },
-      sliderCombinations: sliderCombinations ? { value: sliderCombinations, description: "Slider combinations with probabilities and outcomes" } : undefined
+      sliderCombinations: sliderCombinations ? { value: sliderCombinations, description: "Slider combinations with probabilities and outcomes" } : undefined,
       optimalCombination: optimalCombination ? {
         value: {
           budgetFlexibility: optimalCombination.bf,
