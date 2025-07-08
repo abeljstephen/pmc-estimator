@@ -1,5 +1,4 @@
-// core.js (Updated to Return Everything as Before)
-
+// core.js (Updated with Option 1 for Target Probability and All 76 Fields)
 'use strict';
 
 const math = require('mathjs');
@@ -417,38 +416,151 @@ function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, co
   return values;
 }
 
-/* ============================================================================
-   🟪 ADDITIONAL FUNCTIONS FOR SINGLE TASK WITH SLIDERS
-============================================================================ */
-// These functions need to be implemented based on your original `core.js` logic
-function computeOriginalCdfPoints(task) {
-  // Placeholder: Compute original CDF points based on task estimates
-  // Example: Use Triangle or PERT distribution points
-  const { optimistic, mostLikely, pessimistic } = task;
-  return calculateTrianglePdfPoints(optimistic, mostLikely, pessimistic); // Replace with your original logic
+function calculateMonteCarloRawPoints(samples, min, max) {
+  const bins = 50;
+  const step = (max - min) / bins;
+  const counts = Array(bins).fill(0);
+  samples.forEach(s => {
+    const bin = Math.min(Math.floor((s - min) / step), bins - 1);
+    counts[bin]++;
+  });
+  const maxCount = Math.max(...counts);
+  return counts.map((count, i) => ({
+    x: min + i * step,
+    y: count / maxCount,
+    confidence: null
+  }));
 }
 
-function computeOptimizedCdfPoints(task, budgetFlex, scheduleFlex, scopeUncert, riskTol, targetValue) {
-  // Placeholder: Compute optimized CDF points adjusting for sliders and target value
-  const { optimistic, mostLikely, pessimistic } = task;
-  // Example adjustment (implement your logic here)
-  const adjustedOptimistic = optimistic * (1 - budgetFlex);
-  const adjustedPessimistic = pessimistic * (1 + scheduleFlex);
-  return calculateTrianglePdfPoints(adjustedOptimistic, mostLikely, adjustedPessimistic); // Replace with your original logic
+function calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, mcPoints) {
+  const points = [];
+  const min = Math.min(...trianglePoints.map(p => p.x));
+  const max = Math.max(...trianglePoints.map(p => p.x));
+  const step = (max - min) / 100;
+  for (let i = 0; i <= 100; i++) {
+    const x = min + i * step;
+    const y = (
+      (trianglePoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (pertPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (betaPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0) +
+      (mcPoints.find(p => Math.abs(p.x - x) < step / 2)?.y || 0)
+    ) / 4;
+    points.push({ x, y, confidence: y * 100 });
+  }
+  return points;
 }
 
-function computeCombinationExplorerData(task, targetValue) {
-  // Placeholder: Compute data for exploring combinations
-  const { optimistic, mostLikely, pessimistic } = task;
-  return generateDistributionPoints('PERT', optimistic, mostLikely, pessimistic, 4, 4, null); // Replace with your original logic
+function calculateTargetProbabilityPoints(min, max, mean, targets = [mean * 0.9, mean, mean * 1.1]) {
+  const points = [];
+  for (const target of targets) {
+    const prob = jstat.beta.cdf((target - min) / (max - min), 4, 4);
+    points.push({ x: target, y: prob, confidence: prob * 100 });
+  }
+  return points;
 }
 
-function computeAnalysisReportData(task, budgetFlex, scheduleFlex, scopeUncert, riskTol, targetValue) {
-  // Placeholder: Compute analysis report data
+function calculateProbExceedTargets(type, min, mode, max, alpha, beta, samples, targets) {
+  const probs = {};
+  for (const target of targets) {
+    let prob;
+    if (type === 'TRIANGLE') {
+      const c = (mode - min) / (max - min);
+      if (target < min) prob = 1;
+      else if (target >= max) prob = 0;
+      else if (target <= mode) prob = 1 - Math.pow(target - min, 2) / ((max - min) * (mode - min));
+      else prob = Math.pow(max - target, 2) / ((max - min) * (max - mode));
+    } else if (type === 'PERT' || type === 'BETA') {
+      prob = 1 - jstat.beta.cdf((target - min) / (max - min), alpha, beta);
+    } else if (type === 'MC_UNSMOOTHED' || type === 'MC_SMOOTHED') {
+      prob = samples.filter(s => s > target).length / samples.length;
+    } else {
+      prob = 0;
+    }
+    probs[`probExceed${target.toFixed(2)}`] = prob;
+  }
+  return probs;
+}
+
+function calculateKLDivergence(points1, points2, step) {
+  let kl = 0;
+  for (let i = 0; i < points1.length; i++) {
+    const p1 = points1[i].y || 1e-10;
+    const p2 = points2[i].y || 1e-10;
+    kl += p1 * Math.log(p1 / p2) * step;
+  }
+  return kl;
+}
+
+function calculateSensitivity(mean, stdDev, min, max, variation = 0.1) {
+  const variedMin = min * (1 - variation);
+  const variedMax = max * (1 + variation);
+  const variedMean = calculateTriangleMean(variedMin, mean, variedMax);
+  return { originalMean: mean, variedMean, change: variedMean - mean };
+}
+
+function adjustDistributionPoints(points, sliderValues) {
+  const { budgetFlexibility, scheduleFlexibility, scopeUncertainty, riskTolerance } = sliderValues;
+  const bfFactor = 0.5 + budgetFlexibility / 100; // 0.5 to 1.5
+  const sfFactor = 0.5 + scheduleFlexibility / 100; // 0.5 to 1.5
+  const suFactor = scopeUncertainty / 100; // 0 to 1
+  const rtFactor = 1 + riskTolerance / 100; // 1 to 2
+
+  return points.map(p => {
+    const adjustedX = p.x * bfFactor * sfFactor * (1 + suFactor);
+    const adjustedY = p.y / rtFactor;
+    return { x: adjustedX, y: adjustedY, confidence: p.confidence };
+  });
+}
+
+function calculateOptimizedMetrics(originalPoints, adjustedPoints) {
+  const originalMedian = originalPoints.find(p => p.confidence >= 50)?.x || math.median(originalPoints.map(p => p.x));
+  const optimizedMedian = adjustedPoints.find(p => p.confidence >= 50)?.x || math.median(adjustedPoints.map(p => p.x));
+  const step = (originalPoints[1].x - originalPoints[0].x) || 1;
+  const newConfidence = adjustedPoints.reduce((sum, p) => sum + p.y * step * (p.x >= optimizedMedian ? 1 : 0), 0) * 100;
+
+  return { originalMedian, optimizedMedian, newConfidence };
+}
+
+function generateAdjustedCdfPoints(points, sliderValues) {
+  const adjustedPoints = adjustDistributionPoints(points, sliderValues);
+  let cdf = 0;
+  const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
+  return adjustedPoints.map(p => {
+    cdf += p.y * step;
+    return { x: p.x, y: Math.min(cdf, 1), confidence: Math.min(cdf, 1) * 100 };
+  });
+}
+
+function calculateUnsmoothedMetrics(samples) {
+  const mean = math.mean(samples);
+  const variance = math.variance(samples);
+  const stdDev = Math.sqrt(variance);
+  const skewness = jstat.skewness(samples);
+  const kurtosis = jstat.kurtosis(samples);
+  const var90 = calculateValueAtRisk(0.9, samples.map(x => ({ x })));
+  const var95 = calculateValueAtRisk(0.95, samples.map(x => ({ x })));
+  const cvar90 = calculateConditionalValueAtRisk(0.9, samples.map(x => ({ x })));
+  const mad = calculateMAD(samples, mean);
+  const sorted = samples.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  const confidenceInterval = { lower: mean - 1.96 * stdDev / Math.sqrt(samples.length), upper: mean + 1.96 * stdDev / Math.sqrt(samples.length) };
+  const coefficientOfVariation = mean !== 0 ? stdDev / mean : 0;
+
   return {
-    riskAssessment: `Risk tolerance: ${riskTol}`,
-    targetFeasibility: targetValue <= pessimistic ? "Feasible" : "Challenging"
-  }; // Replace with your original logic
+    mean,
+    variance,
+    stdDev,
+    skewness,
+    kurtosis,
+    var90,
+    var95,
+    cvar90,
+    mad,
+    median,
+    confidenceInterval,
+    coefficientOfVariation
+  };
 }
 
 /* ============================================================================
@@ -456,7 +568,12 @@ function computeAnalysisReportData(task, budgetFlex, scheduleFlex, scopeUncert, 
 ============================================================================ */
 function processTask(task) {
   try {
-    const { optimistic, mostLikely, pessimistic } = task;
+    const { optimistic, mostLikely, pessimistic, sliderValues = {
+      budgetFlexibility: 50,
+      scheduleFlexibility: 50,
+      scopeUncertainty: 50,
+      riskTolerance: 50
+    } } = task;
     const isDegenerate = validateEstimates(optimistic, mostLikely, pessimistic);
 
     // PERT Calculations
@@ -477,7 +594,10 @@ function processTask(task) {
     const triangleMedian = isDegenerate ? mostLikely : calculateTriangleMedian(optimistic, mostLikely, pessimistic);
     const trianglePoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : generateDistributionPoints('TRIANGLE', optimistic, mostLikely, pessimistic, null, null, null);
     const trianglePdfPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTrianglePdfPoints(optimistic, mostLikely, pessimistic);
-    const triangleConfidenceValues = isDegenerate ? { valueAt50Percent: mostLikely } : generateConfidenceValues('TRIANGLE', optimistic, mostLikely, pessimistic, null, null, null);
+    const triangleConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('TRIANGLE', optimistic, mostLikely, pessimistic, null, null, null);
+    const triangleConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculateTriangleConfidenceInterval(triangleMean, triangleStdDev);
+    const triangleCoefficientOfVariation = isDegenerate ? 0 : calculateTriangleCoefficientOfVariation(triangleMean, triangleStdDev);
+    const triangleSensitivity = isDegenerate ? { originalMean: mostLikely, variedMean: mostLikely, change: 0 } : calculateSensitivity(triangleMean, triangleStdDev, optimistic, pessimistic);
 
     // PERT Distribution
     const pertSkewness = isDegenerate ? 0 : calculatePERTSkewness(optimistic, mostLikely, pessimistic);
@@ -487,7 +607,10 @@ function processTask(task) {
     const pertPdfPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculatePERTPdfPoints(optimistic, mostLikely, pessimistic, betaAlpha, betaBeta);
     const weightedConservative = isDegenerate ? mostLikely : calculateConservativeEstimate(optimistic, mostLikely, pessimistic);
     const weightedOptimistic = isDegenerate ? mostLikely : calculateOptimisticEstimate(optimistic, mostLikely, pessimistic);
-    const pertConfidenceValues = isDegenerate ? { valueAt50Percent: mostLikely } : generateConfidenceValues('PERT', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null);
+    const weightedNeutral = pertMean;
+    const pertConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('PERT', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null);
+    const pertConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculatePERTConfidenceInterval(pertMean, pertStdDev);
+    const pertCoefficientOfVariation = isDegenerate ? 0 : calculatePERTCoefficientOfVariation(pertMean, pertStdDev);
 
     // Beta Distribution
     const betaMean = isDegenerate ? mostLikely : calculateBetaMean(betaAlpha, betaBeta, optimistic, pessimistic);
@@ -500,13 +623,37 @@ function processTask(task) {
     const betaPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : generateDistributionPoints('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null);
     const betaPdfPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateBetaPdfPoints(betaAlpha, betaBeta, optimistic, pessimistic);
     const probExceedPertMeanBeta = isDegenerate ? 0 : calculateProbExceedPertMeanBeta(pertMean, betaAlpha, betaBeta, optimistic, pessimistic);
-    const betaConfidenceValues = isDegenerate ? { valueAt50Percent: mostLikely } : generateConfidenceValues('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null);
+    const betaConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null);
+    const betaConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculateBetaConfidenceInterval(betaMean, betaStdDev);
+    const betaCoefficientOfVariation = isDegenerate ? 0 : calculateBetaCoefficientOfVariation(betaMean, betaStdDev);
 
     // Monte Carlo Simulation
     const mcUnsmoothed = isDegenerate ? Array(1000).fill(mostLikely) : monteCarloSamplesBetaNoNoise(betaAlpha, betaBeta, optimistic, pessimistic);
-    const smoothedMC = calculateSmoothedMetrics(mcUnsmoothed);
+    const mcMetrics = calculateUnsmoothedMetrics(mcUnsmoothed);
     const mcPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : generateDistributionPoints('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
-    const mcConfidenceValues = isDegenerate ? { valueAt50Percent: mostLikely } : generateConfidenceValues('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
+    const mcRawPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateMonteCarloRawPoints(mcUnsmoothed, optimistic, pessimistic);
+    const probExceedPertMeanMCUnsmoothed = isDegenerate ? 0 : calculateProbExceedPertMeanMC(mcUnsmoothed, pertMean);
+    const mcConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
+
+    const smoothedMC = calculateSmoothedMetrics(mcUnsmoothed);
+    const probExceedPertMeanMCSmoothed = isDegenerate ? 0 : calculateProbExceedPertMeanMC(smoothedMC.points.map(p => p.x), pertMean);
+    const mcSmoothedConfidenceValues = isDegenerate ? { valueAt5Percent: mostLikely, valueAt10Percent: mostLikely, valueAt25Percent: mostLikely, valueAt50Percent: mostLikely, valueAt75Percent: mostLikely, valueAt90Percent: mostLikely, valueAt95Percent: mostLikely, valueAt99Percent: mostLikely } : generateConfidenceValues('MC_SMOOTHED', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, mcUnsmoothed);
+
+    // Additional Calculations
+    const probExceedTargetsTriangle = isDegenerate ? {} : calculateProbExceedTargets('TRIANGLE', optimistic, mostLikely, pessimistic, null, null, null, [triangleMean, mostLikely, pertMean]);
+    const probExceedTargetsPERT = isDegenerate ? {} : calculateProbExceedTargets('PERT', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null, [triangleMean, mostLikely, pertMean]);
+    const probExceedTargetsBeta = isDegenerate ? {} : calculateProbExceedTargets('BETA', optimistic, mostLikely, pessimistic, betaAlpha, betaBeta, null, [triangleMean, mostLikely, pertMean]);
+    const probExceedTargetsMC = isDegenerate ? {} : calculateProbExceedTargets('MC_UNSMOOTHED', optimistic, mostLikely, pessimistic, null, null, mcUnsmoothed, [triangleMean, mostLikely, pertMean]);
+    const klDivergenceTrianglePERT = isDegenerate ? 0 : calculateKLDivergence(trianglePoints, pertPoints, (pessimistic - optimistic) / 100);
+
+    // Decision Optimizer and Target Probability Enhancements
+    const decisionOptimizerPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, smoothedMC.points);
+    const decisionOptimizerOriginalPoints = smoothedMC.points;
+    const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, sliderValues);
+    const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
+    const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
+    const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
+    const targetProbabilityOptimizedCdf = generateAdjustedCdfPoints(decisionOptimizerOriginalPoints, sliderValues);
 
     return {
       task: { value: task.task, description: "Task name" },
@@ -516,12 +663,19 @@ function processTask(task) {
       triangleMean: { value: triangleMean, description: "Triangle mean" },
       triangleVariance: { value: triangleVariance, description: "Triangle variance" },
       triangleStdDev: { value: triangleStdDev, description: "Triangle standard deviation" },
+      TRIANGLE_STD: { value: triangleStdDev, description: "Triangle standard deviation (alias)" },
       triangleSkewness: { value: triangleSkewness, description: "Triangle skewness" },
       triangleKurtosis: { value: triangleKurtosis, description: "Triangle kurtosis" },
       triangleMedian: { value: triangleMedian, description: "Triangle median" },
       trianglePoints: { value: trianglePoints, description: "Triangle distribution points (CDF)" },
       trianglePdfPoints: { value: trianglePdfPoints, description: "Triangle distribution points (PDF)" },
-      triangleConfidenceValues: { value: triangleConfidenceValues, description: "Triangle confidence values" },
+      triangleConfidenceValues: { value: triangleConfidenceValues, description: "Triangle values at 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99% confidence" },
+      triangle90thPercentile: { value: triangleConfidenceValues.valueAt90Percent, description: "Triangle 90th percentile" },
+      triangle95thPercentile: { value: triangleConfidenceValues.valueAt95Percent, description: "Triangle 95th percentile" },
+      triangleConfidenceInterval: { value: triangleConfidenceInterval, description: "Triangle 95% confidence interval for mean" },
+      triangleCoefficientOfVariation: { value: triangleCoefficientOfVariation, description: "Triangle coefficient of variation" },
+      triangleSensitivity: { value: triangleSensitivity, description: "Triangle sensitivity to input variations" },
+      probExceedTargetsTriangle: { value: probExceedTargetsTriangle, description: "Triangle probabilities of exceeding key targets" },
       pertMean: { value: pertMean, description: "PERT mean" },
       pertVariance: { value: pertVariance, description: "PERT variance" },
       pertStdDev: { value: pertStdDev, description: "PERT standard deviation" },
@@ -532,7 +686,13 @@ function processTask(task) {
       pertPdfPoints: { value: pertPdfPoints, description: "PERT distribution points (PDF)" },
       weightedConservative: { value: weightedConservative, description: "Conservative weighted estimate" },
       weightedOptimistic: { value: weightedOptimistic, description: "Optimistic weighted estimate" },
-      pertConfidenceValues: { value: pertConfidenceValues, description: "PERT confidence values" },
+      weightedNeutral: { value: weightedNeutral, description: "Neutral weighted estimate (PERT mean)" },
+      pertConfidenceValues: { value: pertConfidenceValues, description: "PERT values at 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99% confidence" },
+      pert90thPercentile: { value: pertConfidenceValues.valueAt90Percent, description: "PERT 90th percentile" },
+      pert95thPercentile: { value: pertConfidenceValues.valueAt95Percent, description: "PERT 95th percentile" },
+      pertConfidenceInterval: { value: pertConfidenceInterval, description: "PERT 95% confidence interval for mean" },
+      pertCoefficientOfVariation: { value: pertCoefficientOfVariation, description: "PERT coefficient of variation" },
+      probExceedTargetsPERT: { value: probExceedTargetsPERT, description: "PERT probabilities of exceeding key targets" },
       betaMean: { value: betaMean, description: "Beta mean" },
       betaVariance: { value: betaVariance, description: "Beta variance" },
       betaStdDev: { value: betaStdDev, description: "Beta standard deviation" },
@@ -543,14 +703,47 @@ function processTask(task) {
       betaPoints: { value: betaPoints, description: "Beta distribution points (CDF)" },
       betaPdfPoints: { value: betaPdfPoints, description: "Beta distribution points (PDF)" },
       probExceedPertMeanBeta: { value: probExceedPertMeanBeta, description: "Probability exceeding PERT mean (Beta)" },
-      betaConfidenceValues: { value: betaConfidenceValues, description: "Beta confidence values" },
+      betaConfidenceValues: { value: betaConfidenceValues, description: "Beta values at 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99% confidence" },
+      beta90thPercentile: { value: betaConfidenceValues.valueAt90Percent, description: "Beta 90th percentile" },
+      beta95thPercentile: { value: betaConfidenceValues.valueAt95Percent, description: "Beta 95th percentile" },
+      betaConfidenceInterval: { value: betaConfidenceInterval, description: "Beta 95% confidence interval for mean" },
+      betaCoefficientOfVariation: { value: betaCoefficientOfVariation, description: "Beta coefficient of variation" },
+      probExceedTargetsBeta: { value: probExceedTargetsBeta, description: "Beta probabilities of exceeding key targets" },
+      mcMean: { value: mcMetrics.mean, description: "Monte Carlo mean" },
+      mcVariance: { value: mcMetrics.variance, description: "Monte Carlo variance" },
+      mcStdDev: { value: mcMetrics.stdDev, description: "Monte Carlo standard deviation" },
+      mcSkewness: { value: mcMetrics.skewness, description: "Monte Carlo skewness" },
+      mcKurtosis: { value: mcMetrics.kurtosis, description: "Monte Carlo kurtosis" },
+      mcVaR: { value: mcMetrics.var90, description: "Monte Carlo VaR 90%" },
+      mcCVaR: { value: mcMetrics.cvar90, description: "Monte Carlo CVaR 90%" },
+      mcMAD: { value: mcMetrics.mad, description: "Monte Carlo MAD" },
+      mcMedian: { value: mcMetrics.median, description: "Monte Carlo median" },
+      mcPoints: { value: mcPoints, description: "Monte Carlo distribution points (CDF)" },
+      mcRawPoints: { value: mcRawPoints, description: "Monte Carlo raw histogram points" },
+      mcConfidenceValues: { value: mcConfidenceValues, description: "Monte Carlo unsmoothed values at 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99% confidence" },
       mcSmoothedMean: { value: smoothedMC.mean, description: "Smoothed Monte Carlo mean" },
+      mcSmoothedVariance: { value: smoothedMC.variance, description: "Smoothed Monte Carlo variance" },
       mcSmoothedStdDev: { value: smoothedMC.stdDev, description: "Smoothed Monte Carlo standard deviation" },
+      mcSmoothedSkewness: { value: smoothedMC.skewness, description: "Smoothed Monte Carlo skewness" },
+      mcSmoothedKurtosis: { value: smoothedMC.kurtosis, description: "Smoothed Monte Carlo kurtosis" },
+      mcSmoothedVaR: { value: smoothedMC.var90, description: "Smoothed Monte Carlo VaR 90%" },
+      mcSmoothedCVaR: { value: smoothedMC.cvar, description: "Smoothed Monte Carlo CVaR 90%" },
+      mcSmoothedMAD: { value: smoothedMC.mad, description: "Smoothed Monte Carlo MAD" },
       mcSmoothedMedian: { value: smoothedMC.median, description: "Smoothed Monte Carlo median" },
-      mcSmoothedPoints: { value: smoothedMC.points, description: "Smoothed Monte Carlo distribution points" },
-      mcSmoothedCdfPoints: { value: smoothedMC.cdfPoints, description: "Smoothed Monte Carlo CDF points" },
-      mcPoints: { value: mcPoints, description: "Monte Carlo unsmoothed points" },
-      mcConfidenceValues: { value: mcConfidenceValues, description: "Monte Carlo confidence values" }
+      mcSmoothedPoints: { value: smoothedMC.points, description: "Smoothed Monte Carlo distribution points (density)" },
+      mcSmoothedCdfPoints: { value: smoothedMC.cdfPoints, description: "Smoothed Monte Carlo distribution points (CDF)" },
+      mcSmoothedConfidenceValues: { value: mcSmoothedConfidenceValues, description: "Smoothed Monte Carlo values at 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99% confidence" },
+      probExceedPertMeanMCUnsmoothed: { value: probExceedPertMeanMCUnsmoothed, description: "Probability exceeding PERT mean (MC Unsmoothed)" },
+      probExceedPertMeanMCSmoothed: { value: probExceedPertMeanMCSmoothed, description: "Probability exceeding PERT mean (MC Smoothed)" },
+      probExceedTargetsMC: { value: probExceedTargetsMC, description: "Monte Carlo probabilities of exceeding key targets" },
+      klDivergenceTrianglePERT: { value: klDivergenceTrianglePERT, description: "KL Divergence between Triangle and PERT distributions" },
+      decisionOptimizerPoints: { value: decisionOptimizerPoints, description: "Decision Optimizer aggregated points" },
+      decisionOptimizerOriginalPoints: { value: decisionOptimizerOriginalPoints, description: "Decision Optimizer original distribution points" },
+      decisionOptimizerAdjustedPoints: { value: decisionOptimizerAdjustedPoints, description: "Decision Optimizer adjusted distribution points based on sliders" },
+      decisionOptimizerMetrics: { value: decisionOptimizerMetrics, description: "Decision Optimizer metrics (originalMedian, optimizedMedian, newConfidence)" },
+      targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
+      targetProbabilityOriginalCdf: { value: targetProbabilityOriginalCdf, description: "Target Probability original CDF points" },
+      targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" }
     };
   } catch (err) {
     console.error(`Error processing task ${task.task}:`, err);
@@ -572,21 +765,31 @@ module.exports = {
     }
     try {
       console.log('Input request:', JSON.stringify(req.body));
-      if (req.body.task && req.body.sliders && req.body.targetValue) {
+      if (req.body.task && req.body.sliderValues && req.body.targetValue) {
         // Handle single task with sliders and target value
-        const { task, sliders, targetValue } = req.body;
-        const baseData = processTask(task);
-        const originalCdfPoints = computeOriginalCdfPoints(task);
-        const optimizedCdfPoints = computeOptimizedCdfPoints(task, sliders.budgetFlex, sliders.scheduleFlex, sliders.scopeUncert, sliders.riskTol, targetValue);
-        const combinationExplorerData = computeCombinationExplorerData(task, targetValue);
-        const analysisReportData = computeAnalysisReportData(task, sliders.budgetFlex, sliders.scheduleFlex, sliders.scopeUncert, sliders.riskTol, targetValue);
-        const response = {
-          ...baseData,
-          originalCdfPoints: { value: originalCdfPoints, description: "Original CDF points" },
-          optimizedCdfPoints: { value: optimizedCdfPoints, description: "Optimized CDF points" },
-          combinationExplorerData: { value: combinationExplorerData, description: "Combination explorer data" },
-          analysisReportData: { value: analysisReportData, description: "Analysis report data" }
-        };
+        const { task, sliderValues, targetValue, targetProbabilityOnly = false } = req.body;
+        const baseData = processTask({ ...task, sliderValues });
+        const targetProbabilityPoints = calculateTargetProbabilityPoints(
+          task.optimistic,
+          task.pessimistic,
+          baseData.triangleMean.value,
+          [targetValue, baseData.triangleMean.value, baseData.pertMean.value]
+        );
+        const response = targetProbabilityOnly
+          ? {
+              task: baseData.task,
+              targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
+              targetProbabilityOriginalCdf: baseData.targetProbabilityOriginalCdf,
+              targetProbabilityOptimizedCdf: baseData.targetProbabilityOptimizedCdf,
+              decisionOptimizerPoints: baseData.decisionOptimizerPoints,
+              decisionOptimizerOriginalPoints: baseData.decisionOptimizerOriginalPoints,
+              decisionOptimizerAdjustedPoints: baseData.decisionOptimizerAdjustedPoints,
+              decisionOptimizerMetrics: baseData.decisionOptimizerMetrics
+            }
+          : {
+              ...baseData,
+              targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" }
+            };
         console.log('Output response (single task):', JSON.stringify(response));
         res.json(response);
       } else if (Array.isArray(req.body)) {
@@ -601,7 +804,7 @@ module.exports = {
         console.log('Output results (array):', JSON.stringify(results));
         res.json({ results });
       } else {
-        res.status(400).json({ error: 'Invalid request body. Must be an array of tasks or a single task with sliders and targetValue.' });
+        res.status(400).json({ error: 'Invalid request body. Must be an array of tasks or a single task with sliderValues and targetValue.' });
       }
     } catch (err) {
       console.error('Error in pmcEstimatorAPI:', err.stack);
