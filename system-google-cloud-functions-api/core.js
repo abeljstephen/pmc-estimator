@@ -575,7 +575,7 @@ function adjustDistributionPoints(points, originalMean, originalStdDev, sliderVa
   const meanShift = -0.5 * (bf + sf + sc + rt) * originalStdDev;
   
   // Calculate variance scale: consistent with adjustCdfPoints
-  const varianceScale = 1 + 2.0 * (1 - sc) + accountability \1.0 * rt - 0.5 * (bf + sf);
+  const varianceScale = 1 + 2.0 * (1 - sc) + 1.0 * rt - 0.5 * (bf + sf); 
   const stdDevScale = Math.sqrt(Math.max(0.1, varianceScale));
   
   // Location-scale transformation parameters
