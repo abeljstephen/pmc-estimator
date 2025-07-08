@@ -13,7 +13,7 @@ FUNCTION_NAME="pmcEstimatorAPI"
 REGION="us-central1"
 SOURCE_DIR="system-google-cloud-functions-api"
 TEST_PAYLOAD='[{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000}]'
-TEST_PAYLOAD_WITH_SLIDERS='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":2500}'
+TEST_PAYLOAD_WITH_SLIDERS='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":{"value":2500,"description":"Target cost value"}}'
 TEST_PAYLOAD_TARGET_ONLY='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":2500,"targetProbabilityOnly":true}'
 SERVICE_URL="https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI"
 UPDATE_TIME="2025-07-08T01:45:06.957Z"
@@ -159,11 +159,11 @@ USE_CORE=1 npm --prefix "$SOURCE_DIR" run start &
 NODE_PID=$!
 sleep 5
 
-CURL_RESPONSE=$(curl -s -w "%{http_code}" -X POST http://localhost:8080 -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o curl_response.json)
-if [ "$CURL_RESPONSE" -eq 200 ]; then
+CURL_OUTPUT=$(curl -s -w "%{http_code}" -X POST http://localhost:8080 -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o curl_response.json)
+if [ "$CURL_OUTPUT" -eq 200 ]; then
   echo -e "${GREEN}Local test successful. JSON saved for inspection.${NC}"
 else
-  echo -e "${RED}Local test failed with status ${CURL_RESPONSE}.${NC}"
+  echo -e "${RED}Local test failed with status ${CURL_OUTPUT}.${NC}"
   jq '.' curl_response.json
   kill $NODE_PID
   exit 1
@@ -202,7 +202,7 @@ else
     echo -e "${YELLOW}Testing JSON data flow for choice ${JSON_TEST_CHOICE}...${NC}"
     if [ "$JSON_TEST_CHOICE" = "1" ]; then
       TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_WITH_SLIDERS"
-      RESPONSE_KEY="results[0]"
+      RESPONSE_KEY=""
       RESPONSE_TYPE="Full response"
     else
       TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_TARGET_ONLY"
@@ -213,7 +213,7 @@ else
     JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD_TO_USE" -o json_response_${JSON_TEST_CHOICE}.json)
     if [ "$JSON_RESPONSE" -eq 200 ]; then
       echo -e "${GREEN}Test successful for ${RESPONSE_TYPE}.${NC}"
-      if [ "$JSON_TEST_CHOICE" = "1" ] && jq -e '.results[0]' json_response_${JSON_TEST_CHOICE}.json >/dev/null; then
+      if [ "$JSON_TEST_CHOICE" = "1" ] && jq -e '.' json_response_${JSON_TEST_CHOICE}.json >/dev/null; then
         echo -e "${GREEN}JSON structure valid (full response).${NC}"
       elif [ "$JSON_TEST_CHOICE" = "2" ] && jq -e '.task' json_response_${JSON_TEST_CHOICE}.json >/dev/null; then
         echo -e "${GREEN}JSON structure valid (target probability response).${NC}"
@@ -228,11 +228,7 @@ else
       MENU_PATHS=()
       COUNT=0
 
-      if [ "$JSON_TEST_CHOICE" = "1" ]; then
-        TOP_KEYS=($(jq -r '.results[0] | keys[]' json_response_${JSON_TEST_CHOICE}.json))
-      else
-        TOP_KEYS=($(jq -r 'keys[]' json_response_${JSON_TEST_CHOICE}.json))
-      fi
+      TOP_KEYS=($(jq -r 'keys[]' json_response_${JSON_TEST_CHOICE}.json))
       echo -e "${YELLOW}Available JSON fields for ${RESPONSE_TYPE}:${NC}"
       for i in "${!TOP_KEYS[@]}"; do
         KEY="${TOP_KEYS[$i]}"
