@@ -29,6 +29,7 @@ function calculateMedian(numbers) {
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];
 }
+
 /* ============================================================================
    🟦 TRIANGLE DISTRIBUTION FUNCTIONS
 ============================================================================ */
@@ -291,7 +292,7 @@ function performKDE(samples, bandwidth) {
 
 function calculateSmoothedMetrics(samples) {
   if (samples.length === 0) {
-    throw new Error('Cannot calculate smoothed metrics: samples array is empty');
+    throwContainerError('Cannot calculate smoothed metrics: samples array is empty');
   }
   const bandwidth = 1.06 * math.std(samples) * Math.pow(samples.length, -1 / 5);
   const density = performKDE(samples, bandwidth);
@@ -506,15 +507,21 @@ function calculateSensitivity(mean, stdDev, min, max, variation = 0.1) {
 }
 
 function adjustDistributionPoints(points, sliderValues) {
-  const { budgetFlexibility, scheduleFlexibility, scopeUncertainty, riskTolerance } = sliderValues;
-  const bfFactor = 0.5 + budgetFlexibility / 100; // 0.5 to 1.5
-  const sfFactor = 0.5 + scheduleFlexibility / 100; // 0.5 to 1.5
-  const suFactor = scopeUncertainty / 100; // 0 to 1
-  const rtFactor = 1 + riskTolerance / 100; // 1 to 2
-
+  const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
+  
+  const bfDelta = (budgetFlexibility - 50) / 100;
+  const sfDelta = (scheduleFlexibility - 50) / 100;
+  const scDelta = (scopeCertainty - 50) / 100; // Higher certainty reduces variance
+  const rtDelta = (riskTolerance - 50) / 100;
+  
+  const meanShift = -0.1 * (bfDelta + sfDelta);
+  const varianceScale = 1 + 0.2 * (rtDelta - scDelta); // Risk increases variance, certainty decreases it
+  
+  const mean = math.mean(points.map(p => p.x));
+  
   return points.map(p => {
-    const adjustedX = p.x * bfFactor * sfFactor * (1 + suFactor);
-    const adjustedY = p.y / rtFactor;
+    const adjustedX = mean + meanShift + Math.sqrt(varianceScale) * (p.x - mean);
+    const adjustedY = p.y / varianceScale; // Approximate adjustment for density
     return { x: adjustedX, y: adjustedY, confidence: p.confidence };
   });
 }
@@ -522,10 +529,31 @@ function adjustDistributionPoints(points, sliderValues) {
 function calculateOptimizedMetrics(originalPoints, adjustedPoints) {
   const originalMedian = originalPoints.find(p => p.confidence >= 50)?.x || math.median(originalPoints.map(p => p.x));
   const optimizedMedian = adjustedPoints.find(p => p.confidence >= 50)?.x || math.median(adjustedPoints.map(p => p.x));
-  const step = (originalPoints[1].x - originalPoints[0].x) || 1;
+  const step = (originalPoints[1]?.x - originalPoints[0]?.x) || 1;
   const newConfidence = adjustedPoints.reduce((sum, p) => sum + p.y * step * (p.x >= optimizedMedian ? 1 : 0), 0) * 100;
 
   return { originalMedian, optimizedMedian, newConfidence };
+}
+
+function adjustCdfPoints(originalCdfPoints, sliderValues) {
+  const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
+  
+  const bfDelta = (budgetFlexibility - 50) / 100;
+  const sfDelta = (scheduleFlexibility - 50) / 100;
+  const scDelta = (scopeCertainty - 50) / 100;
+  const rtDelta = (riskTolerance - 50) / 100;
+  
+  const meanShift = -0.1 * (bfDelta + sfDelta);
+  const varianceScale = 1 + 0.2 * (rtDelta - scDelta);
+  const stdDevScale = Math.sqrt(varianceScale);
+  
+  const mean = originalCdfPoints.find(p => p.y >= 0.5)?.x || math.median(originalCdfPoints.map(p => p.x));
+  const newMean = mean + meanShift;
+  
+  return originalCdfPoints.map(p => {
+    const adjustedX = newMean + stdDevScale * (p.x - mean);
+    return { x: adjustedX, y: p.y, confidence: p.confidence };
+  });
 }
 
 function generateAdjustedCdfPoints(points, sliderValues) {
@@ -578,7 +606,7 @@ function calculateUnsmoothedMetrics(samples) {
  * Generates a textual description of the dynamic outcome based on slider settings and probabilities.
  * @param {number} bf - Budget Flexibility (0 to 1)
  * @param {number} sf - Schedule Flexibility (0 to 1)
- * @param {number} su - Scope Uncertainty (0 to 1)
+ * @param {number} sc - Scope Certainty (0 to 1)
  * @param {number} rt - Risk Tolerance (0 to 1)
  * @param {number} origProb - Original probability
  * @param {number} optProb - Optimized probability
@@ -587,14 +615,14 @@ function calculateUnsmoothedMetrics(samples) {
  * @param {number} originalStdDev - Original standard deviation of the distribution
  * @returns {string} Description of the outcome
  */
-function generateDynamicOutcome(bf, sf, su, rt, origProb, optProb, targetValue, originalMean, originalStdDev) {
-  const meanShift = 0.2 * originalStdDev * (-bf - sf + 0.5 * su);
-  const varianceScale = 1 + 2.0 * su;
-  const skewAdjustment = -0.05 * rt + 0.2 * su;
+function generateDynamicOutcome(bf, sf, sc, rt, origProb, optProb, targetValue, originalMean, originalStdDev) {
+  const meanShift = 0.2 * originalStdDev * (-bf - sf + 0.5 * (1 - sc)); // Adjusted for scope certainty
+  const varianceScale = 1 + 2.0 * (1 - sc); // Higher certainty reduces variance
+  const skewAdjustment = -0.05 * rt + 0.2 * (1 - sc);
   const probChange = optProb - origProb;
   const isBelowMean = targetValue < originalMean - 0.5 * originalStdDev;
 
-  let outcome = `With BF=${(bf * 100).toFixed(0)}%, SF=${(sf * 100).toFixed(0)}%, SU=${(su * 100).toFixed(0)}%, RT=${(rt * 100).toFixed(0)}%, `;
+  let outcome = `With BF=${(bf * 100).toFixed(0)}%, SF=${(sf * 100).toFixed(0)}%, SC=${(sc * 100).toFixed(0)}%, RT=${(rt * 100).toFixed(0)}%, `;
 
   if (probChange > 0) {
     outcome += `Opt Prob increases by ${(probChange * 100).toFixed(1)}% to ${(optProb * 100).toFixed(1)}%. `;
@@ -641,15 +669,15 @@ function generateDynamicOutcome(bf, sf, su, rt, origProb, optProb, targetValue, 
  * Generates a scenario summary string based on slider values, ordering them by magnitude.
  * @param {number} bf - Budget Flexibility value (0 to 100)
  * @param {number} sf - Schedule Flexibility value (0 to 100)
- * @param {number} su - Scope Uncertainty value (0 to 100)
+ * @param {number} sc - Scope Certainty value (0 to 100)
  * @param {number} rt - Risk Tolerance value (0 to 100)
- * @returns {string} Scenario summary string (e.g., "BF = SF < SU = RT")
+ * @returns {string} Scenario summary string (e.g., "BF = SF < SC = RT")
  */
-function getScenarioSummary(bf, sf, su, rt) {
+function getScenarioSummary(bf, sf, sc, rt) {
   const sliders = [
     { name: 'BF', value: bf },
     { name: 'SF', value: sf },
-    { name: 'SU', value: su },
+    { name: 'SC', value: sc },
     { name: 'RT', value: rt }
   ];
   sliders.sort((a, b) => a.value - b.value);
@@ -681,33 +709,30 @@ function getScenarioSummary(bf, sf, su, rt) {
 function computeSliderCombinations(originalCdfPoints, targetValue, originalMean, originalStdDev, originalPoints) {
   const sliderSteps = [0, 25, 50, 75, 100];
   const combinations = [];
-  // Compute original probability at targetValue
   const origProb = originalCdfPoints.find(p => p.x >= targetValue)?.y || 1;
 
   for (const bf of sliderSteps) {
     for (const sf of sliderSteps) {
-      for (const su of sliderSteps) {
+      for (const sc of sliderSteps) {
         for (const rt of sliderSteps) {
           const sliderValues = {
             budgetFlexibility: bf,
             scheduleFlexibility: sf,
-            scopeUncertainty: su,
+            scopeCertainty: sc,
             riskTolerance: rt
           };
           const adjustedPoints = adjustDistributionPoints(originalPoints, sliderValues);
-          // Compute CDF from adjusted points
           let cdf = 0;
           const step = (adjustedPoints[1]?.x - adjustedPoints[0]?.x) || 1;
           const cdfPoints = adjustedPoints.map(p => {
             cdf += p.y * step;
             return { x: p.x, y: Math.min(cdf, 1) };
           });
-          // Find optimized probability at targetValue
           const optProb = cdfPoints.find(p => p.x >= targetValue)?.y || 1;
           const outcome = generateDynamicOutcome(
             bf / 100,
             sf / 100,
-            su / 100,
+            sc / 100,
             rt / 100,
             origProb,
             optProb,
@@ -715,11 +740,11 @@ function computeSliderCombinations(originalCdfPoints, targetValue, originalMean,
             originalMean,
             originalStdDev
           );
-          const scenarioSummary = getScenarioSummary(bf, sf, su, rt);
+          const scenarioSummary = getScenarioSummary(bf, sf, sc, rt);
           combinations.push({
             bf,
             sf,
-            su,
+            sc,
             rt,
             origProb,
             optProb,
@@ -741,7 +766,7 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     const defaultSliders = {
       budgetFlexibility: 50,
       scheduleFlexibility: 50,
-      scopeUncertainty: 50,
+      scopeCertainty: 50,
       riskTolerance: 50
     };
     const effectiveSliders = sliderValues ? { ...defaultSliders, ...sliderValues } : defaultSliders;
@@ -824,7 +849,7 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
     const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
     const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
-    const targetProbabilityOptimizedCdf = generateAdjustedCdfPoints(decisionOptimizerOriginalPoints, effectiveSliders);
+    const targetProbabilityOptimizedCdf = adjustCdfPoints(targetProbabilityOriginalCdf, effectiveSliders);
 
     // Compute Slider Combinations if targetValue is provided
     let sliderCombinations = null;
