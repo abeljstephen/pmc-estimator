@@ -506,27 +506,27 @@ function calculateSensitivity(mean, stdDev, min, max, variation = 0.1) {
   return { originalMean: mean, variedMean, change: variedMean - mean };
 }
 
-function adjustDistributionPoints(points, sliderValues = {
-  budgetFlexibility: 50,
-  scheduleFlexibility: 50,
-  scopeCertainty: 50,
-  riskTolerance: 50
-}) {
+function adjustDistributionPoints(points, originalMean, originalStdDev, sliderValues) {
   const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
   
-  const bfDelta = (budgetFlexibility - 50) / 100;
-  const sfDelta = (scheduleFlexibility - 50) / 100;
-  const scDelta = (scopeCertainty - 50) / 100; // Higher certainty reduces variance
-  const rtDelta = (riskTolerance - 50) / 100;
- 
-  const meanShift = -0.1 * (bfDelta + sfDelta);
-  const varianceScale = 1 + 0.2 * (rtDelta - scDelta); // Risk increases variance, certainty decreases it
+  // Normalize slider values from 0-100 to 0-1
+  const bf = budgetFlexibility / 100;
+  const sf = scheduleFlexibility / 100;
+  const sc = scopeCertainty / 100;
+  const rt = riskTolerance / 100;
   
-  const mean = math.mean(points.map(p => p.x));
-
+  // Calculate mean shift and variance scale
+  const meanShift = -0.5 * (bf + sf + sc + rt) * originalStdDev;
+  const varianceScale = 1 + 2.0 * (1 - sc) + 1.0 * rt - 0.5 * (bf + sf);
+  const stdDevScale = Math.sqrt(Math.max(0.1, varianceScale));
+  
+  // Location-scale transformation
+  const a = meanShift + originalMean * (1 - stdDevScale);
+  const b = stdDevScale;
+  
   return points.map(p => {
-    const adjustedX = mean + meanShift + Math.sqrt(varianceScale) * (p.x - mean);
-    const adjustedY = p.y / varianceScale; // Approximate adjustment for density
+    const adjustedX = a + b * p.x;
+    const adjustedY = p.y / b; // Adjust density
     return { x: adjustedX, y: adjustedY, confidence: p.confidence };
   });
 }
@@ -874,7 +874,12 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     // Decision Optimizer and Target Probability Enhancements
     const decisionOptimizerPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateDecisionOptimizerPoints(trianglePoints, pertPoints, betaPoints, smoothedMC.points);
     const decisionOptimizerOriginalPoints = smoothedMC.points;
-    const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, effectiveSliders);
+    const decisionOptimizerAdjustedPoints = adjustDistributionPoints(
+     decisionOptimizerOriginalPoints,
+     smoothedMC.mean,
+     smoothedMC.stdDev,
+     effectiveSliders
+    ); 
     const decisionOptimizerMetrics = calculateOptimizedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
     const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
     const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
