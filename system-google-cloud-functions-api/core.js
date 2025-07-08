@@ -394,7 +394,7 @@ function generateDistributionPoints(type, min, mode, max, alpha, beta, samples) 
   return points;
 }
 
-function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, confidenceLevels = 사랑[0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]) {
+function generateConfidenceValues(type, min, mode, max, alpha, beta, samples, confidenceLevels = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]) {
   const values = {};
   for (const conf of confidenceLevels) {
     let value;
