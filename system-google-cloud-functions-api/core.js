@@ -787,6 +787,19 @@ function computeSliderCombinations(originalCdfPoints, targetValue, originalMean,
   }
   return combinations;
 }
+
+/**
+ * Finds the slider combination that maximizes the probability of meeting the target value.
+ * @param {Array} combinations - Array of slider combination objects from computeSliderCombinations
+ * @returns {Object|null} The optimal combination object or null if no combinations are provided
+ */
+function getOptimalCombination(combinations) {
+  if (!combinations || combinations.length === 0) return null;
+  return combinations.reduce((max, curr) => 
+    curr.optProb > max.optProb ? curr : max, combinations[0]);
+}
+
+
 /* ============================================================================
    🟪 MAIN PROCESS FUNCTION
 ============================================================================ */
@@ -897,6 +910,8 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
       );
     }
 
+    const optimalCombination = sliderCombinations ? getOptimalCombination(sliderCombinations) : null;
+
     return {
       task: { value: task, description: "Task name" },
       bestCase: { value: optimistic, description: "Optimistic estimate" },
@@ -987,8 +1002,20 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
       targetProbabilityOriginalCdf: { value: targetProbabilityOriginalCdf, description: "Target Probability original CDF points" },
       targetProbabilityOptimizedCdf: { value: targetProbabilityOptimizedCdf, description: "Target Probability optimized CDF points based on sliders" },
       sliderCombinations: sliderCombinations ? { value: sliderCombinations, description: "Slider combinations with probabilities and outcomes" } : undefined
-    };
-  } catch (err) {
+      optimalCombination: optimalCombination ? {
+        value: {
+          budgetFlexibility: optimalCombination.bf,
+          scheduleFlexibility: optimalCombination.sf,
+          scopeCertainty: optimalCombination.sc,
+          riskTolerance: optimalCombination.rt,
+          probability: optimalCombination.optProb,
+          scenarioSummary: optimalCombination.scenarioSummary,
+          expectedOutcome: optimalCombination.expectedOutcome
+        },
+        description: "Optimal slider combination for the highest probability of meeting the target value, including scenario summary and expected outcome"
+      } : undefined
+    };  
+} catch (err) {
     console.error(`Error processing task ${task}:`, err);
     throw new Error(`Failed to process task: ${err.message}`);
   }
