@@ -787,13 +787,13 @@ function computeSliderCombinations(originalCdfPoints, targetValue, originalMean,
 ============================================================================ */
 function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, targetValue }) {
   try {
-    const defaultSliders = {
-      budgetFlexibility: 50,
-      scheduleFlexibility: 50,
-      scopeCertainty: 50,
-      riskTolerance: 50
+    // Define effectiveSliders with defaults, ensuring all properties are present even if sliderValues is undefined or partial
+    const effectiveSliders = {
+      budgetFlexibility: sliderValues?.budgetFlexibility ?? 50,
+      scheduleFlexibility: sliderValues?.scheduleFlexibility ?? 50,
+      scopeCertainty: sliderValues?.scopeCertainty ?? 50,
+      riskTolerance: sliderValues?.riskTolerance ?? 50
     };
-    const effectiveSliders = sliderValues ? { ...defaultSliders, ...sliderValues } : defaultSliders;
     const isDegenerate = validateEstimates(optimistic, mostLikely, pessimistic);
 
     // PERT Calculations
