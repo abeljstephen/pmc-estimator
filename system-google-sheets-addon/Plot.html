@@ -132,7 +132,8 @@
         }
         .decision-grid-container {
             display: flex;
-            justify-content: space-evenly;
+            justify-content: space-between;
+            gap: 10px;
             margin-bottom: 15px;
         }
         .decision-grid {
@@ -354,7 +355,9 @@
         .dual-value-table th, .dual-value-table td {
             padding: 6px 8px;
             font-size: 11px;
-            font-family: Arial, sans-serif;
+            font
+
+-family: Arial, sans-serif;
             border: 1px solid #ddd;
             text-align: center;
         }
@@ -497,6 +500,9 @@
                 font-size: 13px;
             }
         }
+        .plot-container {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -533,10 +539,10 @@
                     <span class="help-icon" title="Higher flexibility extends the timeline, reducing delay risks but potentially increasing costs;">?</span>
                 </div>
                 <div class="decision-grid">
-                    <label for="targetScopeUncertainty" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Scope Uncertainty (%)</label>
-                    <input type="range" id="targetScopeUncertainty" min="0" max="100" step="1" value="50" aria-label="Adjust Scope Uncertainty">
-                    <span id="targetScopeUncertaintyValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
-                    <span class="help-icon" title="Higher uncertainty increases the range of possible outcomes, reflecting less confidence in project requirements;">?</span>
+                    <label for="targetScopeCertainty" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Scope Certainty (%)</label>
+                    <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="50" aria-label="Adjust Scope Certainty">
+                    <span id="targetScopeCertaintyValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
+                    <span class="help-icon" title="Higher certainty reduces the range of possible outcomes, reflecting more confidence in project requirements;">?</span>
                 </div>
                 <div class="decision-grid">
                     <label for="targetRiskTolerance" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Risk Tolerance (%)</label>
@@ -545,7 +551,7 @@
                     <span class="help-icon" title="Higher tolerance allows for bolder decisions, accepting greater variability in outcomes;">?</span>
                 </div>
             </div>
-            <div style="display: flex; gap: 20px; justify-content: space-between; max-width: 1200px; margin: 0 auto;">
+            <div style="display: flex; gap: 10px; justify-content: space-between; max-width: 1200px; margin: 0 auto;">
                 <div class="plot-container" data-tab="original-cdf">
                     <div id="original-cdf-chart" style="width: 100%; height: 500px;"></div>
                     <div id="original-cdf-use-case" class="use-case">
@@ -588,7 +594,7 @@
                             </div>
                             <div id="targetprobabilityexplorer-optimized-cdf-section">
                                 <h4>Optimized CDF (Cumulative Distribution Function)</h4>
-                                <p id="targetprobabilityexplorer-optimized-cdf-content">The optimized CDF shows an improved probability of 50.0% for the target value, based on current settings: Budget Flexibility (50%), Schedule Flexibility (50%), Scope Uncertainty (50%), Risk Tolerance (50%).</p>
+                                <p id="targetprobabilityexplorer-optimized-cdf-content">The optimized CDF shows an improved probability of 50.0% for the target value, based on current settings: Budget Flexibility (50%), Schedule Flexibility (50%), Scope Certainty (50%), Risk Tolerance (50%).</p>
                             </div>
                         </div>
                         <div id="target-table-container-metrics">
@@ -625,19 +631,19 @@
                                         <td>Mean Shift</td>
                                         <td>0.00</td>
                                         <td>Shift in distribution mean</td>
-                                        <td>0.2 × σ × (-BF - SF + 0.5 × SU)</td>
+                                        <td>0.2 × σ × (-BF - SF + 0.5 × (1 - SC))</td>
                                     </tr>
                                     <tr>
                                         <td>Variance Scale</td>
                                         <td>1.00</td>
                                         <td>Scaling factor for variance</td>
-                                        <td>1 + 2.0 × SU</td>
+                                        <td>1 + 2.0 × (1 - SC)</td>
                                     </tr>
                                     <tr>
                                         <td>Skew Adjustment</td>
                                         <td>0.00</td>
                                         <td>Skew change due to risk settings</td>
-                                        <td>-0.05 × RT + 0.2 × SU</td>
+                                        <td>-0.05 × RT + 0.2 × (1 - SC)</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -665,8 +671,8 @@
                                         <td>When cost predictability is critical</td>
                                     </tr>
                                     <tr>
-                                        <td>Reduce Scope Uncertainty</td>
-                                        <td>25%</td>
+                                        <td>Increase Scope Certainty</td>
+                                        <td>75%</td>
                                         <td>Narrows outcome range for higher confidence</td>
                                         <td>When scope is well-defined</td>
                                     </tr>
@@ -690,9 +696,9 @@
                             <h4>Transformation Formulas</h4>
                             <p>The optimized distribution is created using:</p>
                             <ul>
-                                <li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × SU) = <span class="dynamic">0.00</span></code></li>
-                                <li>Variance Scaling: <code>varianceScale = 1 + 2.0 × SU = <span class="dynamic">1.00</span></code></li>
-                                <li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × SU = <span class="dynamic">0.00</span></code></li>
+                                <li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × (1 - SC)) = <span class="dynamic">0.00</span></code></li>
+                                <li>Variance Scaling: <code>varianceScale = 1 + 2.0 × (1 - SC) = <span class="dynamic">1.00</span></code></li>
+                                <li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × (1 - SC) = <span class="dynamic">0.00</span></code></li>
                                 <li>New Mean: <code>μ_Y = μ + meanShift = <span class="dynamic">2400.00</span></code></li>
                                 <li>New Std Dev: <code>σ_Y = σ × √(varianceScale) = <span class="dynamic">200.00</span></code></li>
                             </ul>
@@ -713,18 +719,18 @@
                                 <tbody>
                                     <tr><td>Budget Flexibility</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Shifts mean by <span class="dynamic">-20.00</span></td><td>Reduces cost overrun risks</td><td>Enhances cost predictability</td></tr>
                                     <tr><td>Schedule Flexibility</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Shifts mean by <span class="dynamic">-20.00</span></td><td>Reduces delay risks</td><td>Improves schedule reliability</td></tr>
-                                    <tr><td>Scope Uncertainty</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Scales variance to <span class="dynamic">1.00</span></td><td>Increases outcome variability</td><td>Affects project scope predictability</td></tr>
+                                    <tr><td>Scope Certainty</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Scales variance to <span class="dynamic">1.00</span></td><td>Reduces outcome variability</td><td>Enhances project scope predictability</td></tr>
                                     <tr><td>Risk Tolerance</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Adjusts skew by <span class="dynamic">0.00</span></td><td>Balances risk vs. reward</td><td>Aligns with risk appetite</td></tr>
                                 </tbody>
                             </table>
                             <h4>Strategic Recommendations</h4>
                             <ul>
                                 <li>Increase <strong>Budget Flexibility</strong> to <span class="dynamic">75%</span> to improve probability to ~75% by allowing a larger cost buffer.</li>
-                                <li>Reduce <strong>Scope Uncertainty</strong> to <span class="dynamic">25%</span> to narrow the outcome range and increase confidence.</li>
+                                <li>Increase <strong>Scope Certainty</strong> to <span class="dynamic">75%</span> to narrow the outcome range and increase confidence.</li>
                                 <li>Adjust <strong>Risk Tolerance</strong> based on project goals: increase to <span class="dynamic">60%</span> for riskier outcomes or decrease to <span class="dynamic">40%</span> for safer outcomes.</li>
                             </ul>
                             <h4>Summary</h4>
-                            <p>The original distribution has a probability of <span class="dynamic">50.0%</span> for achieving a target value of <span class="dynamic">2500.00</span>. With current settings (Budget Flexibility: <span class="dynamic">50%</span>, Schedule Flexibility: <span class="dynamic">50%</span>, Scope Uncertainty: <span class="dynamic">50%</span>, Risk Tolerance: <span class="dynamic">50%</span>), the optimized probability is <span class="dynamic">50.0%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">0.00</span>, variance scaling of <span class="dynamic">1.00</span>, and skew adjustment of <span class="dynamic">0.00</span>, resulting in a new mean of <span class="dynamic">2400.00</span> and standard deviation of <span class="dynamic">200.00</span>.</p>
+                            <p>The original distribution has a probability of <span class="dynamic">50.0%</span> for achieving a target value of <span class="dynamic">2500.00</span>. With current settings (Budget Flexibility: <span class="dynamic">50%</span>, Schedule Flexibility: <span class="dynamic">50%</span>, Scope Certainty: <span class="dynamic">50%</span>, Risk Tolerance: <span class="dynamic">50%</span>), the optimized probability is <span class="dynamic">50.0%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">0.00</span>, variance scaling of <span class="dynamic">1.00</span>, and skew adjustment of <span class="dynamic">0.00</span>, resulting in a new mean of <span class="dynamic">2400.00</span> and standard deviation of <span class="dynamic">200.00</span>.</p>
                             <p>Use the sliders to further adjust parameters and explore the <strong>Slider Combination Explorer</strong> table to identify optimal settings for your target.</p>
                         </div>
                     </div>
@@ -748,7 +754,7 @@
                                 <tbody id="combination-table-body">
                                     <tr>
                                         <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
-                                            <strong>Explanation for the Slider Settings Impact Guide:</strong> This table shows how different slider settings affect your chances of hitting the target value, combining exact probabilities with insights into their impact. The "Scenario Summary" column uses <code><</code>, <code>></code>, or <code>=</code> to show the relative settings of the sliders (Budget Flexibility (BF), Schedule Flexibility (SF), Scope Uncertainty (SU), Risk Tolerance (RT)). The "Expected Outcome" column describes the likely effect on the optimized probability (Opt Prob) compared to the original probability (Orig Prob). "Near the mean" refers to a target value close to the average of the original distribution (e.g., where the original probability is ~50%). Use this guide to understand how adjusting the sliders influences your project’s success probability.
+                                            <strong>Explanation for the Slider Settings Impact Guide:</strong> This table shows how different slider settings affect your chances of hitting the target value, combining exact probabilities with insights into their impact. The "Scenario Summary" column uses <code><</code>, <code>></code>, or <code>=</code> to show the relative settings of the sliders (Budget Flexibility (BF), Schedule Flexibility (SF), Scope Certainty (SC), Risk Tolerance (RT)). The "Expected Outcome" column describes the likely effect on the optimized probability (Opt Prob) compared to the original probability (Orig Prob). "Near the mean" refers to a target value close to the average of the original distribution (e.g., where the original probability is ~50%). Use this guide to understand how adjusting the sliders influences your project’s success probability.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -775,11 +781,12 @@
         window.sliderState = {
             budgetFlexibility: '50',
             scheduleFlexibility: '50',
-            scopeUncertainty: '50',
+            scopeCertainty: '50', // Renamed from scopeUncertainty
             riskTolerance: '50',
             targetValue: null // Will be set dynamically to median
         };
         let targetProbabilityData = null;
+        let cachedOriginalCdf = null; // Global variable to cache the original CDF
         const API_URL = 'https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI';
 
         // Initialize Google Charts and fetch initial data
@@ -836,7 +843,7 @@
         }
 
         function restoreSliders() {
-            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeUncertainty', 'targetRiskTolerance'];
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetRiskTolerance'];
             sliders.forEach(id => {
                 const slider = document.getElementById(id);
                 const key = id.replace(/^target/, '').replace(/^./, c => c.toLowerCase());
@@ -855,7 +862,7 @@
         }
 
         function setupSliderListeners() {
-            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeUncertainty', 'targetRiskTolerance', 'target-value-slider'];
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetRiskTolerance', 'target-value-slider'];
             const debounce = (func, wait) => {
                 let timeout;
                 return function (...args) {
@@ -891,7 +898,7 @@
                 window.sliderState = {
                     budgetFlexibility: '50',
                     scheduleFlexibility: '50',
-                    scopeUncertainty: '50',
+                    scopeCertainty: '50', // Renamed from scopeUncertainty
                     riskTolerance: '50',
                     targetValue: null
                 };
@@ -902,7 +909,7 @@
                 sliderValues: {
                     budgetFlexibility: parseFloat(window.sliderState.budgetFlexibility) || 50,
                     scheduleFlexibility: parseFloat(window.sliderState.scheduleFlexibility) || 50,
-                    scopeUncertainty: parseFloat(window.sliderState.scopeUncertainty) || 50,
+                    scopeCertainty: parseFloat(window.sliderState.scopeCertainty) || 50, // Renamed from scopeUncertainty
                     riskTolerance: parseFloat(window.sliderState.riskTolerance) || 50
                 },
                 targetValue: parseFloat(window.sliderState.targetValue) || 2500, // Default to 2500 if null
@@ -941,7 +948,15 @@
                         }
                     };
                 }
-                targetProbabilityData = data;
+                // Cache the original CDF on the first fetch
+                if (!cachedOriginalCdf) {
+                    cachedOriginalCdf = data.targetProbabilityOriginalCdf.value;
+                }
+                // Use cached original CDF and update optimized CDF
+                targetProbabilityData = {
+                    ...data,
+                    targetProbabilityOriginalCdf: { value: cachedOriginalCdf }
+                };
                 callback();
             })
             .catch(error => {
@@ -1047,9 +1062,12 @@
             if (window.origChart) window.origChart.clearChart();
             if (window.optChart) window.optChart.clearChart();
 
-            const origPoints = targetProbabilityData.targetProbabilityOriginalCdf.value;
-            const optPoints = targetProbabilityData.targetProbabilityOptimizedCdf.value;
+            const origPoints = targetProbabilityData.targetProbabilityOriginalCdf.value; // Cached static data
+            const optPoints = targetProbabilityData.targetProbabilityOptimizedCdf.value; // Dynamic data
             const targetValue = parseFloat(window.sliderState.targetValue) || calculateMedianFromCdf(origPoints);
+
+            const minX = origPoints[0].x;
+            const maxX = origPoints[origPoints.length - 1].x;
 
             const originalCdfData = new google.visualization.DataTable();
             originalCdfData.addColumn('number', 'X');
@@ -1119,7 +1137,7 @@
             }
 
             const origOptions = {
-                hAxis: { title: 'Value', titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                hAxis: { title: 'Value', minValue: minX, maxValue: maxX, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
                 vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.1, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
                 title: 'Original CDF (Monte Carlo Smoothed)',
                 titleTextStyle: { fontSize: 16, fontName: 'Arial' },
@@ -1133,7 +1151,7 @@
             };
 
             const optOptions = {
-                hAxis: { title: 'Value', titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                hAxis: { title: 'Value', minValue: minX, maxValue: maxX, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
                 vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.1, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
                 title: 'Optimized CDF (Current Settings)',
                 titleTextStyle: { fontSize: 16, fontName: 'Arial' },
@@ -1178,7 +1196,7 @@
             const targetValue = parseFloat(window.sliderState.targetValue) || calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value);
             const currentBF = parseFloat(window.sliderState.budgetFlexibility) || 50;
             const currentSF = parseFloat(window.sliderState.scheduleFlexibility) || 50;
-            const currentSU = parseFloat(window.sliderState.scopeUncertainty) || 50;
+            const currentSC = parseFloat(window.sliderState.scopeCertainty) || 50; // Renamed from scopeUncertainty
             const currentRT = parseFloat(window.sliderState.riskTolerance) || 50;
 
             const percentageOptions = [0, 25, 50, 75, 100];
@@ -1189,7 +1207,7 @@
             }
             const roundedBF = roundToNearestDiscrete(currentBF);
             const roundedSF = roundToNearestDiscrete(currentSF);
-            const roundedSU = roundToNearestDiscrete(currentSU);
+            const roundedSC = roundToNearestDiscrete(currentSC); // Renamed from SU
             const roundedRT = roundToNearestDiscrete(currentRT);
 
             let filteredCombinations = [];
@@ -1199,12 +1217,12 @@
                 filteredCombinations = [{
                     bf: roundedBF,
                     sf: roundedSF,
-                    su: roundedSU,
+                    sc: roundedSC, // Renamed from su
                     rt: roundedRT,
                     prob: optProb,
                     preciseBF: currentBF,
                     preciseSF: currentSF,
-                    preciseSU: currentSU,
+                    preciseSC: currentSC, // Renamed from preciseSU
                     preciseRT: currentRT,
                     scenarioSummary: 'Current Settings',
                     expectedOutcome: `Probability: ${optProb.toFixed(1)}% (Original: ${origProb.toFixed(1)}%)`,
@@ -1215,13 +1233,13 @@
                 if (!window.allTargetCombinations.length) {
                     for (let bf of percentageOptions) {
                         for (let sf of percentageOptions) {
-                            for (let su of percentageOptions) {
+                            for (let sc of percentageOptions) { // Renamed from su
                                 for (let rt of percentageOptions) {
                                     window.allTargetCombinations.push({
-                                        bf, sf, su, rt,
+                                        bf, sf, sc, rt, // Renamed from su
                                         preciseBF: bf,
                                         preciseSF: sf,
-                                        preciseSU: su,
+                                        preciseSC: sc, // Renamed from preciseSU
                                         preciseRT: rt,
                                         index: window.allTargetCombinations.length + 1
                                     });
@@ -1241,7 +1259,7 @@
                                 sliderValues: {
                                     budgetFlexibility: c.bf,
                                     scheduleFlexibility: c.sf,
-                                    scopeUncertainty: c.su,
+                                    scopeCertainty: c.sc, // Renamed from scopeUncertainty
                                     riskTolerance: c.rt
                                 },
                                 targetValue: targetValue,
@@ -1261,17 +1279,17 @@
                                 ...c,
                                 prob,
                                 origProb,
-                                scenarioSummary: getScenarioSummary(c.bf, c.sf, c.su, c.rt),
-                                expectedOutcome: generateDynamicOutcome(c.bf / 100, c.sf / 100, c.su / 100, c.rt / 100, origProb, prob, targetValue)
+                                scenarioSummary: getScenarioSummary(c.bf, c.sf, c.sc, c.rt), // Renamed from su
+                                expectedOutcome: generateDynamicOutcome(c.bf / 100, c.sf / 100, c.sc / 100, c.rt / 100, origProb, prob, targetValue) // Renamed from su
                             });
                         })
                         .catch(error => {
-                            console.warn(`Error fetching combination data for BF=${c.bf}, SF=${c.sf}, SU=${c.su}, RT=${c.rt}: ${error.message}`);
+                            console.warn(`Error fetching combination data for BF=${c.bf}, SF=${c.sf}, SC=${c.sc}, RT=${c.rt}: ${error.message}`); // Renamed from SU
                             resolve({
                                 ...c,
                                 prob: 0,
                                 origProb: 0,
-                                scenarioSummary: getScenarioSummary(c.bf, c.sf, c.su, c.rt),
+                                scenarioSummary: getScenarioSummary(c.bf, c.sf, c.sc, c.rt), // Renamed from su
                                 expectedOutcome: 'Data unavailable due to API error.'
                             });
                         });
@@ -1317,7 +1335,7 @@
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="index">Combination</th>
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="bf">Budget Flexibility (%)</th>
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="sf">Schedule Flexibility (%)</th>
-                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="su">Scope Uncertainty (%)</th>
+                                <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="sc">Scope Certainty (%)</th>
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="rt">Risk Tolerance (%)</th>
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;" data-sort="prob">Probability (%)</th>
                                 <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">Scenario Summary</th>
@@ -1335,7 +1353,7 @@
                     tbody.innerHTML = `
                         <tr>
                             <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
-                                <strong>Explanation for the Slider Settings Impact Guide:</strong> This table shows how different slider settings affect your chances of hitting the target value, combining exact probabilities with insights into their impact. The "Scenario Summary" column uses <code><</code>, <code>></code>, or <code>=</code> to show the relative settings of the sliders (Budget Flexibility (BF), Schedule Flexibility (SF), Scope Uncertainty (SU), Risk Tolerance (RT)). The "Expected Outcome" column describes the likely effect on the optimized probability (Opt Prob) compared to the original probability (Orig Prob). "Near the mean" refers to a target value close to the average of the original distribution (e.g., where the original probability is ~50%). Use this guide to understand how adjusting the sliders influences your project’s success probability.
+                                <strong>Explanation for the Slider Settings Impact Guide:</strong> This table shows how different slider settings affect your chances of hitting the target value, combining exact probabilities with insights into their impact. The "Scenario Summary" column uses <code><</code>, <code>></code>, or <code>=</code> to show the relative settings of the sliders (Budget Flexibility (BF), Schedule Flexibility (SF), Scope Certainty (SC), Risk Tolerance (RT)). The "Expected Outcome" column describes the likely effect on the optimized probability (Opt Prob) compared to the original probability (Orig Prob). "Near the mean" refers to a target value close to the average of the original distribution (e.g., where the original probability is ~50%). Use this guide to understand how adjusting the sliders influences your project’s success probability.
                             </td>
                         </tr>
                         ${pageCombinations.length === 0 ? `
@@ -1343,11 +1361,11 @@
                                 <td colspan="8" style="text-align: center; color: #d32f2f; padding: 20px; border: 1px solid #ddd;">No combinations match the selected filter.</td>
                             </tr>
                         ` : pageCombinations.map((c, index) => `
-                            <tr style="background: ${c.bf === roundedBF && c.sf === roundedSF && c.su === roundedSU && c.rt === roundedRT ? '#d1e7dd' : (index % 2 === 0 ? '#f8f9fa' : '#fff')};">
-                                <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.bf === roundedBF && c.sf === roundedSF && c.su === roundedSU && c.rt === roundedRT ? '<strong>Current Selection</strong>' : 'Combination ' + c.index}</td>
+                            <tr style="background: ${c.bf === roundedBF && c.sf === roundedSF && c.sc === roundedSC && c.rt === roundedRT ? '#d1e7dd' : (index % 2 === 0 ? '#f8f9fa' : '#fff')};">
+                                <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.bf === roundedBF && c.sf === roundedSF && c.sc === roundedSC && c.rt === roundedRT ? '<strong>Current Selection</strong>' : 'Combination ' + c.index}</td>
                                 <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.bf}% (${c.preciseBF.toFixed(1)}%)</td>
                                 <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.sf}% (${c.preciseSF.toFixed(1)}%)</td>
-                                <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.su}% (${c.preciseSU.toFixed(1)}%)</td>
+                                <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.sc}% (${c.preciseSC.toFixed(1)}%)</td>
                                 <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.rt}% (${c.preciseRT.toFixed(1)}%)</td>
                                 <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${Math.round(c.prob)}% (${c.prob.toFixed(1)}%)</td>
                                 <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${c.scenarioSummary}</td>
@@ -1413,11 +1431,11 @@
             }
         }
 
-        function getScenarioSummary(bf, sf, su, rt) {
+        function getScenarioSummary(bf, sf, sc, rt) { // Renamed from su
             const sliders = [
                 { name: 'BF', value: bf },
                 { name: 'SF', value: sf },
-                { name: 'SU', value: su },
+                { name: 'SC', value: sc }, // Renamed from SU
                 { name: 'RT', value: rt }
             ];
             sliders.sort((a, b) => a.value - b.value);
@@ -1435,39 +1453,39 @@
                 }
             }
             summary += currentGroup.join(' = ');
-            if (bf === sf && sf === su && su === rt) return "BF = SF = SU = RT";
+            if (bf === sf && sf === sc && sc === rt) return "BF = SF = SC = RT"; // Renamed from SU
             return summary;
         }
 
-        function generateDynamicOutcome(bf, sf, su, rt, origProb, optProb, targetValue) {
-            const meanShift = 0.2 * 100 * (-bf - sf + 0.5 * su);
-            const varianceScale = 1 + 2.0 * su;
-            const skewAdjustment = -0.05 * rt + 0.2 * su;
+        function generateDynamicOutcome(bf, sf, sc, rt, origProb, optProb, targetValue) { // Renamed from su
+            const meanShift = 0.2 * 100 * (-bf - sf + 0.5 * (1 - sc)); // Inverted effect for Scope Certainty
+            const varianceScale = 1 + 2.0 * (1 - sc); // Inverted effect
+            const skewAdjustment = -0.05 * rt + 0.2 * (1 - sc); // Inverted effect
             const probChange = optProb - origProb;
             const isBelowMean = targetValue < 2400 - 50;
             const isNearMean = Math.abs(targetValue - 2400) <= 50;
             const targetPosition = isBelowMean ? 'below' : isNearMean ? 'near' : 'above';
 
             let outcome = `Opt Prob ${probChange > 0 ? 'increases' : probChange < 0 ? 'decreases' : 'remains similar'} by ${Math.abs(probChange).toFixed(1)}% to ${optProb.toFixed(1)}% compared to Orig Prob (${origProb.toFixed(1)}%). `;
-            const totalShift = -bf - sf + 0.5 * su;
+            const totalShift = -bf - sf + 0.5 * (1 - sc); // Inverted effect
             if (totalShift < -0.5) {
                 outcome += `High ${bf > 0.5 ? 'Budget' : ''}${bf > 0.5 && sf > 0.5 ? ' and ' : ''}${sf > 0.5 ? 'Schedule' : ''} Flexibility shift${bf > 0.5 && sf > 0.5 ? '' : 's'} the distribution toward lower values, boosting probability for targets ${targetPosition} the mean. `;
             } else if (totalShift > 0.5) {
-                outcome += `Low flexibility and high Scope Uncertainty shift the distribution toward higher values, reducing probability for targets ${targetPosition} the mean. `;
+                outcome += `Low flexibility and low Scope Certainty shift the distribution toward higher values, reducing probability for targets ${targetPosition} the mean. `;
             } else {
                 outcome += `Balanced flexibility settings result in a moderate shift, with minimal impact on probability unless adjusted further. `;
             }
-            if (su > 0.5) {
-                outcome += `High Scope Uncertainty (${(su * 100).toFixed(0)}%) increases variability, spreading probability and potentially ${isNearMean ? 'reducing' : 'adjusting'} it ${targetPosition} the mean. `;
-            } else if (su < 0.3) {
-                outcome += `Low Scope Uncertainty (${(su * 100).toFixed(0)}%) reduces variability, concentrating probability and potentially ${isNearMean ? 'increasing' : 'stabilizing'} it ${targetPosition} the mean. `;
+            if (sc < 0.5) {
+                outcome += `Low Scope Certainty (${(sc * 100).toFixed(0)}%) increases variability, spreading probability and potentially ${isNearMean ? 'reducing' : 'adjusting'} it ${targetPosition} the mean. `;
+            } else if (sc > 0.7) {
+                outcome += `High Scope Certainty (${(sc * 100).toFixed(0)}%) reduces variability, concentrating probability and potentially ${isNearMean ? 'increasing' : 'stabilizing'} it ${targetPosition} the mean. `;
             }
             if (rt > 0.5) {
                 outcome += `High Risk Tolerance (${(rt * 100).toFixed(0)}%) favors riskier outcomes, ${isBelowMean ? 'reducing' : 'enhancing'} probability for targets ${targetPosition} the mean. `;
             } else if (rt < 0.3) {
                 outcome += `Low Risk Tolerance (${(rt * 100).toFixed(0)}%) favors safer outcomes, ${isBelowMean ? 'enhancing' : 'reducing'} probability for targets ${targetPosition} the mean. `;
             }
-            outcome += `The configuration ${getScenarioSummary(bf * 100, sf * 100, su * 100, rt * 100)} balances these effects, tailoring the probability to your settings.`;
+            outcome += `The configuration ${getScenarioSummary(bf * 100, sf * 100, sc * 100, rt * 100)} balances these effects, tailoring the probability to your settings.`; // Renamed from su
             return outcome;
         }
 
@@ -1497,7 +1515,7 @@
             if (recommendationContent && origCdfContent && optCdfContent) {
                 recommendationContent.textContent = `For a target value of ${targetValue.toFixed(2)}, the optimized probability is ${optProb.toFixed(1)}%, compared to the original ${origProb.toFixed(1)}%. Adjust sliders to increase probability if below desired threshold (e.g., 75%).`;
                 origCdfContent.textContent = `The original CDF reflects the baseline probability of ${origProb.toFixed(1)}% for achieving the target value of ${targetValue.toFixed(2)} without adjustments.`;
-                optCdfContent.textContent = `The optimized CDF shows an improved probability of ${optProb.toFixed(1)}% for the target value, based on current settings: Budget Flexibility (${window.sliderState.budgetFlexibility}%), Schedule Flexibility (${window.sliderState.scheduleFlexibility}%), Scope Uncertainty (${window.sliderState.scopeUncertainty}%), Risk Tolerance (${window.sliderState.riskTolerance}%).`;
+                optCdfContent.textContent = `The optimized CDF shows an improved probability of ${optProb.toFixed(1)}% for the target value, based on current settings: Budget Flexibility (${window.sliderState.budgetFlexibility}%), Schedule Flexibility (${window.sliderState.scheduleFlexibility}%), Scope Certainty (${window.sliderState.scopeCertainty}%), Risk Tolerance (${window.sliderState.riskTolerance}%).`; // Renamed from scopeUncertainty
             }
 
             const metricsTable = document.getElementById('target-metrics-table');
@@ -1535,19 +1553,19 @@
                             <td>Mean Shift</td>
                             <td>${(metrics.meanShift || 0).toFixed(2)}</td>
                             <td>Shift in distribution mean</td>
-                            <td>0.2 × σ × (-BF - SF + 0.5 × SU)</td>
+                            <td>0.2 × σ × (-BF - SF + 0.5 × (1 - SC))</td>
                         </tr>
                         <tr>
                             <td>Variance Scale</td>
                             <td>${(metrics.varianceScale || 1).toFixed(2)}</td>
                             <td>Scaling factor for variance</td>
-                            <td>1 + 2.0 × SU</td>
+                            <td>1 + 2.0 × (1 - SC)</td>
                         </tr>
                         <tr>
                             <td>Skew Adjustment</td>
                             <td>${(metrics.skewAdjustment || 0).toFixed(2)}</td>
                             <td>Skew change due to risk settings</td>
-                            <td>-0.05 × RT + 0.2 × SU</td>
+                            <td>-0.05 × RT + 0.2 × (1 - SC)</td>
                         </tr>
                     </tbody>
                 `;
@@ -1555,7 +1573,7 @@
                 const recommendations = [
                     { parameter: 'Increase Target Value', value: (targetValue * 1.05).toFixed(2), why: 'Boosts probability to ~75%', when: 'To reduce risk of exceeding target' },
                     { parameter: 'Increase Budget Flexibility', value: '75%', why: 'Improves probability of meeting target', when: 'When cost predictability is critical' },
-                    { parameter: 'Reduce Scope Uncertainty', value: '25%', why: 'Narrows outcome range for higher confidence', when: 'When scope is well-defined' }
+                    { parameter: 'Increase Scope Certainty', value: '75%', why: 'Narrows outcome range for higher confidence', when: 'When scope is well-defined' } // Renamed from Reduce Scope Uncertainty
                 ];
 
                 recommendationsTable.innerHTML = `
@@ -1590,7 +1608,7 @@
                     originalMedian: metrics.originalMedian || calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value),
                     budgetFlex: parseFloat(window.sliderState.budgetFlexibility) / 100,
                     scheduleFlex: parseFloat(window.sliderState.scheduleFlexibility) / 100,
-                    scopeUncert: parseFloat(window.sliderState.scopeUncertainty) / 100,
+                    scopeCert: parseFloat(window.sliderState.scopeCertainty) / 100, // Renamed from scopeUncert
                     riskTol: parseFloat(window.sliderState.riskTolerance) / 100,
                     meanShift: metrics.meanShift || 0,
                     varianceScale: metrics.varianceScale || 1,
@@ -1606,7 +1624,7 @@
 
         function generateAnalysisReport(data) {
             const {
-                tab, targetValue, origProb, optProb, originalMedian, budgetFlex, scheduleFlex, scopeUncert, riskTol,
+                tab, targetValue, origProb, optProb, originalMedian, budgetFlex, scheduleFlex, scopeCert, riskTol,
                 meanShift, varianceScale, skewAdjustment, originalMean, originalStdDev, optimizedMean, optimizedStdDev
             } = data;
 
@@ -1621,9 +1639,9 @@
             html += `<h4>Transformation Formulas</h4>`;
             html += `<p>The optimized distribution is created using:</p>`;
             html += `<ul>`;
-            html += `<li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × SU) = <span class="dynamic">${meanShift.toFixed(2)}</span></code></li>`;
-            html += `<li>Variance Scaling: <code>varianceScale = 1 + 2.0 × SU = <span class="dynamic">${varianceScale.toFixed(2)}</span></code></li>`;
-            html += `<li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × SU = <span class="dynamic">${skewAdjustment.toFixed(2)}</span></code></li>`;
+            html += `<li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × (1 - SC)) = <span class="dynamic">${meanShift.toFixed(2)}</span></code></li>`;
+            html += `<li>Variance Scaling: <code>varianceScale = 1 + 2.0 × (1 - SC) = <span class="dynamic">${varianceScale.toFixed(2)}</span></code></li>`;
+            html += `<li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × (1 - SC) = <span class="dynamic">${skewAdjustment.toFixed(2)}</span></code></li>`;
             html += `<li>New Mean: <code>μ_Y = μ + meanShift = <span class="dynamic">${optimizedMean.toFixed(2)}</span></code></li>`;
             html += `<li>New Std Dev: <code>σ_Y = σ × √(varianceScale) = <span class="dynamic">${optimizedStdDev.toFixed(2)}</span></code></li>`;
             html += `</ul>`;
@@ -1645,7 +1663,7 @@
             html += `<tbody>`;
             html += `<tr><td>Budget Flexibility</td><td><span class="dynamic">${(budgetFlex * 100).toFixed(0)}%</span></td><td><span class="dynamic">${budgetFlex.toFixed(2)}</span></td><td>Shifts mean by <span class="dynamic">${(0.2 * originalStdDev * -budgetFlex).toFixed(2)}</span></td><td>Reduces cost overrun risks</td><td>Enhances cost predictability</td></tr>`;
             html += `<tr><td>Schedule Flexibility</td><td><span class="dynamic">${(scheduleFlex * 100).toFixed(0)}%</span></td><td><span class="dynamic">${scheduleFlex.toFixed(2)}</span></td><td>Shifts mean by <span class="dynamic">${(0.2 * originalStdDev * -scheduleFlex).toFixed(2)}</span></td><td>Reduces delay risks</td><td>Improves schedule reliability</td></tr>`;
-            html += `<tr><td>Scope Uncertainty</td><td><span class="dynamic">${(scopeUncert * 100).toFixed(0)}%</span></td><td><span class="dynamic">${scopeUncert.toFixed(2)}</span></td><td>Scales variance to <span class="dynamic">${varianceScale.toFixed(2)}</span></td><td>Increases outcome variability</td><td>Affects project scope predictability</td></tr>`;
+            html += `<tr><td>Scope Certainty</td><td><span class="dynamic">${(scopeCert * 100).toFixed(0)}%</span></td><td><span class="dynamic">${scopeCert.toFixed(2)}</span></td><td>Scales variance to <span class="dynamic">${varianceScale.toFixed(2)}</span></td><td>Reduces outcome variability</td><td>Enhances project scope predictability</td></tr>`;
             html += `<tr><td>Risk Tolerance</td><td><span class="dynamic">${(riskTol * 100).toFixed(0)}%</span></td><td><span class="dynamic">${riskTol.toFixed(2)}</span></td><td>Adjusts skew by <span class="dynamic">${skewAdjustment.toFixed(2)}</span></td><td>Balances risk vs. reward</td><td>Aligns with risk appetite</td></tr>`;
             html += `</tbody></table>`;
 
@@ -1653,7 +1671,7 @@
             html += `<ul>`;
             if (optProb < 75) {
                 html += `<li>Increase <strong>Budget Flexibility</strong> to <span class="dynamic">${Math.min((budgetFlex * 100 + 25).toFixed(0), 100)}%</span> to improve probability to ~75% by allowing a larger cost buffer.</li>`;
-                html += `<li>Reduce <strong>Scope Uncertainty</strong> to <span class="dynamic">${Math.max((scopeUncert * 100 - 25).toFixed(0), 0)}%</span> to narrow the outcome range and increase confidence.</li>`;
+                html += `<li>Increase <strong>Scope Certainty</strong> to <span class="dynamic">${Math.min((scopeCert * 100 + 25).toFixed(0), 100)}%</span> to narrow the outcome range and increase confidence.</li>`;
             }
             if (optProb > 90) {
                 html += `<li>Consider reducing <strong>Budget Flexibility</strong> to <span class="dynamic">${Math.max((budgetFlex * 100 - 10).toFixed(0), 0)}%</span> to optimize costs while maintaining high probability.</li>`;
@@ -1662,7 +1680,7 @@
             html += `</ul>`;
 
             html += `<h4>Summary</h4>`;
-            html += `<p>The original distribution has a probability of <span class="dynamic">${origProb.toFixed(1)}%</span> for achieving a target value of <span class="dynamic">${targetValue.toFixed(2)}</span>. With current settings (Budget Flexibility: <span class="dynamic">${(budgetFlex * 100).toFixed(0)}%</span>, Schedule Flexibility: <span class="dynamic">${(scheduleFlex * 100).toFixed(0)}%</span>, Scope Uncertainty: <span class="dynamic">${(scopeUncert * 100).toFixed(0)}%</span>, Risk Tolerance: <span class="dynamic">${(riskTol * 100).toFixed(0)}%</span>), the optimized probability is <span class="dynamic">${optProb.toFixed(1)}%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">${meanShift.toFixed(2)}</span>, variance scaling of <span class="dynamic">${varianceScale.toFixed(2)}</span>, and skew adjustment of <span class="dynamic">${skewAdjustment.toFixed(2)}</span>, resulting in a new mean of <span class="dynamic">${optimizedMean.toFixed(2)}</span> and standard deviation of <span class="dynamic">${optimizedStdDev.toFixed(2)}</span>.</p>`;
+            html += `<p>The original distribution has a probability of <span class="dynamic">${origProb.toFixed(1)}%</span> for achieving a target value of <span class="dynamic">${targetValue.toFixed(2)}</span>. With current settings (Budget Flexibility: <span class="dynamic">${(budgetFlex * 100).toFixed(0)}%</span>, Schedule Flexibility: <span class="dynamic">${(scheduleFlex * 100).toFixed(0)}%</span>, Scope Certainty: <span class="dynamic">${(scopeCert * 100).toFixed(0)}%</span>, Risk Tolerance: <span class="dynamic">${(riskTol * 100).toFixed(0)}%</span>), the optimized probability is <span class="dynamic">${optProb.toFixed(1)}%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">${meanShift.toFixed(2)}</span>, variance scaling of <span class="dynamic">${varianceScale.toFixed(2)}</span>, and skew adjustment of <span class="dynamic">${skewAdjustment.toFixed(2)}</span>, resulting in a new mean of <span class="dynamic">${optimizedMean.toFixed(2)}</span> and standard deviation of <span class="dynamic">${optimizedStdDev.toFixed(2)}</span>.</p>`;
             html += `<p>Use the sliders to further adjust parameters and explore the <strong>Slider Combination Explorer</strong> table to identify optimal settings for your target.</p>`;
             html += `</div>`;
             return html;
@@ -1692,4 +1710,4 @@
         }
     </script>
 </body>
-</html> 
+</html>
