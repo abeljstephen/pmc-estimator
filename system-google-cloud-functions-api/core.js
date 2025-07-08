@@ -1061,7 +1061,8 @@ module.exports = {
               decisionOptimizerOriginalPoints: baseData.decisionOptimizerOriginalPoints,
               decisionOptimizerAdjustedPoints: baseData.decisionOptimizerAdjustedPoints,
               decisionOptimizerMetrics: baseData.decisionOptimizerMetrics,
-              sliderCombinations: baseData.sliderCombinations
+              sliderCombinations: baseData.sliderCombinations,
+              optimalCombination: baseData.optimalCombination
             }
           : {
               ...baseData,
