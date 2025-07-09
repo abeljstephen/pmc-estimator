@@ -604,7 +604,7 @@ function calculateUnsmoothedMetrics(samples) {
     skewness,
     kurtosis,
     var90,
-    var cupboard95,
+    var95,
     cvar90,
     mad,
     median,
