@@ -1194,78 +1194,65 @@ function findValueAtConfidence(cdfPoints, confidenceLevel) {
   return cdfPoints[cdfPoints.length - 1].x;
 }
 
+
 /**
  * Finds optimal slider settings to maximize probability for a target or minimize value for a confidence level.
- * - Uses a grid search with steps of 10 (11^4 = 14,641 combinations).
  * @param {Array} originalCdfPoints - Original CDF points (from smoothed MC)
  * @param {number} originalMean - Original mean (from smoothed MC)
  * @param {number} originalStdDev - Original standard deviation (from smoothed MC)
  * @param {number|null} targetValue - Target value to maximize P(X <= targetValue)
  * @param {number|null} confidenceLevel - Confidence level to minimize value at
  * @param {Array} originalPdfPoints - Original PDF points (from smoothed MC)
- * @returns {Object|null} {optimalSliderSettings, optimalAdjustedPdfPoints, optimalAdjustedCdfPoints, optimalObjective}
+ * @returns {Object|null} {optimalSliderSettings, optimalAdjustedPdfPoints, optimalAdjustedCdfPoints, optimalObjective, probability}
  */
 function findOptimalSliderSettings(originalCdfPoints, originalMean, originalStdDev, targetValue, confidenceLevel, originalPdfPoints) {
-  // Input validation
-  if (!Array.isArray(originalCdfPoints) || originalCdfPoints.length === 0) {
-    throw new Error('Invalid originalCdfPoints: Must be a non-empty array');
-  }
-  if (!Array.isArray(originalPdfPoints) || originalPdfPoints.length === 0) {
-    throw new Error('Invalid originalPdfPoints: Must be a non-empty array');
-  }
-  if (!Number.isFinite(originalMean)) {
-    throw new Error('Invalid originalMean: Must be a finite number');
-  }
-  if (!Number.isFinite(originalStdDev) || originalStdDev < 0) {
-    throw new Error('Invalid originalStdDev: Must be a non-negative finite number');
-  }
-  if (targetValue !== null && targetValue !== undefined && !Number.isFinite(targetValue)) {
-    throw new Error('Invalid targetValue: Must be a finite number or null/undefined');
-  }
-  if (confidenceLevel !== null && confidenceLevel !== undefined && (!Number.isFinite(confidenceLevel) || confidenceLevel < 0 || confidenceLevel > 1)) {
-    throw new Error('Invalid confidenceLevel: Must be a number between 0 and 1 or null/undefined');
-  }
-  if (!targetValue && !confidenceLevel) {
-    throw new Error('Either targetValue or confidenceLevel must be provided');
-  }  const sliderSteps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const sliderSteps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   let bestSettings = null;
-  let bestObjective = targetValue !== null && targetValue !== undefined ? -Infinity : Infinity;
-  let bestAdjustedCdfPoints = null;  for (const bf of sliderSteps) {
+  let bestObjective = targetValue ? -Infinity : Infinity;
+  let bestAdjustedCdfPoints = null;
+  let bestProbability = 0; // Track probability for confidence mode
+
+  for (const bf of sliderSteps) {
     for (const sf of sliderSteps) {
       for (const sc of sliderSteps) {
         for (const rt of sliderSteps) {
           const sliderValues = { budgetFlexibility: bf, scheduleFlexibility: sf, scopeCertainty: sc, riskTolerance: rt };
           const adjustedCdfPoints = adjustCdfPoints(originalCdfPoints, originalMean, originalStdDev, sliderValues);
-          if (targetValue !== null && targetValue !== undefined) {
+          if (targetValue) {
             const prob = interpolateCdf(adjustedCdfPoints, targetValue);
             if (prob > bestObjective) {
               bestObjective = prob;
               bestSettings = sliderValues;
               bestAdjustedCdfPoints = adjustedCdfPoints;
+              bestProbability = prob; // Probability is the objective
             }
-          } else if (confidenceLevel !== null && confidenceLevel !== undefined) {
+          } else if (confidenceLevel) {
             const x = findValueAtConfidence(adjustedCdfPoints, confidenceLevel);
             if (x < bestObjective) {
               bestObjective = x;
               bestSettings = sliderValues;
               bestAdjustedCdfPoints = adjustedCdfPoints;
+              // Calculate probability at the minimized x-value for consistency
+              bestProbability = interpolateCdf(adjustedCdfPoints, x);
             }
           }
         }
       }
     }
-  }  if (bestSettings) {
+  }
+
+  if (bestSettings) {
     const optimalAdjustedPdfPoints = adjustDistributionPoints(originalPdfPoints, originalMean, originalStdDev, bestSettings);
     return {
       optimalSliderSettings: bestSettings,
       optimalAdjustedPdfPoints,
       optimalAdjustedCdfPoints: bestAdjustedCdfPoints,
-      optimalObjective: bestObjective
+      optimalObjective: bestObjective,
+      probability: bestProbability // Added for compatibility
     };
   }
   return null;
 }
-
 
 /* ============================================================================
    🟪 MAIN PROCESS FUNCTION
