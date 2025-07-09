@@ -993,16 +993,21 @@ function adjustDistributionPoints(points, originalMean, originalStdDev, sliderVa
  * @returns {Array} Adjusted CDF points
  */
 function adjustCdfPoints(originalCdfPoints, originalMean, originalStdDev, sliderValues) {
+  // Step 1: Destructure and initialize variables first
   const { budgetFlexibility, scheduleFlexibility, scopeCertainty, riskTolerance } = sliderValues;
-  const bf = budgetFlexibility / 100;
-  const sf = sf / 100;
+  const bf = budgetFlexibility / 100; // Normalize to 0-1 range
+  const sf = scheduleFlexibility / 100; // 'sf' is now initialized
   const sc = scopeCertainty / 100;
   const rt = riskTolerance / 100;
+
+  // Step 2: Perform calculations after initialization
   const meanShift = -0.5 * (bf + sf + sc + rt) * originalStdDev;
   const varianceScale = 1 + 2.0 * (1 - sc) + 1.0 * rt - 0.5 * (bf + sf);
   const stdDevScale = Math.sqrt(Math.max(0.1, varianceScale));
   const a = meanShift + originalMean * (1 - stdDevScale);
   const b = stdDevScale;
+
+  // Step 3: Adjust CDF points
   return originalCdfPoints.map(p => {
     const adjustedX = a + b * p.x;
     return { x: adjustedX, y: p.y, confidence: p.confidence };
