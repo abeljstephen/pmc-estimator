@@ -1206,25 +1206,44 @@ function findValueAtConfidence(cdfPoints, confidenceLevel) {
  * @returns {Object|null} {optimalSliderSettings, optimalAdjustedPdfPoints, optimalAdjustedCdfPoints, optimalObjective}
  */
 function findOptimalSliderSettings(originalCdfPoints, originalMean, originalStdDev, targetValue, confidenceLevel, originalPdfPoints) {
-  const sliderSteps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  // Input validation
+  if (!Array.isArray(originalCdfPoints) || originalCdfPoints.length === 0) {
+    throw new Error('Invalid originalCdfPoints: Must be a non-empty array');
+  }
+  if (!Array.isArray(originalPdfPoints) || originalPdfPoints.length === 0) {
+    throw new Error('Invalid originalPdfPoints: Must be a non-empty array');
+  }
+  if (!Number.isFinite(originalMean)) {
+    throw new Error('Invalid originalMean: Must be a finite number');
+  }
+  if (!Number.isFinite(originalStdDev) || originalStdDev < 0) {
+    throw new Error('Invalid originalStdDev: Must be a non-negative finite number');
+  }
+  if (targetValue !== null && targetValue !== undefined && !Number.isFinite(targetValue)) {
+    throw new Error('Invalid targetValue: Must be a finite number or null/undefined');
+  }
+  if (confidenceLevel !== null && confidenceLevel !== undefined && (!Number.isFinite(confidenceLevel) || confidenceLevel < 0 || confidenceLevel > 1)) {
+    throw new Error('Invalid confidenceLevel: Must be a number between 0 and 1 or null/undefined');
+  }
+  if (!targetValue && !confidenceLevel) {
+    throw new Error('Either targetValue or confidenceLevel must be provided');
+  }  const sliderSteps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   let bestSettings = null;
-  let bestObjective = targetValue ? -Infinity : Infinity;
-  let bestAdjustedCdfPoints = null;
-
-  for (const bf of sliderSteps) {
+  let bestObjective = targetValue !== null && targetValue !== undefined ? -Infinity : Infinity;
+  let bestAdjustedCdfPoints = null;  for (const bf of sliderSteps) {
     for (const sf of sliderSteps) {
       for (const sc of sliderSteps) {
-       temp.forEach(rt => {
+        for (const rt of sliderSteps) {
           const sliderValues = { budgetFlexibility: bf, scheduleFlexibility: sf, scopeCertainty: sc, riskTolerance: rt };
           const adjustedCdfPoints = adjustCdfPoints(originalCdfPoints, originalMean, originalStdDev, sliderValues);
-          if (targetValue) {
+          if (targetValue !== null && targetValue !== undefined) {
             const prob = interpolateCdf(adjustedCdfPoints, targetValue);
             if (prob > bestObjective) {
               bestObjective = prob;
               bestSettings = sliderValues;
               bestAdjustedCdfPoints = adjustedCdfPoints;
             }
-          } else if (confidenceLevel) {
+          } else if (confidenceLevel !== null && confidenceLevel !== undefined) {
             const x = findValueAtConfidence(adjustedCdfPoints, confidenceLevel);
             if (x < bestObjective) {
               bestObjective = x;
@@ -1232,12 +1251,10 @@ function findOptimalSliderSettings(originalCdfPoints, originalMean, originalStdD
               bestAdjustedCdfPoints = adjustedCdfPoints;
             }
           }
-        });
+        }
       }
     }
-  }
-
-  if (bestSettings) {
+  }  if (bestSettings) {
     const optimalAdjustedPdfPoints = adjustDistributionPoints(originalPdfPoints, originalMean, originalStdDev, bestSettings);
     return {
       optimalSliderSettings: bestSettings,
@@ -1248,6 +1265,7 @@ function findOptimalSliderSettings(originalCdfPoints, originalMean, originalStdD
   }
   return null;
 }
+
 
 /* ============================================================================
    🟪 MAIN PROCESS FUNCTION
