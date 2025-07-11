@@ -1541,6 +1541,20 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
       targetProbabilityAdjustedCdf: { value: targetProbabilityAdjustedCdf, description: "Target Probability adjusted CDF points based on sliders" },
       targetProbabilityOriginalPdf: { value: targetProbabilityOriginalPdf, description: "Target Probability original PDF points (smoothed MC)" },
       targetProbabilityAdjustedPdf: { value: targetProbabilityAdjustedPdf, description: "Target Probability adjusted PDF points based on sliders" },
+      targetProbability: {
+        value: {
+          original: targetValue ? interpolateCdf(targetProbabilityOriginalCdf.value, targetValue) : null,
+          adjusted: targetValue ? interpolateCdf(targetProbabilityAdjustedCdf.value, targetValue) : null
+        },
+        description: "Interpolated CDF probabilities for the target value"
+      },
+      valueAtConfidence: {
+        value: {
+          original: confidenceLevel ? findValueAtConfidence(targetProbabilityOriginalCdf.value, confidenceLevel) : null,
+          adjusted: confidenceLevel ? findValueAtConfidence(targetProbabilityAdjustedCdf.value, confidenceLevel) : null
+        },
+        description: "Value at the specified confidence level for original and adjusted CDFs"
+      },
       sliderCombinations: sliderCombinations ? { value: sliderCombinations, description: "Slider combinations with probabilities and outcomes" } : undefined,
       optimalCombination: optimalCombination ? {
         value: {
@@ -1570,7 +1584,6 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     throw new Error(`Failed to process task: ${err.message}`);
   }
 }
-
 /* ============================================================================
    🟪 EXPORT HTTP HANDLER
    - HTTP endpoint for processing requests
