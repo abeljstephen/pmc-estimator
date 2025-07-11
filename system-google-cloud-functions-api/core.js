@@ -1322,6 +1322,7 @@ function findOptimalSliderSettings(originalCdfPoints, originalMean, originalStdD
  * @param {number} [params.confidenceLevel] - Confidence level for optimization
  * @returns {Object} Comprehensive results with all metrics and points
  */
+
 function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, targetValue, optimizeFor, confidenceLevel }) {
   try {
     const effectiveSliders = {
@@ -1332,10 +1333,16 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     };
     const isDegenerate = validateEstimates(optimistic, mostLikely, pessimistic);
 
-    // PERT Calculations
+    // PERT Calculations (compute dependencies first)
     const pertMean = isDegenerate ? mostLikely : calculatePERTMean(optimistic, mostLikely, pessimistic);
     const pertVariance = isDegenerate ? 0 : calculatePERTVariance(optimistic, mostLikely, pessimistic);
     const pertStdDev = isDegenerate ? 0 : calculatePERTStdDev(optimistic, mostLikely, pessimistic);
+
+    // Define Beta Parameters (moved earlier to fix ReferenceError)
+    const betaAlpha = isDegenerate ? 1 : Math.max(1, calculateAlpha(pertMean, pertStdDev, optimistic, pessimistic));
+    const betaBeta = isDegenerate ? 1 : Math.max(1, calculateBeta(pertMean, pertStdDev, optimistic, pessimistic));
+
+    // Continue with remaining PERT calculations
     const pertSkewness = isDegenerate ? 0 : calculatePERTSkewness(optimistic, mostLikely, pessimistic);
     const pertKurtosis = calculatePERTKurtosis(optimistic, mostLikely, pessimistic);
     const pertMedian = isDegenerate ? mostLikely : calculatePERTMedian(optimistic, mostLikely, pessimistic, betaAlpha, betaBeta);
@@ -1348,10 +1355,6 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     const pertConfidenceInterval = isDegenerate ? { lower: mostLikely, upper: mostLikely } : calculatePERTConfidenceInterval(pertMean, pertStdDev);
     const pertCoefficientOfVariation = isDegenerate ? 0 : calculatePERTCoefficientOfVariation(pertMean, pertStdDev);
     const pertCVaR95 = isDegenerate ? mostLikely : calculatePERTCVaR95(pertPoints, optimistic);
-
-    // Beta Parameters
-    const betaAlpha = isDegenerate ? 1 : Math.max(1, calculateAlpha(pertMean, pertStdDev, optimistic, pessimistic));
-    const betaBeta = isDegenerate ? 1 : Math.max(1, calculateBeta(pertMean, pertStdDev, optimistic, pessimistic));
 
     // Triangle Distribution
     const triangleMean = isDegenerate ? mostLikely : calculateTriangleMean(optimistic, mostLikely, pessimistic);
