@@ -1412,9 +1412,9 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     const decisionOptimizerAdjustedPoints = adjustDistributionPoints(decisionOptimizerOriginalPoints, smoothedMC.mean, smoothedMC.stdDev, effectiveSliders);
     const decisionOptimizerMetrics = calculateAdjustedMetrics(decisionOptimizerOriginalPoints, decisionOptimizerAdjustedPoints);
     const targetProbabilityPoints = isDegenerate ? [{ x: mostLikely, y: 1, confidence: 50 }] : calculateTargetProbabilityPoints(optimistic, pessimistic, triangleMean);
-    const targetProbabilityOriginalCdf = smoothedMC.cdfPoints;
+    const targetProbabilityOriginalCdf = smoothedMC.cdfPoints || [{ x: mostLikely, y: 1, confidence: 50 }]; // Fallback for degenerate case
     const targetProbabilityAdjustedCdf = adjustCdfPoints(targetProbabilityOriginalCdf, smoothedMC.mean, smoothedMC.stdDev, effectiveSliders);
-    const targetProbabilityOriginalPdf = smoothedMC.points;
+    const targetProbabilityOriginalPdf = smoothedMC.points || [{ x: mostLikely, y: 1, confidence: 50 }]; // Fallback for degenerate case
     const targetProbabilityAdjustedPdf = adjustDistributionPoints(targetProbabilityOriginalPdf, smoothedMC.mean, smoothedMC.stdDev, effectiveSliders);
 
     // Optimization
@@ -1435,9 +1435,14 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
     // Compute Slider Combinations if targetValue is provided
     let sliderCombinations = null;
     if (targetValue !== undefined) {
-      sliderCombinations = computeSliderCombinations(targetProbabilityOriginalCdf, targetValue, smoothedMC.mean, smoothedMC.stdDev, targetProbabilityOriginalPdf);
+      // Use step size of 10 to match Plot.html
+      const sliderSteps = Array.from({length: 11}, (_, i) => i * 10);
+      sliderCombinations = computeSliderCombinations(targetProbabilityOriginalCdf, targetValue, smoothedMC.mean, smoothedMC.stdDev, targetProbabilityOriginalPdf, sliderSteps);
     }
     const optimalCombination = sliderCombinations ? getOptimalCombination(sliderCombinations) : null;
+
+    // Validate CDF arrays before interpolation
+    const isValidCdfArray = (cdf) => Array.isArray(cdf) && cdf.length >= 2 && cdf.every(point => typeof point.x === 'number' && typeof point.y === 'number');
 
     return {
       task: { value: task, description: "Task name" },
@@ -1543,15 +1548,15 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
       targetProbabilityAdjustedPdf: { value: targetProbabilityAdjustedPdf, description: "Target Probability adjusted PDF points based on sliders" },
       targetProbability: {
         value: {
-          original: targetValue ? interpolateCdf(targetProbabilityOriginalCdf.value, targetValue) : null,
-          adjusted: targetValue ? interpolateCdf(targetProbabilityAdjustedCdf.value, targetValue) : null
+          original: targetValue && isValidCdfArray(targetProbabilityOriginalCdf) ? interpolateCdf(targetProbabilityOriginalCdf, targetValue) : null,
+          adjusted: targetValue && isValidCdfArray(targetProbabilityAdjustedCdf) ? interpolateCdf(targetProbabilityAdjustedCdf, targetValue) : null
         },
         description: "Interpolated CDF probabilities for the target value"
       },
       valueAtConfidence: {
         value: {
-          original: confidenceLevel ? findValueAtConfidence(targetProbabilityOriginalCdf.value, confidenceLevel) : null,
-          adjusted: confidenceLevel ? findValueAtConfidence(targetProbabilityAdjustedCdf.value, confidenceLevel) : null
+          original: confidenceLevel && isValidCdfArray(targetProbabilityOriginalCdf) ? findValueAtConfidence(targetProbabilityOriginalCdf, confidenceLevel) : null,
+          adjusted: confidenceLevel && isValidCdfArray(targetProbabilityAdjustedCdf) ? findValueAtConfidence(targetProbabilityAdjustedCdf, confidenceLevel) : null
         },
         description: "Value at the specified confidence level for original and adjusted CDFs"
       },
