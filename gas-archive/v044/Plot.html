@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Section 1: HTML Head and Initial Styles -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?!= CONFIG.PAGE_TITLE ?></title>
+    <script src="<?!= CONFIG.GOOGLE_CHARTS_URL ?>"></script>
+    <script src="<?!= CONFIG.MATHJAX_URL ?>" async></script>
+    <link href="<?!= CONFIG.GOOGLE_FONTS_URL ?>" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+            transition: all 0.3s ease-in-out;
+        }
+        .simulator-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 15px; /* Adjusted for web display */
+        }
+        .step-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-size: 18px;
+            color: #333;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 10px;
+            max-width: 100%;
+            flex-wrap: nowrap;
+        }
+        .control-row label, .control-row select, .control-row input {
+            font-size: 12px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .control-row div {
+            flex-shrink: 0;
+        }
+        .control-row select, .control-row input[type="number"] {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 150px;
+        }
+        .constrained-button-container {
+            display: flex;
+            align-items: center;
+            border: 2px solid #2c5282;
+            border-radius: 6px;
+            padding: 10px;
+            background: #f9f9f9;
+            max-width: 100%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .constrained-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+        .value-input-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 120px;
+        }
+        #target-input-container {
+            display: flex;
+        }
+        #confidence-input-container {
+            display: none;
+        }
+        .constrained-row label,
+        .constrained-row select,
+        .constrained-row input {
+            font-size: 12px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .constrained-row select,
+        .constrained-row input[type="number"] {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 100px;
+            flex-shrink: 0;
+        }
+        .optimize-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .optimize-container label {
+            font-size: 12px;
+            color: #333;
+        }
+        .optimize-container select {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 150px;
+        }
+    </style>
+</head>
+
+    <!-- Section 2: Additional Styles -->
+    <style>
+        @media (max-width: 768px) {
+            .control-row {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .control-row select {
+                width: 120px;
+            }
+            .constrained-button-container {
+                min-width: auto;
+                max-width: 100%;
+            }
+            .constrained-row {
+                gap: 5px;
+                flex-wrap: wrap;
+            }
+            .constrained-row select,
+            .constrained-row input[type="number"] {
+                width: 80px;
+            }
+            .optimize-container select {
+                width: 120px;
+            }
+        }
+        @media (max-width: 400px) {
+            .control-row, .constrained-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .control-row select, .control-row input[type="number"],
+            .constrained-row select, .constrained-row input[type="number"],
+            .optimize-container select {
+                width: 100%;
+            }
+        }
+        .option {
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        .option.active-option {
+            border: 2px solid #2c5282;
+        }
+        .option h3 {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 10px;
+        }
+        .option p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+        .decision-grid-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .decision-grid {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .decision-grid label {
+            font-size: 12px;
+            color: #333;
+        }
+        .decision-grid input[type="range"] {
+            width: 100%;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            padding: 2px;
+            background: #ffffff;
+            transition: all 0.3s ease-in-out;
+        }
+        .decision-grid input[type="range"]:hover {
+            border-color: #1a365d;
+            background: #f0f0f0;
+        }
+        .decision-grid input[type="range"]:disabled {
+            background: #e0e0e0;
+            cursor: not-allowed;
+        }
+        .decision-grid span {
+            font-size: 12px;
+            color: #333;
+        }
+        .help-icon {
+            font-size: 12px;
+            color: #2c5282;
+            cursor: help;
+            padding: 2px 5px;
+            background-color: #f0f0f0;
+            border-radius: 50%;
+            margin-left: 5px;
+            display: inline-block;
+        }
+        .plot-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 800px; /* Adjusted for web display */
+            overflow-y: auto;
+        }
+        #pdf-chart, #cdf-chart {
+            width: 100%;
+            height: 400px;
+            position: relative;
+        }
+        .side-by-side {
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            max-height: 400px;
+        }
+        .side-by-side > div {
+            flex: 1;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 8px;
+            position: relative;
+        }
+        .simulator-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .simulator-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .clear-button {
+            padding: 5px 10px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .clear-button:hover {
+            background-color: #cc0000;
+        }
+    </style>
+
+    <body>
+    <!-- Section 3: HTML Body - Initial Setup and Exploration Results -->
+    <div id="loading-overlay"><?!= CONFIG.LOADING_MESSAGE ?></div>
+    <div id="probability-simulator" class="simulator-container">
+        <!-- Error Message for Invalid Sheet or API Failure -->
+        <div id="error-message" style="color: red; text-align: center; display: none; margin-bottom: 15px;"></div>
+        <!-- Initial Setup / User Choices Section -->
+        <div class="step-section" id="initial-setup">
+            <h2><?!= CONFIG.INITIAL_SETUP_TITLE ?></h2>
+            <p class="step-description"><?!= CONFIG.INITIAL_SETUP_DESCRIPTION ?></p>
+            <div class="control-row">
+                <div id="task-select-container">
+                    <label for="task-select"><?!= CONFIG.TASK_SELECT_LABEL ?></label>
+                    <select id="task-select" aria-label="Select a task">
+                        <option value=""><?!= CONFIG.TASK_LOADING_MESSAGE ?></option>
+                    </select>
+                </div>
+                <div class="constrained-button-container">
+                    <div class="constrained-row">
+                        <div id="mode-select-container">
+                            <label for="mode-select"><?!= CONFIG.MODE_SELECT_LABEL ?></label>
+                            <select id="mode-select" aria-label="Select target mode">
+                                <option value="target"><?!= CONFIG.TARGET_MODE_LABEL ?></option>
+                                <option value="confidence"><?!= CONFIG.CONFIDENCE_MODE_LABEL ?></option>
+                            </select>
+                        </div>
+                        <div class="value-input-container" id="target-input-container">
+                            <label for="target-value-input"><?!= CONFIG.TARGET_VALUE_LABEL ?> (<span id="target-range"></span>):</label>
+                            <input type="number" id="target-value-input" style="width: 100px;" value="" aria-describedby="target-value-message">
+                            <span id="target-value-message" style="color: red; margin-left: 5px;"></span>
+                        </div>
+                        <div class="value-input-container" id="confidence-input-container" style="display: none;">
+                            <label for="confidence-level-input"><?!= CONFIG.CONFIDENCE_LEVEL_LABEL ?> (1-100%):</label>
+                            <input type="number" id="confidence-level-input" min="1" max="100" value="<?!= CONFIG.DEFAULT_CONFIDENCE_LEVEL ?>" aria-describedby="confidence-level-message">
+                            <span id="confidence-level-message" style="color: red; margin-left: 5px;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="optimize-container">
+                    <label for="optimize-select"><?!= CONFIG.OPTIMIZE_LABEL ?></label>
+                    <select id="optimize-select" aria-label="Select optimization mode">
+                        <option value="no"><?!= CONFIG.OPTIMIZE_NO_LABEL ?></option>
+                        <option value="yes"><?!= CONFIG.OPTIMIZE_YES_LABEL ?></option>
+                    </select>
+                </div>
+                <button class="clear-button" id="clear-button">Clear</button>
+            </div>
+        </div>
+
+        <!-- Exploration Results Section -->
+        <div class="step-section results-section" id="explore-results">
+            <h3 class="results-header"><?!= CONFIG.EXPLORATION_RESULTS_HEADER ?></h3>
+            <p class="results-text"><?!= CONFIG.EXPLORATION_RESULTS_DEFAULT_TEXT ?></p>
+        </div>
+
+                <!-- Section 4: HTML Body - Interactive Probability Content -->
+        <!-- Interactive Probability Content -->
+        <div class="step-section" id="interactive-probability-content">
+            <div class="simulator-content">
+                <div class="simulator-left">
+                    <div class="option" id="option-manual">
+                        <h3 id="explore-mode-title"><?!= CONFIG.EXPLORE_MODE_DEFAULT_TITLE_PREFIX ?> <?!= CONFIG.EXPLORE_MODE_DEFAULT_TITLE_SUFFIX ?></h3>
+                        <div class="decision-grid-container">
+                            <div class="decision-grid">
+                                <label for="targetBudgetFlexibility"><?!= CONFIG.BUDGET_FLEXIBILITY_LABEL ?></label>
+                                <input type="range" id="targetBudgetFlexibility" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Budget Flexibility">
+                                <span id="targetBudgetFlexibilityValue">0%</span>
+                                <span class="help-icon" title="<?!= CONFIG.BUDGET_FLEXIBILITY_HELP_TEXT ?>">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetScheduleFlexibility"><?!= CONFIG.SCHEDULE_FLEXIBILITY_LABEL ?></label>
+                                <input type="range" id="targetScheduleFlexibility" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Schedule Flexibility">
+                                <span id="targetScheduleFlexibilityValue">0%</span>
+                                <span class="help-icon" title="<?!= CONFIG.SCHEDULE_FLEXIBILITY_HELP_TEXT ?>">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetScopeCertainty"><?!= CONFIG.SCOPE_CERTAINTY_LABEL ?></label>
+                                <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Scope Certainty">
+                                <span id="targetScopeCertaintyValue">0%</span>
+                                <span class="help-icon" title="<?!= CONFIG.SCOPE_CERTAINTY_HELP_TEXT ?>">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetQualityTolerance"><?!= CONFIG.QUALITY_TOLERANCE_LABEL ?></label>
+                                <input type="range" id="targetQualityTolerance" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Tolerance for Poor Quality">
+                                <span id="targetQualityToleranceValue">0%</span>
+                                <span class="help-icon" title="<?!= CONFIG.QUALITY_TOLERANCE_HELP_TEXT ?>">?</span>
+                            </div>
+                        </div>
+                        <div class="plot-container">
+                            <div class="side-by-side">
+                                <div id="pdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                    <div id="pdf-use-case" class="use-case">
+                                        <button class="toggle-use-case" data-target="pdf-use-case-content" aria-expanded="false">▼ <?!= CONFIG.USE_CASE_LABEL ?></button>
+                                        <div id="pdf-use-case-content" class="use-case-content">
+                                            <p><strong><em><?!= CONFIG.USE_CASE_WHEN_LABEL ?>:</em></strong> <?!= CONFIG.PDF_USE_CASE_WHEN ?></p>
+                                            <p><strong><em><?!= CONFIG.USE_CASE_HOW_LABEL ?>:</em></strong> <?!= CONFIG.PDF_USE_CASE_HOW ?></p>
+                                            <p><strong><em><?!= CONFIG.USE_CASE_BENEFIT_LABEL ?>:</em></strong> <?!= CONFIG.PDF_USE_CASE_BENEFIT ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="cdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                    <div id="cdf-use-case" class="use-case">
+                                        <button class="toggle-use-case" data-target="cdf-use-case-content" aria-expanded="false">▼ <?!= CONFIG.USE_CASE_LABEL ?></button>
+                                        <div id="cdf-use-case-content" class="use-case-content">
+                                            <p><strong><em><?!= CONFIG.USE_CASE_WHEN_LABEL ?>:</em></strong> <?!= CONFIG.CDF_USE_CASE_WHEN ?></p>
+                                            <p><strong><em><?!= CONFIG.USE_CASE_HOW_LABEL ?>:</em></strong> <?!= CONFIG.CDF_USE_CASE_HOW ?></p>
+                                            <p><strong><em><?!= CONFIG.USE_CASE_BENEFIT_LABEL ?>:</em></strong> <?!= CONFIG.CDF_USE_CASE_BENEFIT ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="white-box-container">
+                            <button class="toggle-summary" data-target="slider-impact-reference-guide" aria-expanded="true">▲ <?!= CONFIG.SLIDER_COMBINATION_LABEL ?></button>
+                            <div id="slider-impact-reference-guide" style="display: block; padding: 8px;">
+                                <div style="margin-bottom: 5px; text-align: center; display: flex; align-items: center; justify-content: center;">
+                                    <label for="probability-filter"><?!= CONFIG.FILTER_LABEL ?></label>
+                                    <select id="probability-filter" aria-label="Filter combinations">
+                                        <option value="current" selected><?!= CONFIG.FILTER_CURRENT_LABEL ?></option>
+                                        <option value="all"><?!= CONFIG.FILTER_ALL_LABEL ?></option>
+                                        <option value="above50"><?!= CONFIG.FILTER_ABOVE_50_LABEL ?></option>
+                                        <option value="above75"><?!= CONFIG.FILTER_ABOVE_75_LABEL ?></option>
+                                        <option value="below50"><?!= CONFIG.FILTER_BELOW_50_LABEL ?></option>
+                                        <option value="optimized"><?!= CONFIG.FILTER_OPTIMIZED_LABEL ?></option>
+                                    </select>
+                                    <span class="help-icon" title="<?!= CONFIG.FILTER_HELP_TEXT ?>">?</span>
+                                </div>
+                                <table id="combination-table" class="dual-value-table">
+                                    <tbody id="combination-table-body">
+                                        <tr><td colspan="8"><?!= CONFIG.COMBINATION_TABLE_DEFAULT_TEXT ?></td></tr>
+                                    </tbody>
+                                </table>
+                                <div id="pagination-controls">
+                                    <button id="prev-page"><?!= CONFIG.PREV_PAGE_LABEL ?></button>
+                                    <span id="page-info"><?!= CONFIG.PAGE_INFO_DEFAULT_TEXT ?></span>
+                                    <button id="next-page"><?!= CONFIG.NEXT_PAGE_LABEL ?></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                <!-- Section 5: HTML Body - Metrics Table and Footer -->
+        <div class="summary-section-container">
+            <button class="toggle-summary" data-target="insights-recommendations-content" aria-expanded="false">▼ <?!= CONFIG.INSIGHTS_RECOMMENDATIONS_LABEL ?></button>
+            <div id="insights-recommendations-content" class="summary-content" style="display: none;">
+                <div id="recommendations-section">
+                    <h4><?!= CONFIG.RECOMMENDATIONS_HEADER ?></h4>
+                    <div id="recommendations-content"></div>
+                </div>
+                <div id="metrics-table-container" class="white-box-container">
+                    <div class="table-title"><?!= CONFIG.STATISTICAL_METRICS_TITLE ?></div>
+                    <table id="statistical-metrics-table" class="dual-value-table">
+                        <thead>
+                            <tr>
+                                <th><?!= CONFIG.METRIC_HEADER ?></th>
+                                <th><?!= CONFIG.PURPOSE_HEADER ?></th>
+                                <th><?!= CONFIG.GENERAL_FORMULA_HEADER ?></th>
+                                <th><?!= CONFIG.DYNAMIC_FORMULA_HEADER ?></th>
+                                <th><?!= CONFIG.RESULT_HEADER ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><?!= CONFIG.PERT_MEAN_LABEL ?></td>
+                                <td><?!= CONFIG.PERT_MEAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.PERT_MEAN_FORMULA ?></td>
+                                <td><?!= CONFIG.PERT_MEAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="pert-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.TRIANGLE_MEAN_LABEL ?></td>
+                                <td><?!= CONFIG.TRIANGLE_MEAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.TRIANGLE_MEAN_FORMULA ?></td>
+                                <td><?!= CONFIG.TRIANGLE_MEAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="tri-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.BETA_MEAN_LABEL ?></td>
+                                <td><?!= CONFIG.BETA_MEAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.BETA_MEAN_FORMULA ?></td>
+                                <td><?!= CONFIG.BETA_MEAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="beta-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.MC_UNSMOOTHED_MEAN_LABEL ?></td>
+                                <td><?!= CONFIG.MC_UNSMOOTHED_MEAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.MC_UNSMOOTHED_MEAN_FORMULA ?></td>
+                                <td><?!= CONFIG.MC_UNSMOOTHED_MEAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="mc-unsmoothed-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEAN_LABEL ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEAN_FORMULA ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="mc-smoothed-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEDIAN_LABEL ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEDIAN_PURPOSE ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEDIAN_FORMULA ?></td>
+                                <td><?!= CONFIG.MC_SMOOTHED_MEDIAN_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="mc-smoothed-median"><?!= CONFIG.ERROR_INVALID_TASK_RESULTS_MESSAGE ?></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.STD_DEV_LABEL ?></td>
+                                <td><?!= CONFIG.STD_DEV_PURPOSE ?></td>
+                                <td><?!= CONFIG.STD_DEV_FORMULA ?></td>
+                                <td><?!= CONFIG.STD_DEV_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="std-dev"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.VARIANCE_LABEL ?></td>
+                                <td><?!= CONFIG.VARIANCE_PURPOSE ?></td>
+                                <td><?!= CONFIG.VARIANCE_FORMULA ?></td>
+                                <td><?!= CONFIG.VARIANCE_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="variance"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.SKEWNESS_LABEL ?></td>
+                                <td><?!= CONFIG.SKEWNESS_PURPOSE ?></td>
+                                <td><?!= CONFIG.SKEWNESS_FORMULA ?></td>
+                                <td><?!= CONFIG.SKEWNESS_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="skewness"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.CV_LABEL ?></td>
+                                <td><?!= CONFIG.CV_PURPOSE ?></td>
+                                <td><?!= CONFIG.CV_FORMULA ?></td>
+                                <td><?!= CONFIG.CV_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="cv"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.CI_LABEL ?></td>
+                                <td><?!= CONFIG.CI_PURPOSE ?></td>
+                                <td><?!= CONFIG.CI_FORMULA ?></td>
+                                <td><?!= CONFIG.CI_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="ci"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.VAR_LABEL ?></td>
+                                <td><?!= CONFIG.VAR_PURPOSE ?></td>
+                                <td><?!= CONFIG.VAR_FORMULA ?></td>
+                                <td><?!= CONFIG.VAR_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="var"></span></td>
+                            </tr>
+                            <tr>
+                                <td><?!= CONFIG.CVAR_LABEL ?></td>
+                                <td><?!= CONFIG.CVAR_PURPOSE ?></td>
+                                <td><?!= CONFIG.CVAR_FORMULA ?></td>
+                                <td><?!= CONFIG.CVAR_DYNAMIC_FORMULA ?></td>
+                                <td><span class="dynamic" id="cvar"></span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <button id="back-to-top"><?!= CONFIG.BACK_TO_TOP_LABEL ?></button>
+
+            <!-- Section 6: JavaScript - Initialization and Event Listeners -->
+    <script type="text/javascript">
+        // Global state
+        let isInitialized = false;
+        let toggleStates = {};
+        let slidersMoved = false;
+        let isOptimizeMode = false;
+        let sessionId = new URLSearchParams(window.location.search).get('sessionId') || '';
+        let sheetId = new URLSearchParams(window.location.search).get('sheetId') || '';
+        window.sliderState = {
+            budgetFlexibility: '0',
+            scheduleFlexibility: '0',
+            scopeCertainty: '0',
+            qualityTolerance: '0',
+            targetValue: null
+        };
+        let targetProbabilityData = null;
+        let tasks = {};
+        let taskValidationError = false;
+
+        // Wait for MathJax to load
+        function waitForMathJax(callback) {
+            if (typeof MathJax !== 'undefined' && MathJax.isReady) {
+                callback();
+            } else {
+                setTimeout(() => waitForMathJax(callback), 100);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing Plot.html with sessionId:', sessionId, 'sheetId:', sheetId);
+            if (!sheetId) {
+                console.error('No sheetId provided in URL');
+                document.getElementById('error-message').textContent = '<?!= CONFIG.ERROR_NO_SHEET_ID_MESSAGE ?>';
+                document.getElementById('error-message').style.display = 'block';
+                document.getElementById('loading-overlay').style.display = 'none';
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_SHEET_ID_MESSAGE ?>'), 'initialize');
+                return;
+            }
+            google.charts.load('current', { packages: ['corechart', 'line'] });
+            google.charts.setOnLoadCallback(initialize);
+        });
+
+        function initialize() {
+            const simulatorContainer = document.getElementById('probability-simulator');
+            if (!simulatorContainer) {
+                console.error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?>');
+                simulatorContainer.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_PAGE_LOAD_FAILED ?></p>`;
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?>'), 'initialize');
+                return;
+            }
+            waitForMathJax(() => {
+                setupToggleListeners();
+                setupSliderListeners();
+                setupControlListeners();
+                restoreSliders();
+                fetchTasks(function() {
+                    console.log('Tasks fetched, count:', Object.keys(tasks).length);
+                    if (Object.keys(tasks).length > 0) {
+                        fetchTargetProbabilityData(function() {
+                            console.log('Data fetched, initializing UI');
+                            isInitialized = true;
+                            setInitialTask();
+                            setInitialTargetValue();
+                            updateTargetRange();
+                            updateModeSelectLabel();
+                            drawAllPlots();
+                            updateResults();
+                            syncSliderDisplays();
+                            populateCombinationTable(1);
+                            const loadingOverlay = document.getElementById('loading-overlay');
+                            if (loadingOverlay) loadingOverlay.style.display = 'none';
+                            MathJax.typeset();
+                        });
+                    } else {
+                        taskValidationError = true;
+                        const taskSelect = document.getElementById('task-select');
+                        if (taskSelect) {
+                            taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_NO_VALID_TASKS ?></option>`;
+                        }
+                        const loadingOverlay = document.getElementById('loading-overlay');
+                        if (loadingOverlay) {
+                            loadingOverlay.textContent = '<?!= CONFIG.ERROR_NO_VALID_TASKS_MESSAGE ?>';
+                            loadingOverlay.style.display = 'none';
+                        }
+                        document.getElementById('error-message').textContent = '<?!= CONFIG.ERROR_NO_VALID_TASKS_MESSAGE ?>';
+                        document.getElementById('error-message').style.display = 'block';
+                        updateResults();
+                    }
+                });
+            });
+
+            window.addEventListener('scroll', function() {
+                const backToTop = document.getElementById('back-to-top');
+                if (backToTop) {
+                    backToTop.style.display = window.scrollY > 200 ? 'block' : 'none';
+                }
+            }, { passive: true });
+            const backToTop = document.getElementById('back-to-top');
+            if (backToTop) {
+                backToTop.addEventListener('click', function() {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, { passive: true });
+            }
+        }
+
+        function updateModeSelectLabel() {
+            const modeSelect = document.getElementById('mode-select');
+            const label = document.querySelector('#mode-select-container label');
+            if (modeSelect && label) {
+                const mode = modeSelect.value || 'target';
+                label.textContent = '<?!= CONFIG.MODE_SELECT_LABEL ?> (' + (mode.charAt(0).toUpperCase() + mode.slice(1)) + ')';
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> mode-select');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> mode-select'), 'updateModeSelectLabel');
+            }
+        }
+
+        function setInitialTask() {
+            const taskSelect = document.getElementById('task-select');
+            if (!taskSelect) {
+                console.error('<?!= CONFIG.ERROR_NO_TASK_SELECT ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_TASK_SELECT ?>'), 'setInitialTask');
+                return;
+            }
+            if (Object.keys(tasks).length > 0) {
+                const selectedTask = defaultTask && tasks[defaultTask] && isValidTask(tasks[defaultTask])
+                    ? defaultTask
+                    : (Object.keys(tasks).find(task => tasks[task].selectedForPlot) || Object.keys(tasks)[0]);
+                taskSelect.value = selectedTask;
+                if (!isValidTask(tasks[selectedTask])) {
+                    taskValidationError = true;
+                    taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_INVALID_TASK_DATA ?></option>`;
+                    document.getElementById('error-message').textContent = '<?!= CONFIG.ERROR_INVALID_TASK_DATA ?>';
+                    document.getElementById('error-message').style.display = 'block';
+                    updateResults();
+                    return;
+                }
+                updateTargetRange();
+                setInitialTargetValue();
+                fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                }, true);
+            } else {
+                taskValidationError = true;
+                updateResults();
+            }
+        }
+
+        function isValidTask(task) {
+            return task && Number.isFinite(task.optimistic) && Number.isFinite(task.mostLikely) && Number.isFinite(task.pessimistic) &&
+                   task.optimistic < task.mostLikely && task.mostLikely < task.pessimistic;
+        }
+
+        function setupToggleListeners() {
+            document.querySelectorAll('.toggle-use-case, .toggle-summary').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const targetId = button.getAttribute('data-target');
+                    const target = document.getElementById(targetId);
+                    if (!target) {
+                        console.warn(`Toggle target ${targetId} not found`);
+                        logErrorToServer(new Error(`Toggle target ${targetId} not found`), 'setupToggleListeners');
+                        return;
+                    }
+                    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+                    const newExpanded = !isExpanded;
+                    target.style.display = newExpanded ? (button.classList.contains('toggle-summary') ? 'flex' : 'block') : 'none';
+                    button.setAttribute('aria-expanded', newExpanded);
+                    button.textContent = (newExpanded ? '▲ ' : '▼ ') + button.textContent.slice(2);
+                    toggleStates[targetId] = newExpanded;
+                }, { passive: true });
+            });
+        }
+
+        function restoreSliders() {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+            sliders.forEach(function(id) {
+                const slider = document.getElementById(id);
+                if (!slider) {
+                    console.warn(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`);
+                    logErrorToServer(new Error(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`), 'restoreSliders');
+                    return;
+                }
+                const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+                let value = isOptimizeMode && targetProbabilityData?.optimalData?.value?.optimalSliderSettings
+                    ? (targetProbabilityData.optimalData.value.optimalSliderSettings[key] || 0)
+                    : 0;
+                if (!targetProbabilityData?.optimalData?.value?.optimalSliderSettings && isOptimizeMode) {
+                    console.warn('<?!= CONFIG.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING ?>');
+                    logErrorToServer(new Error('<?!= CONFIG.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING ?>'), 'restoreSliders');
+                }
+                slider.value = value;
+                slider.setAttribute('aria-valuenow', value);
+                window.sliderState[key] = value.toString();
+                updateSliderValueDisplay(id, value);
+            });
+            slidersMoved = false;
+            enableSliders(!isOptimizeMode);
+        }
+
+        function enableSliders(enabled) {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+            sliders.forEach(function(id) {
+                const slider = document.getElementById(id);
+                if (!slider) {
+                    console.warn(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`);
+                    logErrorToServer(new Error(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`), 'enableSliders');
+                    return;
+                }
+                slider.disabled = !enabled;
+                slider.style.backgroundColor = enabled ? '#ffffff' : '#e0e0e0';
+            });
+        }
+
+        function updateSliderValueDisplay(id, value) {
+            const valueSpan = document.getElementById(id + 'Value');
+            if (valueSpan && !isNaN(value)) {
+                valueSpan.textContent = `${value.toFixed(0)}%`;
+                const slider = document.getElementById(id);
+                if (slider) slider.setAttribute('aria-valuenow', value.toFixed(0));
+            } else {
+                if (valueSpan) valueSpan.textContent = '0%';
+                console.warn(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}Value or value is NaN`);
+                logErrorToServer(new Error(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}Value or value is NaN`), 'updateSliderValueDisplay');
+            }
+        }
+
+        function syncSliderDisplays() {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+            sliders.forEach(function(id) {
+                const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+                const value = parseFloat(window.sliderState[key]) || 0;
+                updateSliderValueDisplay(id, value);
+            });
+            const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+            const modeSelect = document.getElementById('mode-select')?.value || 'target';
+            const exploreModeTitle = document.getElementById('explore-mode-title');
+            if (exploreModeTitle) {
+                if (optimizeMode === 'yes') {
+                    exploreModeTitle.textContent = '<?!= CONFIG.EXPLORE_MODE_OPTIMIZED_TITLE ?>';
+                } else {
+                    exploreModeTitle.textContent = `<?!= CONFIG.EXPLORE_MODE_DEFAULT_TITLE_PREFIX ?> ${modeSelect.charAt(0).toUpperCase() + modeSelect.slice(1)} <?!= CONFIG.EXPLORE_MODE_DEFAULT_TITLE_SUFFIX ?>`;
+                }
+            } else {
+                console.error('<?!= CONFIG.ERROR_NO_EXPLORE_MODE_TITLE ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_EXPLORE_MODE_TITLE ?>'), 'syncSliderDisplays');
+            }
+        }
+
+        function setupSliderListeners() {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+            const debounce = function(func, wait) {
+                let timeout;
+                return function() {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(func, wait);
+                };
+            };
+            sliders.forEach(function(id) {
+                const slider = document.getElementById(id);
+                if (!slider) {
+                    console.warn(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`);
+                    logErrorToServer(new Error(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${id}`), 'setupSliderListeners');
+                    return;
+                }
+                slider.addEventListener('input', debounce(function() {
+                    if (isOptimizeMode) return;
+                    const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+                    const value = parseFloat(slider.value);
+                    window.sliderState[key] = value.toString();
+                    fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                }, 200));
+            });
+        }
+
+        function setupControlListeners() {
+            const taskSelect = document.getElementById('task-select');
+            const modeSelect = document.getElementById('mode-select');
+            const targetInput = document.getElementById('target-value-input');
+            const confidenceInput = document.getElementById('confidence-level-input');
+            const optimizeSelect = document.getElementById('optimize-select');
+            const clearButton = document.getElementById('clear-button');
+
+            if (taskSelect) {
+                taskSelect.addEventListener('change', function() {
+                    taskValidationError = tasks[this.value] && !isValidTask(tasks[this.value]);
+                    updateTargetRange();
+                    setInitialTargetValue();
+                    updateTargetInputRange();
+                    if (validateInputs()) fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> task-select');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> task-select'), 'setupControlListeners');
+            }
+
+            if (modeSelect) {
+                modeSelect.addEventListener('change', function() {
+                    toggleModeInputs();
+                    updateModeSelectLabel();
+                    if (!isOptimizeMode) {
+                        restoreSliders();
+                    }
+                    if (validateInputs()) fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> mode-select');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> mode-select'), 'setupControlListeners');
+            }
+
+            if (targetInput) {
+                targetInput.addEventListener('input', function() {
+                    if (validateTargetInput()) fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> target-value-input');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> target-value-input'), 'setupControlListeners');
+            }
+
+            if (confidenceInput) {
+                confidenceInput.addEventListener('input', function() {
+                    if (validateConfidenceInput()) fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> confidence-level-input');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> confidence-level-input'), 'setupControlListeners');
+            }
+
+            if (optimizeSelect) {
+                optimizeSelect.addEventListener('change', function() {
+                    isOptimizeMode = this.value === 'yes';
+                    enableSliders(!isOptimizeMode);
+                    restoreSliders();
+                    fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        console.log('Optimize mode changed, sliderValues:', window.sliderState);
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> optimize-select');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> optimize-select'), 'setupControlListeners');
+            }
+
+            if (clearButton) {
+                const clearButton = document.getElementById('clear-button');
+                clearButton.addEventListener('click', function() {
+                    restoreSliders();
+                    setInitialTargetValue();
+                    document.getElementById('optimize-select').value = 'no';
+                    isOptimizeMode = false;
+                    enableSliders(true);
+                    fetchTargetProbabilityData(function() {
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        MathJax.typeset();
+                    });
+                });
+            } else {
+                console.warn('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> clear-button');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> clear-button'), 'setupControlListeners');
+            }
+
+            toggleModeInputs();
+            updateModeSelectLabel();
+        }
+    </script>
+
+        <!-- Section 7.a: JavaScript - Task Fetching -->
+    <script type="text/javascript">
+        function fetchTasks(callback) {
+            console.log('Fetching tasks for sheetId:', sheetId, 'sessionId:', sessionId);
+            const timeout = setTimeout(() => {
+                console.error('<?!= CONFIG.ERROR_TASK_TIMEOUT ?>');
+                const taskSelect = document.getElementById('task-select');
+                if (taskSelect) taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_TASK_TIMEOUT_MESSAGE ?></option>`;
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.textContent = '<?!= CONFIG.ERROR_TASK_TIMEOUT_MESSAGE ?>';
+                    loadingOverlay.style.display = 'none';
+                }
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = '<?!= CONFIG.ERROR_TASK_TIMEOUT_MESSAGE ?>';
+                    errorMessage.style.display = 'block';
+                }
+                taskValidationError = true;
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_TASK_TIMEOUT ?>'), 'fetchTasks');
+                callback();
+            }, 5000);
+            if (!sheetId) {
+                console.error('<?!= CONFIG.ERROR_NO_SHEET_ID ?>');
+                const taskSelect = document.getElementById('task-select');
+                if (taskSelect) taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_NO_SHEET_ID_MESSAGE ?></option>`;
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.textContent = '<?!= CONFIG.ERROR_NO_SHEET_ID_MESSAGE ?>';
+                    loadingOverlay.style.display = 'none';
+                }
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = '<?!= CONFIG.ERROR_NO_SHEET_ID_MESSAGE ?>';
+                    errorMessage.style.display = 'block';
+                }
+                taskValidationError = true;
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_SHEET_ID ?>'), 'fetchTasks');
+                clearTimeout(timeout);
+                callback();
+                return;
+            }
+            google.script.run
+                .withSuccessHandler(function(taskData) {
+                    clearTimeout(timeout);
+                    console.log('Task data received:', taskData);
+                    const taskSelect = document.getElementById('task-select');
+                    if (!taskSelect) {
+                        console.error('<?!= CONFIG.ERROR_NO_TASK_SELECT ?>');
+                        logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_TASK_SELECT ?>'), 'fetchTasks');
+                        callback();
+                        return;
+                    }
+                    taskSelect.innerHTML = '';
+                    tasks = {};
+                    let selectedTask = null;
+                    if (taskData && taskData.tasks && taskData.tasks.length > 0 && !taskData.error) {
+                        taskData.tasks.forEach(function(task) {
+                            if (isValidTask(task)) {
+                                tasks[task.task] = {
+                                    optimistic: task.optimistic,
+                                    mostLikely: task.mostLikely,
+                                    pessimistic: task.pessimistic,
+                                    selectedForPlot: task.selectedForPlot
+                                };
+                                const option = document.createElement('option');
+                                option.value = task.task;
+                                option.textContent = task.task;
+                                taskSelect.appendChild(option);
+                                if (task.selectedForPlot) {
+                                    selectedTask = task.task;
+                                }
+                            }
+                        });
+                        if (Object.keys(tasks).length > 0) {
+                            taskSelect.value = selectedTask || taskData.tasks[taskData.defaultTaskIndex || 0].task;
+                            taskValidationError = false;
+                        } else {
+                            taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_NO_VALID_TASKS ?></option>`;
+                            taskValidationError = true;
+                            const errorMessage = document.getElementById('error-message');
+                            if (errorMessage) {
+                                errorMessage.textContent = '<?!= CONFIG.ERROR_NO_VALID_TASKS_MESSAGE ?>';
+                                errorMessage.style.display = 'block';
+                            }
+                        }
+                    } else {
+                        taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_NO_TASKS_AVAILABLE ?> ${taskData.error || ''}</option>`;
+                        taskValidationError = true;
+                        const loadingOverlay = document.getElementById('loading-overlay');
+                        if (loadingOverlay) {
+                            loadingOverlay.textContent = `<?!= CONFIG.ERROR_NO_TASKS_AVAILABLE ?> ${taskData.error || ''}. <?!= CONFIG.ERROR_CONTACT_SUPPORT ?>`;
+                            loadingOverlay.style.display = 'none';
+                        }
+                        const errorMessage = document.getElementById('error-message');
+                        if (errorMessage) {
+                            errorMessage.textContent = `<?!= CONFIG.ERROR_NO_TASKS_AVAILABLE ?> ${taskData.error || ''}. <?!= CONFIG.ERROR_CONTACT_SUPPORT ?>`;
+                            errorMessage.style.display = 'block';
+                        }
+                        logErrorToServer(new Error(taskData.error || '<?!= CONFIG.ERROR_NO_TASKS_AVAILABLE ?>'), 'fetchTasks');
+                    }
+                    callback();
+                })
+                .withFailureHandler(function(error) {
+                    clearTimeout(timeout);
+                    console.error('<?!= CONFIG.ERROR_FETCH_TASKS ?>', error);
+                    logErrorToServer(error, 'fetchTasks');
+                    const taskSelect = document.getElementById('task-select');
+                    if (taskSelect) taskSelect.innerHTML = `<option value=""><?!= CONFIG.ERROR_FETCH_TASKS_MESSAGE ?> ${error.message}</option>`;
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.textContent = `<?!= CONFIG.ERROR_FETCH_TASKS_MESSAGE ?> ${error.message}`;
+                        loadingOverlay.style.display = 'none';
+                    }
+                    const errorMessage = document.getElementById('error-message');
+                    if (errorMessage) {
+                        errorMessage.textContent = `<?!= CONFIG.ERROR_FETCH_TASKS_MESSAGE ?> ${error.message}`;
+                        errorMessage.style.display = 'block';
+                    }
+                    taskValidationError = true;
+                    callback();
+                })
+                .getAllTasks(sheetId);
+        }
+    </script>
+
+        <!-- Section 7.b: JavaScript - Target Probability Data Fetching -->
+    <script type="text/javascript">
+        let isFetching = false; // Client-side lock for rate limiting
+        function fetchTargetProbabilityData(callback, force = false) {
+            if (isFetching) {
+                console.warn('Previous fetch in progress, ignoring new request');
+                return;
+            }
+            isFetching = true;
+            const task = document.getElementById('task-select')?.value;
+            if (!task || !tasks[task] || !isValidTask(tasks[task])) {
+                const errorMessage = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_INVALID_TASK ?></p>`;
+                const plotContainers = ['pdf-chart', 'cdf-chart'];
+                plotContainers.forEach(id => {
+                    const container = document.getElementById(id);
+                    if (container) container.innerHTML = errorMessage;
+                });
+                const combTable = document.getElementById('combination-table-body');
+                if (combTable) combTable.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_INVALID_TASK ?></td></tr>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_INVALID_TASK ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                targetProbabilityData = null;
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_INVALID_TASK ?>'), 'fetchTargetProbabilityData');
+                isFetching = false;
+                callback();
+                return;
+            }
+
+            const mode = document.getElementById('mode-select')?.value || 'target';
+            const sliderValues = {
+                budgetFlexibility: parseFloat(window.sliderState.budgetFlexibility) || 0,
+                scheduleFlexibility: parseFloat(window.sliderState.scheduleFlexibility) || 0,
+                scopeCertainty: parseFloat(window.sliderState.scopeCertainty) || 0,
+                qualityTolerance: parseFloat(window.sliderState.qualityTolerance) || 0
+            };
+            const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task].mostLikely || <?!= CONFIG.DEFAULT_TARGET_VALUE ?>;
+            const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || <?!= CONFIG.DEFAULT_CONFIDENCE_LEVEL ?>;
+
+            const timeout = setTimeout(() => {
+                console.error('<?!= CONFIG.ERROR_DATA_TIMEOUT ?>');
+                const errorMessage = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_DATA_TIMEOUT_MESSAGE ?></p>`;
+                const plotContainers = ['pdf-chart', 'cdf-chart'];
+                plotContainers.forEach(id => {
+                    const container = document.getElementById(id);
+                    if (container) container.innerHTML = errorMessage;
+                });
+                const combTable = document.getElementById('combination-table-body');
+                if (combTable) combTable.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_DATA_TIMEOUT_MESSAGE ?></td></tr>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_DATA_TIMEOUT_MESSAGE ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                targetProbabilityData = null;
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_DATA_TIMEOUT ?>'), 'fetchTargetProbabilityData');
+                isFetching = false;
+                callback();
+            }, 10000);
+
+            google.script.run
+                .withSuccessHandler(data => {
+                    clearTimeout(timeout);
+                    if (!data || typeof data !== 'object') {
+                        console.error('<?!= CONFIG.ERROR_INVALID_API_RESPONSE ?>', data);
+                        const errorMessage = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_API_FAILURE ?></p>`;
+                        const plotContainers = ['pdf-chart', 'cdf-chart'];
+                        plotContainers.forEach(id => {
+                            const container = document.getElementById(id);
+                            if (container) container.innerHTML = errorMessage;
+                        });
+                        const combTable = document.getElementById('combination-table-body');
+                        if (combTable) combTable.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_API_FAILURE ?></td></tr>`;
+                        const errorMessageDiv = document.getElementById('error-message');
+                        if (errorMessageDiv) {
+                            errorMessageDiv.textContent = '<?!= CONFIG.ERROR_API_FAILURE ?>';
+                            errorMessageDiv.style.display = 'block';
+                        }
+                        const loadingOverlay = document.getElementById('loading-overlay');
+                        if (loadingOverlay) loadingOverlay.style.display = 'none';
+                        targetProbabilityData = null;
+                        logErrorToServer(new Error('<?!= CONFIG.ERROR_INVALID_API_RESPONSE ?> ' + JSON.stringify(data)), 'fetchTargetProbabilityData');
+                        isFetching = false;
+                        callback();
+                        return;
+                    }
+                    targetProbabilityData = {
+                        targetProbability: data.targetProbability || { value: { original: <?!= CONFIG.DEFAULT_ORIGINAL_PROBABILITY / 100 ?>, adjusted: <?!= CONFIG.DEFAULT_ADJUSTED_PROBABILITY / 100 ?> } },
+                        targetProbabilityOriginalPdf: data.targetProbabilityOriginalPdf || { value: [] },
+                        targetProbabilityAdjustedPdf: data.targetProbabilityAdjustedPdf || { value: [] },
+                        targetProbabilityOriginalCdf: data.targetProbabilityOriginalCdf || { value: [] },
+                        targetProbabilityAdjustedCdf: data.targetProbabilityAdjustedCdf || { value: [] },
+                        valueAtConfidence: data.valueAtConfidence || { value: { original: <?!= CONFIG.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE ?>, adjusted: <?!= CONFIG.DEFAULT_VALUE_AT_CONFIDENCE ?> } },
+                        optimalData: data.optimalData || { value: { optimalObjective: targetValue, probability: <?!= CONFIG.DEFAULT_OPTIMAL_PROBABILITY / 100 ?>, optimalSliderSettings: {} } },
+                        sliderCombinations: data.sliderCombinations || { value: [] },
+                        decisionOptimizerMetrics: data.decisionOptimizerMetrics || { value: { varianceScale: <?!= CONFIG.DEFAULT_VARIANCE_SCALE ?> } }
+                    };
+                    if (isOptimizeMode && !data.optimalData?.value?.optimalSliderSettings) {
+                        console.warn('<?!= CONFIG.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING ?>');
+                        logErrorToServer(new Error('<?!= CONFIG.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING ?>'), 'fetchTargetProbabilityData');
+                    }
+                    if (isOptimizeMode && data.optimalData?.value?.optimalSliderSettings) {
+                        window.sliderState = {
+                            ...data.optimalData.value.optimalSliderSettings,
+                            targetValue: window.sliderState.targetValue
+                        };
+                        restoreSliders();
+                    }
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) loadingOverlay.style.display = 'none';
+                    isFetching = false;
+                    callback();
+                    MathJax.typeset();
+                })
+                .withFailureHandler(error => {
+                    clearTimeout(timeout);
+                    console.error('<?!= CONFIG.ERROR_API_FAILURE ?>', error);
+                    logErrorToServer(error, 'fetchTargetProbabilityData');
+                    const errorMessage = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_API_FAILURE ?> ${error.message}</p>`;
+                    const plotContainers = ['pdf-chart', 'cdf-chart'];
+                    plotContainers.forEach(id => {
+                        const container = document.getElementById(id);
+                        if (container) container.innerHTML = errorMessage;
+                    });
+                    const combTable = document.getElementById('combination-table-body');
+                    if (combTable) combTable.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_API_FAILURE ?> ${error.message}</td></tr>`;
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.textContent = `<?!= CONFIG.ERROR_API_FAILURE ?> ${error.message}`;
+                        loadingOverlay.style.display = 'none';
+                    }
+                    const errorMessageDiv = document.getElementById('error-message');
+                    if (errorMessageDiv) {
+                        errorMessageDiv.textContent = `<?!= CONFIG.ERROR_API_FAILURE ?> ${error.message}`;
+                        errorMessageDiv.style.display = 'block';
+                    }
+                    targetProbabilityData = null;
+                    isFetching = false;
+                    callback();
+                })
+                .getTargetProbabilityData({
+                    task: task,
+                    optimistic: tasks[task].optimistic,
+                    mostLikely: tasks[task].mostLikely,
+                    pessimistic: tasks[task].pessimistic,
+                    sliderValues: sliderValues,
+                    targetValue: targetValue,
+                    confidenceLevel: confidenceLevel,
+                    isOptimizeMode: isOptimizeMode,
+                    mode: mode,
+                    previousOptimalSliderSettings: targetProbabilityData?.optimalData?.value?.optimalSliderSettings,
+                    sheetId: sheetId,
+                    sessionId: sessionId
+                });
+        }
+    </script>
+
+        <!-- Section 7.c: JavaScript - PDF Plot Rendering -->
+    <script type="text/javascript">
+        function drawPdfPlot() {
+            const chartDiv = document.getElementById('pdf-chart');
+            if (!chartDiv) {
+                console.error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?> (sessionId: ' + sessionId + ')'), 'drawPdfPlot');
+                return;
+            }
+            if (!targetProbabilityData || !targetProbabilityData.targetProbabilityOriginalPdf || !targetProbabilityData.targetProbabilityAdjustedPdf) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_API_FAILURE ?></p>`;
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_API_FAILURE ?> (sessionId: ' + sessionId + ')'), 'drawPdfPlot');
+                return;
+            }
+
+            const origPoints = targetProbabilityData.targetProbabilityOriginalPdf.value;
+            const adjPoints = targetProbabilityData.targetProbabilityAdjustedPdf.value;
+            if (!Array.isArray(origPoints) || !Array.isArray(adjPoints) || origPoints.length !== adjPoints.length || origPoints.length === 0) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_RENDERING_PDF ?></p>`;
+                console.error('Invalid or mismatched PDF points data');
+                logErrorToServer(new Error('Invalid or mismatched PDF points data (sessionId: ' + sessionId + ')'), 'drawPdfPlot');
+                return;
+            }
+
+            const task = document.getElementById('task-select')?.value;
+            const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task]?.mostLikely || <?!= CONFIG.DEFAULT_TARGET_VALUE ?>;
+            const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || <?!= CONFIG.DEFAULT_CONFIDENCE_LEVEL ?>;
+            const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+            const origProb = targetProbabilityData.targetProbability?.value.original * 100 || <?!= CONFIG.DEFAULT_ORIGINAL_PROBABILITY ?>;
+            const adjProb = targetProbabilityData.targetProbability?.value.adjusted * 100 || <?!= CONFIG.DEFAULT_ADJUSTED_PROBABILITY ?>;
+            const optimalData = targetProbabilityData?.optimalData?.value || {};
+            let optimalValue = optimalData.optimalObjective || targetValue;
+            const optimalProb = optimalData.probability * 100 || <?!= CONFIG.DEFAULT_OPTIMAL_PROBABILITY ?>;
+
+            if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) {
+                optimalValue = targetValue;
+                console.warn(`<?!= CONFIG.WARNING_OPTIMAL_VALUE_ADJUSTED ?> ${optimalValue} adjusted to target value ${targetValue} due to range violation`);
+                logErrorToServer(new Error(`<?!= CONFIG.WARNING_OPTIMAL_VALUE_ADJUSTED ?> ${optimalValue} adjusted to target value ${targetValue} (sessionId: ${sessionId})`), 'drawPdfPlot');
+            }
+
+            const data = new google.visualization.DataTable();
+            data.addColumn('number', '<?!= CONFIG.PDF_X_AXIS_LABEL ?>');
+            data.addColumn('number', '<?!= CONFIG.PDF_ORIGINAL_LABEL ?>');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+            data.addColumn('number', '<?!= CONFIG.PDF_ADJUSTED_LABEL ?>');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+            if (optimizeMode === 'yes') {
+                data.addColumn('number', '<?!= CONFIG.PDF_OPTIMIZED_ADJUSTED_LABEL ?>');
+                data.addColumn({ type: 'string', role: 'tooltip' });
+            }
+
+            const rows = [];
+            origPoints.forEach((orig, i) => {
+                const adj = adjPoints[i];
+                if (orig && adj && Number.isFinite(orig.x) && Number.isFinite(orig.y) && Number.isFinite(adj.y)) {
+                    const row = [
+                        orig.x,
+                        orig.y,
+                        `<?!= CONFIG.PDF_ORIGINAL_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(orig.y * 100).toFixed(2)}%`,
+                        adj.y,
+                        `<?!= CONFIG.PDF_ADJUSTED_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`
+                    ];
+                    if (optimizeMode === 'yes') {
+                        row.push(adj.y);
+                        row.push(`<?!= CONFIG.PDF_OPTIMIZED_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`);
+                    }
+                    rows.push(row);
+                }
+            });
+
+            if (rows.length === 0) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_RENDERING_PDF ?></p>`;
+                console.error('No valid PDF points data');
+                logErrorToServer(new Error('No valid PDF points data (sessionId: ' + sessionId + ')'), 'drawPdfPlot');
+                return;
+            }
+
+            data.addRows(rows);
+
+            const options = {
+                title: '<?!= CONFIG.PDF_CHART_TITLE ?>',
+                hAxis: { title: '<?!= CONFIG.PDF_X_AXIS_LABEL ?>' },
+                vAxis: { title: '<?!= CONFIG.PDF_Y_AXIS_LABEL ?>', minValue: 0 },
+                legend: { position: 'bottom' },
+                tooltip: { isHtml: true },
+                annotations: {
+                    textStyle: { fontSize: 12, color: '#000' }
+                },
+                series: {
+                    0: { color: '#1f77b4', lineWidth: 2, targetAxisIndex: 0 },
+                    1: { color: '#ff7f0e', lineWidth: 2, targetAxisIndex: 0 },
+                    2: { color: '#2ca02c', lineWidth: 2, targetAxisIndex: 0 }
+                },
+                vAxes: { 0: { title: '<?!= CONFIG.PDF_Y_AXIS_LABEL ?>' } },
+                width: '100%',
+                height: 400
+            };
+
+            if (mode === 'target') {
+                data.addColumn('number', '<?!= CONFIG.PDF_ORIGINAL_TARGET_LABEL ?>');
+                data.addColumn('number', '<?!= CONFIG.PDF_ADJUSTED_TARGET_LABEL ?>');
+                if (optimizeMode === 'yes') {
+                    data.addColumn('number', '<?!= CONFIG.PDF_OPTIMIZED_ADJUSTED_LABEL ?>');
+                }
+
+                const targetRows = rows.map(row => {
+                    const x = row[0];
+                    const isTarget = Math.abs(x - targetValue) < 0.01;
+                    const isOptimal = optimizeMode === 'yes' && Math.abs(x - optimalValue) < 0.01;
+                    const newRow = [...row];
+                    newRow.push(isTarget ? Math.max(row[1], row[3]) : null);
+                    newRow.push(isTarget ? Math.max(row[1], row[3]) : null);
+                    if (optimizeMode === 'yes') {
+                        newRow.push(isOptimal ? Math.max(row[1], row[3]) : null);
+                    }
+                    return newRow;
+                });
+
+                data.removeRows(0, data.getNumberOfRows());
+                data.addRows(targetRows);
+
+                options.series[0].lineWidth = 2;
+                options.series[1].lineWidth = 2;
+                if (optimizeMode === 'yes') {
+                    options.series[2].lineWidth = 2;
+                }
+                options.series[options.series.length - 2] = { color: '#d62728', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                options.series[options.series.length - 1] = { color: '#9467bd', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                if (optimizeMode === 'yes') {
+                    options.series[options.series.length - 3] = { color: '#2ca02c', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                }
+            }
+
+            const chart = new google.visualization.LineChart(chartDiv);
+            chart.draw(data, options);
+        }
+    </script>
+
+        <!-- Section 7.d: JavaScript - CDF Plot Rendering -->
+    <script type="text/javascript">
+        function drawCdfPlot() {
+            const chartDiv = document.getElementById('cdf-chart');
+            if (!chartDiv) {
+                console.error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_SIMULATOR_CONTAINER ?> (sessionId: ' + sessionId + ')'), 'drawCdfPlot');
+                return;
+            }
+            if (!targetProbabilityData || !targetProbabilityData.targetProbabilityOriginalCdf || !targetProbabilityData.targetProbabilityAdjustedCdf) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_API_FAILURE ?></p>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_API_FAILURE ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_API_FAILURE ?> (sessionId: ' + sessionId + ')'), 'drawCdfPlot');
+                return;
+            }
+
+            const origPoints = targetProbabilityData.targetProbabilityOriginalCdf.value;
+            const adjPoints = targetProbabilityData.targetProbabilityAdjustedCdf.value;
+            if (!Array.isArray(origPoints) || !Array.isArray(adjPoints) || origPoints.length !== adjPoints.length || origPoints.length === 0) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_RENDERING_CDF ?></p>`;
+                console.error('Invalid or mismatched CDF points data');
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_RENDERING_CDF ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('Invalid or mismatched CDF points data (sessionId: ' + sessionId + ')'), 'drawCdfPlot');
+                return;
+            }
+
+            const task = document.getElementById('task-select')?.value;
+            const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task]?.mostLikely || <?!= CONFIG.DEFAULT_TARGET_VALUE ?>;
+            const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || <?!= CONFIG.DEFAULT_CONFIDENCE_LEVEL ?>;
+            const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+            const valueAtConfidence = targetProbabilityData.valueAtConfidence?.value || { original: <?!= CONFIG.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE ?>, adjusted: <?!= CONFIG.DEFAULT_VALUE_AT_CONFIDENCE ?> };
+            const optimalData = targetProbabilityData?.optimalData?.value || {};
+            let optimalValue = optimalData.optimalObjective || targetValue;
+            const optimalProb = optimalData.probability * 100 || <?!= CONFIG.DEFAULT_OPTIMAL_PROBABILITY ?>;
+
+            if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) {
+                optimalValue = targetValue;
+                console.warn(`<?!= CONFIG.WARNING_OPTIMAL_VALUE_ADJUSTED ?> ${optimalValue} adjusted to target value ${targetValue} due to range violation`);
+                logErrorToServer(new Error(`<?!= CONFIG.WARNING_OPTIMAL_VALUE_ADJUSTED ?> ${optimalValue} adjusted to target value ${targetValue} (sessionId: ${sessionId})`), 'drawCdfPlot');
+            }
+
+            const data = new google.visualization.DataTable();
+            data.addColumn('number', '<?!= CONFIG.CDF_X_AXIS_LABEL ?>');
+            data.addColumn('number', '<?!= CONFIG.CDF_ORIGINAL_LABEL ?>');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+            data.addColumn('number', '<?!= CONFIG.CDF_ADJUSTED_LABEL ?>');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+            if (optimizeMode === 'yes') {
+                data.addColumn('number', '<?!= CONFIG.CDF_OPTIMIZED_ADJUSTED_LABEL ?>');
+                data.addColumn({ type: 'string', role: 'tooltip' });
+            }
+
+            const rows = [];
+            origPoints.forEach((orig, i) => {
+                const adj = adjPoints[i];
+                if (orig && adj && Number.isFinite(orig.x) && Number.isFinite(orig.y) && Number.isFinite(adj.y)) {
+                    const row = [
+                        orig.x,
+                        orig.y,
+                        `<?!= CONFIG.CDF_ORIGINAL_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(orig.y * 100).toFixed(2)}%`,
+                        adj.y,
+                        `<?!= CONFIG.CDF_ADJUSTED_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`
+                    ];
+                    if (optimizeMode === 'yes') {
+                        row.push(adj.y);
+                        row.push(`<?!= CONFIG.CDF_OPTIMIZED_TOOLTIP ?> ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`);
+                    }
+                    rows.push(row);
+                }
+            });
+
+            if (rows.length === 0) {
+                chartDiv.innerHTML = `<p style="color: red; text-align: center;"><?!= CONFIG.ERROR_RENDERING_CDF ?></p>`;
+                console.error('No valid CDF points data');
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_RENDERING_CDF ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('No valid CDF points data (sessionId: ' + sessionId + ')'), 'drawCdfPlot');
+                return;
+            }
+
+            data.addRows(rows);
+
+            const options = {
+                title: '<?!= CONFIG.CDF_CHART_TITLE ?>',
+                hAxis: { title: '<?!= CONFIG.CDF_X_AXIS_LABEL ?>' },
+                vAxis: { title: '<?!= CONFIG.CDF_Y_AXIS_LABEL ?>', minValue: 0, maxValue: 1 },
+                legend: { position: 'bottom' },
+                tooltip: { isHtml: true },
+                annotations: {
+                    textStyle: { fontSize: 12, color: '#000' }
+                },
+                series: {
+                    0: { color: '#1f77b4', lineWidth: 2, targetAxisIndex: 0 },
+                    1: { color: '#ff7f0e', lineWidth: 2, targetAxisIndex: 0 },
+                    2: { color: '#2ca02c', lineWidth: 2, targetAxisIndex: 0 }
+                },
+                vAxes: { 0: { title: '<?!= CONFIG.CDF_Y_AXIS_LABEL ?>' } },
+                width: '100%',
+                height: 400
+            };
+
+            if (mode === 'confidence') {
+                data.addColumn('number', '<?!= CONFIG.CDF_ORIGINAL_TARGET_LABEL ?>');
+                data.addColumn('number', '<?!= CONFIG.CDF_ADJUSTED_TARGET_LABEL ?>');
+                if (optimizeMode === 'yes') {
+                    data.addColumn('number', '<?!= CONFIG.CDF_OPTIMIZED_ADJUSTED_LABEL ?>');
+                }
+
+                const targetRows = rows.map(row => {
+                    const x = row[0];
+                    const isOriginal = Math.abs(x - valueAtConfidence.original) < 0.01;
+                    const isAdjusted = Math.abs(x - valueAtConfidence.adjusted) < 0.01;
+                    const isOptimal = optimizeMode === 'yes' && Math.abs(x - optimalValue) < 0.01;
+                    const newRow = [...row];
+                    newRow.push(isOriginal ? Math.max(row[1], row[3]) : null);
+                    newRow.push(isAdjusted ? Math.max(row[1], row[3]) : null);
+                    if (optimizeMode === 'yes') {
+                        newRow.push(isOptimal ? Math.max(row[1], row[3]) : null);
+                    }
+                    return newRow;
+                });
+
+                data.removeRows(0, data.getNumberOfRows());
+                data.addRows(targetRows);
+
+                options.series[0].lineWidth = 2;
+                options.series[1].lineWidth = 2;
+                if (optimizeMode === 'yes') {
+                    options.series[2].lineWidth = 2;
+                }
+                options.series[options.series.length - 2] = { color: '#d62728', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                options.series[options.series.length - 1] = { color: '#9467bd', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                if (optimizeMode === 'yes') {
+                    options.series[options.series.length - 3] = { color: '#2ca02c', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+                }
+            }
+
+            const chart = new google.visualization.LineChart(chartDiv);
+            chart.draw(data, options);
+        }
+    </script>
+
+        <!-- Section 7.e: JavaScript - Table Updates and Utilities -->
+    <script type="text/javascript">
+        function updateResults() {
+            const resultsText = document.querySelector('#explore-results .results-text');
+            if (!resultsText) {
+                console.error('<?!= CONFIG.ERROR_NO_EXPLORE_RESULTS ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_EXPLORE_RESULTS ?> (sessionId: ' + sessionId + ')'), 'updateResults');
+                return;
+            }
+            if (!targetProbabilityData || taskValidationError) {
+                resultsText.innerHTML = `<p style="color: red;"><?!= CONFIG.ERROR_INVALID_TASK_RESULTS_MESSAGE ?></p>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_INVALID_TASK_RESULTS_MESSAGE ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                updateMetricsTable();
+                updateRecommendations();
+                return;
+            }
+
+            const task = document.getElementById('task-select')?.value;
+            const mode = document.getElementById('mode-select')?.value || 'target';
+            const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task]?.mostLikely || <?!= CONFIG.DEFAULT_TARGET_VALUE ?>;
+            const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) || 90;
+            const origProb = targetProbabilityData.targetProbability?.value.original * 100 || <?!= CONFIG.DEFAULT_ORIGINAL_PROBABILITY ?>;
+            const adjProb = targetProbabilityData.targetProbability?.value.adjusted * 100 || <?!= CONFIG.DEFAULT_ADJUSTED_PROBABILITY ?>;
+            const failureProb = 100 - adjProb;
+            const valueAtConfidence = targetProbabilityData.valueAtConfidence?.value || { original: <?!= CONFIG.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE ?>, adjusted: <?!= CONFIG.DEFAULT_VALUE_AT_CONFIDENCE ?> };
+            const originalValueAtConfidence = valueAtConfidence.original || <?!= CONFIG.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE ?>;
+            const varianceScale = targetProbabilityData.decisionOptimizerMetrics?.value.varianceScale || <?!= CONFIG.DEFAULT_VARIANCE_SCALE ?>;
+            const optimalData = targetProbabilityData?.optimalData?.value || {};
+            const optimalValue = optimalData.optimalObjective || targetValue;
+            const optimalProb = optimalData.probability * 100 || <?!= CONFIG.DEFAULT_OPTIMAL_PROBABILITY ?>;
+            const sliderSettings = optimalData.optimalSliderSettings || {
+                budgetFlexibility: parseFloat(window.sliderState.budgetFlexibility) || 0,
+                scheduleFlexibility: parseFloat(window.sliderState.scheduleFlexibility) || 0,
+                scopeCertainty: parseFloat(window.sliderState.scopeCertainty) || 0,
+                qualityTolerance: parseFloat(window.sliderState.qualityTolerance) || 0
+            };
+            const taskData = tasks[task] || {
+                optimistic: <?!= CONFIG.DEFAULT_BEST_CASE ?>,
+                mostLikely: <?!= CONFIG.DEFAULT_MOST_LIKELY ?>,
+                pessimistic: <?!= CONFIG.DEFAULT_WORST_CASE ?>
+            };
+
+            const riskLevel = prob => {
+                if (prob >= 80) return '<?!= CONFIG.RISK_LEVEL_VERY_LOW ?>';
+                if (prob >= 60) return '<?!= CONFIG.RISK_LEVEL_LOW ?>';
+                if (prob >= 40) return '<?!= CONFIG.RISK_LEVEL_MODERATE ?>';
+                return '<?!= CONFIG.RISK_LEVEL_HIGH ?>';
+            };
+            const baselineRiskLevel = riskLevel(origProb);
+            const currentRiskLevel = riskLevel(adjProb);
+            const optimalRiskLevel = riskLevel(optimalProb);
+            const scopeCreep = (100 - sliderSettings.scopeCertainty).toFixed(0);
+            const improvement = (adjProb - origProb).toFixed(1);
+            const worstCaseDouble = (taskData.pessimistic * 2).toFixed(2);
+            const varianceReduction = (varianceScale * 100).toFixed(0);
+            const worstCase1_5 = (taskData.pessimistic * 1.5).toFixed(2);
+            const worstCase1_6 = (taskData.pessimistic * 1.6).toFixed(2);
+
+            let resultText = '';
+            if (mode === 'target') {
+                resultText = `For task <strong>${task}</strong> (Optimistic: ${taskData.optimistic.toFixed(2)}, Most Likely: ${taskData.mostLikely.toFixed(2)}, Pessimistic: ${taskData.pessimistic.toFixed(2)}) with sliders (Budget Flexibility: ${sliderSettings.budgetFlexibility.toFixed(0)}%, Schedule Flexibility: ${sliderSettings.scheduleFlexibility.toFixed(0)}%, Scope Certainty: ${sliderSettings.scopeCertainty.toFixed(0)}%, Tolerance for Poor Quality: ${sliderSettings.qualityTolerance.toFixed(0)}%), the probability of achieving ${targetValue.toFixed(2)} is ${adjProb.toFixed(1)}% (${failureProb.toFixed(1)}% chance of exceeding).`;
+            } else {
+                resultText = `For task <strong>${task}</strong> (Optimistic: ${taskData.optimistic.toFixed(2)}, Most Likely: ${taskData.mostLikely.toFixed(2)}, Pessimistic: ${taskData.pessimistic.toFixed(2)}) with sliders (Budget Flexibility: ${sliderSettings.budgetFlexibility.toFixed(0)}%, Schedule Flexibility: ${sliderSettings.scheduleFlexibility.toFixed(0)}%, Scope Certainty: ${sliderSettings.scopeCertainty.toFixed(0)}%, Tolerance for Poor Quality: ${sliderSettings.qualityTolerance.toFixed(0)}%), the value at ${confidenceLevel}% confidence is ${valueAtConfidence.adjusted.toFixed(2)} (${(100 - confidenceLevel).toFixed(1)}% chance of exceeding).`;
+            }
+            if (isOptimizeMode) {
+                resultText = `Using optimized settings for task <strong>${task}</strong> (Optimistic: ${taskData.optimistic.toFixed(2)}, Most Likely: ${taskData.mostLikely.toFixed(2)}, Pessimistic: ${taskData.pessimistic.toFixed(2)}) with sliders (Budget Flexibility: ${sliderSettings.budgetFlexibility.toFixed(0)}%, Schedule Flexibility: ${sliderSettings.scheduleFlexibility.toFixed(0)}%, Scope Certainty: ${sliderSettings.scopeCertainty.toFixed(0)}%, Tolerance for Poor Quality: ${sliderSettings.qualityTolerance.toFixed(0)}%), the optimal value is ${optimalValue.toFixed(2)} with a success probability of ${optimalProb.toFixed(1)}% (compared to original probability of ${origProb.toFixed(1)}% for ${targetValue.toFixed(2)} or ${originalValueAtConfidence.toFixed(2)} at ${confidenceLevel}% in ${mode} mode).`;
+            }
+            resultsText.innerHTML = resultText;
+
+            updateMetricsTable();
+            updateRecommendations({
+                task: task,
+                bestCase: taskData.optimistic,
+                mostLikely: taskData.mostLikely,
+                worstCase: taskData.pessimistic,
+                targetValue: targetValue,
+                confidenceLevel: confidenceLevel,
+                origProb: origProb,
+                adjProb: adjProb,
+                optimalValue: optimalValue,
+                optimalProb: optimalProb,
+                baselineRiskLevel: baselineRiskLevel,
+                currentRiskLevel: currentRiskLevel,
+                optimalRiskLevel: optimalRiskLevel,
+                budgetFlexibility: sliderSettings.budgetFlexibility,
+                scheduleFlexibility: sliderSettings.scheduleFlexibility,
+                scopeCertainty: sliderSettings.scopeCertainty,
+                qualityTolerance: sliderSettings.qualityTolerance,
+                valueAtConfidence: valueAtConfidence.adjusted,
+                originalValueAtConfidence: originalValueAtConfidence,
+                scopeCreep: scopeCreep,
+                improvement: improvement,
+                worstCaseDouble: worstCaseDouble,
+                varianceReduction: varianceReduction,
+                worstCase1_5: worstCase1_5,
+                worstCase1_6: worstCase1_6,
+                originalMean: targetProbabilityData.decisionOptimizerMetrics?.value.originalMean || <?!= CONFIG.DEFAULT_ORIGINAL_MEAN ?>,
+                adjustedMean: targetProbabilityData.decisionOptimizerMetrics?.value.adjustedMean || <?!= CONFIG.DEFAULT_ADJUSTED_MEAN ?>,
+                originalVariance: targetProbabilityData.decisionOptimizerMetrics?.value.originalVariance || <?!= CONFIG.DEFAULT_VARIANCE ?>,
+                higherProb: adjProb + 5
+            });
+        }
+
+        function updateMetricsTable() {
+            if (!targetProbabilityData || taskValidationError) {
+                console.warn('<?!= CONFIG.WARNING_NO_METRICS_UPDATE ?>');
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_NO_METRICS_UPDATE ?> (sessionId: ' + sessionId + ')'), 'updateMetricsTable');
+                return;
+            }
+            const metrics = [
+                { id: 'pert-a', value: targetProbabilityData.bestCase?.value || <?!= CONFIG.DEFAULT_BEST_CASE ?> },
+                { id: 'pert-m', value: targetProbabilityData.mostLikely?.value || <?!= CONFIG.DEFAULT_MOST_LIKELY ?> },
+                { id: 'pert-b', value: targetProbabilityData.worstCase?.value || <?!= CONFIG.DEFAULT_WORST_CASE ?> },
+                { id: 'pert-mean', value: targetProbabilityData.pertMean?.value || 0 },
+                { id: 'tri-a', value: targetProbabilityData.bestCase?.value || <?!= CONFIG.DEFAULT_BEST_CASE ?> },
+                { id: 'tri-m', value: targetProbabilityData.mostLikely?.value || <?!= CONFIG.DEFAULT_MOST_LIKELY ?> },
+                { id: 'tri-b', value: targetProbabilityData.worstCase?.value || <?!= CONFIG.DEFAULT_WORST_CASE ?> },
+                { id: 'tri-mean', value: targetProbabilityData.triangleMean?.value || 0 },
+                { id: 'beta-a', value: targetProbabilityData.bestCase?.value || <?!= CONFIG.DEFAULT_BEST_CASE ?> },
+                { id: 'beta-b', value: targetProbabilityData.worstCase?.value || <?!= CONFIG.DEFAULT_WORST_CASE ?> },
+                { id: 'beta-mean', value: targetProbabilityData.betaMean?.value || 0 },
+                { id: 'mc-unsmoothed-mean', value: targetProbabilityData.mcMean?.value || 0 },
+                { id: 'mc-smoothed-mean', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'mc-smoothed-mean-value', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'mc-smoothed-median', value: targetProbabilityData.mcSmoothedMedian?.value || 0 },
+                { id: 'std-mu', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'std-dev', value: targetProbabilityData.mcSmoothedStdDev?.value || <?!= CONFIG.DEFAULT_STD_DEV ?> },
+                { id: 'var-mu', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'variance', value: targetProbabilityData.mcSmoothedVariance?.value || <?!= CONFIG.DEFAULT_VARIANCE ?> },
+                { id: 'skew-mu', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'skew-sigma', value: targetProbabilityData.mcSmoothedStdDev?.value || <?!= CONFIG.DEFAULT_STD_DEV ?> },
+                { id: 'skewness', value: targetProbabilityData.mcSmoothedSkewness?.value || <?!= CONFIG.DEFAULT_SKEWNESS ?> },
+                { id: 'cv-mu', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'cv-sigma', value: targetProbabilityData.mcSmoothedStdDev?.value || <?!= CONFIG.DEFAULT_STD_DEV ?> },
+                { id: 'cv', value: targetProbabilityData.mcSmoothedStdDev?.value / targetProbabilityData.mcSmoothedMean?.value || <?!= CONFIG.DEFAULT_CV ?> },
+                { id: 'ci-mu', value: targetProbabilityData.mcSmoothedMean?.value || 0 },
+                { id: 'ci-sigma', value: targetProbabilityData.mcSmoothedStdDev?.value || <?!= CONFIG.DEFAULT_STD_DEV ?> },
+                { id: 'ci', value: targetProbabilityData.mcSmoothedConfidenceInterval?.value ? `[${targetProbabilityData.mcSmoothedConfidenceInterval.value.lower.toFixed(2)}, ${targetProbabilityData.mcSmoothedConfidenceInterval.value.upper.toFixed(2)}]` : '<?!= CONFIG.DEFAULT_CI ?>' },
+                { id: 'var-value', value: targetProbabilityData.mcSmoothedVaR?.value || <?!= CONFIG.DEFAULT_VAR ?> },
+                { id: 'var', value: targetProbabilityData.mcSmoothedVaR?.value || <?!= CONFIG.DEFAULT_VAR ?> },
+                { id: 'cvar-var', value: targetProbabilityData.mcSmoothedVaR?.value || <?!= CONFIG.DEFAULT_VAR ?> },
+                { id: 'cvar', value: targetProbabilityData.mcSmoothedCVaR?.value || <?!= CONFIG.DEFAULT_CVAR ?> }
+            ];
+
+            metrics.forEach(metric => {
+                const element = document.getElementById(metric.id);
+                if (element) {
+                    element.textContent = Number.isFinite(metric.value) ? metric.value.toFixed(2) : 'N/A';
+                } else {
+                    console.warn(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${metric.id}`);
+                    logErrorToServer(new Error(`<?!= CONFIG.WARNING_ELEMENT_NOT_FOUND ?> ${metric.id} (sessionId: ${sessionId})`), 'updateMetricsTable');
+                }
+            });
+            MathJax.typeset();
+        }
+
+        function populateCombinationTable(page) {
+            const tbody = document.getElementById('combination-table-body');
+            if (!tbody) {
+                console.error('<?!= CONFIG.ERROR_NO_COMBINATION_TABLE ?>');
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_COMBINATION_TABLE ?> (sessionId: ' + sessionId + ')'), 'populateCombinationTable');
+                return;
+            }
+            if (!targetProbabilityData || !targetProbabilityData.sliderCombinations || !targetProbabilityData.sliderCombinations.value) {
+                tbody.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_NO_COMBINATION_DATA ?></td></tr>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_NO_COMBINATION_DATA ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_NO_COMBINATION_DATA ?> (sessionId: ' + sessionId + ')'), 'populateCombinationTable');
+                return;
+            }
+
+            const filter = document.getElementById('probability-filter')?.value || 'current';
+            let combinations = targetProbabilityData.sliderCombinations.value;
+            if (!Array.isArray(combinations)) {
+                console.warn('<?!= CONFIG.WARNING_NO_COMBINATIONS ?>');
+                tbody.innerHTML = `<tr><td colspan="8"><?!= CONFIG.WARNING_NO_COMBINATIONS ?></td></tr>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.WARNING_NO_COMBINATIONS ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('<?!= CONFIG.WARNING_NO_COMBINATIONS ?> (sessionId: ' + sessionId + ')'), 'populateCombinationTable');
+                return;
+            }
+
+            if (combinations.length > <?!= CONFIG.MAX_TASKS * 10 ?>) {
+                console.warn(`<?!= CONFIG.WARNING_COMBINATION_LIMIT ?> ${combinations.length} to <?!= CONFIG.MAX_TASKS * 10 ?>`);
+                combinations = combinations.slice(0, <?!= CONFIG.MAX_TASKS * 10 ?>);
+                logErrorToServer(new Error(`<?!= CONFIG.WARNING_COMBINATION_LIMIT ?> ${combinations.length} to <?!= CONFIG.MAX_TASKS * 10 ?> (sessionId: ${sessionId})`), 'populateCombinationTable');
+            }
+
+            const filteredCombinations = combinations.filter(combo => {
+                if (filter === 'all') return true;
+                if (filter === 'current') {
+                    return combo.budgetFlexibility === parseFloat(window.sliderState.budgetFlexibility) &&
+                           combo.scheduleFlexibility === parseFloat(window.sliderState.scheduleFlexibility) &&
+                           combo.scopeCertainty === parseFloat(window.sliderState.scopeCertainty) &&
+                           combo.qualityTolerance === parseFloat(window.sliderState.qualityTolerance);
+                }
+                if (filter === 'above50') return combo.probability >= 0.5;
+                if (filter === 'above75') return combo.probability >= 0.75;
+                if (filter === 'below50') return combo.probability < 0.5;
+                if (filter === 'optimized') {
+                    const optimalSettings = targetProbabilityData.optimalData?.value?.optimalSliderSettings || {};
+                    return combo.budgetFlexibility === (optimalSettings.budgetFlexibility || 0) &&
+                           combo.scheduleFlexibility === (optimalSettings.scheduleFlexibility || 0) &&
+                           combo.scopeCertainty === (optimalSettings.scopeCertainty || 0) &&
+                           combo.qualityTolerance === (optimalSettings.qualityTolerance || 0);
+                }
+                return true;
+            });
+
+            if (filteredCombinations.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8"><?!= CONFIG.ERROR_NO_COMBINATION_MATCH ?> "${filter}"</td></tr>`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = `<?!= CONFIG.ERROR_NO_COMBINATION_MATCH ?> "${filter}"`;
+                    errorMessageDiv.style.display = 'block';
+                }
+                return;
+            }
+
+            const pageSize = 50;
+            const totalPages = Math.ceil(filteredCombinations.length / pageSize);
+            const startIndex = (page - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedCombinations = filteredCombinations.slice(startIndex, endIndex);
+
+            tbody.innerHTML = '';
+            paginatedCombinations.forEach((combo, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><?!= CONFIG.COMBINATION_TABLE_COL_COMBINATION ?> ${startIndex + index + 1}</td>
+                    <td>${combo.budgetFlexibility.toFixed(0)}</td>
+                    <td>${combo.scheduleFlexibility.toFixed(0)}</td>
+                    <td>${combo.scopeCertainty.toFixed(0)}</td>
+                    <td>${combo.qualityTolerance.toFixed(0)}</td>
+                    <td>${(combo.probability * 100).toFixed(1)}</td>
+                    <td>${combo.balance ? '<?!= CONFIG.COMBINATION_TABLE_COL_BALANCED ?>' : '<?!= CONFIG.COMBINATION_TABLE_COL_UNBALANCED ?>'}</td>
+                    <td>${combo.probability >= 0.5 ? '<?!= CONFIG.COMBINATION_TABLE_SUCCESS_TEXT ?>' : '<?!= CONFIG.COMBINATION_TABLE_FAILURE_TEXT ?>'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            const pageInfo = document.getElementById('page-info');
+            if (pageInfo) {
+                pageInfo.textContent = `<?!= CONFIG.PAGE_INFO_DEFAULT_TEXT ?>`.replace('1 of 1', `${page} of ${totalPages}`);
+            }
+            const prevButton = document.getElementById('prev-page');
+            const nextButton = document.getElementById('next-page');
+            if (prevButton && nextButton) {
+                prevButton.disabled = page === 1;
+                nextButton.disabled = page === totalPages;
+                prevButton.onclick = () => populateCombinationTable(page - 1);
+                nextButton.onclick = () => populateCombinationTable(page + 1);
+            }
+        }
+
+        function updateRecommendations(params) {
+            const recommendationsContent = document.getElementById('recommendations-content');
+            if (!recommendationsContent || !params) {
+                console.error('<?!= CONFIG.ERROR_INVALID_TASK_RECOMMENDATIONS ?>');
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_INVALID_TASK_RECOMMENDATIONS ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                logErrorToServer(new Error('<?!= CONFIG.ERROR_INVALID_TASK_RECOMMENDATIONS ?> (sessionId: ' + sessionId + ')'), 'updateRecommendations');
+                recommendationsContent.innerHTML = `<p style="color: red;"><?!= CONFIG.ERROR_INVALID_TASK_RECOMMENDATIONS ?></p>`;
+                return;
+            }
+
+            const template = `
+                <h5><?!= CONFIG.RECOMMENDATIONS_OVERVIEW_HEADER ?></h5>
+                <p><?!= CONFIG.RECOMMENDATIONS_OVERVIEW_TEXT ?></p>
+                <ul>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_BASELINE_TEXT ?>:</strong> At 0% slider settings, your success probability is ${params.origProb.toFixed(1)}% for ${params.targetValue.toFixed(2)} (or ${params.originalValueAtConfidence.toFixed(2)} at ${params.confidenceLevel}%), indicating a ${params.baselineRiskLevel} risk profile with potential for <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong>.</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_CURRENT_TEXT ?>:</strong> With current settings (Budget Flexibility: ${params.budgetFlexibility.toFixed(0)}%, Schedule Flexibility: ${params.scheduleFlexibility.toFixed(0)}%, Scope Certainty: ${params.scopeCertainty.toFixed(0)}%, Tolerance for Poor Quality: ${params.qualityTolerance.toFixed(0)}%), your success probability is ${params.adjProb.toFixed(1)}% for ${params.targetValue.toFixed(2)} (or ${params.valueAtConfidence.toFixed(2)} at ${params.confidenceLevel}%), reflecting a ${params.currentRiskLevel} risk profile, improved by ${params.improvement}%.</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_OPTIMIZED_TEXT ?>:</strong> Using <strong>decision optimization</strong> (Optimize dropdown set to “Yes”), you can achieve ${params.optimalProb.toFixed(1)}% for ${params.optimalValue.toFixed(2)} units, reflecting a ${params.optimalRiskLevel} risk profile with minimal risks.</li>
+                </ul>
+                <p><?!= CONFIG.RECOMMENDATIONS_SLIDERS_INTRO ?></p>
+                <h5><?!= CONFIG.RECOMMENDATIONS_SLIDERS_HEADER ?></h5>
+                <p><?!= CONFIG.RECOMMENDATIONS_SLIDERS_TEXT ?></p>
+                <ul>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_CONTROLLED_OVERRUNS_TEXT ?>:</strong> Increasing Budget or Schedule Flexibility from 0% allows <strong>cost overruns</strong> or <strong>schedule delays</strong> up to double the Pessimistic estimate at 100% (e.g., Pessimistic of ${params.worstCase.toFixed(2)} to ${params.worstCaseDouble} units).</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_SCOPE_QUALITY_TEXT ?>:</strong> Increasing Scope Certainty reduces the <strong>probability of scope creep</strong> (e.g., ${params.scopeCreep}% at ${params.scopeCertainty.toFixed(0)}%), while adjusting Tolerance for Poor Quality controls <strong>defects</strong> or <strong>quality trade-offs</strong>, shaping the <strong>risk profile</strong> (${params.currentRiskLevel}).</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_RISK_SCENARIOS_TEXT ?>:</strong> Sliders let you explore “what-if” scenarios (e.g., “What if I allow a ${params.budgetFlexibility.toFixed(0)}% cost overrun or reduce scope creep to ${params.scopeCreep}%?”) to improve ${params.adjProb.toFixed(1)}% or ${params.valueAtConfidence.toFixed(2)} at ${params.confidenceLevel}%.</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_SLIDER_TABLE_TEXT ?>:</strong> The <strong>Slider Combination Table</strong> (below the sliders) is a powerful tool that shows how all slider settings combine to achieve ${params.adjProb.toFixed(1)}% for ${params.targetValue.toFixed(2)} or ${params.valueAtConfidence.toFixed(2)} at ${params.confidenceLevel}%. Its filter options help you optimize your <strong>risk profile</strong> by answering critical questions: <ul><li><strong>“Current Selection”</strong>: Shows your current settings’ probability (e.g., ${params.budgetFlexibility.toFixed(0)}%, ${params.scheduleFlexibility.toFixed(0)}%, ${params.scopeCertainty.toFixed(0)}%, ${params.qualityTolerance.toFixed(0)}%), answering “What is my success probability now?”</li><li><strong>“Above 75%” or “Above 50%”</strong>: Lists combinations with high success probabilities, answering “Which settings maximize my chance of meeting ${params.targetValue.toFixed(2)} while minimizing <strong>cost overruns</strong> or <strong>defects</strong>?” This helps you identify low-risk strategies.</li><li><strong>“Optimized”</strong>: Highlights the best settings from <strong>decision optimization</strong>, answering “What settings achieve the highest probability or lowest value at ${params.confidenceLevel}%?” This ensures the optimal <strong>risk profile</strong>.</li><li><strong>“All”</strong>: Compares all combinations, answering “How do different settings impact <strong>scope creep</strong> or <strong>schedule delays</strong>?” This allows you to explore trade-offs across scenarios.</li><li>Use pagination (Prev/Next buttons) to explore more combinations, enabling data-driven decisions to balance risks and achieve your project goals.</li></ul></li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_OPTIMIZE_TEXT ?>:</strong> Use the Optimize dropdown (“Yes”) to achieve ${params.optimalProb.toFixed(1)}% for ${params.optimalValue.toFixed(2)}, improving your <strong>risk profile</strong> to ${params.optimalRiskLevel}.</li>
+                </ul>
+                <p><?!= CONFIG.RECOMMENDATIONS_SLIDERS_IMPACT_TEXT ?></p>
+                <h5><?!= CONFIG.RECOMMENDATIONS_MITIGATION_HEADER ?></h5>
+                <table class="recommendation-table">
+                    <thead>
+                        <tr>
+                            <th><?!= CONFIG.COMBINATION_TABLE_COL_COMBINATION ?></th>
+                            <th><?!= CONFIG.WHAT_IT_DOES_LABEL ?></th>
+                            <th><?!= CONFIG.POTENTIAL_IMPACT_LABEL ?></th>
+                            <th><?!= CONFIG.DISTRIBUTION_IMPACT_LABEL ?></th>
+                            <th><?!= CONFIG.MATHEMATICAL_FORMULA_LABEL ?></th>
+                            <th><?!= CONFIG.WHY_IT_HELPS_LABEL ?></th>
+                            <th><?!= CONFIG.NEXT_STEP_LABEL ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_LABEL ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_DOES_TEXT ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_IMPACT_TEXT ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_DISTRIBUTION_TEXT ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_FORMULA ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_HELPS_TEXT ?></td>
+                            <td><?!= CONFIG.BUDGET_FLEXIBILITY_NEXT_STEP ?></td>
+                        </tr>
+                        <tr>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_LABEL ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_DOES_TEXT ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_IMPACT_TEXT ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_DISTRIBUTION_TEXT ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_FORMULA ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_HELPS_TEXT ?></td>
+                            <td><?!= CONFIG.SCHEDULE_FLEXIBILITY_NEXT_STEP ?></td>
+                        </tr>
+                        <tr>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_LABEL ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_DOES_TEXT ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_IMPACT_TEXT ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_DISTRIBUTION_TEXT ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_FORMULA ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_HELPS_TEXT ?></td>
+                            <td><?!= CONFIG.SCOPE_CERTAINTY_NEXT_STEP ?></td>
+                        </tr>
+                        <tr>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_LABEL ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_DOES_TEXT ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_IMPACT_TEXT ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_DISTRIBUTION_TEXT ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_FORMULA ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_HELPS_TEXT ?></td>
+                            <td><?!= CONFIG.QUALITY_TOLERANCE_NEXT_STEP ?></td>
+                        </tr>
+                        <tr>
+                            <td><?!= CONFIG.COMBINED_EFFECT_LABEL ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_DOES_TEXT ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_IMPACT_TEXT ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_DISTRIBUTION_TEXT ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_FORMULA ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_HELPS_TEXT ?></td>
+                            <td><?!= CONFIG.COMBINED_EFFECT_NEXT_STEP ?></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <h5><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_HEADER ?></h5>
+                <p><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_TEXT ?></p>
+                <ul>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_BASELINE ?>:</strong> ${params.origProb.toFixed(1)}% success probability (${params.baselineRiskLevel}), risking <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong>.</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_CURRENT ?>:</strong> Your settings (${params.budgetFlexibility.toFixed(0)}%, ${params.scheduleFlexibility.toFixed(0)}%, ${params.scopeCertainty.toFixed(0)}%, ${params.qualityTolerance.toFixed(0)}%) achieve ${params.adjProb.toFixed(1)}% (${params.currentRiskLevel}).</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_IMPROVE ?>:</strong> Increase Budget Flexibility to 50–60% (${params.worstCase1_5} units) to mitigate <strong>cost overruns</strong>, Scope Certainty to 75% for ${params.scopeCreep}% <strong>scope creep</strong> risk, and decrease Tolerance for Poor Quality to 40–50% for <strong>quality assurance</strong>.</li>
+                    <li><strong><?!= CONFIG.RECOMMENDATIONS_EXAMPLE_CHECK ?>:</strong> Check the <strong>Slider Combination Table</strong> (filter “Above 75%”) to confirm a <strong>low risk</strong> profile (${params.adjProb.toFixed(1)}% ≥ 75%). The <strong>PDF chart</strong> shows a tighter, left-shifted curve (mean at ${params.adjustedMean.toFixed(2)}), and the <strong>CDF chart</strong> confirms higher confidence.</li>
+                </ul>
+            `;
+            recommendationsContent.innerHTML = template;
+            MathJax.typeset();
+        }
+
+        function validateInputs() {
+            return validateTargetInput() && validateConfidenceInput();
+        }
+
+        function validateTargetInput() {
+            const targetInput = document.getElementById('target-value-input');
+            const targetMessage = document.getElementById('target-value-message');
+            const task = document.getElementById('task-select')?.value;
+            if (!targetInput || !targetMessage || !task || !tasks[task]) {
+                if (targetMessage) targetMessage.textContent = '<?!= CONFIG.ERROR_NO_TARGET_VALUE ?>';
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_NO_TARGET_VALUE ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                return false;
+            }
+            const value = parseFloat(targetInput.value);
+            if (isNaN(value) || !Number.isFinite(value)) {
+                targetMessage.textContent = '<?!= CONFIG.ERROR_NO_TARGET_VALUE ?>';
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_NO_TARGET_VALUE ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                return false;
+            }
+            if (value < tasks[task].optimistic || value > tasks[task].pessimistic) {
+                targetMessage.textContent = `<?!= CONFIG.ERROR_INVALID_TARGET_VALUE ?> ${tasks[task].optimistic.toFixed(2)} and ${tasks[task].pessimistic.toFixed(2)}.`;
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = `<?!= CONFIG.ERROR_INVALID_TARGET_VALUE ?> ${tasks[task].optimistic.toFixed(2)} and ${tasks[task].pessimistic.toFixed(2)}.`;
+                    errorMessageDiv.style.display = 'block';
+                }
+                return false;
+            }
+            targetMessage.textContent = '';
+            window.sliderState.targetValue = value.toString();
+            return true;
+        }
+
+        function validateConfidenceInput() {
+            const confidenceInput = document.getElementById('confidence-level-input');
+            const confidenceMessage = document.getElementById('confidence-level-message');
+            if (!confidenceInput || !confidenceMessage) {
+                if (confidenceMessage) confidenceMessage.textContent = '<?!= CONFIG.ERROR_NO_CONFIDENCE_LEVEL ?>';
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_NO_CONFIDENCE_LEVEL ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                return false;
+            }
+            const value = parseInt(confidenceInput.value);
+            if (isNaN(value) || value < 1 || value > 100) {
+                confidenceMessage.textContent = '<?!= CONFIG.ERROR_INVALID_CONFIDENCE_LEVEL ?>';
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = '<?!= CONFIG.ERROR_INVALID_CONFIDENCE_LEVEL ?>';
+                    errorMessageDiv.style.display = 'block';
+                }
+                return false;
+            }
+            confidenceMessage.textContent = '';
+            return true;
+        }
+
+        function toggleModeInputs() {
+            const mode = document.getElementById('mode-select')?.value || 'target';
+            const targetContainer = document.getElementById('target-input-container');
+            const confidenceContainer = document.getElementById('confidence-input-container');
+            if (targetContainer && confidenceContainer) {
+                targetContainer.style.display = mode === 'target' ? 'flex' : 'none';
+                confidenceContainer.style.display = mode === 'confidence' ? 'flex' : 'none';
+            }
+        }
+
+        function updateTargetRange() {
+            const targetRange = document.getElementById('target-range');
+            const task = document.getElementById('task-select')?.value;
+            if (targetRange && task && tasks[task]) {
+                targetRange.textContent = `${tasks[task].optimistic.toFixed(2)} - ${tasks[task].pessimistic.toFixed(2)}`;
+            } else {
+                targetRange.textContent = 'N/A';
+            }
+        }
+
+        function setInitialTargetValue() {
+            const targetInput = document.getElementById('target-value-input');
+            const task = document.getElementById('task-select')?.value;
+            if (targetInput && task && tasks[task]) {
+                const defaultValue = tasks[task].mostLikely || <?!= CONFIG.DEFAULT_MOST_LIKELY ?>;
+                targetInput.value = defaultValue.toFixed(2);
+                window.sliderState.targetValue = defaultValue.toString();
+                validateTargetInput();
+            }
+        }
+
+        function updateTargetInputRange() {
+            const targetInput = document.getElementById('target-value-input');
+            const task = document.getElementById('task-select')?.value;
+            if (targetInput && task && tasks[task]) {
+                targetInput.min = tasks[task].optimistic.toFixed(2);
+                targetInput.max = tasks[task].pessimistic.toFixed(2);
+                targetInput.step = 'any';
+                validateTargetInput();
+            }
+        }
+
+        function logErrorToServer(error, functionName) {
+            console.error(`Error in ${functionName}: ${error.message} (sessionId: ${sessionId})`);
+            // Optionally send error to server for logging
+            // Example: google.script.run.logError(error.message, functionName);
+        }
+    </script>
+</body>
+</html>
