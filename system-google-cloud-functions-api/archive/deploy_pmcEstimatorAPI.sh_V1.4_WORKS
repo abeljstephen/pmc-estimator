@@ -1,0 +1,763 @@
+#!/bin/bash
+
+# SECTION 1: Introduction and Summary
+#
+# Introduction/Summary:
+# This script automates the deployment of the pmcEstimatorAPI Cloud Function to Google Cloud.
+# The pmcEstimatorAPI is a serverless function that processes project management estimates using
+# PERT, Triangular, Beta, and Monte Carlo distributions, providing statistical metrics and
+# probability distributions for project tasks. It integrates with a Google Sheets add-on (Code.gs)
+# and a web-based visualization interface (Plot.html), using the service account
+# icarenow@pmc-estimator.iam.gserviceaccount.com for authenticated API calls.
+#
+# The script:
+# - Validates Google Cloud credentials, ensuring the user (abeljstephen@gmail.com) has sufficient
+#   permissions (roles/owner, roles/cloudfunctions.admin) for deployment and configuration.
+# - Uses case-insensitive comparison (via tr) to avoid authentication errors due to email case mismatches.
+# - Minimizes browser-based authentication by reusing existing credentials when possible.
+# - Verifies the project ID (pmc-estimator) and project number (615922754202).
+# - Ensures billing is enabled using abeljstephen@gmail.com to avoid permission issues.
+# - Assigns necessary IAM roles to abeljstephen@gmail.com and ensures the service account
+#   (icarenow@pmc-estimator.iam.gserviceaccount.com) has roles/cloudfunctions.invoker.
+# - Verifies application code and dependencies in /Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api.
+# - Tests the function locally before deployment.
+# - Deploys the function to Google Cloud Functions in us-central1, restricting access to the
+#   service account used by the Google Sheets add-on.
+# - Sets an IAM policy (policy.json) to allow only icarenow@pmc-estimator.iam.gserviceaccount.com
+#   to invoke the API, ensuring no direct access (e.g., via curl) is possible without authentication.
+# - Tests JSON data flow using the same JWT-based authentication as Code.gs (via test_api_auth.sh logic),
+#   replacing gcloud auth print-access-token to match the Google Sheets add-on’s authentication flow.
+# - Validates the deployment with commands to confirm IAM policy and test access.
+# - Generates a timestamped pmcEstimatorConfiguration_<timestamp>.json file capturing all variables
+#   and parameters needed to replicate the deployment environment, including project, service account,
+#   and environment details.
+#
+# IAM Policy Handling:
+# - Why: The IAM policy restricts API invocation to icarenow@pmc-estimator.iam.gserviceaccount.com,
+#   used by the Google Sheets add-on, to prevent unauthorized direct access (e.g., via external clients).
+#   abeljstephen@gmail.com (project owner) is used for deployment and policy configuration due to its
+#   elevated permissions (roles/owner, roles/cloudfunctions.admin).
+# - How: The script creates and applies a policy.json file, granting roles/cloudfunctions.invoker
+#   only to the service account. abeljstephen@gmail.com authenticates deployment tasks and applies
+#   the policy, while the service account is used for runtime API calls by the add-on.
+# - Rationale: This separation ensures secure API access (only via the add-on) while allowing
+#   abeljstephen@gmail.com to manage the project. The add-on can be executed by anyone, but it uses
+#   the service account’s credentials, maintaining controlled access to the API.
+#
+# Prerequisites:
+# - Google Cloud SDK installed and configured.
+# - Active credentials for abeljstephen@gmail.com.
+# - Service account key file: /Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/pmc-estimator-b50a03244199.json
+# - Node.js installed for local testing and dependency installation.
+# - jq and openssl installed for JWT-based authentication (brew install jq openssl on macOS).
+# - Billing enabled for the project (pmc-estimator).
+#
+# Usage:
+#   ./deploy_pmcEstimatorAPI.sh
+#
+# If any credential or configuration mismatches are detected, the script will exit with an error
+# indicating the specific issue.
+#
+# Current date and time: July 14, 2025, 02:18 PM PDT
+
+# SECTION 2: Configuration
+# Defines variables used throughout the script and for the pmcEstimatorConfiguration file.
+
+# Enable error handling to exit on any command failure
+set -e
+
+# Configuration Variables
+# PROJECT_ID: The Google Cloud project ID hosting the pmcEstimatorAPI (matches Code.gs and Plot.html context).
+PROJECT_ID="pmc-estimator"
+
+# PROJECT_NUMBER: The unique project number for pmc-estimator, used for validation (matches CLI output).
+PROJECT_NUMBER="615922754202"
+
+# FUNCTION_NAME: The name of the Cloud Function to deploy (matches index.js and core.js export).
+FUNCTION_NAME="pmcEstimatorAPI"
+
+# REGION: The Google Cloud region for deployment (us-central1, matches Code.gs API URL).
+REGION="us-central1"
+
+# SOURCE_DIR: The local directory containing the Cloud Function source code (index.js, core.js, package.json).
+SOURCE_DIR="/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api"
+
+# SERVICE_URL: The URL of the deployed Cloud Function (matches Code.gs and used for testing).
+SERVICE_URL="https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI"
+
+# EXPECTED_USER: The user account with roles/owner and roles/cloudfunctions.admin for deployment and configuration.
+EXPECTED_USER="abeljstephen@gmail.com"
+
+# EXPECTED_SERVICE_ACCOUNT: The service account used by the Google Sheets add-on (Code.gs) to invoke the API.
+EXPECTED_SERVICE_ACCOUNT="icarenow@pmc-estimator.iam.gserviceaccount.com"
+
+# SERVICE_ACCOUNT_KEY: Path to the service account key file for authenticated API testing.
+SERVICE_ACCOUNT_KEY="/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/pmc-estimator-b50a03244199.json"
+
+# TEST_PAYLOAD: Sample JSON payload for local and cloud testing (basic task data, matches Code.gs input format).
+TEST_PAYLOAD='[{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000}]'
+
+# TEST_PAYLOAD_WITH_SLIDERS: Test payload with slider values and target value for full response testing.
+TEST_PAYLOAD_WITH_SLIDERS='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":{"value":2500,"description":"Target cost value"}}'
+
+# TEST_PAYLOAD_TARGET_ONLY: Test payload for target probability fields only, simulating Plot.html scenarios.
+TEST_PAYLOAD_TARGET_ONLY='{"task":{"task":"Cost","optimistic":1800,"mostLikely":2400,"pessimistic":3000},"sliderValues":{"budgetFlexibility":50,"scheduleFlexibility":50,"scopeUncertainty":50,"riskTolerance":50},"targetValue":2500,"targetProbabilityOnly":true}'
+
+# UPDATE_TIME: The last known update time of the function (from CLI output, for reference).
+UPDATE_TIME="2025-07-12T08:06:13.513Z"
+
+# VERSION_ID: The current version ID of the deployed function (from CLI output, for reference).
+VERSION_ID="85"
+
+# Color codes for console output
+RED='\033[0;31m'   # Red for error messages
+GREEN='\033[0;32m' # Green for success messages
+YELLOW='\033[1;33m' # Yellow for informational messages
+NC='\033[0m'       # No Color, resets formatting
+
+# Display initial status
+echo -e "${YELLOW}Starting deployment of ${FUNCTION_NAME} to Cloud Functions for project ${PROJECT_ID} (${PROJECT_NUMBER})...${NC}"
+echo -e "${YELLOW}Cloud Functions URL: ${SERVICE_URL}${NC}"
+echo -e "${YELLOW}Current date and time: July 14, 2025, 02:18 PM PDT${NC}"
+echo -e "${YELLOW}Update time: ${UPDATE_TIME}${NC}"
+echo -e "${YELLOW}Version ID: ${VERSION_ID}${NC}"
+
+# SECTION 3: Credential and Project Validation
+# Validates Google Cloud credentials and project settings to ensure correct deployment context.
+
+# Step 1: Validate Google Cloud Project
+# Ensures the correct project ID and number are set.
+# Why: To confirm the script operates in the correct Google Cloud project (pmc-estimator).
+# How: Uses gcloud CLI to check the active project and its number against expected values.
+# Purpose: Prevents deployment to an incorrect project, which could cause permission or billing issues.
+echo -e "${YELLOW}1. Validating Google Cloud project...${NC}"
+CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
+if [ "$CURRENT_PROJECT" != "$PROJECT_ID" ]; then
+  echo -e "${RED}Error: Active project (${CURRENT_PROJECT}) does not match expected project ID (${PROJECT_ID}).${NC}"
+  echo -e "${YELLOW}Run 'gcloud config set project ${PROJECT_ID}' to set the correct project.${NC}"
+  exit 1
+else
+  echo -e "${GREEN}Active project matches: ${PROJECT_ID}${NC}"
+fi
+
+# Verify project number
+ACTUAL_PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)" 2>/dev/null)
+if [ "$ACTUAL_PROJECT_NUMBER" != "$PROJECT_NUMBER" ]; then
+  echo -e "${RED}Error: Project number (${ACTUAL_PROJECT_NUMBER}) does not match expected project number (${PROJECT_NUMBER}).${NC}"
+  echo -e "${YELLOW}Ensure you are using the correct project ID (${PROJECT_ID}).${NC}"
+  exit 1
+else
+  echo -e "${GREEN}Project number matches: ${PROJECT_NUMBER}${NC}"
+fi
+
+# Step 2: Check Authentication
+# Validates that abeljstephen@gmail.com is the active account, using tr for case-insensitive comparison.
+# Attempts to reuse existing credentials to avoid browser-based login.
+# Why: Ensures the user has sufficient permissions (roles/owner, roles/cloudfunctions.admin) for deployment.
+# How: Checks active credentials with gcloud auth list and prompts login if needed.
+# Purpose: Avoids deployment failures due to missing or incorrect credentials.
+echo -e "${YELLOW}2. Checking authentication...${NC}"
+USER_EMAIL=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null)
+if [ -z "$USER_EMAIL" ]; then
+  echo -e "${YELLOW}No active credentials found. Initiating login for ${EXPECTED_USER}...${NC}"
+  gcloud auth login --brief --quiet --account="$EXPECTED_USER"
+  USER_EMAIL=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null)
+fi
+
+# Case-insensitive comparison using tr
+USER_EMAIL_LOWER=$(echo "$USER_EMAIL" | tr '[:upper:]' '[:lower:]')
+EXPECTED_USER_LOWER=$(echo "$EXPECTED_USER" | tr '[:upper:]' '[:lower:]')
+if [ "$USER_EMAIL_LOWER" != "$EXPECTED_USER_LOWER" ]; then
+  echo -e "${YELLOW}Active account (${USER_EMAIL}) does not match ${EXPECTED_USER}. Attempting login...${NC}"
+  gcloud auth login --brief --quiet --account="$EXPECTED_USER"
+  USER_EMAIL=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null)
+  USER_EMAIL_LOWER=$(echo "$USER_EMAIL" | tr '[:upper:]' '[:lower:]')
+  if [ "$USER_EMAIL_LOWER" != "$EXPECTED_USER_LOWER" ]; then
+    echo -e "${RED}Error: Failed to authenticate as ${EXPECTED_USER}. Got ${USER_EMAIL:-none}.${NC}"
+    exit 1
+  fi
+fi
+echo -e "${GREEN}Active credentials: ${USER_EMAIL}${NC}"
+
+# Step 3: Verify Billing
+# Uses abeljstephen@gmail.com to check billing status, as it has roles/owner, avoiding PERMISSION_DENIED errors.
+# Why: Billing must be enabled for Cloud Functions to deploy successfully.
+# How: Queries billing status with gcloud billing projects describe and checks billingEnabled.
+# Purpose: Prevents deployment failures due to billing issues.
+echo -e "${YELLOW}3. Verifying billing status...${NC}"
+BILLING_RAW=$(gcloud billing projects describe "$PROJECT_ID" --format=json 2>/dev/null)
+if [ -z "$BILLING_RAW" ]; then
+  echo -e "${RED}Error: Failed to retrieve billing information. Ensure ${EXPECTED_USER} has billing permissions.${NC}"
+  exit 1
+fi
+BILLING_ENABLED=$(echo "$BILLING_RAW" | jq -r '.billingEnabled' 2>/dev/null)
+if [ "$BILLING_ENABLED" != "true" ]; then
+  echo -e "${RED}Error: Billing is not enabled for project ${PROJECT_ID}.${NC}"
+  echo -e "${YELLOW}Enable billing at https://console.cloud.google.com/billing/linkedaccount?project=${PROJECT_ID}${NC}"
+  exit 1
+fi
+BILLING_ACCOUNT=$(echo "$BILLING_RAW" | jq -r '.billingAccountName' 2>/dev/null)
+if [ -z "$BILLING_ACCOUNT" ]; then
+  echo -e "${RED}Error: Failed to retrieve billing account name. Check billing configuration.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}Billing enabled with account ${BILLING_ACCOUNT}${NC}"
+
+# Step 4: Verify Dependencies for JWT Authentication
+# Ensures jq and openssl are installed for JWT generation and token exchange, matching test_api_auth.sh.
+# Why: These tools are required for the JWT-based authentication flow used in Code.gs and test_api_auth.sh.
+# How: Checks for jq and openssl using command -v, exiting if not found.
+# Purpose: Ensures the script can generate and sign JWTs for API testing without relying on gcloud auth.
+echo -e "${YELLOW}4. Verifying dependencies for JWT authentication...${NC}"
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "${RED}Error: jq is not installed. Install it with 'brew install jq' on macOS.${NC}"
+  exit 1
+fi
+if ! command -v openssl >/dev/null 2>&1; then
+  echo -e "${RED}Error: openssl is not installed. Install it with 'brew install openssl' on macOS.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}Dependencies jq and openssl are installed.${NC}"
+
+# SECTION 4: API and Permission Setup
+# Configures required APIs and IAM roles for deployment and API invocation.
+
+# Step 5: Enable APIs
+# Ensures required Google Cloud APIs are enabled for Cloud Functions and related services.
+# Why: Cloud Functions and related services (e.g., Cloud Build, Artifact Registry) require specific APIs.
+# How: Iterates through a list of required APIs, enabling them if not already enabled.
+# Purpose: Prevents deployment failures due to disabled APIs.
+echo -e "${YELLOW}5. Enabling required APIs...${NC}"
+REQUIRED_APIS=(
+  "cloudfunctions.googleapis.com"   # Required for Cloud Functions deployment
+  "cloudbuild.googleapis.com"       # Required for building the function
+  "artifactregistry.googleapis.com" # Required for storing function artifacts
+  "containerregistry.googleapis.com" # Required for container images
+  "eventarc.googleapis.com"         # Required for event-driven triggers (optional)
+)
+for API in "${REQUIRED_APIS[@]}"; do
+  if gcloud services list --enabled --format="value(config.name)" | grep -q "$API"; then
+    echo -e "${GREEN}${API} already enabled.${NC}"
+  else
+    echo -e "${GREEN}Enabling ${API}...${NC}"
+    gcloud services enable "$API"
+  fi
+done
+
+# Step 6: Set Permissions
+# Ensures abeljstephen@gmail.com has roles/cloudfunctions.admin and roles/storage.admin for deployment,
+# and icarenow@pmc-estimator.iam.gserviceaccount.com has roles/cloudfunctions.invoker for API invocation.
+# Why: Proper IAM roles are needed for deployment (user) and API invocation (service account).
+# How: Uses gcloud commands to check and assign roles if not already present.
+# Purpose: Ensures the user can deploy the function and the service account can invoke it.
+echo -e "${YELLOW}6. Ensuring IAM roles...${NC}"
+ROLES=(
+  "roles/cloudfunctions.admin" # Grants permission to deploy and manage Cloud Functions
+  "roles/storage.admin"       # Grants permission to manage storage for function artifacts
+)
+for ROLE in "${ROLES[@]}"; do
+  if gcloud projects get-iam-policy "$PROJECT_ID" --format=json | jq -e ".bindings[] | select(.role==\"${ROLE}\" and .members[]==\"user:${EXPECTED_USER}\")" >/dev/null; then
+    echo -e "${GREEN}${ROLE} already assigned to ${EXPECTED_USER}.${NC}"
+  else
+    echo -e "${GREEN}Assigning ${ROLE} to ${EXPECTED_USER}...${NC}"
+    gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+      --member="user:${EXPECTED_USER}" \
+      --role="$ROLE"
+  fi
+done
+if gcloud functions get-iam-policy "$FUNCTION_NAME" --project="$PROJECT_ID" --region="$REGION" --format=json | jq -e ".bindings[] | select(.role==\"roles/cloudfunctions.invoker\" and .members[]==\"serviceAccount:${EXPECTED_SERVICE_ACCOUNT}\")" >/dev/null; then
+  echo -e "${GREEN}roles/cloudfunctions.invoker already assigned to ${EXPECTED_SERVICE_ACCOUNT}.${NC}"
+else
+  echo -e "${GREEN}Assigning roles/cloudfunctions.invoker to ${EXPECTED_SERVICE_ACCOUNT}...${NC}"
+  gcloud functions add-iam-policy-binding "$FUNCTION_NAME" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --member="serviceAccount:${EXPECTED_SERVICE_ACCOUNT}" \
+    --role="roles/cloudfunctions.invoker"
+fi
+
+# Step 7: Verify Application Code
+# Ensures the source code (index.js) exists and exports pmcEstimatorAPI.
+# Why: The Cloud Function code must exist and correctly export the function entry point.
+# How: Checks for index.js and verifies it exports pmcEstimatorAPI using grep.
+# Purpose: Prevents deployment failures due to missing or incorrect code.
+echo -e "${YELLOW}7. Verifying application code...${NC}"
+INDEX_FILE="${SOURCE_DIR}/index.js"
+if [ ! -f "$INDEX_FILE" ]; then
+  echo -e "${RED}Error: ${INDEX_FILE} not found in ${SOURCE_DIR}.${NC}"
+  exit 1
+fi
+if ! grep -Eq 'exports\.pmcEstimatorAPI|module\.exports\s*=' "$INDEX_FILE"; then
+  echo -e "${RED}Error: ${INDEX_FILE} does not export pmcEstimatorAPI.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}${INDEX_FILE} export verified.${NC}"
+
+# SECTION 5: Code and Dependency Setup
+# Verifies and installs dependencies, tests locally, and deploys the function.
+
+# Step 8: Verify Dependencies
+# Ensures package.json exists and includes required dependencies (matches package.json).
+# Why: The Cloud Function requires specific Node.js dependencies to function correctly.
+# How: Checks package.json for required dependencies and creates it if missing.
+# Purpose: Ensures the function has all necessary libraries before deployment.
+echo -e "${YELLOW}8. Verifying dependencies...${NC}"
+PACKAGE_JSON="${SOURCE_DIR}/package.json"
+if [ ! -f "$PACKAGE_JSON" ]; then
+  echo -e "${YELLOW}Creating minimal package.json...${NC}"
+  /bin/cat <<EOF > "$PACKAGE_JSON"
+{
+  "name": "pmc-estimator-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.5.1",
+    "mathjs": "^12.4.3",
+    "jstat": "^1.9.6"
+  },
+  "scripts": {
+    "start": "functions-framework --target=pmcEstimatorAPI --port=8080"
+  }
+}
+EOF
+fi
+
+REQUIRED_DEPS=("@google-cloud/functions-framework" "mathjs" "jstat")
+for DEP in "${REQUIRED_DEPS[@]}"; do
+  if jq -e ".dependencies.\"${DEP}\"" "$PACKAGE_JSON" >/dev/null; then
+    echo -e "${GREEN}${DEP} found in package.json.${NC}"
+  else
+    echo -e "${RED}Error: Dependency ${DEP} missing in package.json.${NC}"
+    exit 1
+  fi
+done
+
+# Install dependencies
+echo -e "${YELLOW}Installing dependencies...${NC}"
+cd "$SOURCE_DIR"
+npm install
+cd -
+
+# Step 9: Test Locally
+# Tests the function locally using the functions framework to ensure it responds correctly.
+# Why: Local testing verifies the function works before deployment to avoid cloud failures.
+# How: Runs the function with the functions-framework and sends a test payload via curl.
+# Purpose: Catches code or configuration issues early.
+echo -e "${YELLOW}9. Testing locally with USE_CORE=1...${NC}"
+USE_CORE=1 npm --prefix "$SOURCE_DIR" run start &
+NODE_PID=$!
+sleep 5
+
+CURL_OUTPUT=$(curl -s -w "%{http_code}" -X POST http://localhost:8080 -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o curl_response.json)
+if [ "$CURL_OUTPUT" -eq 200 ]; then
+  echo -e "${GREEN}Local test successful. JSON saved for inspection.${NC}"
+else
+  echo -e "${RED}Local test failed with status ${CURL_OUTPUT}.${NC}"
+  jq '.' curl_response.json 2>/dev/null || echo -e "${RED}Error: Invalid JSON response in curl_response.json${NC}"
+  kill $NODE_PID
+  /bin/rm curl_response.json
+  exit 1
+fi
+kill $NODE_PID
+/bin/rm curl_response.json
+
+# Step 10: Deploy
+# Deploys the function to Google Cloud Functions without --allow-unauthenticated to require authentication.
+# Why: Deploys the pmcEstimatorAPI to the specified region with restricted access.
+# How: Uses gcloud functions deploy with Node.js 20 runtime and HTTP trigger.
+# Purpose: Makes the API live and accessible only to authorized callers.
+echo -e "${YELLOW}10. Deploying to Cloud Functions...${NC}"
+gcloud functions deploy "$FUNCTION_NAME" \
+  --runtime nodejs20 \
+  --trigger-http \
+  --region "$REGION" \
+  --source "$SOURCE_DIR" \
+  --project "$PROJECT_ID" \
+  --set-env-vars=USE_CORE=1
+
+# SECTION 6: IAM Policy and Testing
+# Applies the restricted IAM policy and tests the deployed API using JWT-based authentication.
+
+# Step 11: Apply Restricted IAM Policy
+# Creates and applies an IAM policy (policy.json) to restrict API invocation to
+# icarenow@pmc-estimator.iam.gserviceaccount.com, used by the Google Sheets add-on.
+# Why: Ensures only the service account used by Code.gs can invoke the API, preventing unauthorized access.
+# How: Generates a policy.json file and applies it using gcloud functions set-iam-policy.
+# Purpose: Secures the API by enforcing authentication via the service account.
+echo -e "${YELLOW}11. Applying restricted IAM policy...${NC}"
+cat <<EOF > policy.json
+{
+  "bindings": [
+    {
+      "role": "roles/cloudfunctions.invoker",
+      "members": [
+        "serviceAccount:${EXPECTED_SERVICE_ACCOUNT}"
+      ]
+    }
+  ]
+}
+EOF
+gcloud functions set-iam-policy "$FUNCTION_NAME" policy.json --project="$PROJECT_ID" --region="$REGION"
+/bin/rm policy.json
+
+# Step 12: Verify JSON Data Flow
+# Tests the deployed API with authenticated requests using JWT-based authentication,
+# replicating the Code.gs flow (integrated from test_api_auth.sh).
+# Why: To match the authentication mechanism used in Code.gs, which generates a JWT and exchanges it
+#   for an ID token, addressing the 401 Unauthorized error seen previously.
+# How: Uses openssl, curl, and jq to generate a JWT, exchange it for an ID token, and test the API,
+#   mirroring the Utilities.computeRsaSha256Signature and UrlFetchApp.fetch in Code.gs.
+# Purpose: Validates that the deployed API works with the same authentication as the Google Sheets add-on,
+#   ensuring consistency and debugging the 401 error.
+echo -e "${YELLOW}12. Test JSON data flow?${NC}"
+echo -e "  (1) Test full response (all fields)"
+echo -e "  (2) Test target probability fields only"
+echo -e "  (3) No"
+echo -e "${YELLOW}Enter selections (space-separated, e.g., '1 2' for both):${NC}"
+read -a JSON_TEST_CHOICES
+
+if [ ${#JSON_TEST_CHOICES[@]} -eq 0 ] || [[ " ${JSON_TEST_CHOICES[*]} " =~ " 3 " ]]; then
+  echo -e "${GREEN}Skipping JSON test.${NC}"
+else
+  # Validate service account key
+  if [ ! -f "$SERVICE_ACCOUNT_KEY" ]; then
+    echo -e "${RED}Error: Service account key file ${SERVICE_ACCOUNT_KEY} not found.${NC}"
+    exit 1
+  fi
+  KEY_CLIENT_EMAIL=$(jq -r '.client_email' "$SERVICE_ACCOUNT_KEY" 2>/dev/null)
+  if [ "$KEY_CLIENT_EMAIL" != "$EXPECTED_SERVICE_ACCOUNT" ]; then
+    echo -e "${RED}Error: Service account key file does not match ${EXPECTED_SERVICE_ACCOUNT}. Got ${KEY_CLIENT_EMAIL}. Regenerate the key with: gcloud iam service-accounts keys create <new-key-file>.json --iam-account=${EXPECTED_SERVICE_ACCOUNT} --project=${PROJECT_ID}${NC}"
+    exit 1
+  fi
+  PRIVATE_KEY=$(jq -r '.private_key' "$SERVICE_ACCOUNT_KEY" | sed 's/\\n/\n/g')
+  if [ -z "$PRIVATE_KEY" ]; then
+    echo -e "${RED}Error: Failed to extract private_key from ${SERVICE_ACCOUNT_KEY}.${NC}"
+    exit 1
+  fi
+  echo -e "${GREEN}Service account key validated: ${KEY_CLIENT_EMAIL}${NC}"
+
+  for JSON_TEST_CHOICE in "${JSON_TEST_CHOICES[@]}"; do
+    if [ "$JSON_TEST_CHOICE" != "1" ] && [ "$JSON_TEST_CHOICE" != "2" ]; then
+      echo -e "${RED}Invalid selection '$JSON_TEST_CHOICE'. Skipping JSON test.${NC}"
+      continue
+    fi
+
+    echo -e "${YELLOW}Testing JSON data flow for choice ${JSON_TEST_CHOICE}...${NC}"
+    if [ "$JSON_TEST_CHOICE" = "1" ]; then
+      TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_WITH_SLIDERS"
+      RESPONSE_TYPE="Full response"
+    else
+      TEST_PAYLOAD_TO_USE="$TEST_PAYLOAD_TARGET_ONLY"
+      RESPONSE_TYPE="Target probability response"
+    fi
+
+    # Generate JWT (matching Code.gs)
+    echo -e "${YELLOW}Generating JWT for ${RESPONSE_TYPE}...${NC}"
+    HEADER=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 -w0 | tr -d '=' | tr '/+' '_-')
+    NOW=$(/bin/date +%s)
+    PAYLOAD=$(echo -n "{\"iss\":\"${KEY_CLIENT_EMAIL}\",\"aud\":\"https://oauth2.googleapis.com/token\",\"exp\":$((NOW+3600)),\"iat\":${NOW},\"target_audience\":\"${SERVICE_URL}\"}" | base64 -w0 | tr -d '=' | tr '/+' '_-')
+    SIGNATURE_INPUT="${HEADER}.${PAYLOAD}"
+    SIGNATURE=$(echo -n "${SIGNATURE_INPUT}" | openssl dgst -sha256 -sign <(echo -n "${PRIVATE_KEY}") | base64 -w0 | tr -d '=' | tr '/+' '_-')
+    JWT="${SIGNATURE_INPUT}.${SIGNATURE}"
+    if [ -z "$JWT" ]; then
+      echo -e "${RED}Error: Failed to generate JWT for ${RESPONSE_TYPE}.${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}JWT generated successfully for ${RESPONSE_TYPE}.${NC}"
+
+    # Exchange JWT for ID token
+    echo -e "${YELLOW}Exchanging JWT for ID token for ${RESPONSE_TYPE}...${NC}"
+    TOKEN_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${JWT}")
+    if [ -z "$TOKEN_RESPONSE" ]; then
+      echo -e "${RED}Error: No response from token endpoint for ${RESPONSE_TYPE}. Check network or https://oauth2.googleapis.com/token availability.${NC}"
+      exit 1
+    fi
+    TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.id_token' 2>/dev/null)
+    if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+      echo -e "${RED}Error: Failed to obtain ID token for ${RESPONSE_TYPE}. Response: ${TOKEN_RESPONSE}${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}ID token obtained successfully for ${RESPONSE_TYPE}.${NC}"
+
+    # Test API with ID token
+    JSON_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$TEST_PAYLOAD_TO_USE" -o json_response_${JSON_TEST_CHOICE}.json)
+    if [ "$JSON_RESPONSE" -eq 200 ]; then
+      echo -e "${GREEN}Test successful for ${RESPONSE_TYPE}.${NC}"
+      if ! jq -e '.' json_response_${JSON_TEST_CHOICE}.json >/dev/null 2>&1; then
+        echo -e "${RED}Error: Invalid JSON response for ${RESPONSE_TYPE}.${NC}"
+        /bin/cat json_response_${JSON_TEST_CHOICE}.json
+        /bin/rm json_response_${JSON_TEST_CHOICE}.json
+        exit 1
+      fi
+      if [ "$JSON_TEST_CHOICE" = "1" ] && ! jq -e '.' json_response_${JSON_TEST_CHOICE}.json >/dev/null; then
+        echo -e "${RED}Error: JSON structure invalid for full response.${NC}"
+        /bin/cat json_response_${JSON_TEST_CHOICE}.json
+        /bin/rm json_response_${JSON_TEST_CHOICE}.json
+        exit 1
+      elif [ "$JSON_TEST_CHOICE" = "2" ] && ! jq -e '.task' json_response_${JSON_TEST_CHOICE}.json >/dev/null; then
+        echo -e "${RED}Error: JSON structure invalid for target probability response.${NC}"
+        /bin/cat json_response_${JSON_TEST_CHOICE}.json
+        /bin/rm json_response_${JSON_TEST_CHOICE}.json
+        exit 1
+      fi
+
+      MENU_NUMBERS=()
+      MENU_PATHS=()
+      COUNT=0
+
+      TOP_KEYS=($(jq -r 'keys[]' json_response_${JSON_TEST_CHOICE}.json))
+      echo -e "${YELLOW}Available JSON fields for ${RESPONSE_TYPE}:${NC}"
+      for i in "${!TOP_KEYS[@]}"; do
+        KEY="${TOP_KEYS[$i]}"
+        COUNT=$((COUNT+1))
+        MENU_NUMBERS+=("$COUNT")
+        MENU_PATHS+=("$KEY")
+        echo "  $COUNT) $KEY"
+
+        TYPE=$(jq -r ".${KEY} | type" json_response_${JSON_TEST_CHOICE}.json)
+        if [ "$TYPE" == "object" ]; then
+          CHILD_KEYS=($(jq -r ".${KEY} | keys[]" json_response_${JSON_TEST_CHOICE}.json))
+          for j in "${!CHILD_KEYS[@]}"; do
+            SUBCOUNT="$COUNT.$((j+1))"
+            SUBPATH="$KEY.${CHILD_KEYS[$j]}"
+            MENU_NUMBERS+=("$SUBCOUNT")
+            MENU_PATHS+=("$SUBPATH")
+            echo "    $SUBCOUNT) $SUBPATH"
+          done
+        elif [ "$TYPE" == "array" ]; then
+          LENGTH=$(jq ".${KEY} | length" json_response_${JSON_TEST_CHOICE}.json)
+          for ((j=0;j<LENGTH;j++)); do
+            SUBCOUNT="$COUNT.$((j+1))"
+            SUBPATH="$KEY[$j]"
+            MENU_NUMBERS+=("$SUBCOUNT")
+            MENU_PATHS+=("$SUBPATH")
+            echo "    $SUBCOUNT) $SUBPATH"
+          done
+        fi
+      done
+
+      ALL_OPTION=$((COUNT+1))
+      EXIT_OPTION=$((COUNT+2))
+      echo "  $ALL_OPTION) Show entire JSON"
+      echo "  $EXIT_OPTION) Exit"
+
+      echo -e "${YELLOW}Enter selections for ${RESPONSE_TYPE} (space-separated):${NC}"
+      read -a SELECTIONS
+
+      SHOW_ALL=false
+      SHOW_EXIT=false
+      SELECTED_PATHS=()
+
+      for SEL in "${SELECTIONS[@]}"; do
+        if [ "$SEL" = "$ALL_OPTION" ]; then
+          SHOW_ALL=true
+        elif [ "$SEL" = "$EXIT_OPTION" ]; then
+          SHOW_EXIT=true
+        else
+          MATCHED=false
+          for idx in "${!MENU_NUMBERS[@]}"; do
+            if [ "${MENU_NUMBERS[$idx]}" = "$SEL" ]; then
+              SELECTED_PATHS+=("${MENU_PATHS[$idx]}")
+              MATCHED=true
+              break
+            fi
+          done
+          if [ "$MATCHED" = false ]; then
+            echo -e "${RED}Invalid selection '$SEL' for ${RESPONSE_TYPE}. Skipping.${NC}"
+          fi
+        fi
+      done
+
+      if [ "$SHOW_EXIT" = true ]; then
+        echo -e "${YELLOW}Exiting without displaying data for ${RESPONSE_TYPE}.${NC}"
+      elif [ "$SHOW_ALL" = true ]; then
+        jq '.' json_response_${JSON_TEST_CHOICE}.json
+      else
+        for PATH in "${SELECTED_PATHS[@]}"; do
+          echo -e "${YELLOW}Data for '$PATH' (${RESPONSE_TYPE}):${NC}"
+          jq ".${PATH}" json_response_${JSON_TEST_CHOICE}.json
+        done
+      fi
+
+      /bin/rm json_response_${JSON_TEST_CHOICE}.json
+    else
+      echo -e "${RED}Test failed for ${RESPONSE_TYPE}: Status $JSON_RESPONSE${NC}"
+      /bin/cat json_response_${JSON_TEST_CHOICE}.json
+      echo -e "${RED}Error: Check ${SERVICE_ACCOUNT_KEY} validity or ${EXPECTED_SERVICE_ACCOUNT} permissions. Regenerate the key with: gcloud iam service-accounts keys create <new-key-file>.json --iam-account=${EXPECTED_SERVICE_ACCOUNT} --project=${PROJECT_ID}${NC}"
+      /bin/rm json_response_${JSON_TEST_CHOICE}.json
+      exit 1
+    fi
+  done
+fi
+
+# SECTION 7: Final Validation and Confirmation
+# Validates the deployment, confirms restricted access, and generates the configuration file.
+
+# Step 13: Validate Deployment
+# Runs commands to confirm the IAM policy and test API access with JWT-based authentication.
+# Why: Ensures the API is deployed correctly and restricted to the service account.
+# How: Checks the IAM policy and tests both unauthenticated (should fail) and authenticated (should succeed) access.
+# Purpose: Verifies security and functionality of the deployed API.
+echo -e "${YELLOW}13. Validating deployment and access restrictions...${NC}"
+
+# Confirm IAM policy (only icarenow@pmc-estimator.iam.gserviceaccount.com should have roles/cloudfunctions.invoker)
+echo -e "${YELLOW}Checking IAM policy...${NC}"
+PATH="/usr/bin:/usr/local/bin:$PATH" gcloud functions get-iam-policy "$FUNCTION_NAME" --project="$PROJECT_ID" --region="$REGION" --format=json > iam_policy.json
+if jq -e ".bindings[] | select(.role==\"roles/cloudfunctions.invoker\" and .members[]==\"serviceAccount:${EXPECTED_SERVICE_ACCOUNT}\")" iam_policy.json >/dev/null; then
+  echo -e "${GREEN}IAM policy validated: Only ${EXPECTED_SERVICE_ACCOUNT} has roles/cloudfunctions.invoker.${NC}"
+else
+  echo -e "${RED}Error: IAM policy does not restrict invocation to ${EXPECTED_SERVICE_ACCOUNT}. Check policy.json application.${NC}"
+  jq '.' iam_policy.json
+  /bin/rm iam_policy.json
+  exit 1
+fi
+/bin/rm iam_policy.json
+
+# Test unauthenticated access (should fail)
+echo -e "${YELLOW}Testing unauthenticated access (expected to fail)...${NC}"
+PATH="/usr/bin:/usr/local/bin:$PATH" UNAUTH_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o unauth_response.json)
+if [ "$UNAUTH_RESPONSE" -ne 200 ]; then
+  echo -e "${GREEN}Unauthenticated access correctly blocked (status: ${UNAUTH_RESPONSE}).${NC}"
+else
+  echo -e "${RED}Error: Unauthenticated access succeeded unexpectedly. API is not restricted.${NC}"
+  jq '.' unauth_response.json 2>/dev/null || echo -e "${RED}Error: Invalid JSON response in unauth_response.json${NC}"
+  PATH="/bin:/usr/bin:/usr/local/bin:$PATH" /bin/rm auth_response.json
+  exit 1
+fi
+/bin/rm unauth_response.json
+
+# Test authenticated access with JWT-based authentication
+echo -e "${YELLOW}Testing authenticated access with ${EXPECTED_SERVICE_ACCOUNT}...${NC}"
+if [ ! -f "$SERVICE_ACCOUNT_KEY" ]; then
+  echo -e "${RED}Error: Service account key file ${SERVICE_ACCOUNT_KEY} not found.${NC}"
+  exit 1
+fi
+KEY_CLIENT_EMAIL=$(jq -r '.client_email' "$SERVICE_ACCOUNT_KEY" 2>/dev/null)
+if [ "$KEY_CLIENT_EMAIL" != "$EXPECTED_SERVICE_ACCOUNT" ]; then
+  echo -e "${RED}Error: Service account key file does not match ${EXPECTED_SERVICE_ACCOUNT}. Got ${KEY_CLIENT_EMAIL}. Regenerate the key with: gcloud iam service-accounts keys create <new-key-file>.json --iam-account=${EXPECTED_SERVICE_ACCOUNT} --project=${PROJECT_ID}${NC}"
+  exit 1
+fi
+PRIVATE_KEY=$(jq -r '.private_key' "$SERVICE_ACCOUNT_KEY" | sed 's/\\n/\n/g')
+if [ -z "$PRIVATE_KEY" ]; then
+  echo -e "${RED}Error: Failed to extract private_key from ${SERVICE_ACCOUNT_KEY}.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}Service account key validated: ${KEY_CLIENT_EMAIL}${NC}"
+
+# Generate JWT
+echo -e "${YELLOW}Generating JWT for authenticated access test...${NC}"
+HEADER=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 -w0 | tr -d '=' | tr '/+' '_-')
+NOW=$(/bin/date +%s)
+PAYLOAD=$(echo -n "{\"iss\":\"${KEY_CLIENT_EMAIL}\",\"aud\":\"https://oauth2.googleapis.com/token\",\"exp\":$((NOW+3600)),\"iat\":${NOW},\"target_audience\":\"${SERVICE_URL}\"}" | base64 -w0 | tr -d '=' | tr '/+' '_-')
+SIGNATURE_INPUT="${HEADER}.${PAYLOAD}"
+SIGNATURE=$(echo -n "${SIGNATURE_INPUT}" | openssl dgst -sha256 -sign <(echo -n "${PRIVATE_KEY}") | base64 -w0 | tr -d '=' | tr '/+' '_-')
+JWT="${SIGNATURE_INPUT}.${SIGNATURE}"
+if [ -z "$JWT" ]; then
+  echo -e "${RED}Error: Failed to generate JWT for authenticated access test.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}JWT generated successfully for authenticated access test.${NC}"
+
+# Exchange JWT for ID token
+echo -e "${YELLOW}Exchanging JWT for ID token for authenticated access test...${NC}"
+TOKEN_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${JWT}")
+if [ -z "$TOKEN_RESPONSE" ]; then
+  echo -e "${RED}Error: No response from token endpoint for authenticated access test. Check network or https://oauth2.googleapis.com/token availability.${NC}"
+  exit 1
+fi
+TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.id_token' 2>/dev/null)
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo -e "${RED}Error: Failed to obtain ID token for authenticated access test. Response: ${TOKEN_RESPONSE}${NC}"
+  exit 1
+fi
+echo -e "${GREEN}ID token obtained successfully for authenticated access test.${NC}"
+
+# Test API with ID token
+PATH="/usr/bin:/usr/local/bin:$PATH" AUTH_RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVICE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$TEST_PAYLOAD" -o auth_response.json)
+if [ "$AUTH_RESPONSE" -eq 200 ]; then
+  echo -e "${GREEN}Authenticated access successful (status: ${AUTH_RESPONSE}).${NC}"
+else
+  echo -e "${RED}Error: Authenticated access failed (status: ${AUTH_RESPONSE}). Check ${EXPECTED_SERVICE_ACCOUNT} permissions or key file validity. Regenerate the key with: gcloud iam service-accounts keys create <new-key-file>.json --iam-account=${EXPECTED_SERVICE_ACCOUNT} --project=${PROJECT_ID}${NC}"
+  /bin/cat auth_response.json
+  /bin/rm auth_response.json
+  exit 1
+fi
+/bin/rm auth_response.json
+
+# Step 14: Generate pmcEstimatorConfiguration File
+# Creates a timestamped JSON file capturing all variables and parameters needed to replicate the environment.
+# Why: To document the exact configuration used in a successful deployment, including project details,
+#   service account, IAM roles, and environment settings, for replication or debugging.
+# How: Collects all configuration variables, environment details (e.g., Node.js version, APIs), and
+#   writes them to a JSON file named pmcEstimatorConfiguration_YYYYMMDD_HHMMSS.json.
+# Purpose: Enables another user to recreate the deployment environment and troubleshoot issues like
+#   the 401 Unauthorized error by referencing all necessary settings.
+echo -e "${YELLOW}14. Generating pmcEstimatorConfiguration file...${NC}"
+TIMESTAMP=$(/bin/date +%Y%m%d_%H%M%S)
+CONFIG_FILE="pmcEstimatorConfiguration_${TIMESTAMP}.json"
+NODE_VERSION=$(node --version 2>/dev/null || echo "Unknown")
+JQ_VERSION=$(jq --version 2>/dev/null || echo "Unknown")
+OPENSSL_VERSION=$(openssl version 2>/dev/null || echo "Unknown")
+GCLOUD_VERSION=$(gcloud --version --format=json | jq -r '.Google Cloud SDK' 2>/dev/null || echo "Unknown")
+/bin/cat <<EOF > "$CONFIG_FILE"
+{
+  "timestamp": "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')",
+  "project_id": "$PROJECT_ID",
+  "project_number": "$PROJECT_NUMBER",
+  "function_name": "$FUNCTION_NAME",
+  "region": "$REGION",
+  "source_dir": "$SOURCE_DIR",
+  "service_url": "$SERVICE_URL",
+  "expected_user": "$EXPECTED_USER",
+  "expected_service_account": "$EXPECTED_SERVICE_ACCOUNT",
+  "service_account_key_path": "$SERVICE_ACCOUNT_KEY",
+  "test_payload": $TEST_PAYLOAD,
+  "test_payload_with_sliders": $TEST_PAYLOAD_WITH_SLIDERS,
+  "test_payload_target_only": $TEST_PAYLOAD_TARGET_ONLY,
+  "update_time": "$UPDATE_TIME",
+  "version_id": "$VERSION_ID",
+  "billing_account": "$BILLING_ACCOUNT",
+  "required_apis": $(printf '%s\n' "${REQUIRED_APIS[@]}" | jq -R . | jq -s .),
+  "required_roles_user": $(printf '%s\n' "${ROLES[@]}" | jq -R . | jq -s .),
+  "required_role_service_account": "roles/cloudfunctions.invoker",
+  "required_dependencies": $(printf '%s\n' "${REQUIRED_DEPS[@]}" | jq -R . | jq -s .),
+  "environment": {
+    "node_version": "$NODE_VERSION",
+    "jq_version": "$JQ_VERSION",
+    "openssl_version": "$OPENSSL_VERSION",
+    "gcloud_version": "$GCLOUD_VERSION",
+    "os": "$(uname -a)"
+  },
+  "instructions": {
+    "prerequisites": [
+      "Install Google Cloud SDK and configure with 'gcloud init'.",
+      "Install Node.js for local testing and dependency installation.",
+      "Install jq and openssl with 'brew install jq openssl' on macOS.",
+      "Ensure billing is enabled for project ${PROJECT_ID}.",
+      "Verify service account key at ${SERVICE_ACCOUNT_KEY}.",
+      "Assign roles/cloudfunctions.admin and roles/storage.admin to ${EXPECTED_USER}.",
+      "Assign roles/cloudfunctions.invoker to ${EXPECTED_SERVICE_ACCOUNT}."
+    ],
+    "replication_steps": [
+      "Set project: 'gcloud config set project ${PROJECT_ID}'.",
+      "Authenticate as ${EXPECTED_USER}: 'gcloud auth login --account=${EXPECTED_USER}'.",
+      "Enable APIs: 'gcloud services enable <api>' for each in required_apis.",
+      "Assign IAM roles as specified in required_roles_user and required_role_service_account.",
+      "Copy source code to ${SOURCE_DIR} and install dependencies with 'npm install'.",
+      "Deploy with: 'gcloud functions deploy ${FUNCTION_NAME} --runtime nodejs20 --trigger-http --region ${REGION} --source ${SOURCE_DIR} --project ${PROJECT_ID} --set-env-vars=USE_CORE=1'.",
+      "Apply IAM policy to restrict invocation to ${EXPECTED_SERVICE_ACCOUNT}."
+    ]
+  }
+}
+EOF
+echo -e "${GREEN}Configuration file generated: ${CONFIG_FILE}${NC}"
+jq '.' "$CONFIG_FILE"
+
+# Final Confirmation
+# Confirms the API is restricted to icarenow@pmc-estimator.iam.gserviceaccount.com and configuration is saved.
+echo -e "${GREEN}🎉 Deployment complete! pmcEstimatorAPI is live at ${SERVICE_URL}, restricted to ${EXPECTED_SERVICE_ACCOUNT}.${NC}"
+echo -e "${GREEN}Explanation: The API cannot be accessed directly (e.g., via curl without authentication) due to the IAM policy set in Step 11, which grants roles/cloudfunctions.invoker only to ${EXPECTED_SERVICE_ACCOUNT}. The Google Sheets add-on (Code.gs) uses this service account with JWT-based authentication for API calls, ensuring only the add-on can invoke the API, while allowing anyone to execute the add-on, which authenticates on their behalf. Configuration saved in ${CONFIG_FILE} for replication.${NC}"

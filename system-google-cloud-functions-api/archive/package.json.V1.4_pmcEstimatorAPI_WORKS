@@ -1,0 +1,13 @@
+{
+  "name": "pmc-estimator-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.5.1",
+    "jstat": "^1.9.6",
+    "mathjs": "^12.4.3"
+  },
+  "scripts": {
+    "start": "functions-framework --target=pmcEstimatorAPI --port=8080"
+  }
+}

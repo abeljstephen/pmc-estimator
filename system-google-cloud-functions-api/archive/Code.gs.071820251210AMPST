@@ -1,0 +1,1020 @@
+/**
+ * SECTION 1: Configuration and Constants
+ * Defines the global CONFIG object with UI labels, error messages, and settings, along with constants for sheet names, API URLs, and timeouts.
+ */
+const CONFIG = {
+    PAGE_TITLE: 'Interactive Probability Simulator',
+    GOOGLE_CHARTS_URL: 'https://www.google.com/jsapi',
+    MATHJAX_URL: 'https://cdn.jsdelivr.net/npm/mathjax@2.7.5/MathJax.js?config=TeX-MML-AM_CHTML',
+    GOOGLE_FONTS_URL: 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap',
+    LOADING_MESSAGE: 'Loading, please wait...',
+    ERROR_NO_SHEET_ID_MESSAGE: 'Spreadsheet ID not provided. Please contact support.',
+    ERROR_NO_SIMULATOR_CONTAINER: 'Simulator container not found',
+    ERROR_PAGE_LOAD_FAILED: 'Failed to load page',
+    ERROR_NO_TASK_SELECT: 'Task select element not found',
+    ERROR_NO_VALID_TASKS: 'No valid tasks found',
+    ERROR_NO_VALID_TASKS_MESSAGE: 'Error: No valid tasks found (best case < most likely < worst case not satisfied). Please contact support.',
+    ERROR_NO_TASKS_AVAILABLE: 'No tasks available',
+    ERROR_CONTACT_SUPPORT: 'Please contact support.',
+    ERROR_FETCH_TASKS_MESSAGE: 'Error fetching tasks: ',
+    ERROR_INVALID_TASK: 'Invalid task selected',
+    ERROR_INVALID_TASK_RESULTS_MESSAGE: 'Error: Invalid task data (best case < most likely < worst case not satisfied) or no task selected. Please select a valid task or contact support.',
+    ERROR_NO_EXPLORE_RESULTS: 'Explore results element not found',
+    ERROR_NO_COMBINATION_TABLE: 'Combination table not found',
+    ERROR_NO_COMBINATION_DATA: 'No combination data available',
+    ERROR_TASK_TIMEOUT_MESSAGE: 'Task fetch timed out. Please try again.',
+    ERROR_DATA_TIMEOUT_MESSAGE: 'Data fetch timed out. Please try again.',
+    ERROR_API_FAILURE: 'Failed to fetch data from server',
+    ERROR_RENDERING_PDF: 'Error rendering PDF chart',
+    ERROR_RENDERING_CDF: 'Error rendering CDF chart',
+    INITIAL_SETUP_TITLE: 'Initial Setup / User Choices',
+    INITIAL_SETUP_DESCRIPTION: 'Choose a task and define your target value or confidence level to begin.',
+    TASK_SELECT_LABEL: 'Select Task',
+    TASK_LOADING_MESSAGE: 'Loading tasks...',
+    MODE_SELECT_LABEL: 'Target Mode',
+    TARGET_MODE_LABEL: 'Target',
+    CONFIDENCE_MODE_LABEL: 'Confidence',
+    TARGET_VALUE_LABEL: 'Value',
+    CONFIDENCE_LEVEL_LABEL: 'Value (1-100%)',
+    OPTIMIZE_LABEL: 'Optimize',
+    OPTIMIZE_NO_LABEL: 'No',
+    OPTIMIZE_YES_LABEL: 'Yes',
+    CLEAR_BUTTON_LABEL: 'Clear',
+    EXPLORATION_RESULTS_HEADER: 'Exploration Results',
+    EXPLORATION_RESULTS_DEFAULT_TEXT: 'Select a mode to view results.',
+    BUDGET_FLEXIBILITY_LABEL: 'Budget Flexibility (%)',
+    SCHEDULE_FLEXIBILITY_LABEL: 'Schedule Flexibility (%)',
+    SCOPE_CERTAINTY_LABEL: 'Scope Certainty (%)',
+    QUALITY_TOLERANCE_LABEL: 'Tolerance for Poor Quality (%)',
+    BUDGET_FLEXIBILITY_HELP_TEXT: 'Higher flexibility allows for a larger budget buffer.',
+    SCHEDULE_FLEXIBILITY_HELP_TEXT: 'Higher flexibility extends the timeline.',
+    SCOPE_CERTAINTY_HELP_TEXT: 'Higher certainty reduces outcome range.',
+    QUALITY_TOLERANCE_HELP_TEXT: 'Higher tolerance accepts more defects or lower quality.',
+    USE_CASE_LABEL: 'Use Case',
+    PDF_USE_CASE_WHEN: 'Visualize the likelihood of different outcomes and how adjustments affect the distribution.',
+    PDF_USE_CASE_HOW: 'Adjust sliders to see distribution changes.',
+    PDF_USE_CASE_BENEFIT: 'Understand the impact of decisions on outcome distribution.',
+    CDF_USE_CASE_WHEN: 'Explore cumulative probabilities and how adjustments improve target achievement.',
+    CDF_USE_CASE_HOW: 'View baseline and adjusted CDFs to compare outcomes.',
+    CDF_USE_CASE_BENEFIT: 'Guides strategic adjustments for better outcomes.',
+    SLIDER_COMBINATION_LABEL: 'Slider Combination',
+    FILTER_LABEL: 'Filter',
+    FILTER_CURRENT_LABEL: 'Current Selection',
+    FILTER_ALL_LABEL: 'All',
+    FILTER_ABOVE_50_LABEL: 'Above 50%',
+    FILTER_ABOVE_75_LABEL: 'Above 75%',
+    FILTER_BELOW_50_LABEL: 'Below 50%',
+    FILTER_OPTIMIZED_LABEL: 'Optimized',
+    FILTER_HELP_TEXT: 'This table shows combinations of slider settings and their probability of achieving the target value. Filter options: \'Current Selection\' shows current settings, \'All\' shows all combinations, \'Above 50%\'/\'Above 75%\' show combinations with probability above 50%/75%, \'Below 50%\' shows below 50%, and \'Optimized\' shows the optimal settings. Use the filter to narrow down results, navigate pages, and adjust sliders to test scenarios.',
+    PREV_PAGE_LABEL: 'Prev',
+    NEXT_PAGE_LABEL: 'Next',
+    PAGE_INFO_DEFAULT_TEXT: 'Page',
+    INSIGHTS_RECOMMENDATIONS_LABEL: 'Insights & Recommendations',
+    RECOMMENDATIONS_HEADER: 'Recommendations',
+    STATISTICAL_METRICS_TITLE: 'Statistical Metrics',
+    METRIC_HEADER: 'Metric',
+    PURPOSE_HEADER: 'Purpose',
+    GENERAL_FORMULA_HEADER: 'General Formula',
+    DYNAMIC_FORMULA_HEADER: 'Formula with Dynamic Variables',
+    RESULT_HEADER: 'Result (Dynamic)',
+    PERT_MEAN_LABEL: 'PERT Mean',
+    PERT_MEAN_PURPOSE: 'Weighted average emphasizing mode',
+    PERT_MEAN_FORMULA: 'E[X] = (a + 4m + b) / 6',
+    PERT_MEAN_DYNAMIC_FORMULA: 'E[X] = (<span class="dynamic" id="pert-a"></span> + 4×<span class="dynamic" id="pert-m"></span> + <span class="dynamic" id="pert-b"></span>) / 6',
+    TRIANGLE_MEAN_LABEL: 'Triangle Mean',
+    TRIANGLE_MEAN_PURPOSE: 'Simple average of estimates',
+    TRIANGLE_MEAN_FORMULA: 'E[X] = (a + m + b) / 3',
+    TRIANGLE_MEAN_DYNAMIC_FORMULA: 'E[X] = (<span class="dynamic" id="tri-a"></span> + <span class="dynamic" id="tri-m"></span> + <span class="dynamic" id="tri-b"></span>) / 3',
+    BETA_MEAN_LABEL: 'Beta Mean',
+    BETA_MEAN_PURPOSE: 'Scaled mean of beta distribution',
+    BETA_MEAN_FORMULA: 'E[X] = a + (b - a) × α / (α + β)',
+    BETA_MEAN_DYNAMIC_FORMULA: 'E[X] = <span class="dynamic" id="beta-a"></span> + (<span class="dynamic" id="beta-b"></span> - <span class="dynamic" id="beta-a"></span>) × 2 / (2 + 5)',
+    MC_UNSMOOTHED_MEAN_LABEL: 'MC Unsmoothed Mean',
+    MC_UNSMOOTHED_MEAN_PURPOSE: 'Average of sampled MC values',
+    MC_UNSMOOTHED_MEAN_FORMULA: 'E[X] = Σ(xᵢ·yᵢ) / Σ(yᵢ)',
+    MC_UNSMOOTHED_MEAN_DYNAMIC_FORMULA: 'Sum(xᵢ·yᵢ)/Sum(yᵢ), from raw MC samples',
+    MC_SMOOTHED_MEAN_LABEL: 'MC Smoothed Mean',
+    MC_SMOOTHED_MEAN_PURPOSE: 'KDE-weighted mean',
+    MC_SMOOTHED_MEAN_FORMULA: 'E[X] = Σ(xᵢ·yᵢ·Δx) / Σ(yᵢ·Δx)',
+    MC_SMOOTHED_MEAN_DYNAMIC_FORMULA: 'μ = <span class="dynamic" id="mc-smoothed-mean-value"></span> from smoothed KDE distribution',
+    MC_SMOOTHED_MEDIAN_LABEL: 'MC Smoothed Median',
+    MC_SMOOTHED_MEDIAN_PURPOSE: '50th percentile of smoothed curve',
+    MC_SMOOTHED_MEDIAN_FORMULA: 'Median where CDF = 0.5',
+    MC_SMOOTHED_MEDIAN_DYNAMIC_FORMULA: 'x such that Σ(yᵢ·Δx) = 0.5 (smoothed CDF midpoint)',
+    STD_DEV_LABEL: 'Std Dev (MC Smoothed)',
+    STD_DEV_PURPOSE: 'Spread of values around mean',
+    STD_DEV_FORMULA: 'σ = √(Σ((xᵢ - μ)²·yᵢ·Δx)/Σ(yᵢ·Δx))',
+    STD_DEV_DYNAMIC_FORMULA: 'σ = √(Σ((xᵢ - <span class="dynamic" id="std-mu"></span>)²·yᵢ·Δx)/Σ(yᵢ·Δx))',
+    VARIANCE_LABEL: 'Variance (MC Smoothed)',
+    VARIANCE_PURPOSE: 'Dispersion measure',
+    VARIANCE_FORMULA: 'Var = Σ((xᵢ - μ)²·yᵢ·Δx)/Σ(yᵢ·Δx)',
+    VARIANCE_DYNAMIC_FORMULA: 'Var = Σ((xᵢ - <span class="dynamic" id="var-mu"></span>)²·yᵢ·Δx)/Σ(yᵢ·Δx)',
+    SKEWNESS_LABEL: 'Skewness (MC Smoothed)',
+    SKEWNESS_PURPOSE: 'Asymmetry of distribution',
+    SKEWNESS_FORMULA: 'Skew = (Σ((xᵢ - μ)³·yᵢ·Δx)/Σ(yᵢ·Δx)) / σ³',
+    SKEWNESS_DYNAMIC_FORMULA: 'Skew = (Σ((xᵢ - <span class="dynamic" id="skew-mu"></span>)³·yᵢ·Δx)/Σ(yᵢ·Δx)) / (<span class="dynamic" id="skew-sigma"></span>)³',
+    CV_LABEL: 'Coefficient of Variation',
+    CV_PURPOSE: 'Relative standard deviation',
+    CV_FORMULA: 'CV = σ / μ',
+    CV_DYNAMIC_FORMULA: 'CV = <span class="dynamic" id="cv-sigma"></span> / <span class="dynamic" id="cv-mu"></span>',
+    CI_LABEL: '95% Confidence Interval',
+    CI_PURPOSE: 'Range with 95% certainty around mean',
+    CI_FORMULA: 'CI = μ ± 1.96 × (σ / √n)',
+    CI_DYNAMIC_FORMULA: 'CI = <span class="dynamic" id="ci-mu"></span> ± 1.96 × (<span class="dynamic" id="ci-sigma"></span> / √1000)',
+    VAR_LABEL: 'Value at Risk (VaR @ 95%)',
+    VAR_PURPOSE: 'Risk threshold at 95%',
+    VAR_FORMULA: 'VaR = x where P(X > x) = 5%',
+    VAR_DYNAMIC_FORMULA: 'VaR = <span class="dynamic" id="var-value"></span> (smoothed CDF where tail = 5%)',
+    CVAR_LABEL: 'Conditional VaR (CVaR @ 95%)',
+    CVAR_PURPOSE: 'Expected tail loss beyond VaR',
+    CVAR_FORMULA: 'CVaR = E[X | X > VaR]',
+    CVAR_DYNAMIC_FORMULA: 'Mean of xᵢ > <span class="dynamic" id="cvar-var"></span> from smoothed distribution',
+    RECOMMENDATIONS_BASELINE_TEXT: 'Baseline Risk Profile',
+    RECOMMENDATIONS_CURRENT_TEXT: 'Current Risk Profile',
+    RECOMMENDATIONS_OPTIMIZED_TEXT: 'Optimized Risk Profile',
+    RECOMMENDATIONS_SLIDERS_INTRO: 'The sliders enable you to manage risks by adjusting budget, schedule, scope, and quality parameters.',
+    BUDGET_FLEXIBILITY_DOES_TEXT: 'Tolerates cost overruns (e.g., budget, personnel).',
+    SCHEDULE_FLEXIBILITY_DOES_TEXT: 'Tolerates schedule delays.',
+    SCOPE_CERTAINTY_DOES_TEXT: 'Reduces probability of scope creep by defining deliverables.',
+    QUALITY_TOLERANCE_DOES_TEXT: 'Manages defects or quality trade-offs.',
+    COMBINATION_TABLE_COL_COMBINATION: 'Combination',
+    COMBINATION_TABLE_COL_BALANCED: 'Balanced',
+    COMBINATION_TABLE_COL_UNBALANCED: 'Unbalanced',
+    COMBINATION_TABLE_SUCCESS_TEXT: 'success',
+    COMBINATION_TABLE_FAILURE_TEXT: 'failure',
+    MAX_TASKS: 100,
+    EXPLORE_MODE_DEFAULT_TITLE_PREFIX: 'Adjust Sliders to Explore',
+    EXPLORE_MODE_DEFAULT_TITLE_SUFFIX: 'Value at Confidence Level',
+    EXPLORE_MODE_OPTIMIZED_TITLE: 'View Optimized Settings for Maximum Outcome',
+    PDF_CHART_TITLE: 'Interactive Probability Simulator - PDF',
+    PDF_X_AXIS_LABEL: 'Value',
+    PDF_Y_AXIS_LABEL: 'Probability Density',
+    PDF_ORIGINAL_LABEL: 'Original PDF',
+    PDF_ADJUSTED_LABEL: 'Slider Adjusted PDF',
+    PDF_OPTIMIZED_ADJUSTED_LABEL: 'Optimized Adjusted PDF',
+    PDF_ORIGINAL_TOOLTIP: 'Original',
+    PDF_ADJUSTED_TOOLTIP: 'Adjusted',
+    PDF_OPTIMIZED_TOOLTIP: 'Optimized Adjusted',
+    PDF_ORIGINAL_TARGET_LABEL: 'Original Target',
+    PDF_ADJUSTED_TARGET_LABEL: 'Adjusted Target',
+    CDF_CHART_TITLE: 'Interactive Probability Simulator - CDF',
+    CDF_X_AXIS_LABEL: 'Value',
+    CDF_Y_AXIS_LABEL: 'Cumulative Probability',
+    CDF_ORIGINAL_LABEL: 'Original CDF',
+    CDF_ADJUSTED_LABEL: 'Slider Adjusted CDF',
+    CDF_OPTIMIZED_ADJUSTED_LABEL: 'Optimized Adjusted CDF',
+    CDF_ORIGINAL_TOOLTIP: 'Original',
+    CDF_ADJUSTED_TOOLTIP: 'Adjusted',
+    CDF_OPTIMIZED_TOOLTIP: 'Optimized Adjusted',
+    CDF_ORIGINAL_TARGET_LABEL: 'Original Target',
+    CDF_ADJUSTED_TARGET_LABEL: 'Adjusted Target',
+    SHOW_EXECUTING_USER: true,
+    BACK_TO_TOP_LABEL: 'Back to Top',
+    SUBMIT_PAGE_TITLE: 'Submit Tasks'
+};
+const ESTIMATION_DATA_SHEET_NAME = 'Estimation Data';
+const ESTIMATE_CALCULATIONS_SHEET_NAME = 'Estimate Calculations';
+const ADDON_CALCULATIONS_SHEET_NAME = 'Estimate Calculations Addon';
+const DEFAULT_PROJECT_NAME = 'Untitled Project';
+const DEFAULT_ROW_INDEX = 2;
+const MIN_RANGE_MULTIPLIER = 0.1;
+const DOGET_TIMEOUT_MS = 15000;
+const SERVICE_ACCOUNT_KEY_NAME = 'SERVICE_ACCOUNT_KEY';
+const API_URL = 'https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI';
+const TOKEN_ENDPOINT_URL = 'https://oauth2.googleapis.com/token';
+const API_TIMEOUT_MS = 30000;
+const SESSION_ID_PREFIX = 'Session_';
+const DEPLOYMENT_ID_PROPERTY = 'DEPLOYMENT_ID';
+
+/**
+ * SECTION 2: Deployment ID Management
+ * Handles dynamic retrieval of the deployment ID for web app URLs, supporting development, web app, and add-on modes.
+ */
+function getDeploymentId() {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    let deploymentId = scriptProperties.getProperty(DEPLOYMENT_ID_PROPERTY);
+    
+    if (!deploymentId) {
+        try {
+            const url = ScriptApp.getService().getUrl();
+            Logger.log('Retrieved web app URL: ' + url);
+            const match = url.match(/\/s\/([^/]+)\/exec/) || (url.includes('/dev') ? [, 'AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL'] : []);
+            deploymentId = match[1];
+            if (deploymentId) {
+                scriptProperties.setProperty(DEPLOYMENT_ID_PROPERTY, deploymentId);
+                Logger.log('Stored deployment ID: ' + deploymentId);
+            } else {
+                Logger.log('Error: Could not parse deployment ID from URL: ' + url);
+                throw new Error('No deployment ID available');
+            }
+        } catch (error) {
+            Logger.log('Error retrieving deployment ID: ' + error.message);
+            throw error;
+        }
+    }
+    Logger.log('Returning deployment ID: ' + deploymentId);
+    return deploymentId;
+}
+
+function clearDeploymentId() {
+    PropertiesService.getScriptProperties().deleteProperty(DEPLOYMENT_ID_PROPERTY);
+    Logger.log('Cleared DEPLOYMENT_ID_PROPERTY');
+}
+
+/**
+ * SECTION 3: Context and Persona Configuration
+ * Determines the execution context (dev, add-on, or web) and generates configuration for subsequent functions.
+ */
+function personas(e, context) {
+    Logger.log('personas called with event: ' + JSON.stringify(e || 'null') + ', context: ' + context);
+    const config = {
+        mode: 'addon',
+        sheetId: null,
+        sheetName: ESTIMATION_DATA_SHEET_NAME,
+        defaultTask: null,
+        rowIndex: DEFAULT_ROW_INDEX,
+        isWebAppContext: false,
+        errorHandler: 'alert',
+        userEmail: Session.getEffectiveUser().getEmail() || 'anonymous_' + new Date().getTime(),
+        sessionId: SESSION_ID_PREFIX + Utilities.getUuid()
+    };
+    try {
+        if (e && e.parameter && e.parameter.sheetId) {
+            config.mode = 'web';
+            config.isWebAppContext = true;
+            config.errorHandler = 'confirm';
+            config.sheetId = e.parameter.sheetId;
+            config.sessionId = e.parameter.sessionId || config.sessionId;
+            Logger.log('Web app mode - sheetId: ' + config.sheetId + ', sessionId: ' + config.sessionId);
+            PropertiesService.getScriptProperties().setProperty('LAST_SPREADSHEET_ID', config.sheetId);
+        } else {
+            const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+            if (!spreadsheet) {
+                Logger.log('Error: No active spreadsheet found');
+                throw new Error('No active spreadsheet found');
+            }
+            config.sheetId = spreadsheet.getId();
+            config.sheetName = spreadsheet.getActiveSheet().getName();
+            Logger.log('Spreadsheet ID: ' + config.sheetId + ', Active Sheet: ' + config.sheetName);
+            PropertiesService.getScriptProperties().setProperty('LAST_SPREADSHEET_ID', config.sheetId);
+        }
+
+        const ss = SpreadsheetApp.openById(config.sheetId);
+        const sheet = ss.getSheetByName(ESTIMATION_DATA_SHEET_NAME) || ss.getSheets()[0];
+        const data = sheet.getDataRange().getValues();
+        for (let i = 1; i < data.length; i++) {
+            const taskName = data[i][0]?.toString().trim();
+            const bestCase = parseFloat(data[i][1]);
+            const mostLikely = parseFloat(data[i][2]);
+            const worstCase = parseFloat(data[i][3]);
+            const selectedForPlot = data[i][4] === true || data[i][4] === 'TRUE';
+            if (taskName && Number.isFinite(bestCase) && Number.isFinite(mostLikely) && Number.isFinite(worstCase) &&
+                bestCase < mostLikely && mostLikely < worstCase) {
+                config.defaultTask = taskName;
+                config.rowIndex = i + 1;
+                if (selectedForPlot) {
+                    break;
+                }
+            }
+        }
+        Logger.log('Config returned: ' + JSON.stringify(config));
+        return config;
+    } catch (error) {
+        Logger.log('Error in personas: ' + error.message);
+        throw error;
+    }
+}
+
+/**
+ * SECTION 4: Menu Setup
+ * Creates the custom menu in Google Sheets for add-on functionality and validates sheet columns.
+ */
+function onOpen(e) {
+    try {
+        const ui = SpreadsheetApp.getUi();
+        const sheet = SpreadsheetApp.getActiveSheet();
+        const hasRequiredColumns = sheet && checkSheetColumns(sheet);
+        const menu = ui.createAddonMenu();
+        if (hasRequiredColumns) {
+            menu.addItem('PERT', 'addPertColumnsWrapper')
+                .addItem('PLOT', 'showPlotWrapper');
+        } else {
+            menu.addItem('PERT', 'showNoSheetError')
+                .addItem('PLOT', 'showNoSheetError');
+        }
+        menu.addToUi();
+        Logger.log('onOpen completed: Menu created');
+    } catch (error) {
+        Logger.log('Error in onOpen: ' + error.message);
+    }
+}
+
+function checkSheetColumns(sheet) {
+    try {
+        const columnHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => h.toString().trim().toLowerCase());
+        Logger.log(`checkSheetColumns: Sheet "${sheet.getName()}" headers: ${JSON.stringify(columnHeaders)}`);
+        const hasRequiredColumns = columnHeaders.includes('name') &&
+                                  (columnHeaders.includes('best case') || columnHeaders.includes('best_case')) &&
+                                  (columnHeaders.includes('most likely') || columnHeaders.includes('most_likely')) &&
+                                  (columnHeaders.includes('worst case') || columnHeaders.includes('worst_case'));
+        return hasRequiredColumns;
+    } catch (error) {
+        Logger.log('Error in checkSheetColumns: ' + error.message);
+        return false;
+    }
+}
+
+function showNoSheetError() {
+    SpreadsheetApp.getUi().alert('Error', 'The active sheet must have columns: Name, Best Case (or best_case), Most Likely (or most_likely), Worst Case (or worst_case).', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/**
+ * SECTION 5: PERT Calculations
+ * Handles PERT calculations and sheet updates for the Add-on and Web Personas.
+ */
+
+/**
+ * SECTION 5.1: Sidebar Management
+ * Functions to display and update the status sidebar for user feedback during PERT calculations.
+ */
+function showStatusSidebar() {
+    try {
+        const html = HtmlService.createHtmlOutputFromFile('StatusSidebar')
+            .setTitle('Processing Status')
+            .setWidth(300);
+        SpreadsheetApp.getUi().showSidebar(html);
+        Logger.log('Displayed status sidebar');
+        PropertiesService.getScriptProperties().setProperty('PERT_STATUS', JSON.stringify({ message: 'Initializing...', details: '', progress: 0 }));
+    } catch (error) {
+        Logger.log(`Error displaying sidebar: ${error.message}`);
+    }
+}
+
+function updateSidebarStatus(message, details = '', progress = 0) {
+    try {
+        PropertiesService.getScriptProperties().setProperty('PERT_STATUS', JSON.stringify({ message, details, progress }));
+        Logger.log(`Stored status: ${message}, Details: ${details}, Progress: ${progress}%`);
+    } catch (error) {
+        Logger.log(`Error storing status: ${error.message}`);
+    }
+}
+
+function getStatus() {
+    const status = PropertiesService.getScriptProperties().getProperty('PERT_STATUS') || '{}';
+    try {
+        return JSON.parse(status);
+    } catch (error) {
+        Logger.log(`Error parsing status: ${error.message}`);
+        return { message: 'Error', details: 'Failed to fetch status', progress: 0 };
+    }
+}
+
+/**
+ * SECTION 5.2: PERT Calculation Wrapper
+ * Initializes and orchestrates PERT calculations by calling addPertColumns with the appropriate configuration.
+ */
+function addPertColumnsWrapper() {
+    Logger.log('addPertColumnsWrapper called');
+    try {
+        const config = personas(null, 'addPertColumnsWrapper');
+        if (!config.sheetId) {
+            showStatusSidebar();
+            updateSidebarStatus('Error', 'No active spreadsheet found.', 0);
+            return;
+        }
+        showStatusSidebar();
+        updateSidebarStatus('Processing...', 'Starting PERT calculations...', 0);
+        const result = addPertColumns(config);
+        if (result.status === 'error') {
+            updateSidebarStatus('Completed with Errors', result.message + '\nCheck the "Error Log" sheet.', 100);
+        } else {
+            updateSidebarStatus('Completed', 'PERT calculations completed successfully.', 100);
+        }
+    } catch (error) {
+        Logger.log('Error in addPertColumnsWrapper: ' + error.message);
+        showStatusSidebar();
+        updateSidebarStatus('Error', 'Failed to process PERT calculations: ' + error.message, 100);
+    }
+}
+
+/**
+ * SECTION 5.3: Core PERT Calculations
+ * Performs data validation, API calls, and sheet updates for PERT calculations.
+ */
+function addPertColumns(config) {
+    Logger.log('addPertColumns called with config: ' + JSON.stringify(config));
+    const startTime = Date.now();
+    const EXECUTION_TIMEOUT_MS = 300000;
+    const errors = [];
+    let output = { status: 'success', errors: [], message: '' };
+    let errorRows = [];
+    try {
+        if (!config.sheetId) {
+            throw new Error('No spreadsheet ID provided');
+        }
+        updateSidebarStatus('Processing...', 'Accessing spreadsheet...', 10);
+        const ss = SpreadsheetApp.openById(config.sheetId);
+        const sheet = ss.getSheetByName(config.sheetName) || ss.getSheets()[0];
+        if (!checkSheetColumns(sheet)) {
+            throw new Error('Sheet must have columns: Name, Best Case (or best_case), Most Likely (or most_likely), Worst Case (or worst_case)');
+        }
+
+        updateSidebarStatus('Processing...', 'Reading sheet data...', 20);
+        const data = sheet.getDataRange().getValues();
+        if (data.length < 2) {
+            throw new Error('No task data found in sheet');
+        }
+
+        const columnHeaders = data[0].map(h => h.toString().trim().toLowerCase());
+        const nameCol = columnHeaders.indexOf('name');
+        const bestCaseCol = columnHeaders.indexOf('best case') !== -1 ? columnHeaders.indexOf('best case') : columnHeaders.indexOf('best_case');
+        const mostLikelyCol = columnHeaders.indexOf('most likely') !== -1 ? columnHeaders.indexOf('most likely') : columnHeaders.indexOf('most_likely');
+        const worstCaseCol = columnHeaders.indexOf('worst case') !== -1 ? columnHeaders.indexOf('worst case') : columnHeaders.indexOf('worst_case');
+        const selectedCol = columnHeaders.indexOf('selected for plot') !== -1 ? columnHeaders.indexOf('selected for plot') : -1;
+
+        const tasks = [];
+        let selectedTaskIndex = -1;
+        updateSidebarStatus('Processing...', 'Validating tasks...', 30);
+        for (let i = 1; i < data.length; i++) {
+            if (Date.now() - startTime > EXECUTION_TIMEOUT_MS) {
+                throw new Error('Operation timed out while validating tasks');
+            }
+            const progress = 30 + ((i / (data.length - 1)) * 30);
+            updateSidebarStatus('Processing...', `Validating task ${i} of ${data.length - 1}...`, progress);
+            const row = data[i];
+            const name = row[nameCol]?.toString().trim();
+            const bestCase = parseFloat(row[bestCaseCol]);
+            const mostLikely = parseFloat(row[mostLikelyCol]);
+            const worstCase = parseFloat(row[worstCaseCol]);
+            const selectedForPlot = selectedCol !== -1 ? (row[selectedCol] === true || row[selectedCol] === 'TRUE') : false;
+            if (!name && (!Number.isFinite(bestCase) || !Number.isFinite(mostLikely) || !Number.isFinite(worstCase))) {
+                continue;
+            }
+            if (!Number.isFinite(bestCase) || !Number.isFinite(mostLikely) || !Number.isFinite(worstCase) ||
+                bestCase >= mostLikely || mostLikely >= worstCase) {
+                errorRows.push([i + 1, `Invalid task data: bestCase=${bestCase}, mostLikely=${mostLikely}, worstCase=${worstCase}`]);
+                continue;
+            }
+            tasks.push({
+                task: name || `Task_${i}`,
+                optimistic: bestCase,
+                mostLikely: mostLikely,
+                pessimistic: worstCase,
+                budgetFlexibility: 0.0,
+                scheduleFlexibility: 0.0,
+                scopeCertainty: 0.0,
+                qualityTolerance: 0.0,
+                targetValue: bestCase,
+                confidenceLevel: 0.9,
+                targetProbabilityOnly: false,
+                optimizeFor: 'target'
+            });
+            if (selectedForPlot) {
+                selectedTaskIndex = tasks.length - 1;
+            }
+        }
+        if (tasks.length === 0) {
+            throw new Error('No valid tasks found');
+        }
+
+        updateSidebarStatus('Processing...', 'Calling API for calculations...', 60);
+        const apiResponse = callEstimatorAPI(tasks);
+        updateSidebarStatus('Processing...', 'Creating calculation sheet...', 70);
+        let calcSheet = ss.getSheetByName(ESTIMATE_CALCULATIONS_SHEET_NAME);
+        if (calcSheet) {
+            calcSheet.clear();
+        } else {
+            calcSheet = ss.insertSheet(ESTIMATE_CALCULATIONS_SHEET_NAME);
+        }
+
+        updateSidebarStatus('Processing...', 'Writing headers to calculation sheet...', 80);
+        const calcHeaders = ['Name', 'PERT Mean', 'MC On Beta Smoothed 90th Percentile Confidence'];
+        const headerDescriptions = [
+            'Task name or identifier.',
+            'Weighted average (PERT).',
+            'Smoothed Monte Carlo 90th Percentile Confidence Interval.'
+        ];
+        calcSheet.getRange(1, 1, 2, calcHeaders.length).setValues([calcHeaders, headerDescriptions]);
+        calcSheet.getRange(1, 2, 1, 2).setBackground('#d1e7dd');
+        calcSheet.getRange(2, 1, 1, calcHeaders.length)
+            .setFontColor('#666666')
+            .setWrap(true)
+            .setVerticalAlignment('top');
+        calcSheet.setRowHeight(2, 100);
+        calcSheet.setColumnWidth(1, 340);
+        calcSheet.setColumnWidth(2, 340);
+        calcSheet.setColumnWidth(3, 340);
+
+        updateSidebarStatus('Processing...', 'Writing data to calculation sheet...', 90);
+        const dataRows = [];
+        for (let i = 1; i < data.length; i++) {
+            const progress = 90 + ((i / (data.length - 1)) * 5);
+            updateSidebarStatus('Processing...', `Processing task ${i} of ${data.length - 1}...`, progress);
+            const row = data[i];
+            const name = row[nameCol]?.toString().trim();
+            const bestCase = parseFloat(row[bestCaseCol]);
+            const mostLikely = parseFloat(row[mostLikelyCol]);
+            const worstCase = parseFloat(row[worstCaseCol]);
+            if (!name && (!Number.isFinite(bestCase) || !Number.isFinite(mostLikely) || !Number.isFinite(worstCase))) {
+                dataRows.push([name || `Task_${i}`, 'N/A', 'N/A']);
+                continue;
+            }
+            if (!Number.isFinite(bestCase) || !Number.isFinite(mostLikely) || !Number.isFinite(worstCase) ||
+                bestCase >= mostLikely || mostLikely >= worstCase) {
+                dataRows.push([name || `Task_${i}`, 'N/A', 'N/A']);
+                errorRows.push([i + 1, `Invalid task data: bestCase=${bestCase}, mostLikely=${mostLikely}, worstCase=${worstCase}`]);
+                continue;
+            }
+            const resultIndex = tasks.findIndex(task => task.task === (name || `Task_${i}`));
+            if (resultIndex === -1 || !apiResponse.results[resultIndex]) {
+                dataRows.push([name || `Task_${i}`, 'N/A', 'N/A']);
+                errorRows.push([i + 1, `No API results for task: ${name || `Task_${i}`}`]);
+                continue;
+            }
+            const result = apiResponse.results[resultIndex];
+            dataRows.push([
+                result.task.value,
+                result.pertMean.value.toFixed(2),
+                `[${result.mcSmoothedConfidenceInterval.value.lower.toFixed(2)}, ${result.mcSmoothedConfidenceInterval.value.upper.toFixed(2)}]`
+            ]);
+        }
+
+        if (dataRows.length > 0) {
+            calcSheet.getRange(3, 1, dataRows.length, calcHeaders.length).setValues(dataRows);
+            calcSheet.getRange(3, 2, dataRows.length, 2).setBackground('#d1e7dd');
+            calcSheet.getRange(3, 1, dataRows.length, calcHeaders.length).setWrap(true);
+        }
+
+        if (errorRows.length > 0) {
+            let errorSheet = ss.getSheetByName('Error Log');
+            if (errorSheet) {
+                errorSheet.clear();
+            } else {
+                errorSheet = ss.insertSheet('Error Log');
+            }
+            errorSheet.getRange(1, 1, 1, 2).setValues([['Row', 'Error Message']]).setFontWeight('bold');
+            errorSheet.getRange(2, 1, errorRows.length, 2).setValues(errorRows);
+            errorSheet.getRange(1, 1, errorRows.length + 1, 2).setWrap(true);
+        }
+
+        output.message = 'Successfully processed PERT calculations';
+        if (errorRows.length > 0) {
+            output.status = 'error';
+            output.errors = errorRows.map(row => row[1]);
+            output.message = 'Processed with errors: Check the "Error Log" sheet.';
+        }
+        updateSidebarStatus('Completed', output.message, 100);
+        return output;
+    } catch (error) {
+        Logger.log('Error in addPertColumns: ' + error.message);
+        output.status = 'error';
+        output.errors.push(error.message);
+        output.message = 'Failed to process PERT calculations: ' + error.message;
+        updateSidebarStatus('Error', output.message, 100);
+        return output;
+    } finally {
+        PropertiesService.getScriptProperties().deleteProperty('PERT_STATUS');
+        if (calcSheet) {
+            SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(calcSheet);
+            SpreadsheetApp.flush();
+        }
+    }
+}
+
+/**
+ * SECTION 6: API Interaction
+ * Handles secure API calls to pmcEstimatorAPI with JWT authentication.
+ */
+function callEstimatorAPI(tasks) {
+    Logger.log('callEstimatorAPI called with tasks: ' + JSON.stringify(tasks));
+    const startTime = Date.now();
+    const lock = LockService.getScriptLock();
+    try {
+        if (!lock.tryLock(10000)) {
+            throw new Error('API is busy, please try again later.');
+        }
+        if (!Array.isArray(tasks) || tasks.length === 0) {
+            throw new Error('Tasks must be a non-empty array');
+        }
+        tasks.forEach((task, i) => {
+            if (!task.task || !Number.isFinite(task.optimistic) || !Number.isFinite(task.mostLikely) || !Number.isFinite(task.pessimistic)) {
+                throw new Error(`Invalid task data at index ${i}: ${JSON.stringify(task)}`);
+            }
+        });
+        const keyJsonString = PropertiesService.getScriptProperties().getProperty(SERVICE_ACCOUNT_KEY_NAME);
+        if (!keyJsonString) {
+            throw new Error('Service account key not found');
+        }
+        const keyJson = JSON.parse(keyJsonString);
+        const now = Math.floor(Date.now() / 1000);
+        const claimSet = {
+            iss: keyJson.client_email,
+            aud: TOKEN_ENDPOINT_URL,
+            exp: now + 3600,
+            iat: now,
+            target_audience: API_URL
+        };
+        const header = { alg: 'RS256', typ: 'JWT' };
+        const toSign = Utilities.base64EncodeWebSafe(JSON.stringify(header)) + '.' + Utilities.base64EncodeWebSafe(JSON.stringify(claimSet));
+        const signature = Utilities.computeRsaSha256Signature(toSign, keyJson.private_key);
+        const jwt = toSign + '.' + Utilities.base64EncodeWebSafe(signature);
+        const tokenResponse = UrlFetchApp.fetch(TOKEN_ENDPOINT_URL, {
+            method: 'POST',
+            contentType: 'application/x-www-form-urlencoded',
+            payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt },
+            muteHttpExceptions: true,
+            timeout: API_TIMEOUT_MS
+        });
+        if (tokenResponse.getResponseCode() !== 200) {
+            const errorText = tokenResponse.getContentText();
+            Logger.log('Token fetch failed: ' + errorText);
+            throw new Error('Failed to obtain token: ' + errorText);
+        }
+        const token = JSON.parse(tokenResponse.getContentText()).id_token;
+        const options = {
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'Authorization': 'Bearer ' + token },
+            payload: JSON.stringify(tasks),
+            muteHttpExceptions: true,
+            timeout: API_TIMEOUT_MS
+        };
+        const response = UrlFetchApp.fetch(API_URL, options);
+        if (Date.now() - startTime > API_TIMEOUT_MS) {
+            throw new Error('API request timed out');
+        }
+        if (response.getResponseCode() !== 200) {
+            const errorText = response.getContentText();
+            Logger.log('API request failed: ' + errorText);
+            throw new Error('API request failed: ' + errorText);
+        }
+        const responseData = JSON.parse(response.getContentText());
+        if (!responseData.results || !Array.isArray(responseData.results)) {
+            throw new Error('API response missing or invalid "results" array');
+        }
+        responseData.results.forEach((result, i) => {
+            if (!result.targetProbabilityOriginalPdf?.value?.length || !result.targetProbabilityAdjustedPdf?.value?.length ||
+                !result.targetProbabilityOriginalCdf?.value?.length || !result.targetProbabilityAdjustedCdf?.value?.length) {
+                Logger.log(`Invalid plot data for task ${i}: ${JSON.stringify(result)}`);
+                throw new Error(`Invalid plot data for task ${i}: Missing or empty PDF/CDF data`);
+            }
+        });
+        Logger.log('API response data: ' + JSON.stringify(responseData));
+        return responseData;
+    } catch (error) {
+        Logger.log('Error in callEstimatorAPI: ' + error.message);
+        throw error;
+    } finally {
+        if (lock.hasLock()) {
+            lock.releaseLock();
+        }
+    }
+}
+
+/**
+ * SECTION 7: Task Retrieval
+ * Retrieves valid tasks from a specified sheet for processing or plotting.
+ */
+function getAllTasks(sheetId) {
+    Logger.log('getAllTasks called with sheetId: ' + sheetId);
+    try {
+        if (!sheetId) {
+            throw new Error('No spreadsheet ID provided');
+        }
+        const ss = SpreadsheetApp.openById(sheetId);
+        const sheet = ss.getSheetByName(ESTIMATION_DATA_SHEET_NAME) || ss.getSheets()[0];
+        const data = sheet.getDataRange().getValues();
+        const tasks = [];
+        let defaultTaskIndex = -1;
+        for (let i = 1; i < data.length; i++) {
+            const taskName = data[i][0]?.toString().trim();
+            const optimistic = parseFloat(data[i][1]);
+            const mostLikely = parseFloat(data[i][2]);
+            const pessimistic = parseFloat(data[i][3]);
+            const selectedForPlot = data[i][4] === true || data[i][4] === 'TRUE';
+            if (taskName && Number.isFinite(optimistic) && Number.isFinite(mostLikely) && Number.isFinite(pessimistic) &&
+                optimistic < mostLikely && mostLikely < pessimistic) {
+                tasks.push({
+                    task: taskName,
+                    optimistic: optimistic,
+                    mostLikely: mostLikely,
+                    pessimistic: pessimistic,
+                    selectedForPlot: selectedForPlot
+                });
+                if (selectedForPlot) {
+                    defaultTaskIndex = tasks.length - 1;
+                }
+            }
+        }
+        if (defaultTaskIndex === -1 && tasks.length > 0) {
+            defaultTaskIndex = 0;
+        }
+        Logger.log('Tasks retrieved: ' + JSON.stringify(tasks));
+        return { tasks: tasks, defaultTaskIndex: defaultTaskIndex };
+    } catch (error) {
+        Logger.log('Error in getAllTasks: ' + error.message);
+        return { error: error.message, tasks: [], defaultTaskIndex: -1 };
+    }
+}
+
+/**
+ * SECTION 8: Plot Data Fetching
+ * Retrieves data for the Plot.html dashboard and opens the dashboard.
+ */
+function showPlotWrapper() {
+    Logger.log('showPlotWrapper called');
+    try {
+        const config = personas(null, 'dev');
+        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        config.sheetId = config.sheetId || spreadsheet.getId();
+        config.sheetName = spreadsheet.getActiveSheet().getName();
+        const tasksData = getAllTasks(config.sheetId);
+        if (!tasksData.tasks.length) {
+            SpreadsheetApp.getUi().alert('Error', 'No valid tasks found in spreadsheet', SpreadsheetApp.getUi().ButtonSet.OK);
+            return;
+        }
+        const defaultTaskIndex = tasksData.defaultTaskIndex !== -1 ? tasksData.defaultTaskIndex : 0;
+        config.defaultTask = tasksData.tasks[defaultTaskIndex].task;
+        config.rowIndex = defaultTaskIndex + 2;
+        const html = HtmlService.createHtmlOutputFromFile('Plot')
+            .setWidth(1200)
+            .setHeight(900);
+        html.setContent(
+            '<script>' +
+            'window.sheetId = ' + JSON.stringify(config.sheetId) + ';' +
+            'window.sessionId = ' + JSON.stringify(config.sessionId) + ';' +
+            'window.defaultTask = ' + JSON.stringify(config.defaultTask) + ';' +
+            'window.GOOGLE_FONTS_URL = "' + CONFIG.GOOGLE_FONTS_URL + '";' +
+            'window.GOOGLE_CHARTS_URL = "' + CONFIG.GOOGLE_CHARTS_URL + '";' +
+            'window.MATHJAX_URL = "' + CONFIG.MATHJAX_URL + '";' +
+            'window.CONFIG = ' + JSON.stringify(CONFIG) + ';' +
+            'var link = document.createElement("link");' +
+            'link.rel = "stylesheet";' +
+            'link.href = window.GOOGLE_FONTS_URL;' +
+            'link.onerror = () => console.error("Failed to load Google Fonts", { url: window.GOOGLE_FONTS_URL });' +
+            'document.head.appendChild(link);' +
+            'var script1 = document.createElement("script");' +
+            'script1.src = window.GOOGLE_CHARTS_URL;' +
+            'script1.async = true;' +
+            'script1.onerror = () => console.error("Failed to load Google Charts", { url: window.GOOGLE_CHARTS_URL });' +
+            'script1.onload = () => google.charts.load("current", { packages: ["corechart", "line"] });' +
+            'document.head.appendChild(script1);' +
+            'var script2 = document.createElement("script");' +
+            'script2.src = window.MATHJAX_URL;' +
+            'script2.async = true;' +
+            'script2.onerror = () => console.error("Failed to load MathJax", { url: window.MATHJAX_URL });' +
+            'script2.onload = () => window.initialize && window.initialize();' +
+            'document.head.appendChild(script2);' +
+            '</script>' + html.getContent()
+        );
+        SpreadsheetApp.getUi().showModalDialog(html, CONFIG.PAGE_TITLE);
+    } catch (error) {
+        Logger.log('Error in showPlotWrapper: ' + error.message);
+        SpreadsheetApp.getUi().alert('Error', 'Failed to load dashboard: ' + error.message, SpreadsheetApp.getUi().ButtonSet.OK);
+    }
+}
+
+function logClientError(errorMessage) {
+    Logger.log('Client-side error: ' + errorMessage);
+}
+
+
+/**
+ * SECTION 9: Web App Integration
+ * Serves Plot.html or submit.html based on URL parameters and handles task submission for the Web Persona.
+ */
+function doGet(e) {
+    Logger.log('doGet called with params: ' + JSON.stringify(e));
+    try {
+        const config = personas(e, 'web');
+        if (!config.sheetId) {
+            Logger.log('Error: No spreadsheet ID provided in doGet');
+            return HtmlService.createHtmlOutput('<p>Error: No spreadsheet ID provided. Please access this web app from the add-on or ensure a valid sheetId parameter is included.</p>');
+        }
+        const template = HtmlService.createHtmlOutputFromFile('Plot');
+        template.setContent(
+            '<script>' +
+            'window.sheetId = ' + JSON.stringify(config.sheetId) + ';' +
+            'window.sessionId = ' + JSON.stringify(config.sessionId) + ';' +
+            'window.defaultTask = ' + JSON.stringify(config.defaultTask) + ';' +
+            'window.GOOGLE_FONTS_URL = "' + CONFIG.GOOGLE_FONTS_URL + '";' +
+            'window.GOOGLE_CHARTS_URL = "' + CONFIG.GOOGLE_CHARTS_URL + '";' +
+            'window.MATHJAX_URL = "' + CONFIG.MATHJAX_URL + '";' +
+            'window.CONFIG = ' + JSON.stringify(CONFIG) + ';' +
+            'var link = document.createElement("link");' +
+            'link.rel = "stylesheet";' +
+            'link.href = window.GOOGLE_FONTS_URL;' +
+            'link.onerror = () => console.error("Failed to load Google Fonts", { url: window.GOOGLE_FONTS_URL });' +
+            'document.head.appendChild(link);' +
+            'var script1 = document.createElement("script");' +
+            'script1.src = window.GOOGLE_CHARTS_URL;' +
+            'script1.async = true;' +
+            'script1.onerror = () => console.error("Failed to load Google Charts", { url: window.GOOGLE_CHARTS_URL });' +
+            'script1.onload = () => google.charts.load("current", { packages: ["corechart", "line"] });' +
+            'document.head.appendChild(script1);' +
+            'var script2 = document.createElement("script");' +
+            'script2.src = window.MATHJAX_URL;' +
+            'script2.async = true;' +
+            'script2.onerror = () => console.error("Failed to load MathJax", { url: window.MATHJAX_URL });' +
+            'script2.onload = () => { MathJax.Hub.Config({ tex2jax: { inlineMath: [["$","$"], ["\\(","\\)"]] } }); window.initialize && window.initialize(); };' +
+            'document.head.appendChild(script2);' +
+            '</script>' + template.getContent()
+        );
+        return template
+            .setTitle(CONFIG.PAGE_TITLE)
+            .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    } catch (error) {
+        Logger.log('Error in doGet: ' + error.message + '\nStack: ' + error.stack);
+        return HtmlService.createHtmlOutput(
+            '<p>Error: Failed to load dashboard: ' + error.message + '</p>'
+        );
+    }
+}
+
+function doPost(e) {
+    Logger.log('doPost called with parameters: ' + JSON.stringify(e?.parameter));
+    try {
+        if (!e || !e.parameter || !e.parameter.data) {
+            throw new Error('Missing data parameter.');
+        }
+        const tasks = JSON.parse(e.parameter.data);
+        if (!Array.isArray(tasks) || tasks.length === 0) {
+            throw new Error('Invalid or empty tasks array.');
+        }
+        return ContentService.createTextOutput(
+            JSON.stringify(createEstimateSheet(tasks))
+        ).setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+        Logger.log('Error in doPost: ' + error.message + '\nStack: ' + error.stack);
+        return ContentService.createTextOutput(
+            JSON.stringify({ error: error.message })
+        ).setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+function createEstimateSheet(tasks) {
+    Logger.log('createEstimateSheet called with tasks: ' + JSON.stringify(tasks));
+    try {
+        if (!Array.isArray(tasks) || tasks.length === 0 || tasks.length > CONFIG.MAX_TASKS) {
+            throw new Error(`Invalid or excessive tasks: ${tasks.length}, max allowed: ${CONFIG.MAX_TASKS}`);
+        }
+        let selectedTask = null;
+        const userEmail = Session.getEffectiveUser().getEmail() || 'anonymous_' + new Date().getTime();
+        const sessionId = SESSION_ID_PREFIX + Utilities.getUuid();
+        tasks.forEach((task, i) => {
+            task.taskName = (task.taskName || `Task_${i + 1}`).replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
+            if (!Number.isFinite(task.bestCase) || !Number.isFinite(task.mostLikely) || !Number.isFinite(task.worstCase) ||
+                task.bestCase >= task.mostLikely || task.mostLikely >= task.worstCase) {
+                throw new Error(`Invalid task data at index ${i}: ${JSON.stringify(task)}`);
+            }
+            const range = task.worstCase - task.bestCase;
+            const minRange = task.mostLikely * MIN_RANGE_MULTIPLIER;
+            if (range < minRange) {
+                throw new Error(`Estimate range too small at index ${i}: range=${range}, minRange=${minRange}`);
+            }
+            if (task.selectedForPlot) {
+                if (selectedTask) {
+                    throw new Error('Only one task can be selected for plotting');
+                }
+                selectedTask = task.taskName;
+            }
+        });
+        if (!selectedTask && tasks.length > 0) {
+            tasks[0].selectedForPlot = true;
+            selectedTask = tasks[0].taskName;
+        }
+        const timestamp = new Date().toISOString().replace(/[-:T.]/g, '');
+        const ss = SpreadsheetApp.create(`PERT Estimates ${timestamp}_${userEmail.split('@')[0]}_${sessionId}`);
+        PropertiesService.getScriptProperties().setProperty('createdBy', userEmail);
+        PropertiesService.getScriptProperties().setProperty('sessionId', sessionId);
+        const sheet = ss.getSheets()[0];
+        sheet.setName(ESTIMATION_DATA_SHEET_NAME);
+        const data = tasks.map(task => [
+            task.taskName,
+            task.bestCase,
+            task.mostLikely,
+            task.worstCase,
+            task.selectedForPlot ? 'TRUE' : 'FALSE'
+        ]);
+        sheet.getRange(1, 1, 1, 5).setValues([['Name', 'Best Case', 'Most Likely', 'Worst Case', 'Selected for Plot']]).setFontWeight('bold');
+        sheet.getRange(2, 1, data.length, 5).setValues(data);
+        const config = {
+            sheetId: ss.getId(),
+            sheetName: ESTIMATION_DATA_SHEET_NAME,
+            isWebAppContext: true,
+            errorHandler: 'confirm',
+            userEmail: userEmail,
+            sessionId: sessionId
+        };
+        const result = addPertColumns(config);
+        const sheetUrl = ss.getUrl();
+        const deploymentId = getDeploymentId();
+        const plotUrl = deploymentId ? `https://script.google.com/macros/s/${deploymentId}/exec?sheetId=${ss.getId()}&sessionId=${sessionId}` : '';
+        Logger.log('Generated plotUrl: ' + plotUrl);
+        return {
+            status: result.status,
+            sheetUrl: sheetUrl,
+            plotUrl: plotUrl,
+            message: result.message,
+            errors: result.errors,
+            selectedTask: selectedTask
+        };
+    } catch (error) {
+        Logger.log('Error in createEstimateSheet: ' + error.message + '\nStack: ' + error.stack);
+        throw error;
+    }
+}
+
+function getTargetProbabilityData(params) {
+    Logger.log('getTargetProbabilityData called with params: ' + JSON.stringify(params));
+    try {
+        if (!params.task || !Number.isFinite(params.optimistic) || !Number.isFinite(params.mostLikely) || !Number.isFinite(params.pessimistic) ||
+            params.optimistic >= params.mostLikely || params.mostLikely >= params.pessimistic) {
+            Logger.log('Invalid task data: ' + JSON.stringify(params));
+            throw new Error('Invalid task data');
+        }
+        const { budgetFlexibility, scheduleFlexibility, scopeCertainty, qualityTolerance } = params.sliderValues;
+        if (!Number.isFinite(budgetFlexibility) || budgetFlexibility < 0 || budgetFlexibility > 1 ||
+            !Number.isFinite(scheduleFlexibility) || scheduleFlexibility < 0 || scheduleFlexibility > 1 ||
+            !Number.isFinite(scopeCertainty) || scopeCertainty < 0 || scopeCertainty > 1 ||
+            !Number.isFinite(qualityTolerance) || qualityTolerance < 0 || qualityTolerance > 1) {
+            throw new Error('Invalid slider values');
+        }
+        if (params.mode === 'target' && (!Number.isFinite(params.targetValue) || params.targetValue < params.optimistic || params.targetValue > params.pessimistic)) {
+            throw new Error(`Invalid target value: must be between ${params.optimistic} and ${params.pessimistic}`);
+        }
+        if (params.mode === 'confidence' && (!Number.isFinite(params.confidenceLevel) || params.confidenceLevel <= 0 || params.confidenceLevel >= 1)) {
+            throw new Error('Invalid confidence level: must be between 0 and 1');
+        }
+
+        const tasks = [{
+            task: params.task,
+            optimistic: params.optimistic,
+            mostLikely: params.mostLikely,
+            pessimistic: params.pessimistic,
+            budgetFlexibility: budgetFlexibility,
+            scheduleFlexibility: scheduleFlexibility,
+            scopeCertainty: scopeCertainty,
+            qualityTolerance: qualityTolerance,
+            targetValue: params.mode === 'target' ? params.targetValue : params.mostLikely,
+            confidenceLevel: params.mode === 'confidence' ? params.confidenceLevel : 0.9,
+            targetProbabilityOnly: false,
+            optimizeFor: params.isOptimizeMode ? params.mode : 'none'
+        }];
+        if (params.isOptimizeMode) {
+            tasks.push({
+                task: params.task + '_optimized',
+                optimistic: params.optimistic,
+                mostLikely: params.mostLikely,
+                pessimistic: params.pessimistic,
+                budgetFlexibility: params.previousOptimalSliderSettings?.budgetFlexibility || 0.5,
+                scheduleFlexibility: params.previousOptimalSliderSettings?.scheduleFlexibility || 0.5,
+                scopeCertainty: params.previousOptimalSliderSettings?.scopeCertainty || 0.75,
+                qualityTolerance: params.previousOptimalSliderSettings?.qualityTolerance || 0.4,
+                targetValue: params.mode === 'target' ? params.targetValue : params.mostLikely,
+                confidenceLevel: params.mode === 'confidence' ? params.confidenceLevel : 0.9,
+                targetProbabilityOnly: false,
+                optimizeFor: params.mode
+            });
+        }
+
+        const apiResponse = callEstimatorAPI(tasks);
+        if (!apiResponse || !apiResponse.results || !Array.isArray(apiResponse.results) || apiResponse.results.length === 0) {
+            throw new Error('API response missing or invalid "results" array');
+        }
+        const result = apiResponse.results[0];
+        const response = {
+            task: result.task || { value: params.task },
+            targetProbability: result.targetProbability || { value: { original: 0.5, adjusted: 0.5 } },
+            targetProbabilityOriginalPdf: result.targetProbabilityOriginalPdf || { value: [] },
+            targetProbabilityAdjustedPdf: result.targetProbabilityAdjustedPdf || { value: [] },
+            targetProbabilityOriginalCdf: result.targetProbabilityOriginalCdf || { value: [] },
+            targetProbabilityAdjustedCdf: result.targetProbabilityAdjustedCdf || { value: [] },
+            targetProbabilityOptimizedPdf: params.isOptimizeMode && apiResponse.results[1] ? apiResponse.results[1].targetProbabilityAdjustedPdf : { value: [] },
+            targetProbabilityOptimizedCdf: params.isOptimizeMode && apiResponse.results[1] ? apiResponse.results[1].targetProbabilityAdjustedCdf : { value: [] },
+            valueAtConfidence: result.valueAtConfidence || { value: { original: params.mostLikely, adjusted: params.mostLikely } },
+            optimalData: result.optimalData || { value: { optimalObjective: params.targetValue || params.mostLikely, probability: 0.5, optimalSliderSettings: {} } },
+            sliderCombinations: result.sliderCombinations || { value: [] },
+            decisionOptimizerMetrics: result.decisionOptimizerMetrics || { value: { varianceScale: 1.0 } },
+            pertMean: result.pertMean || { value: (params.optimistic + 4 * params.mostLikely + params.pessimistic) / 6 },
+            triangleMean: result.triangleMean || { value: (params.optimistic + params.mostLikely + params.pessimistic) / 3 },
+            betaMean: result.betaMean || { value: params.optimistic + (params.pessimistic - params.optimistic) * 2 / (2 + 5) },
+            mcMean: result.mcMean || { value: params.mostLikely },
+            mcSmoothedMean: result.mcSmoothedMean || { value: params.mostLikely },
+            mcSmoothedMedian: result.mcSmoothedMedian || { value: params.mostLikely },
+            mcSmoothedStdDev: result.mcSmoothedStdDev || { value: 0 },
+            mcSmoothedVariance: result.mcSmoothedVariance || { value: 0 },
+            mcSmoothedSkewness: result.mcSmoothedSkewness || { value: 0 },
+            mcSmoothedCoefficientOfVariation: result.mcSmoothedCoefficientOfVariation || { value: 0 },
+            mcSmoothedConfidenceInterval: result.mcSmoothedConfidenceInterval || { value: { lower: params.mostLikely, upper: params.mostLikely } },
+            mcSmoothedVaR95: result.mcSmoothedVaR95 || { value: params.pessimistic },
+            mcSmoothedCVaR95: result.mcSmoothedCVaR95 || { value: params.pessimistic }
+        };
+        Logger.log('getTargetProbabilityData response: ' + JSON.stringify(response));
+        return response;
+    } catch (error) {
+        Logger.log('Error in getTargetProbabilityData: ' + error.message + '\nStack: ' + error.stack);
+        throw error;
+    }
+}
+

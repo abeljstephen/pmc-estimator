@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 1em;
+      }
+      textarea {
+        width: 100%;
+        height: 200px;
+        margin-bottom: 0.5em;
+        font-family: monospace;
+      }
+      button {
+        padding: 0.5em 1em;
+        background-color: #2c5282;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #1a365d;
+      }
+      #results {
+        margin-top: 1em;
+      }
+      #results p {
+        font-size: 14px;
+        color: #333;
+      }
+      #results a {
+        color: #2c5282;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Batch Estimate Input</h3>
+    <p>Paste your estimates array in JSON format (include taskName, bestCase, mostLikely, worstCase):</p>
+    <textarea id="estimatesInput">
+[
+  {"taskName":"Task 1","bestCase":2,"mostLikely":4,"worstCase":6},
+  {"taskName":"Task 2","bestCase":3,"mostLikely":6,"worstCase":9}
+]
+    </textarea>
+    <br/>
+    <button onclick="submitBatch()">Estimate Project</button>
+    <div id="results">
+      <p><strong>Results:</strong></p>
+      <p id="sheetUrl">Sheet URL: Not generated yet</p>
+      <p id="plotUrl">Plot URL: Not generated yet</p>
+    </div>
+
+    <script>
+      function submitBatch() {
+        var rawInput = document.getElementById("estimatesInput").value;
+        try {
+          var estimatesArray = JSON.parse(rawInput);
+          if (!Array.isArray(estimatesArray)) {
+            alert("Input must be a JSON array.");
+            return;
+          }
+          // Basic client-side validation
+          for (var i = 0; i < estimatesArray.length; i++) {
+            var task = estimatesArray[i];
+            if (!task.taskName || 
+                typeof task.bestCase !== 'number' || !isFinite(task.bestCase) ||
+                typeof task.mostLikely !== 'number' || !isFinite(task.mostLikely) ||
+                typeof task.worstCase !== 'number' || !isFinite(task.worstCase)) {
+              alert("Invalid task data at index " + i + ": must include taskName and finite numbers for bestCase, mostLikely, worstCase.");
+              return;
+            }
+            if (task.bestCase > task.mostLikely || task.mostLikely > task.worstCase) {
+              alert("Invalid estimate order at index " + i + ": must be bestCase <= mostLikely <= worstCase.");
+              return;
+            }
+          }
+          google.script.run
+            .withSuccessHandler(function(response) {
+              document.getElementById("sheetUrl").innerHTML = 'Sheet URL: <a href="' + response.sheetUrl + '" target="_blank">' + response.sheetUrl + '</a>';
+              document.getElementById("plotUrl").innerHTML = 'Plot URL: <a href="' + response.plotUrl + '" target="_blank">' + response.plotUrl + '</a>';
+              window.open(response.plotUrl, '_blank'); // Auto-open plot in new tab
+            })
+            .withFailureHandler(function(error) {
+              alert("Error: " + error.message);
+              document.getElementById("sheetUrl").innerHTML = "Sheet URL: Failed to generate";
+              document.getElementById("plotUrl").innerHTML = "Plot URL: Failed to generate";
+            })
+            .createEstimateSheet(estimatesArray);
+        } catch (e) {
+          alert("Invalid JSON: " + e.message);
+        }
+      }
+    </script>
+  </body>
+</html>
