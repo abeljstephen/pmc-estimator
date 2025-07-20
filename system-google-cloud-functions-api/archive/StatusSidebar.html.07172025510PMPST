@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Processing Status</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            padding: 10px;
+            margin: 0;
+            background: #f5f7fa;
+        }
+        #status-message {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        #status-details {
+            font-size: 12px;
+            color: #666;
+            white-space: pre-wrap;
+            margin-bottom: 10px;
+        }
+        #progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #2c5282;
+            border-radius: 4px;
+            transition: width 0.5s ease-in-out;
+        }
+        #close-button {
+            padding: 8px 16px;
+            background-color: #2c5282;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        #close-button:hover {
+            background-color: #1a365d;
+        }
+        #fallback-message {
+            font-size: 12px;
+            color: #ff0000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="status-message">Initializing...</div>
+    <div id="status-details"></div>
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+    <div id="fallback-message">Error: Sidebar content failed to load. Check browser console for details.</div>
+    <button id="close-button" onclick="google.script.host.close()">Close</button>
+    <script>
+        // Diagnostic logging
+        console.log('StatusSidebar.html loaded');
+
+        // Update status message and progress
+        function updateStatus(message, details = '', progress = 0) {
+            console.log(`updateStatus called: message=${message}, details=${details}, progress=${progress}%`);
+            const statusMessage = document.getElementById('status-message');
+            const statusDetails = document.getElementById('status-details');
+            const progressBar = document.getElementById('progress-bar');
+            const fallbackMessage = document.getElementById('fallback-message');
+            if (statusMessage && statusDetails && progressBar) {
+                statusMessage.textContent = message || 'Initializing...';
+                statusDetails.textContent = details || '';
+                progressBar.style.width = `${Math.min(Math.max(progress, 0), 100)}%`;
+                fallbackMessage.style.display = 'none';
+                // Auto-close sidebar after 5 seconds for final states
+                if (message === 'Completed' || message === 'Completed with Errors' || message === 'Error') {
+                    console.log('Final state detected, scheduling auto-close in 5 seconds');
+                    setTimeout(() => {
+                        console.log('Closing sidebar');
+                        google.script.host.close();
+                    }, 5000);
+                }
+            } else {
+                console.error('Status elements not found: statusMessage=' + !!statusMessage + ', statusDetails=' + !!statusDetails + ', progressBar=' + !!progressBar);
+                if (fallbackMessage) {
+                    fallbackMessage.style.display = 'block';
+                }
+            }
+        }
+
+        // Allow server to call this function
+        window.updateStatus = updateStatus;
+
+        // Poll for status updates from server
+        function pollStatus() {
+            console.log('Polling for status');
+            google.script.run
+                .withSuccessHandler((status) => {
+                    console.log('Received status: ' + JSON.stringify(status));
+                    if (status && status.message) {
+                        updateStatus(status.message, status.details || '', status.progress || 0);
+                    } else {
+                        console.warn('Invalid status received: ' + JSON.stringify(status));
+                    }
+                    if (status.message !== 'Completed' && status.message !== 'Error' && status.message !== 'Completed with Errors') {
+                        setTimeout(pollStatus, 1000); // Poll every 1 second
+                    }
+                })
+                .withFailureHandler((error) => {
+                    console.error('Error polling status: ' + error);
+                    updateStatus('Error', 'Failed to fetch status updates: ' + error, 0);
+                })
+                .getStatus();
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded event fired');
+            updateStatus('Initializing...', '', 0);
+            pollStatus();
+        });
+
+        // Fallback if DOMContentLoaded doesn't fire
+        setTimeout(() => {
+            if (document.getElementById('status-message').textContent === 'Initializing...') {
+                console.warn('DOMContentLoaded not fired, forcing initialization');
+                updateStatus('Initializing...', '', 0);
+                pollStatus();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

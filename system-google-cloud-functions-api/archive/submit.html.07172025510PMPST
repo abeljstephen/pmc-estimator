@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><?!= CONFIG.SUBMIT_PAGE_TITLE ?></title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      padding: 2em;
+      background-color: #f4f7fa;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #1a365d;
+      text-align: center;
+      margin-bottom: 1em;
+      font-size: 2em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1em;
+      background-color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #e0e0e0;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #2c5282;
+      color: white;
+      font-weight: 600;
+    }
+    td {
+      background-color: #fafafa;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    input[type="number"] {
+      appearance: textfield;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #2c5282;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #1a365d;
+    }
+    button:disabled {
+      background-color: #a0aec0;
+      cursor: not-allowed;
+    }
+    #results {
+      margin-top: 1.5em;
+      padding: 1em;
+      background-color: #fff;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    #results p {
+      font-size: 14px;
+      color: #333;
+    }
+    #loading {
+      display: none;
+      margin-top: 1em;
+      font-size: 14px;
+      color: #333;
+      text-align: center;
+    }
+    #progressBarContainer {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    #progressBar {
+      width: 0%;
+      height: 20px;
+      background-color: #2c5282;
+      transition: width 0.1s linear;
+    }
+    .error {
+      color: #e53e3e;
+      font-size: 13px;
+      margin-top: 0.5em;
+    }
+    .error-general {
+      color: #e53e3e;
+      font-size: 14px;
+      margin-bottom: 1em;
+      text-align: center;
+    }
+    .info {
+      color: #333;
+      font-size: 14px;
+      margin-bottom: 1em;
+    }
+    .success {
+      color: #38a169;
+      font-size: 14px;
+      margin-top: 1em;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 220px;
+      background-color: #4a5568;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -110px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    #version {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 1.5em;
+      text-align: center;
+    }
+    #projectName {
+      margin-bottom: 1em;
+      font-weight: 500;
+      color: #2d3748;
+    }
+    .container {
+      padding: 1.5em;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><?!= CONFIG.SUBMIT_PAGE_TITLE ?></h1>
+    <div id="error-general" class="error-general" style="display: none;"></div>
+    <div id="projectName" class="info"></div>
+    <p><?!= CONFIG.SUBMIT_INSTRUCTIONS ?></p>
+    <div id="noTasksMessage" class="info" style="display: none;">
+      <?!= CONFIG.NO_TASKS_MESSAGE ?>
+    </div>
+    <table id="taskTable">
+      <thead>
+        <tr>
+          <th><span class="tooltip"><?!= CONFIG.SELECT_FOR_PLOT_LABEL ?><span class="tooltiptext"><?!= CONFIG.SELECT_FOR_PLOT_TOOLTIP ?></span></span></th>
+          <th><span class="tooltip"><?!= CONFIG.TASK_NAME_LABEL ?><span class="tooltiptext"><?!= CONFIG.TASK_NAME_TOOLTIP ?></span></span></th>
+          <th><span class="tooltip"><?!= CONFIG.BEST_CASE_LABEL ?><span class="tooltiptext"><?!= CONFIG.BEST_CASE_TOOLTIP ?></span></span></th>
+          <th><span class="tooltip"><?!= CONFIG.MOST_LIKELY_LABEL ?><span class="tooltiptext"><?!= CONFIG.MOST_LIKELY_TOOLTIP ?></span></span></th>
+          <th><span class="tooltip"><?!= CONFIG.WORST_CASE_LABEL ?><span class="tooltiptext"><?!= CONFIG.WORST_CASE_TOOLTIP ?></span></span></th>
+        </tr>
+      </thead>
+      <tbody id="taskTableBody">
+      </tbody>
+    </table>
+    <div class="button-group">
+      <button onclick="addRow()"><?!= CONFIG.ADD_TASK_BUTTON ?></button>
+      <button id="submitButton" onclick="submitBatch()"><?!= CONFIG.SUBMIT_BUTTON ?></button>
+      <button onclick="clearForm()"><?!= CONFIG.CLEAR_FORM_BUTTON ?></button>
+      <a href="<?!= CONFIG.LEARN_MORE_URL ?>" target="_blank" style="line-height: 36px; color: #2c5282; text-decoration: none; font-size: 14px;"><?!= CONFIG.LEARN_MORE_LABEL ?></a>
+    </div>
+    <div id="errorMessage" class="error"></div>
+    <div id="loading">
+      <p><?!= CONFIG.LOADING_MESSAGE_SUBMIT ?></p>
+      <div id="progressBarContainer">
+        <div id="progressBar"></div>
+      </div>
+    </div>
+    <div id="results">
+      <p><strong>Results:</strong></p>
+      <p id="sheetUrl">
+        <button id="sheetButton" style="display: none;" onclick="openSheetUrl()"><?!= CONFIG.OPEN_SPREADSHEET_BUTTON ?></button>
+        <button id="dashboardButton" style="display: none;" onclick="openPlotUrl()"><?!= CONFIG.OPEN_DASHBOARD_BUTTON ?></button>
+      </p>
+      <p id="successMessage" class="success" style="display: none;"><?!= CONFIG.SUCCESS_MESSAGE ?></p>
+    </div>
+    <p id="version"><?!= CONFIG.VERSION_TEXT ?></p>
+  </div>
+
+  <script>
+    let sheetUrl = '';
+    let plotUrl = '';
+    let selectedTask = '';
+    let sessionId = 'Session_' + (Math.random().toString(36).substring(2) + Date.now().toString(36));
+
+    function openPlotUrl() {
+      if (plotUrl && plotUrl.includes('sessionId=')) {
+        console.log('Opening plotUrl: ' + plotUrl + ' (sessionId: ' + sessionId + ')');
+        window.open(plotUrl, '_blank');
+      } else {
+        console.error('No valid plotUrl available (sessionId: ' + sessionId + ')');
+        document.getElementById('error-general').textContent = '<?!= CONFIG.ERROR_NO_PLOT_URL ?>';
+        document.getElementById('error-general').style.display = 'block';
+      }
+    }
+
+    function openSheetUrl() {
+      if (sheetUrl) {
+        console.log('Opening sheetUrl: ' + sheetUrl + ' (sessionId: ' + sessionId + ')');
+        window.open(sheetUrl, '_blank');
+      } else {
+        console.error('No sheetUrl available (sessionId: ' + sessionId + ')');
+        document.getElementById('error-general').textContent = '<?!= CONFIG.ERROR_NO_SHEET_URL ?>';
+        document.getElementById('error-general').style.display = 'block';
+      }
+    }
+
+    function sanitizeTaskName(name) {
+      const sanitized = (name || '').replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50) || 'Task';
+      if (name !== sanitized) {
+        console.log('Sanitized task name: ' + name + ' -> ' + sanitized + ' (sessionId: ' + sessionId + ')');
+      }
+      return sanitized;
+    }
+
+    function populateTable() {
+      let tasks = <?!= JSON.stringify(tasks) ?>;
+      const projectName = sanitizeTaskName(<?!= JSON.stringify(projectName) ?> || '<?!= CONFIG.DEFAULT_PROJECT_NAME ?>');
+      const errorDiv = document.getElementById('errorMessage');
+      const errorGeneralDiv = document.getElementById('error-general');
+      const noTasksMessage = document.getElementById('noTasksMessage');
+      const tbody = document.getElementById('taskTableBody');
+
+      console.log('Starting populateTable with tasks: ' + JSON.stringify(tasks) + ' (sessionId: ' + sessionId + ')');
+      try {
+        if (!Array.isArray(tasks)) {
+          throw new Error('<?!= CONFIG.ERROR_INVALID_TASKS_ARRAY ?>');
+        }
+        if (tasks.length > <?!= CONFIG.MAX_TASKS ?>) {
+          throw new Error('<?!= CONFIG.ERROR_TOO_MANY_TASKS ?>');
+        }
+        tasks = tasks.map((task, index) => {
+          if (!task || typeof task !== 'object') {
+            throw new Error(`<?!= CONFIG.ERROR_INVALID_TASK_OBJECT ?> at index ${index}`);
+          }
+          const taskName = sanitizeTaskName(task.taskName) || `Task_${index + 1}`;
+          const bestCase = parseFloat(task.bestCase);
+          const mostLikely = parseFloat(task.mostLikely);
+          const worstCase = parseFloat(task.worstCase);
+          const selectedForPlot = !!task.selectedForPlot;
+          if (!taskName || 
+              isNaN(bestCase) || !isFinite(bestCase) || bestCase < 0 ||
+              isNaN(mostLikely) || !isFinite(mostLikely) || mostLikely < 0 ||
+              isNaN(worstCase) || !isFinite(worstCase) || worstCase < 0) {
+            throw new Error(`<?!= CONFIG.ERROR_INVALID_TASK_DATA ?> at index ${index}: ${JSON.stringify(task)}`);
+          }
+          if (bestCase >= mostLikely || mostLikely >= worstCase) {
+            throw new Error(`<?!= CONFIG.ERROR_INVALID_ESTIMATE_ORDER ?> at index ${index}`);
+          }
+          if (bestCase === mostLikely || mostLikely === worstCase) {
+            throw new Error(`<?!= CONFIG.ERROR_ESTIMATES_NOT_DISTINCT ?> at index ${index}`);
+          }
+          const range = worstCase - bestCase;
+          const minRange = mostLikely * <?!= CONFIG.MIN_RANGE_MULTIPLIER ?>;
+          if (range < minRange) {
+            throw new Error(`<?!= CONFIG.ERROR_RANGE_TOO_SMALL ?> at index ${index}`);
+          }
+          return { taskName, bestCase, mostLikely, worstCase, selectedForPlot };
+        });
+        const selectedCount = tasks.filter(task => task.selectedForPlot).length;
+        if (selectedCount > 1) {
+          throw new Error('<?!= CONFIG.ERROR_MULTIPLE_SELECTED_TASKS ?>');
+        }
+        if (selectedCount === 0 && tasks.length > 0) {
+          tasks[0].selectedForPlot = true;
+          selectedTask = tasks[0].taskName;
+        } else {
+          const selected = tasks.find(task => task.selectedForPlot);
+          if (selected) selectedTask = selected.taskName;
+        }
+        console.log('Selected task for pre-fill: ' + selectedTask + ' (sessionId: ' + sessionId + ')');
+        document.getElementById('projectName').textContent = `<?!= CONFIG.PROJECT_NAME_LABEL ?>: ${projectName}`;
+      } catch (e) {
+        console.error('Error in populateTable: ' + e.message + ' (sessionId: ' + sessionId + ')');
+        errorDiv.textContent = '<?!= CONFIG.ERROR_LOADING_TASKS ?> ' + e.message;
+        errorGeneralDiv.textContent = '<?!= CONFIG.ERROR_LOADING_TASKS ?> ' + e.message + '. <?!= CONFIG.ERROR_CONTACT_SUPPORT ?>';
+        errorGeneralDiv.style.display = 'block';
+        noTasksMessage.style.display = 'block';
+        tasks = [];
+      }
+
+      tbody.innerHTML = '';
+      if (tasks.length > 0) {
+        noTasksMessage.style.display = 'none';
+        tasks.forEach((task, index) => {
+          const row = tbody.insertRow();
+          row.innerHTML = `
+            <td><input type="checkbox" name="selectedForPlot" value="${index}" ${task.selectedForPlot ? 'checked' : ''}></td>
+            <td><input type="text" value="${task.taskName}" oninput="validateTaskName(this)"></td>
+            <td><input type="number" value="${task.bestCase.toFixed(2)}" step="any" min="0"></td>
+            <td><input type="number" value="${task.mostLikely.toFixed(2)}" step="any" min="0"></td>
+            <td><input type="number" value="${task.worstCase.toFixed(2)}" step="any" min="0"></td>
+          `;
+        });
+      } else {
+        noTasksMessage.style.display = 'block';
+        addRow();
+      }
+      enforceSingleSelection();
+    }
+
+    function enforceSingleSelection() {
+      const checkboxes = document.getElementsByName('selectedForPlot');
+      checkboxes.forEach((checkbox, index) => {
+        checkbox.addEventListener('change', function() {
+          if (this.checked) {
+            checkboxes.forEach((otherCheckbox, otherIndex) => {
+              if (otherIndex !== index) {
+                otherCheckbox.checked = false;
+              }
+            });
+            selectedTask = document.getElementById('taskTableBody').rows[index].cells[1].getElementsByTagName('input')[0].value;
+            console.log('Updated selectedTask: ' + selectedTask + ' (sessionId: ' + sessionId + ')');
+          } else if (!Array.from(checkboxes).some(cb => cb.checked)) {
+            selectedTask = '';
+          }
+        });
+      });
+    }
+
+    function validateTaskName(input) {
+      const originalValue = input.value;
+      const sanitizedValue = sanitizeTaskName(originalValue);
+      if (originalValue !== sanitizedValue) {
+        input.value = sanitizedValue;
+        document.getElementById('errorMessage').textContent = '<?!= CONFIG.ERROR_INVALID_TASK_NAME_ADJUSTED ?>';
+        console.log('Task name validated: ' + originalValue + ' -> ' + sanitizedValue + ' (sessionId: ' + sessionId + ')');
+      } else {
+        document.getElementById('errorMessage').textContent = '';
+      }
+    }
+
+    function addRow() {
+      const tbody = document.getElementById('taskTableBody');
+      const rowCount = tbody.rows.length;
+      if (rowCount >= <?!= CONFIG.MAX_TASKS ?>) {
+        document.getElementById('errorMessage').textContent = '<?!= CONFIG.ERROR_TOO_MANY_TASKS ?>';
+        document.getElementById('error-general').textContent = '<?!= CONFIG.ERROR_TOO_MANY_TASKS ?>';
+        document.getElementById('error-general').style.display = 'block';
+        console.error('<?!= CONFIG.ERROR_TOO_MANY_TASKS ?> (sessionId: ' + sessionId + ')');
+        return;
+      }
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td><input type="checkbox" name="selectedForPlot" value="${rowCount}" ${rowCount === 0 ? 'checked' : ''}></td>
+        <td><input type="text" value="Task_${rowCount + 1}" oninput="validateTaskName(this)"></td>
+        <td><input type="number" value="0" step="any" min="0"></td>
+        <td><input type="number" value="0" step="any" min="0"></td>
+        <td><input type="number" value="0" step="any" min="0"></td>
+      `;
+      if (rowCount === 0) {
+        selectedTask = 'Task_1';
+      }
+      enforceSingleSelection();
+      document.getElementById('noTasksMessage').style.display = 'none';
+    }
+
+    function clearForm() {
+      if (confirm('<?!= CONFIG.CONFIRM_CLEAR_FORM ?>')) {
+        document.getElementById('taskTableBody').innerHTML = '';
+        document.getElementById('noTasksMessage').style.display = 'block';
+        document.getElementById('errorMessage').text Panicked: document.getElementById('errorMessage').textContent = '';
+        document.getElementById('error-general').textContent = '';
+        document.getElementById('error-general').style.display = 'none';
+        document.getElementById('successMessage').style.display = 'none';
+        document.getElementById('sheetButton').style.display = 'none';
+        document.getElementById('dashboardButton').style.display = 'none';
+        sheetUrl = '';
+        plotUrl = '';
+        selectedTask = '';
+        addRow();
+      }
+    }
+
+    function startProgress() {
+      const progressBar = document.getElementById('progressBar');
+      const loadingDiv = document.getElementById('loading');
+      loadingDiv.style.display = 'block';
+      let width = 0;
+      const interval = setInterval(() => {
+        width += 5;
+        console.log('Progress bar width: ' + width + '% (sessionId: ' + sessionId + ')');
+        progressBar.style.width = `${width}%`;
+        if (width >= 90) clearInterval(interval);
+      }, 200);
+      return () => {
+        clearInterval(interval);
+        progressBar.style.width = '100%';
+        setTimeout(() => {
+          loadingDiv.style.display = 'none';
+          progressBar.style.width = '0%';
+        }, 500);
+      };
+    }
+
+    let isSubmitting = false;
+    function submitBatch() {
+      if (isSubmitting) {
+        console.warn('Submit already in progress (sessionId: ' + sessionId + ')');
+        return;
+      }
+      if (!confirm('<?!= CONFIG.CONFIRM_SUBMIT ?>')) {
+        console.log('Submission cancelled by user (sessionId: ' + sessionId + ')');
+        return;
+      }
+      isSubmitting = true;
+      document.getElementById('submitButton').disabled = true;
+      document.getElementById('errorMessage').textContent = '';
+      document.getElementById('error-general').textContent = '';
+      document.getElementById('error-general').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+      const stopProgress = startProgress();
+
+      const tbody = document.getElementById('taskTableBody');
+      const rows = tbody.rows;
+      const estimatesArray = [];
+      let selectedIndex = -1;
+      let errorMessage = '';
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const checkbox = row.cells[0].getElementsByTagName('input')[0];
+        const taskName = row.cells[1].getElementsByTagName('input')[0].value;
+        const bestCase = parseFloat(row.cells[2].getElementsByTagName('input')[0].value);
+        const mostLikely = parseFloat(row.cells[3].getElementsByTagName('input')[0].value);
+        const worstCase = parseFloat(row.cells[4].getElementsByTagName('input')[0].value);
+
+        if (!taskName.match(/^[a-zA-Z0-9_]+$/)) {
+          errorMessage = `<?!= CONFIG.ERROR_INVALID_TASK_NAME ?> in row ${i + 1}`;
+          break;
+        }
+        if (isNaN(bestCase) || !isFinite(bestCase) || bestCase < 0) {
+          errorMessage = `<?!= CONFIG.ERROR_INVALID_BEST_CASE ?> in row ${i + 1}`;
+          break;
+        }
+        if (isNaN(mostLikely) || !isFinite(mostLikely) || mostLikely < 0) {
+          errorMessage = `<?!= CONFIG.ERROR_INVALID_MOST_LIKELY ?> in row ${i + 1}`;
+          break;
+        }
+        if (isNaN(worstCase) || !isFinite(worstCase) || worstCase < 0) {
+          errorMessage = `<?!= CONFIG.ERROR_INVALID_WORST_CASE ?> in row ${i + 1}`;
+          break;
+        }
+        if (bestCase >= mostLikely || mostLikely >= worstCase) {
+          errorMessage = `<?!= CONFIG.ERROR_INVALID_ESTIMATE_ORDER ?> in row ${i + 1}`;
+          break;
+        }
+        if (bestCase === mostLikely || mostLikely === worstCase) {
+          errorMessage = `<?!= CONFIG.ERROR_ESTIMATES_NOT_DISTINCT ?> in row ${i + 1}`;
+          break;
+        }
+        const range = worstCase - bestCase;
+        const minRange = mostLikely * <?!= CONFIG.MIN_RANGE_MULTIPLIER ?>;
+        if (range < minRange) {
+          errorMessage = `<?!= CONFIG.ERROR_RANGE_TOO_SMALL ?> in row ${i + 1}`;
+          break;
+        }
+
+        estimatesArray.push({
+          taskName: taskName,
+          bestCase: bestCase,
+          mostLikely: mostLikely,
+          worstCase: worstCase,
+          selectedForPlot: checkbox.checked
+        });
+
+        if (checkbox.checked) {
+          if (selectedIndex !== -1) {
+            errorMessage = '<?!= CONFIG.ERROR_MULTIPLE_SELECTED_TASKS ?>';
+            break;
+          }
+          selectedIndex = i;
+          selectedTask = taskName;
+          console.log('Selected task on submit: ' + selectedTask + ' (sessionId: ' + sessionId + ')');
+        }
+      }
+
+      if (selectedIndex === -1 && estimatesArray.length > 0) {
+        errorMessage = '<?!= CONFIG.ERROR_NO_SELECTED_TASK ?>';
+      }
+
+      const errorDiv = document.getElementById('errorMessage');
+      const errorGeneralDiv = document.getElementById('error-general');
+      errorDiv.textContent = errorMessage;
+      if (errorMessage) {
+        console.error('Validation error: ' + errorMessage + ' (sessionId: ' + sessionId + ')');
+        errorGeneralDiv.textContent = errorMessage + '. <?!= CONFIG.ERROR_CONTACT_SUPPORT ?>';
+        errorGeneralDiv.style.display = 'block';
+        stopProgress();
+        isSubmitting = false;
+        document.getElementById('submitButton').disabled = false;
+        return;
+      }
+
+      console.log('Submitting tasks to createEstimateSheet: ' + JSON.stringify(estimatesArray) + ' (sessionId: ' + sessionId + ')');
+      google.script.run
+        .withSuccessHandler(function(response) {
+          stopProgress();
+          console.log('createEstimateSheet response: ' + JSON.stringify(response) + ' (sessionId: ' + sessionId + ')');
+          if (response.status === 'error' && response.errors && response.errors.length > 0) {
+            const errorSummary = response.errors.join('\n');
+            console.error('Server errors: ' + errorSummary + ' (sessionId: ' + sessionId + ')');
+            if (confirm(`${errorSummary}\n\n<?!= CONFIG.CONFIRM_INVALID_ROWS ?>`)) {
+              sheetUrl = response.sheetUrl;
+              plotUrl = response.plotUrl;
+              selectedTask = response.selectedTask || selectedTask;
+              document.getElementById('sheetButton').style.display = 'inline-block';
+              document.getElementById('dashboardButton').style.display = 'inline-block';
+              document.getElementById('successMessage').style.display = 'block';
+              document.getElementById('successMessage').textContent = '<?!= CONFIG.SUCCESS_MESSAGE_WITH_INVALID_ROWS ?>';
+            } else {
+              document.getElementById('errorMessage').textContent = '<?!= CONFIG.ERROR_OPERATION_CANCELLED ?>';
+              document.getElementById('error-general').textContent = '<?!= CONFIG.ERROR_OPERATION_CANCELLED ?>';
+              document.getElementById('error-general').style.display = 'block';
+              document.getElementById('sheetButton').style.display = 'none';
+              document.getElementById('dashboardButton').style.display = 'none';
+            }
+          } else {
+            sheetUrl = response.sheetUrl;
+            plotUrl = response.plotUrl;
+            selectedTask = response.selectedTask || selectedTask;
+            document.getElementById('sheetButton').style.display = 'inline-block';
+            document.getElementById('dashboardButton').style.display = 'inline-block';
+            document.getElementById('successMessage').style.display = 'block';
+            document.getElementById('successMessage').textContent = '<?!= CONFIG.SUCCESS_MESSAGE ?>';
+          }
+          console.log('Final selectedTask: ' + selectedTask + ' (sessionId: ' + sessionId + ')');
+          isSubmitting = false;
+          document.getElementById('submitButton').disabled = false;
+        })
+        .withFailureHandler(function(error) {
+          stopProgress();
+          console.error('createEstimateSheet error: ' + error.message + ' (sessionId: ' + sessionId + ')');
+          document.getElementById('errorMessage').textContent = '<?!= CONFIG.ERROR_SUBMIT_FAILED ?> ' + error.message;
+          document.getElementById('error-general').textContent = '<?!= CONFIG.ERROR_SUBMIT_FAILED ?> ' + error.message + '. <?!= CONFIG.ERROR_CONTACT_SUPPORT ?>';
+          document.getElementById('error-general').style.display = 'block';
+          document.getElementById('sheetButton').style.display = 'none';
+          document.getElementById('dashboardButton').style.display = 'none';
+          isSubmitting = false;
+          document.getElementById('submitButton').disabled = false;
+        })
+        .createEstimateSheet(estimatesArray);
+    }
+
+    // Initialize table on load
+    if (new URLSearchParams(window.location.search).has('sheetId')) {
+      console.warn('Unexpected sheetId in URL, expected submit.html: ' + window.location.search + ' (sessionId: ' + sessionId + ')');
+      document.getElementById('error-general').textContent = 'Invalid URL: This page is for task submission, but a sheetId was provided. Please use the correct URL or clear the sheetId parameter.';
+      document.getElementById('error-general').style.display = 'block';
+    } else {
+      populateTable();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,2151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Section 1: HTML Head and Initial Styles -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Probability Simulator</title>
+    <!-- External resources (Google Fonts, Google Charts, MathJax) are loaded dynamically via showPlotWrapper or doGet -->
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+            transition: all 0.3s ease-in-out;
+        }
+        .simulator-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 15px;
+        }
+        .step-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-size: 18px;
+            color: #333;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 10px;
+            max-width: 100%;
+            flex-wrap: nowrap;
+        }
+        .control-row label, .control-row select, .control-row input {
+            font-size: 12px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .control-row div {
+            flex-shrink: 0;
+        }
+        .control-row select, .control-row input[type="number"] {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 150px;
+        }
+        .constrained-button-container {
+            display: flex;
+            align-items: center;
+            border: 2px solid #2c5282;
+            border-radius: 6px;
+            padding: 10px;
+            background: #f9f9f9;
+            max-width: 100%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .constrained-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+        .value-input-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 120px;
+        }
+        #target-input-container {
+            display: flex;
+        }
+        #confidence-input-container {
+            display: none;
+        }
+        .constrained-row label,
+        .constrained-row select,
+        .constrained-row input {
+            font-size: 12px;
+            color: #333;
+            white-space: nowrap;
+        }
+        .constrained-row select,
+        .constrained-row input[type="number"] {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 100px;
+            flex-shrink: 0;
+        }
+        .optimize-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .optimize-container label {
+            font-size: 12px;
+            color: #333;
+        }
+        .optimize-container select {
+            padding: 5px;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            width: 150px;
+        }
+    </style>
+
+    <!-- Section 2: Additional Styles -->
+    <style>
+        @media (max-width: 768px) {
+            .control-row {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .control-row select {
+                width: 120px;
+            }
+            .constrained-button-container {
+                min-width: auto;
+                max-width: 100%;
+            }
+            .constrained-row {
+                gap: 5px;
+                flex-wrap: wrap;
+            }
+            .constrained-row select,
+            .constrained-row input[type="number"] {
+                width: 80px;
+            }
+            .optimize-container select {
+                width: 120px;
+            }
+        }
+        @media (max-width: 400px) {
+            .control-row, .constrained-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .control-row select, .control-row input[type="number"],
+            .constrained-row select, .constrained-row input[type="number"],
+            .optimize-container select {
+                width: 100%;
+            }
+        }
+        .option {
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        .option.active-option {
+            border: 2px solid #2c5282;
+        }
+        .option h3 {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 10px;
+        }
+        .option p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+        .decision-grid-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .decision-grid {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .decision-grid label {
+            font-size: 12px;
+            color: #333;
+        }
+        .decision-grid input[type="range"] {
+            width: 100%;
+            border: 1px solid #2c5282;
+            border-radius: 4px;
+            padding: 2px;
+            background: #ffffff;
+            transition: all 0.3s ease-in-out;
+        }
+        .decision-grid input[type="range"]:hover {
+            border-color: #1a365d;
+            background: #f0f0f0;
+        }
+        .decision-grid input[type="range"]:disabled {
+            background: #e0e0e0;
+            cursor: not-allowed;
+        }
+        .decision-grid span {
+            font-size: 12px;
+            color: #333;
+        }
+        .help-icon {
+            font-size: 12px;
+            color: #2c5282;
+            cursor: help;
+            padding: 2px 5px;
+            background-color: #f0f0f0;
+            border-radius: 50%;
+            margin-left: 5px;
+            display: inline-block;
+        }
+        .plot-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        #pdf-chart, #cdf-chart {
+            width: 100%;
+            height: 400px;
+            position: relative;
+        }
+        .side-by-side {
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            max-height: 400px;
+        }
+        .side-by-side > div {
+            flex: 1;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 8px;
+            position: relative;
+        }
+        .simulator-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .simulator-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .clear-button {
+            padding: 5px 10px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .clear-button:hover {
+            background-color: #cc0000;
+        }
+        .highlight-risk {
+            font-weight: bold;
+            color: #2c5282;
+            background-color: #e6f3ff;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .recommendation-table th, .recommendation-table td {
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            text-align: left;
+            font-size: 12px;
+        }
+        .recommendation-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .recommendation-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Section 3: HTML Body - Initial Setup and Exploration Results -->
+    <div id="loading-overlay" data-text-id="loading-message">Loading...</div>
+    <div id="probability-simulator" class="simulator-container">
+        <!-- Error Message for Invalid Sheet or API Failure -->
+        <div id="error-message" style="color: red; text-align: center; display: none; margin-bottom: 15px;"></div>
+        <!-- Initial Setup / User Choices Section -->
+        <div class="step-section" id="initial-setup">
+            <h2 id="initial-setup-title">Initial Setup</h2>
+            <p class="step-description" id="initial-setup-description">Configure the simulation parameters below.</p>
+            <div class="control-row">
+                <div id="task-select-container">
+                    <label for="task-select" id="task-select-label">Select Task</label>
+                    <select id="task-select" aria-label="Select a task">
+                        <option value="" data-text-id="task-loading-message">Loading tasks...</option>
+                    </select>
+                </div>
+                <div class="constrained-button-container">
+                    <div class="constrained-row">
+                        <div id="mode-select-container">
+                            <label for="mode-select" id="mode-select-label">Mode</label>
+                            <select id="mode-select" aria-label="Select target mode">
+                                <option value="target" data-text-id="target-mode-label">Target</option>
+                                <option value="confidence" data-text-id="confidence-mode-label">Confidence</option>
+                            </select>
+                        </div>
+                        <div class="value-input-container" id="target-input-container">
+                            <label for="target-value-input" id="target-value-label">Target Value (<span id="target-range">N/A</span>):</label>
+                            <input type="number" id="target-value-input" style="width: 100px;" value="0" aria-describedby="target-value-message">
+                            <span id="target-value-message" style="color: red; margin-left: 5px;"></span>
+                        </div>
+                        <div class="value-input-container" id="confidence-input-container" style="display: none;">
+                            <label for="confidence-level-input" id="confidence-level-label">Confidence Level (1-100%):</label>
+                            <input type="number" id="confidence-level-input" min="1" max="100" value="90" aria-describedby="confidence-level-message">
+                            <span id="confidence-level-message" style="color: red; margin-left: 5px;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="optimize-container">
+                    <label for="optimize-select" id="optimize-label">Optimize</label>
+                    <select id="optimize-select" aria-label="Select optimization mode">
+                        <option value="no" data-text-id="optimize-no-label">No</option>
+                        <option value="yes" data-text-id="optimize-yes-label">Yes</option>
+                    </select>
+                </div>
+                <button class="clear-button" id="clear-button" data-text-id="clear-button-label">Clear</button>
+            </div>
+        </div>
+
+        <!-- Exploration Results Section -->
+        <div class="step-section results-section" id="explore-results">
+            <h3 class="results-header" id="exploration-results-header">Exploration Results</h3>
+            <p class="results-text" id="exploration-results-text">Results will be displayed here after configuration.</p>
+        </div>
+
+        <!-- Section 4: HTML Body - Interactive Probability Content -->
+        <div class="step-section" id="interactive-probability-content">
+            <div class="simulator-content">
+                <div class="simulator-left">
+                    <div class="option" id="option-manual">
+                        <h3 id="explore-mode-title">Explore Mode</h3>
+                        <div class="decision-grid-container">
+                            <div class="decision-grid">
+                                <label for="targetBudgetFlexibility" id="budget-flexibility-label">Budget Flexibility</label>
+                                <input type="range" id="targetBudgetFlexibility" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Budget Flexibility">
+                                <span id="targetBudgetFlexibilityValue">0%</span>
+                                <span class="help-icon" id="budget-flexibility-help" title="Adjust budget flexibility to allow cost overruns.">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetScheduleFlexibility" id="schedule-flexibility-label">Schedule Flexibility</label>
+                                <input type="range" id="targetScheduleFlexibility" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Schedule Flexibility">
+                                <span id="targetScheduleFlexibilityValue">0%</span>
+                                <span class="help-icon" id="schedule-flexibility-help" title="Adjust schedule flexibility to allow delays.">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetScopeCertainty" id="scope-certainty-label">Scope Certainty</label>
+                                <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Scope Certainty">
+                                <span id="targetScopeCertaintyValue">0%</span>
+                                <span class="help-icon" id="scope-certainty-help" title="Increase scope certainty to reduce scope creep.">?</span>
+                            </div>
+                            <div class="decision-grid">
+                                <label for="targetQualityTolerance" id="quality-tolerance-label">Quality Tolerance</label>
+                                <input type="range" id="targetQualityTolerance" min="0" max="100" step="1" value="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Tolerance for Poor Quality">
+                                <span id="targetQualityToleranceValue">0%</span>
+                                <span class="help-icon" id="quality-tolerance-help" title="Adjust quality tolerance to manage defects.">?</span>
+                            </div>
+                        </div>
+                        <div class="plot-container">
+                            <div class="side-by-side">
+                                <div id="pdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                    <div id="pdf-use-case" class="use-case">
+                                        <button class="toggle-use-case" data-target="pdf-use-case-content" aria-expanded="false">▼ <span id="pdf-use-case-label">Use Case</span></button>
+                                        <div id="pdf-use-case-content" class="use-case-content">
+                                            <p><strong><em id="pdf-use-case-when-label">When</em>:</strong> <span id="pdf-use-case-when">When evaluating probability density.</span></p>
+                                            <p><strong><em id="pdf-use-case-how-label">How</em>:</strong> <span id="pdf-use-case-how">Use the PDF chart to analyze probability distribution.</span></p>
+                                            <p><strong><em id="pdf-use-case-benefit-label">Benefit</em>:</strong> <span id="pdf-use-case-benefit">Helps identify likely outcomes.</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="cdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                    <div id="cdf-use-case" class="use-case">
+                                        <button class="toggle-use-case" data-target="cdf-use-case-content" aria-expanded="false">▼ <span id="cdf-use-case-label">Use Case</span></button>
+                                        <div id="cdf-use-case-content" class="use-case-content">
+                                            <p><strong><em id="cdf-use-case-when-label">When</em>:</strong> <span id="cdf-use-case-when">When evaluating cumulative probability.</span></p>
+                                            <p><strong><em id="cdf-use-case-how-label">How</em>:</strong> <span id="cdf-use-case-how">Use the CDF chart to assess cumulative risks.</span></p>
+                                            <p><strong><em id="cdf-use-case-benefit-label">Benefit</em>:</strong> <span id="cdf-use-case-benefit">Helps determine confidence levels.</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="white-box-container">
+                            <button class="toggle-summary" data-target="slider-impact-reference-guide" aria-expanded="true">▲ <span id="slider-combination-label">Slider Combinations</span></button>
+                            <div id="slider-impact-reference-guide" style="display: block; padding: 8px;">
+                                <div style="margin-bottom: 5px; text-align: center; display: flex; align-items: center; justify-content: center;">
+                                    <label for="probability-filter" id="filter-label">Filter</label>
+                                    <select id="probability-filter" aria-label="Filter combinations">
+                                        <option value="current" selected data-text-id="filter-current-label">Current Selection</option>
+                                        <option value="all" data-text-id="filter-all-label">All</option>
+                                        <option value="above50" data-text-id="filter-above-50-label">Above 50%</option>
+                                        <option value="above75" data-text-id="filter-above-75-label">Above 75%</option>
+                                        <option value="below50" data-text-id="filter-below-50-label">Below 50%</option>
+                                        <option value="optimized" data-text-id="filter-optimized-label">Optimized</option>
+                                    </select>
+                                    <span class="help-icon" id="filter-help" title="Filter slider combinations by probability.">?</span>
+                                </div>
+                                <table id="combination-table" class="dual-value-table">
+                                    <tbody id="combination-table-body">
+                                        <tr><td colspan="8" id="combination-table-default-text">No combinations available.</td></tr>
+                                    </tbody>
+                                </table>
+                                <div id="pagination-controls">
+                                    <button id="prev-page" data-text-id="prev-page-label">Previous</button>
+                                    <span id="page-info" data-text-id="page-info-default-text">Page 1 of 1</span>
+                                    <button id="next-page" data-text-id="next-page-label">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 5: HTML Body - Metrics Table and Footer -->
+        <div class="summary-section-container">
+            <button class="toggle-summary" data-target="insights-recommendations-content" aria-expanded="false">▼ <span id="insights-recommendations-label">Insights and Recommendations</span></button>
+            <div id="insights-recommendations-content" class="summary-content" style="display: none;">
+                <div id="recommendations-section">
+                    <h4 id="recommendations-header">Recommendations</h4>
+                    <div id="recommendations-content"></div>
+                </div>
+                <div id="metrics-table-container" class="white-box-container">
+                    <div class="table-title" id="statistical-metrics-title">Statistical Metrics</div>
+                    <table id="statistical-metrics-table" class="dual-value-table">
+                        <thead>
+                            <tr>
+                                <th id="metric-header">Metric</th>
+                                <th id="purpose-header">Purpose</th>
+                                <th id="general-formula-header">General Formula</th>
+                                <th id="dynamic-formula-header">Dynamic Formula</th>
+                                <th id="result-header">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td id="pert-mean-label">PERT Mean</td>
+                                <td id="pert-mean-purpose">Weighted average of estimates</td>
+                                <td id="pert-mean-formula">(O + 4M + P) / 6</td>
+                                <td id="pert-mean-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="pert-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="triangle-mean-label">Triangle Mean</td>
+                                <td id="triangle-mean-purpose">Simple average of estimates</td>
+                                <td id="triangle-mean-formula">(O + M + P) / 3</td>
+                                <td id="triangle-mean-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="tri-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="beta-mean-label">Beta Mean</td>
+                                <td id="beta-mean-purpose">Mean of Beta distribution</td>
+                                <td id="beta-mean-formula">N/A</td>
+                                <td id="beta-mean-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="beta-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="mc-unsmoothed-mean-label">MC Unsmoothed Mean</td>
+                                <td id="mc-unsmoothed-mean-purpose">Monte Carlo mean without smoothing</td>
+                                <td id="mc-unsmoothed-mean-formula">N/A</td>
+                                <td id="mc-unsmoothed-mean-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="mc-unsmoothed-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="mc-smoothed-mean-label">MC Smoothed Mean</td>
+                                <td id="mc-smoothed-mean-purpose">Monte Carlo mean with smoothing</td>
+                                <td id="mc-smoothed-mean-formula">N/A</td>
+                                <td id="mc-smoothed-mean-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="mc-smoothed-mean"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="mc-smoothed-median-label">MC Smoothed Median</td>
+                                <td id="mc-smoothed-median-purpose">Monte Carlo median with smoothing</td>
+                                <td id="mc-smoothed-median-formula">N/A</td>
+                                <td id="mc-smoothed-median-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="mc-smoothed-median">Invalid task results</span></td>
+                            </tr>
+                            <tr>
+                                <td id="std-dev-label">Standard Deviation</td>
+                                <td id="std-dev-purpose">Measure of variability</td>
+                                <td id="std-dev-formula">N/A</td>
+                                <td id="std-dev-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="std-dev"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="variance-label">Variance</td>
+                                <td id="variance-purpose">Measure of dispersion</td>
+                                <td id="variance-formula">N/A</td>
+                                <td id="variance-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="variance"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="skewness-label">Skewness</td>
+                                <td id="skewness-purpose">Measure of distribution asymmetry</td>
+                                <td id="skewness-formula">N/A</td>
+                                <td id="skewness-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="skewness"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="cv-label">Coefficient of Variation</td>
+                                <td id="cv-purpose">Relative variability</td>
+                                <td id="cv-formula">N/A</td>
+                                <td id="cv-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="cv"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="ci-label">Confidence Interval</td>
+                                <td id="ci-purpose">Range of likely outcomes</td>
+                                <td id="ci-formula">N/A</td>
+                                <td id="ci-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="ci"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="var-label">Value at Risk</td>
+                                <td id="var-purpose">Risk threshold</td>
+                                <td id="var-formula">N/A</td>
+                                <td id="var-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="var"></span></td>
+                            </tr>
+                            <tr>
+                                <td id="cvar-label">Conditional Value at Risk</td>
+                                <td id="cvar-purpose">Expected loss beyond VaR</td>
+                                <td id="cvar-formula">N/A</td>
+                                <td id="cvar-dynamic-formula">N/A</td>
+                                <td><span class="dynamic" id="cvar"></span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <button id="back-to-top" data-text-id="back-to-top-label">Back to Top</button>
+    </div>
+</body>
+
+
+<!-- Section 6: JavaScript - Initialization and Event Listeners -->
+<!-- Section 6.1: Global State and Utility Functions -->
+<script type="text/javascript">
+    // Global state variables for the simulator
+    let isInitialized = false;
+    let toggleStates = {};
+    let slidersMoved = false;
+    let isOptimizeMode = false;
+    window.sliderState = {
+        budgetFlexibility: '0',
+        scheduleFlexibility: '0',
+        scopeCertainty: '0',
+        qualityTolerance: '0',
+        targetValue: null
+    };
+    let targetProbabilityData = null;
+    let tasks = {};
+    let taskValidationError = false;
+
+    // Initialize sessionId and sheetId from injected variables or URL parameters
+    window.sessionId = window.sessionId || new URLSearchParams(window.location.search).get('sessionId') || '';
+    window.sheetId = window.sheetId || new URLSearchParams(window.location.search).get('sheetId') || '';
+
+    // Utility function to log errors to the server
+    function logErrorToServer(error, functionName) {
+        console.error(`Error in ${functionName}: ${error.message} (sessionId: ${window.sessionId})`);
+        google.script.run.withFailureHandler(function(err) {
+            console.error('Failed to log error to server:', err);
+        }).logClientError(`Error in ${functionName}: ${error.message} (sessionId: ${window.sessionId})`);
+    }
+
+    // Utility function to wait for MathJax to load
+    function waitForMathJax(callback) {
+        if (typeof MathJax !== 'undefined' && MathJax.isReady) {
+            callback();
+        } else {
+            setTimeout(() => waitForMathJax(callback), 100);
+        }
+    }
+</script>
+
+<!-- Section 6.2: Document Load and Initialization -->
+<script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Debugging logs for initialization
+        console.log('Full URL:', window.location.href);
+        console.log('Search Params:', window.location.search);
+        console.log('Extracted sheetId from URL:', new URLSearchParams(window.location.search).get('sheetId'));
+        console.log('Injected sheetId:', window.sheetId);
+        console.log('Initializing Plot.html with sessionId:', window.sessionId, 'sheetId:', window.sheetId);
+        console.log('MathJax URL:', window.MATHJAX_URL || 'https://cdn.jsdelivr.net/npm/mathjax@2.7.5/MathJax.js?config=TeX-MML-AM_CHTML');
+        console.log('Google Charts URL:', window.GOOGLE_CHARTS_URL || 'https://www.google.com/jsapi');
+        console.log('Google Fonts URL:', window.GOOGLE_FONTS_URL || 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        // Check for valid sheetId
+        if (!window.sheetId) {
+            console.error('No sheetId provided in injected variable or URL');
+            document.getElementById('error-message').textContent = window.CONFIG?.ERROR_NO_SHEET_ID_MESSAGE || 'Spreadsheet ID not provided. Please contact support.';
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('loading-overlay').style.display = 'none';
+            logErrorToServer(new Error('No sheetId provided in injected variable or URL'), 'initialize');
+            return;
+        }
+
+        // Ensure resource URLs are defined
+        window.MATHJAX_URL = window.MATHJAX_URL || 'https://cdn.jsdelivr.net/npm/mathjax@2.7.5/MathJax.js?config=TeX-MML-AM_CHTML';
+        window.GOOGLE_CHARTS_URL = window.GOOGLE_CHARTS_URL || 'https://www.google.com/jsapi';
+        window.GOOGLE_FONTS_URL = window.GOOGLE_FONTS_URL || 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
+
+        // Retry after a short delay to handle redirects in web mode
+        if (!window.sheetId) { // Only retry if injected sheetId is missing
+            setTimeout(() => {
+                window.sheetId = window.sheetId || new URLSearchParams(window.location.search).get('sheetId') || '';
+                console.log('Retry URL:', window.location.href);
+                console.log('Retry Search Params:', window.location.search);
+                console.log('Retry Extracted sheetId:', new URLSearchParams(window.location.search).get('sheetId'));
+                if (!window.sheetId) {
+                    console.error('No sheetId provided after retry');
+                    document.getElementById('error-message').textContent = window.CONFIG?.ERROR_NO_SHEET_ID_MESSAGE || 'Spreadsheet ID not provided. Please contact support.';
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    logErrorToServer(new Error('No sheetId provided after retry'), 'initialize');
+                    return;
+                }
+                proceedWithInitialization();
+            }, 1000);
+        } else {
+            proceedWithInitialization();
+        }
+
+        // Initialize Google Charts and MathJax with retry
+        function proceedWithInitialization() {
+            // Load Google Fonts
+            const fontLink = document.createElement('link');
+            fontLink.rel = 'stylesheet';
+            fontLink.href = window.GOOGLE_FONTS_URL;
+            fontLink.onerror = () => {
+                console.error('Failed to load Google Fonts', { url: window.GOOGLE_FONTS_URL });
+                logErrorToServer(new Error('Failed to load Google Fonts'), 'proceedWithInitialization');
+            };
+            document.head.appendChild(fontLink);
+
+            // Load Google Charts
+            const chartsScript = document.createElement('script');
+            chartsScript.src = window.GOOGLE_CHARTS_URL;
+            chartsScript.async = true;
+            chartsScript.onload = () => {
+                if (typeof google === 'undefined' || !google.charts) {
+                    console.error('Google Charts not loaded', { url: window.GOOGLE_CHARTS_URL });
+                    document.getElementById('error-message').textContent = 'Failed to load Google Charts. Please try again.';
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    logErrorToServer(new Error('Google Charts not loaded'), 'proceedWithInitialization');
+                    return;
+                }
+                google.charts.load('current', { packages: ['corechart', 'line'] });
+                google.charts.setOnLoadCallback(loadMathJax);
+            };
+            chartsScript.onerror = () => {
+                console.error('Failed to load Google Charts script', { url: window.GOOGLE_CHARTS_URL });
+                document.getElementById('error-message').textContent = 'Failed to load Google Charts. Please try again.';
+                document.getElementById('error-message').style.display = 'block';
+                document.getElementById('loading-overlay').style.display = 'none';
+                logErrorToServer(new Error('Failed to load Google Charts script'), 'proceedWithInitialization');
+            };
+            document.head.appendChild(chartsScript);
+
+            // Load MathJax with retry
+            function loadMathJax() {
+                let mathJaxAttempts = 0;
+                const maxMathJaxAttempts = 5;
+                const mathJaxRetryDelay = 1000;
+                function tryLoadMathJax() {
+                    if (typeof MathJax !== 'undefined') {
+                        console.log('MathJax loaded successfully');
+                        MathJax.Hub.Config({
+                            tex2jax: { inlineMath: [['$','$'], ['\\(','\\)']] }
+                        });
+                        initialize();
+                        return;
+                    }
+                    if (mathJaxAttempts >= maxMathJaxAttempts) {
+                        console.error('MathJax failed to load after retries', { url: window.MATHJAX_URL });
+                        document.getElementById('error-message').textContent = 'Failed to load MathJax. Using fallback.';
+                        document.getElementById('error-message').style.display = 'block';
+                        logErrorToServer(new Error('MathJax failed to load after retries'), 'proceedWithInitialization');
+                        // Fallback to secondary MathJax CDN
+                        const fallbackScript = document.createElement('script');
+                        fallbackScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@2.7.5/MathJax.js?config=TeX-MML-AM_CHTML';
+                        fallbackScript.async = true;
+                        fallbackScript.onload = () => {
+                            console.log('MathJax fallback loaded');
+                            MathJax.Hub.Config({
+                                tex2jax: { inlineMath: [['$','$'], ['\\(','\\)']] }
+                            });
+                            initialize();
+                        };
+                        fallbackScript.onerror = () => {
+                            console.error('MathJax fallback failed to load');
+                            document.getElementById('error-message').textContent = 'Failed to load MathJax fallback. Dashboard may display without equations.';
+                            document.getElementById('error-message').style.display = 'block';
+                            logErrorToServer(new Error('MathJax fallback failed to load'), 'proceedWithInitialization');
+                            initialize(); // Proceed without MathJax
+                        };
+                        document.head.appendChild(fallbackScript);
+                        return;
+                    }
+                    mathJaxAttempts++;
+                    console.warn(`MathJax not loaded, retrying (${mathJaxAttempts}/${maxMathJaxAttempts})`);
+                    const mathJaxScript = document.createElement('script');
+                    mathJaxScript.src = window.MATHJAX_URL;
+                    mathJaxScript.async = true;
+                    mathJaxScript.onerror = () => tryLoadMathJax(); // Retry on error
+                    document.head.appendChild(mathJaxScript);
+                }
+                tryLoadMathJax();
+            }
+        }
+    });
+</script>
+
+<!-- Section 6.3: Main Initialization Logic -->
+<script type="text/javascript">
+    function initialize() {
+        const simulatorContainer = document.getElementById('probability-simulator');
+        if (!simulatorContainer) {
+            console.error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found');
+            simulatorContainer.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_PAGE_LOAD_FAILED || 'Failed to load page'}</p>`;
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found'), 'initialize');
+            return;
+        }
+        waitForMathJax(() => {
+            setupToggleListeners();
+            setupSliderListeners();
+            setupControlListeners();
+            restoreSliders();
+            updateUIText(); // Added to update UI text
+            fetchTasks(function() {
+                console.log('Tasks fetched, count:', Object.keys(tasks).length);
+                if (Object.keys(tasks).length > 0) {
+                    fetchTargetProbabilityData(function() {
+                        console.log('Data fetched, initializing UI');
+                        isInitialized = true;
+                        setInitialTask();
+                        setInitialTargetValue();
+                        updateTargetRange();
+                        updateModeSelectLabel();
+                        drawAllPlots();
+                        updateResults();
+                        syncSliderDisplays();
+                        populateCombinationTable(1);
+                        const loadingOverlay = document.getElementById('loading-overlay');
+                        if (loadingOverlay) loadingOverlay.style.display = 'none';
+                        MathJax.typeset();
+                    });
+                } else {
+                    taskValidationError = true;
+                    const taskSelect = document.getElementById('task-select');
+                    if (taskSelect) {
+                        taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_NO_VALID_TASKS || 'No valid tasks found'}</option>`;
+                    }
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.textContent = window.CONFIG?.ERROR_NO_VALID_TASKS_MESSAGE || 'No valid tasks available in the spreadsheet.';
+                        loadingOverlay.style.display = 'none';
+                    }
+                    document.getElementById('error-message').textContent = window.CONFIG?.ERROR_NO_VALID_TASKS_MESSAGE || 'No valid tasks available in the spreadsheet.';
+                    document.getElementById('error-message').style.display = 'block';
+                    updateResults();
+                }
+            });
+        });
+
+        window.addEventListener('scroll', function() {
+            const backToTop = document.getElementById('back-to-top');
+            if (backToTop) {
+                backToTop.style.display = window.scrollY > 200 ? 'block' : 'none';
+            }
+        }, { passive: true });
+        const backToTop = document.getElementById('back-to-top');
+        if (backToTop) {
+            backToTop.addEventListener('click', function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, { passive: true });
+        }
+    }
+</script>
+
+<!-- Section 6.4: UI Update Functions -->
+<script type="text/javascript">
+    function updateModeSelectLabel() {
+        const modeSelect = document.getElementById('mode-select');
+        const label = document.querySelector('#mode-select-container label');
+        if (modeSelect && label) {
+            const mode = modeSelect.value || 'target';
+            label.textContent = `${window.CONFIG?.MODE_SELECT_LABEL || 'Mode'} (${mode.charAt(0).toUpperCase() + mode.slice(1)})`;
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: mode-select');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: mode-select'), 'updateModeSelectLabel');
+        }
+    }
+
+    function setInitialTask() {
+        const taskSelect = document.getElementById('task-select');
+        if (!taskSelect) {
+            console.error(window.CONFIG?.ERROR_NO_TASK_SELECT || 'Task select element not found');
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_TASK_SELECT || 'Task select element not found'), 'setInitialTask');
+            return;
+        }
+        if (Object.keys(tasks).length > 0) {
+            const selectedTask = window.defaultTask && tasks[window.defaultTask] && isValidTask(tasks[window.defaultTask])
+                ? window.defaultTask
+                : (Object.keys(tasks).find(task => tasks[task].selectedForPlot) || Object.keys(tasks)[0]);
+            taskSelect.value = selectedTask;
+            if (!isValidTask(tasks[selectedTask])) {
+                taskValidationError = true;
+                taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_INVALID_TASK_DATA || 'Invalid task data'}</option>`;
+                document.getElementById('error-message').textContent = window.CONFIG?.ERROR_INVALID_TASK_DATA || 'Invalid task data';
+                document.getElementById('error-message').style.display = 'block';
+                updateResults();
+                return;
+            }
+            updateTargetRange();
+            setInitialTargetValue();
+            fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+                MathJax.typeset();
+            }, true);
+        } else {
+            taskValidationError = true;
+            updateResults();
+        }
+    }
+
+    function isValidTask(task) {
+        return task && Number.isFinite(task.optimistic) && Number.isFinite(task.mostLikely) && Number.isFinite(task.pessimistic) &&
+               task.optimistic < task.mostLikely && task.mostLikely < task.pessimistic;
+    }
+</script>
+
+<!-- Section 6.5: Slider Management Functions -->
+<script type="text/javascript">
+    function setupToggleListeners() {
+        document.querySelectorAll('.toggle-use-case, .toggle-summary').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const targetId = button.getAttribute('data-target');
+                const target = document.getElementById(targetId);
+                if (!target) {
+                    console.warn(`Toggle target ${targetId} not found`);
+                    logErrorToServer(new Error(`Toggle target ${targetId} not found`), 'setupToggleListeners');
+                    return;
+                }
+                const isExpanded = button.getAttribute('aria-expanded') === 'true';
+                const newExpanded = !isExpanded;
+                target.style.display = newExpanded ? (button.classList.contains('toggle-summary') ? 'flex' : 'block') : 'none';
+                button.setAttribute('aria-expanded', newExpanded);
+                button.textContent = (newExpanded ? '▲ ' : '▼ ') + button.textContent.slice(2);
+                toggleStates[targetId] = newExpanded;
+            }, { passive: true });
+        });
+    }
+
+    function restoreSliders() {
+        const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+        sliders.forEach(function(id) {
+            const slider = document.getElementById(id);
+            if (!slider) {
+                console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`);
+                logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`), 'restoreSliders');
+                return;
+            }
+            const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+            let value = isOptimizeMode && targetProbabilityData?.optimalData?.value?.optimalSliderSettings
+                ? (targetProbabilityData.optimalData.value.optimalSliderSettings[key] || 0)
+                : 0;
+            if (!targetProbabilityData?.optimalData?.value?.optimalSliderSettings && isOptimizeMode) {
+                console.warn(window.CONFIG?.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING || 'Optimal slider settings missing');
+                logErrorToServer(new Error(window.CONFIG?.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING || 'Optimal slider settings missing'), 'restoreSliders');
+            }
+            slider.value = value;
+            slider.setAttribute('aria-valuenow', value);
+            window.sliderState[key] = value.toString();
+            updateSliderValueDisplay(id, value);
+        });
+        slidersMoved = false;
+        enableSliders(!isOptimizeMode);
+    }
+
+    function enableSliders(enabled) {
+        const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+        sliders.forEach(function(id) {
+            const slider = document.getElementById(id);
+            if (!slider) {
+                console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`);
+                logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`), 'enableSliders');
+                return;
+            }
+            slider.disabled = !enabled;
+            slider.style.backgroundColor = enabled ? '#ffffff' : '#e0e0e0';
+        });
+    }
+
+    function updateSliderValueDisplay(id, value) {
+        const valueSpan = document.getElementById(id + 'Value');
+        if (valueSpan && !isNaN(value)) {
+            valueSpan.textContent = `${value.toFixed(0)}%`;
+            const slider = document.getElementById(id);
+            if (slider) slider.setAttribute('aria-valuenow', value.toFixed(0));
+        } else {
+            if (valueSpan) valueSpan.textContent = '0%';
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}Value or value is NaN`);
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}Value or value is NaN`), 'updateSliderValueDisplay');
+        }
+    }
+
+    function syncSliderDisplays() {
+        const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+        sliders.forEach(function(id) {
+            const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+            const value = parseFloat(window.sliderState[key]) || 0;
+            updateSliderValueDisplay(id, value);
+        });
+        const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+        const modeSelect = document.getElementById('mode-select')?.value || 'target';
+        const exploreModeTitle = document.getElementById('explore-mode-title');
+        if (exploreModeTitle) {
+            if (optimizeMode === 'yes') {
+                exploreModeTitle.textContent = window.CONFIG?.EXPLORE_MODE_OPTIMIZED_TITLE || 'Optimized Mode';
+            } else {
+                exploreModeTitle.textContent = `${window.CONFIG?.EXPLORE_MODE_DEFAULT_TITLE_PREFIX || 'Explore'} ${modeSelect.charAt(0).toUpperCase() + modeSelect.slice(1)} ${window.CONFIG?.EXPLORE_MODE_DEFAULT_TITLE_SUFFIX || 'Mode'}`;
+            }
+        } else {
+            console.error(window.CONFIG?.ERROR_NO_EXPLORE_MODE_TITLE || 'Explore mode title not found');
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_EXPLORE_MODE_TITLE || 'Explore mode title not found'), 'syncSliderDisplays');
+        }
+    }
+</script>
+
+<!-- Section 6.6: Slider Event Listeners -->
+<script type="text/javascript">
+    function setupSliderListeners() {
+        const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+        const debounce = function(func, wait) {
+            let timeout;
+            return function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(func, wait);
+            };
+        };
+        sliders.forEach(function(id) {
+            const slider = document.getElementById(id);
+            if (!slider) {
+                console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`);
+                logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || `Element not found: ${id}`), 'setupSliderListeners');
+                return;
+            }
+            slider.addEventListener('input', debounce(function() {
+                if (isOptimizeMode) return;
+                const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
+                const value = parseFloat(slider.value);
+                window.sliderState[key] = value.toString();
+                fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            }, 200));
+        });
+    }
+</script>
+
+<!-- Section 6.7: Control Event Listeners -->
+<script type="text/javascript">
+    function setupControlListeners() {
+        const taskSelect = document.getElementById('task-select');
+        const modeSelect = document.getElementById('mode-select');
+        const targetInput = document.getElementById('target-value-input');
+        const confidenceInput = document.getElementById('confidence-level-input');
+        const optimizeSelect = document.getElementById('optimize-select');
+        const clearButton = document.getElementById('clear-button');
+
+        if (taskSelect) {
+            taskSelect.addEventListener('change', function() {
+                taskValidationError = tasks[this.value] && !isValidTask(tasks[this.value]);
+                updateTargetRange();
+                setInitialTargetValue();
+                updateTargetInputRange();
+                if (validateInputs()) fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: task-select');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: task-select'), 'setupControlListeners');
+        }
+
+        if (modeSelect) {
+            modeSelect.addEventListener('change', function() {
+                toggleModeInputs();
+                updateModeSelectLabel();
+                if (!isOptimizeMode) {
+                    restoreSliders();
+                }
+                if (validateInputs()) fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: mode-select');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: mode-select'), 'setupControlListeners');
+        }
+
+        if (targetInput) {
+            targetInput.addEventListener('input', function() {
+                if (validateTargetInput()) fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: target-value-input');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: target-value-input'), 'setupControlListeners');
+        }
+
+        if (confidenceInput) {
+            confidenceInput.addEventListener('input', function() {
+                if (validateConfidenceInput()) fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: confidence-level-input');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: confidence-level-input'), 'setupControlListeners');
+        }
+
+        if (optimizeSelect) {
+            optimizeSelect.addEventListener('change', function() {
+                isOptimizeMode = this.value === 'yes';
+                enableSliders(!isOptimizeMode);
+                restoreSliders();
+                fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    console.log('Optimize mode changed, sliderValues:', window.sliderState);
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: optimize-select');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: optimize-select'), 'setupControlListeners');
+        }
+
+        if (clearButton) {
+            clearButton.addEventListener('click', function() {
+                restoreSliders();
+                setInitialTargetValue();
+                document.getElementById('optimize-select').value = 'no';
+                isOptimizeMode = false;
+                enableSliders(true);
+                fetchTargetProbabilityData(function() {
+                    drawAllPlots();
+                    updateResults();
+                    syncSliderDisplays();
+                    populateCombinationTable(1);
+                    MathJax.typeset();
+                });
+            });
+        } else {
+            console.warn(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: clear-button');
+            logErrorToServer(new Error(window.CONFIG?.WARNING_ELEMENT_NOT_FOUND || 'Element not found: clear-button'), 'setupControlListeners');
+        }
+
+        toggleModeInputs();
+        updateModeSelectLabel();
+    }
+</script>
+
+<!-- Section 6.8: Dynamic Text Updates -->
+<script type="text/javascript">
+    function updateUIText() {
+        const textElements = [
+            { id: 'loading-message', configKey: 'LOADING_MESSAGE', fallback: 'Loading...' },
+            { id: 'initial-setup-title', configKey: 'INITIAL_SETUP_TITLE', fallback: 'Initial Setup' },
+            { id: 'initial-setup-description', configKey: 'INITIAL_SETUP_DESCRIPTION', fallback: 'Configure the simulation parameters below.' },
+            { id: 'task-select-label', configKey: 'TASK_SELECT_LABEL', fallback: 'Select Task' },
+            { id: 'task-loading-message', configKey: 'TASK_LOADING_MESSAGE', fallback: 'Loading tasks...' },
+            { id: 'mode-select-label', configKey: 'MODE_SELECT_LABEL', fallback: 'Mode' },
+            { id: 'target-mode-label', configKey: 'TARGET_MODE_LABEL', fallback: 'Target' },
+            { id: 'confidence-mode-label', configKey: 'CONFIDENCE_MODE_LABEL', fallback: 'Confidence' },
+            { id: 'target-value-label', configKey: 'TARGET_VALUE_LABEL', fallback: 'Target Value' },
+            { id: 'confidence-level-label', configKey: 'CONFIDENCE_LEVEL_LABEL', fallback: 'Confidence Level (1-100%)' },
+            { id: 'optimize-label', configKey: 'OPTIMIZE_LABEL', fallback: 'Optimize' },
+            { id: 'optimize-no-label', configKey: 'OPTIMIZE_NO_LABEL', fallback: 'No' },
+            { id: 'optimize-yes-label', configKey: 'OPTIMIZE_YES_LABEL', fallback: 'Yes' },
+            { id: 'exploration-results-header', configKey: 'EXPLORATION_RESULTS_HEADER', fallback: 'Exploration Results' },
+            { id: 'exploration-results-text', configKey: 'EXPLORATION_RESULTS_DEFAULT_TEXT', fallback: 'Results will be displayed here after configuration.' },
+            { id: 'explore-mode-title', configKey: 'EXPLORE_MODE_DEFAULT_TITLE_PREFIX', fallback: 'Explore', combineWith: 'EXPLORE_MODE_DEFAULT_TITLE_SUFFIX', combineFallback: 'Mode' },
+            { id: 'budget-flexibility-label', configKey: 'BUDGET_FLEXIBILITY_LABEL', fallback: 'Budget Flexibility' },
+            { id: 'budget-flexibility-help', configKey: 'BUDGET_FLEXIBILITY_HELP_TEXT', fallback: 'Adjust budget flexibility to allow cost overruns.', attribute: 'title' },
+            { id: 'schedule-flexibility-label', configKey: 'SCHEDULE_FLEXIBILITY_LABEL', fallback: 'Schedule Flexibility' },
+            { id: 'schedule-flexibility-help', configKey: 'SCHEDULE_FLEXIBILITY_HELP_TEXT', fallback: 'Adjust schedule flexibility to allow delays.', attribute: 'title' },
+            { id: 'scope-certainty-label', configKey: 'SCOPE_CERTAINTY_LABEL', fallback: 'Scope Certainty' },
+            { id: 'scope-certainty-help', configKey: 'SCOPE_CERTAINTY_HELP_TEXT', fallback: 'Increase scope certainty to reduce scope creep.', attribute: 'title' },
+            { id: 'quality-tolerance-label', configKey: 'QUALITY_TOLERANCE_LABEL', fallback: 'Quality Tolerance' },
+            { id: 'quality-tolerance-help', configKey: 'QUALITY_TOLERANCE_HELP_TEXT', fallback: 'Adjust quality tolerance to manage defects.', attribute: 'title' },
+            { id: 'pdf-use-case-label', configKey: 'USE_CASE_LABEL', fallback: 'Use Case' },
+            { id: 'pdf-use-case-when-label', configKey: 'USE_CASE_WHEN_LABEL', fallback: 'When' },
+            { id: 'pdf-use-case-when', configKey: 'PDF_USE_CASE_WHEN', fallback: 'When evaluating probability density.' },
+            { id: 'pdf-use-case-how-label', configKey: 'USE_CASE_HOW_LABEL', fallback: 'How' },
+            { id: 'pdf-use-case-how', configKey: 'PDF_USE_CASE_HOW', fallback: 'Use the PDF chart to analyze probability distribution.' },
+            { id: 'pdf-use-case-benefit-label', configKey: 'USE_CASE_BENEFIT_LABEL', fallback: 'Benefit' },
+            { id: 'pdf-use-case-benefit', configKey: 'PDF_USE_CASE_BENEFIT', fallback: 'Helps identify likely outcomes.' },
+            { id: 'cdf-use-case-label', configKey: 'USE_CASE_LABEL', fallback: 'Use Case' },
+            { id: 'cdf-use-case-when-label', configKey: 'USE_CASE_WHEN_LABEL', fallback: 'When' },
+            { id: 'cdf-use-case-when', configKey: 'CDF_USE_CASE_WHEN', fallback: 'When evaluating cumulative probability.' },
+            { id: 'cdf-use-case-how-label', configKey: 'USE_CASE_HOW_LABEL', fallback: 'How' },
+            { id: 'cdf-use-case-how', configKey: 'CDF_USE_CASE_HOW', fallback: 'Use the CDF chart to assess cumulative risks.' },
+            { id: 'cdf-use-case-benefit-label', configKey: 'USE_CASE_BENEFIT_LABEL', fallback: 'Benefit' },
+            { id: 'cdf-use-case-benefit', configKey: 'CDF_USE_CASE_BENEFIT', fallback: 'Helps determine confidence levels.' },
+            { id: 'slider-combination-label', configKey: 'SLIDER_COMBINATION_LABEL', fallback: 'Slider Combinations' },
+            { id: 'filter-label', configKey: 'FILTER_LABEL', fallback: 'Filter' },
+            { id: 'filter-help', configKey: 'FILTER_HELP_TEXT', fallback: 'Filter slider combinations by probability.', attribute: 'title' },
+            { id: 'filter-current-label', configKey: 'FILTER_CURRENT_LABEL', fallback: 'Current Selection' },
+            { id: 'filter-all-label', configKey: 'FILTER_ALL_LABEL', fallback: 'All' },
+            { id: 'filter-above-50-label', configKey: 'FILTER_ABOVE_50_LABEL', fallback: 'Above 50%' },
+            { id: 'filter-above-75-label', configKey: 'FILTER_ABOVE_75_LABEL', fallback: 'Above 75%' },
+            { id: 'filter-below-50-label', configKey: 'FILTER_BELOW_50_LABEL', fallback: 'Below 50%' },
+            { id: 'filter-optimized-label', configKey: 'FILTER_OPTIMIZED_LABEL', fallback: 'Optimized' },
+            { id: 'combination-table-default-text', configKey: 'COMBINATION_TABLE_DEFAULT_TEXT', fallback: 'No combinations available.' },
+            { id: 'prev-page-label', configKey: 'PREV_PAGE_LABEL', fallback: 'Previous' },
+            { id: 'page-info-default-text', configKey: 'PAGE_INFO_DEFAULT_TEXT', fallback: 'Page 1 of 1' },
+            { id: 'next-page-label', configKey: 'NEXT_PAGE_LABEL', fallback: 'Next' },
+            { id: 'insights-recommendations-label', configKey: 'INSIGHTS_RECOMMENDATIONS_LABEL', fallback: 'Insights and Recommendations' },
+            { id: 'recommendations-header', configKey: 'RECOMMENDATIONS_HEADER', fallback: 'Recommendations' },
+            { id: 'metric-header', configKey: 'METRIC_HEADER', fallback: 'Metric' },
+            { id: 'purpose-header', configKey: 'PURPOSE_HEADER', fallback: 'Purpose' },
+            { id: 'general-formula-header', configKey: 'GENERAL_FORMULA_HEADER', fallback: 'General Formula' },
+            { id: 'dynamic-formula-header', configKey: 'DYNAMIC_FORMULA_HEADER', fallback: 'Dynamic Formula' },
+            { id: 'result-header', configKey: 'RESULT_HEADER', fallback: 'Result' },
+            { id: 'pert-mean-label', configKey: 'PERT_MEAN_LABEL', fallback: 'PERT Mean' },
+            { id: 'pert-mean-purpose', configKey: 'PERT_MEAN_PURPOSE', fallback: 'Weighted average of estimates' },
+            { id: 'pert-mean-formula', configKey: 'PERT_MEAN_FORMULA', fallback: '(O + 4M + P) / 6' },
+            { id: 'pert-mean-dynamic-formula', configKey: 'PERT_MEAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'triangle-mean-label', configKey: 'TRIANGLE_MEAN_LABEL', fallback: 'Triangle Mean' },
+            { id: 'triangle-mean-purpose', configKey: 'TRIANGLE_MEAN_PURPOSE', fallback: 'Simple average of estimates' },
+            { id: 'triangle-mean-formula', configKey: 'TRIANGLE_MEAN_FORMULA', fallback: '(O + M + P) / 3' },
+            { id: 'triangle-mean-dynamic-formula', configKey: 'TRIANGLE_MEAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'beta-mean-label', configKey: 'BETA_MEAN_LABEL', fallback: 'Beta Mean' },
+            { id: 'beta-mean-purpose', configKey: 'BETA_MEAN_PURPOSE', fallback: 'Mean of Beta distribution' },
+            { id: 'beta-mean-formula', configKey: 'BETA_MEAN_FORMULA', fallback: 'N/A' },
+            { id: 'beta-mean-dynamic-formula', configKey: 'BETA_MEAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'mc-unsmoothed-mean-label', configKey: 'MC_UNSMOOTHED_MEAN_LABEL', fallback: 'MC Unsmoothed Mean' },
+            { id: 'mc-unsmoothed-mean-purpose', configKey: 'MC_UNSMOOTHED_MEAN_PURPOSE', fallback: 'Monte Carlo mean without smoothing' },
+            { id: 'mc-unsmoothed-mean-formula', configKey: 'MC_UNSMOOTHED_MEAN_FORMULA', fallback: 'N/A' },
+            { id: 'mc-unsmoothed-mean-dynamic-formula', configKey: 'MC_UNSMOOTHED_MEAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'mc-smoothed-mean-label', configKey: 'MC_SMOOTHED_MEAN_LABEL', fallback: 'MC Smoothed Mean' },
+            { id: 'mc-smoothed-mean-purpose', configKey: 'MC_SMOOTHED_MEAN_PURPOSE', fallback: 'Monte Carlo mean with smoothing' },
+            { id: 'mc-smoothed-mean-formula', configKey: 'MC_SMOOTHED_MEAN_FORMULA', fallback: 'N/A' },
+            { id: 'mc-smoothed-mean-dynamic-formula', configKey: 'MC_SMOOTHED_MEAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'mc-smoothed-median-label', configKey: 'MC_SMOOTHED_MEDIAN_LABEL', fallback: 'MC Smoothed Median' },
+            { id: 'mc-smoothed-median-purpose', configKey: 'MC_SMOOTHED_MEDIAN_PURPOSE', fallback: 'Monte Carlo median with smoothing' },
+            { id: 'mc-smoothed-median-formula', configKey: 'MC_SMOOTHED_MEDIAN_FORMULA', fallback: 'N/A' },
+            { id: 'mc-smoothed-median-dynamic-formula', configKey: 'MC_SMOOTHED_MEDIAN_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'std-dev-label', configKey: 'STD_DEV_LABEL', fallback: 'Standard Deviation' },
+            { id: 'std-dev-purpose', configKey: 'STD_DEV_PURPOSE', fallback: 'Measure of variability' },
+            { id: 'std-dev-formula', configKey: 'STD_DEV_FORMULA', fallback: 'N/A' },
+            { id: 'std-dev-dynamic-formula', configKey: 'STD_DEV_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'variance-label', configKey: 'VARIANCE_LABEL', fallback: 'Variance' },
+            { id: 'variance-purpose', configKey: 'VARIANCE_PURPOSE', fallback: 'Measure of dispersion' },
+            { id: 'variance-formula', configKey: 'VARIANCE_FORMULA', fallback: 'N/A' },
+            { id: 'variance-dynamic-formula', configKey: 'VARIANCE_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'skewness-label', configKey: 'SKEWNESS_LABEL', fallback: 'Skewness' },
+            { id: 'skewness-purpose', configKey: 'SKEWNESS_PURPOSE', fallback: 'Measure of distribution asymmetry' },
+            { id: 'skewness-formula', configKey: 'SKEWNESS_FORMULA', fallback: 'N/A' },
+            { id: 'skewness-dynamic-formula', configKey: 'SKEWNESS_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'cv-label', configKey: 'CV_LABEL', fallback: 'Coefficient of Variation' },
+            { id: 'cv-purpose', configKey: 'CV_PURPOSE', fallback: 'Relative variability' },
+            { id: 'cv-formula', configKey: 'CV_FORMULA', fallback: 'N/A' },
+            { id: 'cv-dynamic-formula', configKey: 'CV_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'ci-label', configKey: 'CI_LABEL', fallback: 'Confidence Interval' },
+            { id: 'ci-purpose', configKey: 'CI_PURPOSE', fallback: 'Range of likely outcomes' },
+            { id: 'ci-formula', configKey: 'CI_FORMULA', fallback: 'N/A' },
+            { id: 'ci-dynamic-formula', configKey: 'CI_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'var-label', configKey: 'VAR_LABEL', fallback: 'Value at Risk' },
+            { id: 'var-purpose', configKey: 'VAR_PURPOSE', fallback: 'Risk threshold' },
+            { id: 'var-formula', configKey: 'VAR_FORMULA', fallback: 'N/A' },
+            { id: 'var-dynamic-formula', configKey: 'VAR_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'cvar-label', configKey: 'CVAR_LABEL', fallback: 'Conditional Value at Risk' },
+            { id: 'cvar-purpose', configKey: 'CVAR_PURPOSE', fallback: 'Expected loss beyond VaR' },
+            { id: 'cvar-formula', configKey: 'CVAR_FORMULA', fallback: 'N/A' },
+            { id: 'cvar-dynamic-formula', configKey: 'CVAR_DYNAMIC_FORMULA', fallback: 'N/A' },
+            { id: 'back-to-top-label', configKey: 'BACK_TO_TOP_LABEL', fallback: 'Back to Top' }
+        ];
+
+        textElements.forEach(({ id, configKey, fallback, attribute, combineWith, combineFallback }) => {
+            const element = document.querySelector(`[id="${id}"], [data-text-id="${id}"]`);
+            if (element) {
+                const text = combineWith
+                    ? `${window.CONFIG?.[configKey] || fallback} ${window.CONFIG?.[combineWith] || combineFallback}`
+                    : window.CONFIG?.[configKey] || fallback;
+                if (attribute) {
+                    element.setAttribute(attribute, text);
+                } else {
+                    element.textContent = text;
+                }
+            } else {
+                console.warn(`Element with id or data-text-id "${id}" not found`);
+            }
+        });
+    }
+</script>
+
+        <!-- Section 7a: JavaScript - Task Fetching -->
+<script type="text/javascript">
+    function fetchTasks(callback) {
+        console.log('Fetching tasks for sheetId:', window.sheetId, 'sessionId:', window.sessionId);
+        const timeout = setTimeout(() => {
+            console.error(window.CONFIG?.ERROR_TASK_TIMEOUT || 'Task fetch timeout');
+            const taskSelect = document.getElementById('task-select');
+            if (taskSelect) taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_TASK_TIMEOUT_MESSAGE || 'Task fetch timed out'}</option>`;
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.textContent = window.CONFIG?.ERROR_TASK_TIMEOUT_MESSAGE || 'Task fetch timed out';
+                loadingOverlay.style.display = 'none';
+            }
+            const errorMessage = document.getElementById('error-message');
+            if (errorMessage) {
+                errorMessage.textContent = window.CONFIG?.ERROR_TASK_TIMEOUT_MESSAGE || 'Task fetch timed out';
+                errorMessage.style.display = 'block';
+            }
+            taskValidationError = true;
+            logErrorToServer(new Error(window.CONFIG?.ERROR_TASK_TIMEOUT || 'Task fetch timeout'), 'fetchTasks');
+            callback();
+        }, 5000);
+        if (!window.sheetId) {
+            console.error(window.CONFIG?.ERROR_NO_SHEET_ID || 'No spreadsheet ID provided');
+            const taskSelect = document.getElementById('task-select');
+            if (taskSelect) taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_NO_SHEET_ID_MESSAGE || 'No spreadsheet ID provided'}</option>`;
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.textContent = window.CONFIG?.ERROR_NO_SHEET_ID_MESSAGE || 'No spreadsheet ID provided';
+                loadingOverlay.style.display = 'none';
+            }
+            const errorMessage = document.getElementById('error-message');
+            if (errorMessage) {
+                errorMessage.textContent = window.CONFIG?.ERROR_NO_SHEET_ID_MESSAGE || 'No spreadsheet ID provided';
+                errorMessage.style.display = 'block';
+            }
+            taskValidationError = true;
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_SHEET_ID || 'No spreadsheet ID provided'), 'fetchTasks');
+            clearTimeout(timeout);
+            callback();
+            return;
+        }
+        google.script.run
+            .withSuccessHandler(function(taskData) {
+                clearTimeout(timeout);
+                console.log('Task data received:', taskData);
+                const taskSelect = document.getElementById('task-select');
+                if (!taskSelect) {
+                    console.error(window.CONFIG?.ERROR_NO_TASK_SELECT || 'Task select element not found');
+                    logErrorToServer(new Error(window.CONFIG?.ERROR_NO_TASK_SELECT || 'Task select element not found'), 'fetchTasks');
+                    callback();
+                    return;
+                }
+                taskSelect.innerHTML = '';
+                tasks = {};
+                let selectedTask = null;
+                if (taskData && taskData.tasks && taskData.tasks.length > 0 && !taskData.error) {
+                    taskData.tasks.forEach(function(task) {
+                        if (isValidTask(task)) {
+                            tasks[task.task] = {
+                                optimistic: task.optimistic,
+                                mostLikely: task.mostLikely,
+                                pessimistic: task.pessimistic,
+                                selectedForPlot: task.selectedForPlot
+                            };
+                            const option = document.createElement('option');
+                            option.value = task.task;
+                            option.textContent = task.task;
+                            taskSelect.appendChild(option);
+                            if (task.selectedForPlot) {
+                                selectedTask = task.task;
+                            }
+                        }
+                    });
+                    if (Object.keys(tasks).length > 0) {
+                        taskSelect.value = selectedTask || taskData.tasks[taskData.defaultTaskIndex || 0].task;
+                        taskValidationError = false;
+                    } else {
+                        taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_NO_VALID_TASKS || 'No valid tasks found'}</option>`;
+                        taskValidationError = true;
+                        const errorMessage = document.getElementById('error-message');
+                        if (errorMessage) {
+                            errorMessage.textContent = window.CONFIG?.ERROR_NO_VALID_TASKS_MESSAGE || 'No valid tasks available in the spreadsheet.';
+                            errorMessage.style.display = 'block';
+                        }
+                    }
+                } else {
+                    taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_NO_TASKS_AVAILABLE || 'No tasks available'} ${taskData.error || ''}</option>`;
+                    taskValidationError = true;
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.textContent = `${window.CONFIG?.ERROR_NO_TASKS_AVAILABLE || 'No tasks available'} ${taskData.error || ''}. ${window.CONFIG?.ERROR_CONTACT_SUPPORT || 'Please contact support.'}`;
+                        loadingOverlay.style.display = 'none';
+                    }
+                    const errorMessage = document.getElementById('error-message');
+                    if (errorMessage) {
+                        errorMessage.textContent = `${window.CONFIG?.ERROR_NO_TASKS_AVAILABLE || 'No tasks available'} ${taskData.error || ''}. ${window.CONFIG?.ERROR_CONTACT_SUPPORT || 'Please contact support.'}`;
+                        errorMessage.style.display = 'block';
+                    }
+                    logErrorToServer(new Error(taskData.error || window.CONFIG?.ERROR_NO_TASKS_AVAILABLE || 'No tasks available'), 'fetchTasks');
+                }
+                callback();
+            })
+            .withFailureHandler(function(error) {
+                clearTimeout(timeout);
+                console.error(window.CONFIG?.ERROR_FETCH_TASKS || 'Failed to fetch tasks', error);
+                logErrorToServer(error, 'fetchTasks');
+                const taskSelect = document.getElementById('task-select');
+                if (taskSelect) taskSelect.innerHTML = `<option value="">${window.CONFIG?.ERROR_FETCH_TASKS_MESSAGE || 'Failed to fetch tasks'} ${error.message}</option>`;
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.textContent = `${window.CONFIG?.ERROR_FETCH_TASKS_MESSAGE || 'Failed to fetch tasks'} ${error.message}`;
+                    loadingOverlay.style.display = 'none';
+                }
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = `${window.CONFIG?.ERROR_FETCH_TASKS_MESSAGE || 'Failed to fetch tasks'} ${error.message}`;
+                    errorMessage.style.display = 'block';
+                }
+                taskValidationError = true;
+                callback();
+            })
+            .getAllTasks(window.sheetId);
+    }
+</script>
+
+<!-- Section 7b: JavaScript - Target Probability Data Fetching -->
+<script type="text/javascript">
+    let isFetching = false; // Client-side lock for rate limiting
+    function fetchTargetProbabilityData(callback, force = false) {
+        if (isFetching) {
+            console.warn('Previous fetch in progress, ignoring new request');
+            return;
+        }
+        isFetching = true;
+        const task = document.getElementById('task-select')?.value;
+        if (!task || !tasks[task] || !isValidTask(tasks[task])) {
+            const errorMessage = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_INVALID_TASK || 'Invalid task selected'}</p>`;
+            const plotContainers = ['pdf-chart', 'cdf-chart'];
+            plotContainers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) container.innerHTML = errorMessage;
+            });
+            const combTable = document.getElementById('combination-table-body');
+            if (combTable) combTable.innerHTML = `<tr><td colspan="8">${window.CONFIG?.ERROR_INVALID_TASK || 'Invalid task selected'}</td></tr>`;
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_INVALID_TASK || 'Invalid task selected';
+                errorMessageDiv.style.display = 'block';
+            }
+            targetProbabilityData = null;
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            logErrorToServer(new Error(window.CONFIG?.ERROR_INVALID_TASK || 'Invalid task selected'), 'fetchTargetProbabilityData');
+            isFetching = false;
+            callback();
+            return;
+        }
+
+        const mode = document.getElementById('mode-select')?.value || 'target';
+        const sliderValues = {
+            budgetFlexibility: parseFloat(window.sliderState.budgetFlexibility) || 0,
+            scheduleFlexibility: parseFloat(window.sliderState.scheduleFlexibility) || 0,
+            scopeCertainty: parseFloat(window.sliderState.scopeCertainty) || 0,
+            qualityTolerance: parseFloat(window.sliderState.qualityTolerance) || 0
+        };
+        const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task].mostLikely || (window.CONFIG?.DEFAULT_TARGET_VALUE || 0);
+        const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || (window.CONFIG?.DEFAULT_CONFIDENCE_LEVEL || 0.9);
+
+        const timeout = setTimeout(() => {
+            console.error(window.CONFIG?.ERROR_DATA_TIMEOUT || 'Data fetch timeout');
+            const errorMessage = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_DATA_TIMEOUT_MESSAGE || 'Data fetch timed out'}</p>`;
+            const plotContainers = ['pdf-chart', 'cdf-chart'];
+            plotContainers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) container.innerHTML = errorMessage;
+            });
+            const combTable = document.getElementById('combination-table-body');
+            if (combTable) combTable.innerHTML = `<tr><td colspan="8">${window.CONFIG?.ERROR_DATA_TIMEOUT_MESSAGE || 'Data fetch timed out'}</td></tr>`;
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_DATA_TIMEOUT_MESSAGE || 'Data fetch timed out';
+                errorMessageDiv.style.display = 'block';
+            }
+            targetProbabilityData = null;
+            logErrorToServer(new Error(window.CONFIG?.ERROR_DATA_TIMEOUT || 'Data fetch timeout'), 'fetchTargetProbabilityData');
+            isFetching = false;
+            callback();
+        }, 10000);
+
+        google.script.run
+            .withSuccessHandler(data => {
+                clearTimeout(timeout);
+                if (!data || typeof data !== 'object') {
+                    console.error(window.CONFIG?.ERROR_INVALID_API_RESPONSE || 'Invalid API response', data);
+                    const errorMessage = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'}</p>`;
+                    const plotContainers = ['pdf-chart', 'cdf-chart'];
+                    plotContainers.forEach(id => {
+                        const container = document.getElementById(id);
+                        if (container) container.innerHTML = errorMessage;
+                    });
+                    const combTable = document.getElementById('combination-table-body');
+                    if (combTable) combTable.innerHTML = `<tr><td colspan="8">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'}</td></tr>`;
+                    const errorMessageDiv = document.getElementById('error-message');
+                    if (errorMessageDiv) {
+                        errorMessageDiv.textContent = window.CONFIG?.ERROR_API_FAILURE || 'API call failed';
+                        errorMessageDiv.style.display = 'block';
+                    }
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) loadingOverlay.style.display = 'none';
+                    targetProbabilityData = null;
+                    logErrorToServer(new Error(window.CONFIG?.ERROR_INVALID_API_RESPONSE || 'Invalid API response' + JSON.stringify(data)), 'fetchTargetProbabilityData');
+                    isFetching = false;
+                    callback();
+                    return;
+                }
+                targetProbabilityData = {
+                    targetProbability: data.targetProbability || { value: { original: (window.CONFIG?.DEFAULT_ORIGINAL_PROBABILITY || 50) / 100, adjusted: (window.CONFIG?.DEFAULT_ADJUSTED_PROBABILITY || 50) / 100 } },
+                    targetProbabilityOriginalPdf: data.targetProbabilityOriginalPdf || { value: [] },
+                    targetProbabilityAdjustedPdf: data.targetProbabilityAdjustedPdf || { value: [] },
+                    targetProbabilityOriginalCdf: data.targetProbabilityOriginalCdf || { value: [] },
+                    targetProbabilityAdjustedCdf: data.targetProbabilityAdjustedCdf || { value: [] },
+                    valueAtConfidence: data.valueAtConfidence || { value: { original: (window.CONFIG?.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE || 0), adjusted: (window.CONFIG?.DEFAULT_VALUE_AT_CONFIDENCE || 0) } },
+                    optimalData: data.optimalData || { value: { optimalObjective: targetValue, probability: (window.CONFIG?.DEFAULT_OPTIMAL_PROBABILITY || 50) / 100, optimalSliderSettings: {} } },
+                    sliderCombinations: data.sliderCombinations || { value: [] },
+                    decisionOptimizerMetrics: data.decisionOptimizerMetrics || { value: { varianceScale: (window.CONFIG?.DEFAULT_VARIANCE_SCALE || 1) } }
+                };
+                if (isOptimizeMode && !data.optimalData?.value?.optimalSliderSettings) {
+                    console.warn(window.CONFIG?.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING || 'Optimal slider settings missing');
+                    logErrorToServer(new Error(window.CONFIG?.WARNING_OPTIMAL_SLIDER_SETTINGS_MISSING || 'Optimal slider settings missing'), 'fetchTargetProbabilityData');
+                }
+                if (isOptimizeMode && data.optimalData?.value?.optimalSliderSettings) {
+                    window.sliderState = {
+                        ...data.optimalData.value.optimalSliderSettings,
+                        targetValue: window.sliderState.targetValue
+                    };
+                    restoreSliders();
+                }
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+                isFetching = false;
+                callback();
+                MathJax.typeset();
+            })
+            .withFailureHandler(error => {
+                clearTimeout(timeout);
+                console.error(window.CONFIG?.ERROR_API_FAILURE || 'API call failed', error);
+                logErrorToServer(error, 'fetchTargetProbabilityData');
+                const errorMessage = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'} ${error.message}</p>`;
+                const plotContainers = ['pdf-chart', 'cdf-chart'];
+                plotContainers.forEach(id => {
+                    const container = document.getElementById(id);
+                    if (container) container.innerHTML = errorMessage;
+                });
+                const combTable = document.getElementById('combination-table-body');
+                if (combTable) combTable.innerHTML = `<tr><td colspan="8">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'} ${error.message}</td></tr>`;
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.textContent = `${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'} ${error.message}`;
+                    loadingOverlay.style.display = 'none';
+                }
+                const errorMessageDiv = document.getElementById('error-message');
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = `${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'} ${error.message}`;
+                    errorMessageDiv.style.display = 'block';
+                }
+                targetProbabilityData = null;
+                isFetching = false;
+                callback();
+            })
+            .getTargetProbabilityData({
+                task: task,
+                optimistic: tasks[task].optimistic,
+                mostLikely: tasks[task].mostLikely,
+                pessimistic: tasks[task].pessimistic,
+                sliderValues: sliderValues,
+                targetValue: targetValue,
+                confidenceLevel: confidenceLevel,
+                isOptimizeMode: isOptimizeMode,
+                mode: mode,
+                previousOptimalSliderSettings: targetProbabilityData?.optimalData?.value?.optimalSliderSettings,
+                sheetId: window.sheetId,
+                sessionId: window.sessionId
+            });
+    }
+</script>
+
+<!-- Section 7c: JavaScript - PDF Plot Rendering -->
+<script type="text/javascript">
+    function drawPdfPlot() {
+        const chartDiv = document.getElementById('pdf-chart');
+        if (!chartDiv) {
+            console.error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found');
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found'), 'drawPdfPlot');
+            return;
+        }
+        if (!targetProbabilityData || !targetProbabilityData.targetProbabilityOriginalPdf || !targetProbabilityData.targetProbabilityAdjustedPdf) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'}</p>`;
+            logErrorToServer(new Error(window.CONFIG?.ERROR_API_FAILURE || 'API call failed'), 'drawPdfPlot');
+            return;
+        }
+
+        const origPoints = targetProbabilityData.targetProbabilityOriginalPdf.value;
+        const adjPoints = targetProbabilityData.targetProbabilityAdjustedPdf.value;
+        if (!Array.isArray(origPoints) || !Array.isArray(adjPoints) || origPoints.length !== adjPoints.length || origPoints.length === 0) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_RENDERING_PDF || 'Error rendering PDF plot'}</p>`;
+            console.error('Invalid or mismatched PDF points data');
+            logErrorToServer(new Error('Invalid or mismatched PDF points data'), 'drawPdfPlot');
+            return;
+        }
+
+        const task = document.getElementById('task-select')?.value;
+        const mode = document.getElementById('mode-select')?.value || 'target'; // Fixed: Define mode variable
+        const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task]?.mostLikely || (window.CONFIG?.DEFAULT_TARGET_VALUE || 0);
+        const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || (window.CONFIG?.DEFAULT_CONFIDENCE_LEVEL || 0.9);
+        const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+        const origProb = targetProbabilityData.targetProbability?.value.original * 100 || (window.CONFIG?.DEFAULT_ORIGINAL_PROBABILITY || 50);
+        const adjProb = targetProbabilityData.targetProbability?.value.adjusted * 100 || (window.CONFIG?.DEFAULT_ADJUSTED_PROBABILITY || 50);
+        const optimalData = targetProbabilityData?.optimalData?.value || {};
+        let optimalValue = optimalData.optimalObjective || targetValue;
+        const optimalProb = optimalData.probability * 100 || (window.CONFIG?.DEFAULT_OPTIMAL_PROBABILITY || 50);
+
+        if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) {
+            optimalValue = targetValue;
+            console.warn(`${window.CONFIG?.WARNING_OPTIMAL_VALUE_ADJUSTED || 'Optimal value adjusted'} ${optimalValue} adjusted to target value ${targetValue} due to range violation`);
+            logErrorToServer(new Error(`${window.CONFIG?.WARNING_OPTIMAL_VALUE_ADJUSTED || 'Optimal value adjusted'} ${optimalValue} adjusted to target value ${targetValue}`), 'drawPdfPlot');
+        }
+
+        const data = new google.visualization.DataTable();
+        data.addColumn('number', window.CONFIG?.PDF_X_AXIS_LABEL || 'Value');
+        data.addColumn('number', window.CONFIG?.PDF_ORIGINAL_LABEL || 'Original PDF');
+        data.addColumn({ type: 'string', role: 'tooltip' });
+        data.addColumn('number', window.CONFIG?.PDF_ADJUSTED_LABEL || 'Adjusted PDF');
+        data.addColumn({ type: 'string', role: 'tooltip' });
+        if (optimizeMode === 'yes') {
+            data.addColumn('number', window.CONFIG?.PDF_OPTIMIZED_ADJUSTED_LABEL || 'Optimized Adjusted PDF');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+        }
+
+        const rows = [];
+        origPoints.forEach((orig, i) => {
+            const adj = adjPoints[i];
+            if (orig && adj && Number.isFinite(orig.x) && Number.isFinite(orig.y) && Number.isFinite(adj.y)) {
+                const row = [
+                    orig.x,
+                    orig.y,
+                    `${window.CONFIG?.PDF_ORIGINAL_TOOLTIP || 'Original PDF'}: ${orig.x.toFixed(2)}, prob: ${(orig.y * 100).toFixed(2)}%`,
+                    adj.y,
+                    `${window.CONFIG?.PDF_ADJUSTED_TOOLTIP || 'Adjusted PDF'}: ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`
+                ];
+                if (optimizeMode === 'yes') {
+                    row.push(adj.y);
+                    row.push(`${window.CONFIG?.PDF_OPTIMIZED_TOOLTIP || 'Optimized Adjusted PDF'}: ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`);
+                }
+                rows.push(row);
+            }
+        });
+
+        if (rows.length === 0) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_RENDERING_PDF || 'Error rendering PDF plot'}</p>`;
+            console.error('No valid PDF points data');
+            logErrorToServer(new Error('No valid PDF points data'), 'drawPdfPlot');
+            return;
+        }
+
+        data.addRows(rows);
+
+        const options = {
+            title: window.CONFIG?.PDF_CHART_TITLE || 'Probability Density Function',
+            hAxis: { title: window.CONFIG?.PDF_X_AXIS_LABEL || 'Value' },
+            vAxis: { title: window.CONFIG?.PDF_Y_AXIS_LABEL || 'Probability Density', minValue: 0 },
+            legend: { position: 'bottom' },
+            tooltip: { isHtml: true },
+            annotations: {
+                textStyle: { fontSize: 12, color: '#000' }
+            },
+            series: {
+                0: { color: '#1f77b4', lineWidth: 2, targetAxisIndex: 0 },
+                1: { color: '#ff7f0e', lineWidth: 2, targetAxisIndex: 0 },
+                2: { color: '#2ca02c', lineWidth: 2, targetAxisIndex: 0 }
+            },
+            vAxes: { 0: { title: window.CONFIG?.PDF_Y_AXIS_LABEL || 'Probability Density' } },
+            width: '100%',
+            height: 400
+        };
+
+        if (mode === 'target') {
+            data.addColumn('number', window.CONFIG?.PDF_ORIGINAL_TARGET_LABEL || 'Original Target');
+            data.addColumn('number', window.CONFIG?.PDF_ADJUSTED_TARGET_LABEL || 'Adjusted Target');
+            if (optimizeMode === 'yes') {
+                data.addColumn('number', window.CONFIG?.PDF_OPTIMIZED_ADJUSTED_LABEL || 'Optimized Adjusted Target');
+            }
+
+            const targetRows = rows.map(row => {
+                const x = row[0];
+                const isTarget = Math.abs(x - targetValue) < 0.01;
+                const isOptimal = optimizeMode === 'yes' && Math.abs(x - optimalValue) < 0.01;
+                const newRow = [...row];
+                newRow.push(isTarget ? Math.max(row[1], row[3]) : null);
+                newRow.push(isTarget ? Math.max(row[1], row[3]) : null);
+                if (optimizeMode === 'yes') {
+                    newRow.push(isOptimal ? Math.max(row[1], row[3]) : null);
+                }
+                return newRow;
+            });
+
+            data.removeRows(0, data.getNumberOfRows());
+            data.addRows(targetRows);
+
+            options.series[0].lineWidth = 2;
+            options.series[1].lineWidth = 2;
+            if (optimizeMode === 'yes') {
+                options.series[2].lineWidth = 2;
+            }
+            options.series[options.series.length - 2] = { color: '#d62728', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            options.series[options.series.length - 1] = { color: '#9467bd', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            if (optimizeMode === 'yes') {
+                options.series[options.series.length - 3] = { color: '#2ca02c', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            }
+        }
+
+        const chart = new google.visualization.LineChart(chartDiv);
+        chart.draw(data, options);
+    }
+</script>
+
+<!-- Section 7d: JavaScript - CDF Plot Rendering -->
+<script type="text/javascript">
+    function drawCdfPlot() {
+        const chartDiv = document.getElementById('cdf-chart');
+        if (!chartDiv) {
+            console.error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found');
+            logErrorToServer(new Error(window.CONFIG?.ERROR_NO_SIMULATOR_CONTAINER || 'Simulator container not found'), 'drawCdfPlot');
+            return;
+        }
+        if (!targetProbabilityData || !targetProbabilityData.targetProbabilityOriginalCdf || !targetProbabilityData.targetProbabilityAdjustedCdf) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_API_FAILURE || 'API call failed'}</p>`;
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_API_FAILURE || 'API call failed';
+                errorMessageDiv.style.display = 'block';
+            }
+            logErrorToServer(new Error(window.CONFIG?.ERROR_API_FAILURE || 'API call failed'), 'drawCdfPlot');
+            return;
+        }
+
+        const origPoints = targetProbabilityData.targetProbabilityOriginalCdf.value;
+        const adjPoints = targetProbabilityData.targetProbabilityAdjustedCdf.value;
+        if (!Array.isArray(origPoints) || !Array.isArray(adjPoints) || origPoints.length !== adjPoints.length || origPoints.length === 0) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_RENDERING_CDF || 'Error rendering CDF plot'}</p>`;
+            console.error('Invalid or mismatched CDF points data');
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_RENDERING_CDF || 'Error rendering CDF plot';
+                errorMessageDiv.style.display = 'block';
+            }
+            logErrorToServer(new Error('Invalid or mismatched CDF points data'), 'drawCdfPlot');
+            return;
+        }
+
+        const task = document.getElementById('task-select')?.value;
+        const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task]?.mostLikely || (window.CONFIG?.DEFAULT_TARGET_VALUE || 0);
+        const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) / 100 || (window.CONFIG?.DEFAULT_CONFIDENCE_LEVEL || 0.9);
+        const optimizeMode = document.getElementById('optimize-select')?.value || 'no';
+        const valueAtConfidence = targetProbabilityData.valueAtConfidence?.value || { original: (window.CONFIG?.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE || 0), adjusted: (window.CONFIG?.DEFAULT_VALUE_AT_CONFIDENCE || 0) };
+        const optimalData = targetProbabilityData?.optimalData?.value || {};
+        let optimalValue = optimalData.optimalObjective || targetValue;
+        const optimalProb = optimalData.probability * 100 || (window.CONFIG?.DEFAULT_OPTIMAL_PROBABILITY || 50);
+
+        if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) {
+            optimalValue = targetValue;
+            console.warn(`${window.CONFIG?.WARNING_OPTIMAL_VALUE_ADJUSTED || 'Optimal value adjusted'} ${optimalValue} adjusted to target value ${targetValue} due to range violation`);
+            logErrorToServer(new Error(`${window.CONFIG?.WARNING_OPTIMAL_VALUE_ADJUSTED || 'Optimal value adjusted'} ${optimalValue} adjusted to target value ${targetValue}`), 'drawCdfPlot');
+        }
+
+        const data = new google.visualization.DataTable();
+        data.addColumn('number', window.CONFIG?.CDF_X_AXIS_LABEL || 'Value');
+        data.addColumn('number', window.CONFIG?.CDF_ORIGINAL_LABEL || 'Original CDF');
+        data.addColumn({ type: 'string', role: 'tooltip' });
+        data.addColumn('number', window.CONFIG?.CDF_ADJUSTED_LABEL || 'Adjusted CDF');
+        data.addColumn({ type: 'string', role: 'tooltip' });
+        if (optimizeMode === 'yes') {
+            data.addColumn('number', window.CONFIG?.CDF_OPTIMIZED_ADJUSTED_LABEL || 'Optimized Adjusted CDF');
+            data.addColumn({ type: 'string', role: 'tooltip' });
+        }
+
+        const rows = [];
+        origPoints.forEach((orig, i) => {
+            const adj = adjPoints[i];
+            if (orig && adj && Number.isFinite(orig.x) && Number.isFinite(orig.y) && Number.isFinite(adj.y)) {
+                const row = [
+                    orig.x,
+                    orig.y,
+                    `${window.CONFIG?.CDF_ORIGINAL_TOOLTIP || 'Original CDF'}: ${orig.x.toFixed(2)}, prob: ${(orig.y * 100).toFixed(2)}%`,
+                    adj.y,
+                    `${window.CONFIG?.CDF_ADJUSTED_TOOLTIP || 'Adjusted CDF'}: ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`
+                ];
+                if (optimizeMode === 'yes') {
+                    row.push(adj.y);
+                    row.push(`${window.CONFIG?.CDF_OPTIMIZED_TOOLTIP || 'Optimized Adjusted CDF'}: ${orig.x.toFixed(2)}, prob: ${(adj.y * 100).toFixed(2)}%`);
+                }
+                rows.push(row);
+            }
+        });
+
+        if (rows.length === 0) {
+            chartDiv.innerHTML = `<p style="color: red; text-align: center;">${window.CONFIG?.ERROR_RENDERING_CDF || 'Error rendering CDF plot'}</p>`;
+            console.error('No valid CDF points data');
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_RENDERING_CDF || 'Error rendering CDF plot';
+                errorMessageDiv.style.display = 'block';
+            }
+            logErrorToServer(new Error('No valid CDF points data'), 'drawCdfPlot');
+            return;
+        }
+
+        data.addRows(rows);
+
+        const options = {
+            title: window.CONFIG?.CDF_CHART_TITLE || 'Cumulative Distribution Function',
+            hAxis: { title: window.CONFIG?.CDF_X_AXIS_LABEL || 'Value' },
+            vAxis: { title: window.CONFIG?.CDF_Y_AXIS_LABEL || 'Cumulative Probability', minValue: 0, maxValue: 1 },
+            legend: { position: 'bottom' },
+            tooltip: { isHtml: true },
+            annotations: {
+                textStyle: { fontSize: 12, color: '#000' }
+            },
+            series: {
+                0: { color: '#1f77b4', lineWidth: 2, targetAxisIndex: 0 },
+                1: { color: '#ff7f0e', lineWidth: 2, targetAxisIndex: 0 },
+                2: { color: '#2ca02c', lineWidth: 2, targetAxisIndex: 0 }
+            },
+            vAxes: { 0: { title: window.CONFIG?.CDF_Y_AXIS_LABEL || 'Cumulative Probability' } },
+            width: '100%',
+            height: 400
+        };
+
+        if (mode === 'confidence') {
+            data.addColumn('number', window.CONFIG?.CDF_ORIGINAL_TARGET_LABEL || 'Original Target');
+            data.addColumn('number', window.CONFIG?.CDF_ADJUSTED_TARGET_LABEL || 'Adjusted Target');
+            if (optimizeMode === 'yes') {
+                data.addColumn('number', window.CONFIG?.CDF_OPTIMIZED_ADJUSTED_LABEL || 'Optimized Adjusted Target');
+            }
+
+            const targetRows = rows.map(row => {
+                const x = row[0];
+                const isOriginal = Math.abs(x - valueAtConfidence.original) < 0.01;
+                const isAdjusted = Math.abs(x - valueAtConfidence.adjusted) < 0.01;
+                const isOptimal = optimizeMode === 'yes' && Math.abs(x - optimalValue) < 0.01;
+                const newRow = [...row];
+                newRow.push(isOriginal ? Math.max(row[1], row[3]) : null);
+                newRow.push(isAdjusted ? Math.max(row[1], row[3]) : null);
+                if (optimizeMode === 'yes') {
+                    newRow.push(isOptimal ? Math.max(row[1], row[3]) : null);
+                }
+                return newRow;
+            });
+
+            data.removeRows(0, data.getNumberOfRows());
+            data.addRows(targetRows);
+
+            options.series[0].lineWidth = 2;
+            options.series[1].lineWidth = 2;
+            if (optimizeMode === 'yes') {
+                options.series[2].lineWidth = 2;
+            }
+            options.series[options.series.length - 2] = { color: '#d62728', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            options.series[options.series.length - 1] = { color: '#9467bd', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            if (optimizeMode === 'yes') {
+                options.series[options.series.length - 3] = { color: '#2ca02c', lineWidth: 2, lineDashStyle: [4, 4], pointSize: 5 };
+            }
+        }
+
+        const chart = new google.visualization.LineChart(chartDiv);
+        chart.draw(data, options);
+    }
+</script>
+
+<!-- Section 7e: JavaScript - Table Updates and Utilities (Continued) -->
+<script type="text/javascript">
+    function updateRecommendations(params) {
+        const recommendationsContent = document.getElementById('recommendations-content');
+        if (!recommendationsContent || !params) {
+            console.error(window.CONFIG?.ERROR_INVALID_TASK_RECOMMENDATIONS || 'Invalid task or recommendations data');
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_INVALID_TASK_RECOMMENDATIONS || 'Invalid task or recommendations data';
+                errorMessageDiv.style.display = 'block';
+            }
+            logErrorToServer(new Error(window.CONFIG?.ERROR_INVALID_TASK_RECOMMENDATIONS || 'Invalid task or recommendations data'), 'updateRecommendations');
+            recommendationsContent.innerHTML = `<p style="color: red;">${window.CONFIG?.ERROR_INVALID_TASK_RECOMMENDATIONS || 'Invalid task or recommendations data'}</p>`;
+            return;
+        }
+
+        // Fallback for missing or invalid parameters
+        const safeParams = {
+            task: params.task || 'Unnamed Task',
+            origProb: Number.isFinite(params.origProb) ? params.origProb : (window.CONFIG?.DEFAULT_ORIGINAL_PROBABILITY || 50),
+            targetValue: Number.isFinite(params.targetValue) ? params.targetValue : (window.CONFIG?.DEFAULT_TARGET_VALUE || 0),
+            originalValueAtConfidence: Number.isFinite(params.originalValueAtConfidence) ? params.originalValueAtConfidence : (window.CONFIG?.DEFAULT_ORIGINAL_VALUE_AT_CONFIDENCE || 0),
+            confidenceLevel: Number.isFinite(params.confidenceLevel) ? params.confidenceLevel : (window.CONFIG?.DEFAULT_CONFIDENCE_LEVEL || 0.9),
+            adjProb: Number.isFinite(params.adjProb) ? params.adjProb : (window.CONFIG?.DEFAULT_ADJUSTED_PROBABILITY || 50),
+            valueAtConfidence: Number.isFinite(params.valueAtConfidence) ? params.valueAtConfidence : (window.CONFIG?.DEFAULT_VALUE_AT_CONFIDENCE || 0),
+            optimalProb: Number.isFinite(params.optimalProb) ? params.optimalProb : (window.CONFIG?.DEFAULT_OPTIMAL_PROBABILITY || 50),
+            optimalValue: Number.isFinite(params.optimalValue) ? params.optimalValue : params.targetValue || (window.CONFIG?.DEFAULT_TARGET_VALUE || 0),
+            baselineRiskLevel: params.baselineRiskLevel || (window.CONFIG?.RISK_LEVEL_MODERATE || 'Moderate'),
+            currentRiskLevel: params.currentRiskLevel || (window.CONFIG?.RISK_LEVEL_MODERATE || 'Moderate'),
+            optimalRiskLevel: params.optimalRiskLevel || (window.CONFIG?.RISK_LEVEL_MODERATE || 'Moderate'),
+            budgetFlexibility: Number.isFinite(params.budgetFlexibility) ? params.budgetFlexibility : 0,
+            scheduleFlexibility: Number.isFinite(params.scheduleFlexibility) ? params.scheduleFlexibility : 0,
+            scopeCertainty: Number.isFinite(params.scopeCertainty) ? params.scopeCertainty : 0,
+            qualityTolerance: Number.isFinite(params.qualityTolerance) ? params.qualityTolerance : 0,
+            scopeCreep: Number.isFinite(params.scopeCreep) ? params.scopeCreep : 100,
+            improvement: Number.isFinite(params.improvement) ? params.improvement : 0,
+            worstCase: Number.isFinite(params.worstCase) ? params.worstCase : (window.CONFIG?.DEFAULT_WORST_CASE || 0),
+            worstCaseDouble: Number.isFinite(params.worstCaseDouble) ? params.worstCaseDouble : (params.worstCase || (window.CONFIG?.DEFAULT_WORST_CASE || 0)) * 2,
+            worstCase1_5: Number.isFinite(params.worstCase1_5) ? params.worstCase1_5 : (params.worstCase || (window.CONFIG?.DEFAULT_WORST_CASE || 0)) * 1.5,
+            adjustedMean: Number.isFinite(params.adjustedMean) ? params.adjustedMean : (window.CONFIG?.DEFAULT_ADJUSTED_MEAN || 0),
+            varianceReduction: Number.isFinite(params.varianceReduction) ? params.varianceReduction : (window.CONFIG?.DEFAULT_VARIANCE_SCALE || 1) * 100
+        };
+
+        // Calculate confidence interval or use defaults
+        const confidenceInterval = targetProbabilityData.mcSmoothedConfidenceInterval?.value
+            ? `[${targetProbabilityData.mcSmoothedConfidenceInterval.value.lower.toFixed(2)}, ${targetProbabilityData.mcSmoothedConfidenceInterval.value.upper.toFixed(2)}]`
+            : (window.CONFIG?.DEFAULT_CI || '[0, 0]');
+        const confidenceIntervalLower = targetProbabilityData.mcSmoothedConfidenceInterval?.value?.lower?.toFixed(2) || 0;
+        const confidenceIntervalUpper = targetProbabilityData.mcSmoothedConfidenceInterval?.value?.upper?.toFixed(2) || 0;
+
+        const template = `
+            <h5>${window.CONFIG?.RECOMMENDATIONS_OVERVIEW_HEADER || 'Overview'}</h5>
+            <p>${window.CONFIG?.RECOMMENDATIONS_OVERVIEW_TEXT || 'This section provides actionable insights to optimize your project outcomes.'} This section provides actionable insights to optimize your project outcomes for <strong>${safeParams.task}</strong>, balancing cost, schedule, scope, and quality risks.</p>
+            <ul>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_BASELINE_TEXT || 'Baseline Risk'}:</strong> With default settings (all sliders at 0%), the success probability for achieving ${safeParams.targetValue.toFixed(2)} units (or ${safeParams.originalValueAtConfidence.toFixed(2)} at ${safeParams.confidenceLevel}% confidence) is ${safeParams.origProb.toFixed(1)}%, indicating a <span class="highlight-risk">${safeParams.baselineRiskLevel}</span> risk profile. This suggests potential for <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong> without adjustments.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_CURRENT_TEXT || 'Current Settings'}:</strong> Your current settings (Budget Flexibility: ${safeParams.budgetFlexibility.toFixed(0)}%, Schedule Flexibility: ${safeParams.scheduleFlexibility.toFixed(0)}%, Scope Certainty: ${safeParams.scopeCertainty.toFixed(0)}%, Quality Tolerance: ${safeParams.qualityTolerance.toFixed(0)}%) yield a success probability of ${safeParams.adjProb.toFixed(1)}% for ${safeParams.targetValue.toFixed(2)} units (or ${safeParams.valueAtConfidence.toFixed(2)} at ${safeParams.confidenceLevel}% confidence), reflecting a <span class="highlight-risk">${safeParams.currentRiskLevel}</span> risk profile, improved by ${safeParams.improvement.toFixed(1)}% over the baseline.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_OPTIMIZED_TEXT || 'Optimized Settings'}:</strong> By enabling <strong>decision optimization</strong> (set Optimize to “Yes”), you can achieve a success probability of ${safeParams.optimalProb.toFixed(1)}% for ${safeParams.optimalValue.toFixed(2)} units, resulting in a <span class="highlight-risk">${safeParams.optimalRiskLevel}</span> risk profile with minimized risks across all factors.</li>
+                <li><strong>90% Confidence Interval:</strong> The Monte Carlo Smoothed 90th Percentile Confidence Interval (${confidenceInterval}) indicates that there is a 90% chance the actual task value (e.g., cost for "${safeParams.task}") will fall between ${confidenceIntervalLower} and ${confidenceIntervalUpper} units. Use the lower bound (${confidenceIntervalLower}) for conservative planning to minimize risk (e.g., budgeting for at least this amount). Use the upper bound (${confidenceIntervalUpper}) for worst-case scenarios to cover 95% of potential outcomes (e.g., ensuring sufficient contingency funds). A narrower interval (e.g., [2397.21, 2409.53] for "Cost") indicates higher certainty, while a wider interval (e.g., [35.94, 37.88] for "Project_5") suggests greater uncertainty, requiring careful risk management.</li>
+            </ul>
+            <h5>${window.CONFIG?.RECOMMENDATIONS_USING_CI_HEADER || 'Using the Confidence Interval'}</h5>
+            <p>${window.CONFIG?.RECOMMENDATIONS_USING_CI_TEXT || 'The confidence interval is a critical tool for planning and risk management.'} For example, for task "${safeParams.task}" with interval ${confidenceInterval}:</p>
+            <ul>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_BUDGETING_TEXT || 'Budgeting'}:</strong> Allocate at least ${confidenceIntervalLower} units to cover most likely outcomes with high confidence. For critical projects, reserve up to ${confidenceIntervalUpper} units to account for worst-case scenarios.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_RISK_ASSESSMENT_TEXT || 'Risk Assessment'}:</strong> A narrow interval (e.g., [19.84, 20.07] for "Project_1") indicates low variability and high predictability, ideal for stable projects. A wide interval (e.g., [35.94, 37.88] for "Project_5") signals high variability, suggesting a need for additional risk mitigation (e.g., increasing Scope Certainty).</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_COMPARISON_TEXT || 'Comparison'}:</strong> Compare intervals across tasks to prioritize resources. For instance, "Cost" (${confidenceInterval}) has moderate variability, while "Project_5" ([35.94, 37.88]) requires more contingency planning due to its wider range.</li>
+            </ul>
+            <p>${window.CONFIG?.RECOMMENDATIONS_SLIDERS_INTRO || 'Adjust the sliders to explore trade-offs.'} Adjust the sliders to explore how changes in budget, schedule, scope, and quality impact your risk profile and confidence interval.</p>
+            <h5>${window.CONFIG?.RECOMMENDATIONS_SLIDERS_HEADER || 'Slider Adjustments'}</h5>
+            <p>${window.CONFIG?.RECOMMENDATIONS_SLIDERS_TEXT || 'Use sliders to optimize outcomes.'} Use the sliders to fine-tune your project settings and optimize outcomes.</p>
+            <ul>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_CONTROLLED_OVERRUNS_TEXT || 'Controlled Overruns'}:</strong> Increasing Budget or Schedule Flexibility allows controlled <strong>cost overruns</strong> or <strong>schedule delays</strong>. For example, at 100% flexibility, the worst-case estimate for "${safeParams.task}" increases from ${safeParams.worstCase.toFixed(2)} to ${safeParams.worstCaseDouble.toFixed(2)} units, reducing the risk of exceeding planned values.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_SCOPE_QUALITY_TEXT || 'Scope and Quality'}:</strong> Higher Scope Certainty reduces <strong>scope creep</strong> risk (currently ${safeParams.scopeCreep}% at ${safeParams.scopeCertainty.toFixed(0)}% certainty). Adjusting Quality Tolerance manages <strong>defects</strong> or <strong>quality trade-offs</strong>, shaping the risk profile to <span class="highlight-risk">${safeParams.currentRiskLevel}</span>. For instance, lowering Quality Tolerance can tighten the confidence interval for tasks like "Project_5".</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_RISK_SCENARIOS_TEXT || 'Risk Scenarios'}:</strong> Explore “what-if” scenarios with sliders. For example, “What if I allow a ${safeParams.budgetFlexibility.toFixed(0)}% cost overrun or increase Scope Certainty to reduce scope creep to ${safeParams.scopeCreep}%?” This can improve the success probability to ${safeParams.adjProb.toFixed(1)}% or achieve ${safeParams.valueAtConfidence.toFixed(2)} at ${safeParams.confidenceLevel}% confidence.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_SLIDER_TABLE_TEXT || 'Slider Combination Table'}:</strong> The <strong>Slider Combination Table</strong> below the sliders is a powerful tool to analyze how settings impact outcomes for "${safeParams.task}". It answers key questions to optimize your <strong>risk profile</strong>:
+                    <ul>
+                        <li><strong>“${window.CONFIG?.RECOMMENDATIONS_CURRENT_SELECTION || 'Current Selection'}”:</strong> Displays the probability for your current settings (${safeParams.budgetFlexibility.toFixed(0)}%, ${safeParams.scheduleFlexibility.toFixed(0)}%, ${safeParams.scopeCertainty.toFixed(0)}%, ${safeParams.qualityTolerance.toFixed(0)}%), answering “What is my success probability now?” (e.g., ${safeParams.adjProb.toFixed(1)}% for ${safeParams.targetValue.toFixed(2)}).</li>
+                        <li><strong>“${window.CONFIG?.RECOMMENDATIONS_ABOVE_75 || 'Above 75%'}” or “${window.CONFIG?.RECOMMENDATIONS_ABOVE_50 || 'Above 50%'}”:</strong> Lists combinations with high success probabilities, answering “Which settings maximize my chance of meeting ${safeParams.targetValue.toFixed(2)} while minimizing <strong>cost overruns</strong> or <strong>defects</strong>?” Use this to identify low-risk strategies for tasks like "Cost" or "Project_5".</li>
+                        <li><strong>“${window.CONFIG?.RECOMMENDATIONS_OPTIMIZED || 'Optimized'}”:</strong> Highlights optimal settings from <strong>decision optimization</strong>, answering “What settings achieve the highest probability (${safeParams.optimalProb.toFixed(1)}%) or lowest value at ${safeParams.confidenceLevel}% confidence?” This ensures the best risk profile.</li>
+                        <li><strong>“${window.CONFIG?.RECOMMENDATIONS_ALL || 'All'}”:</strong> Shows all combinations, answering “How do different settings impact <strong>scope creep</strong> or <strong>schedule delays</strong>?” Explore trade-offs to balance risks.</li>
+                        <li>${window.CONFIG?.RECOMMENDATIONS_PAGINATION_TEXT || 'Use pagination (Prev/Next buttons) to browse combinations, enabling data-driven decisions to achieve project goals.'}</li>
+                    </ul>
+                </li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_OPTIMIZE_TEXT || 'Optimize'}:</strong> Enable the Optimize dropdown (“Yes”) to automatically select settings that achieve ${safeParams.optimalProb.toFixed(1)}% for ${safeParams.optimalValue.toFixed(2)} units, improving the risk profile to <span class="highlight-risk">${safeParams.optimalRiskLevel}</span>. This minimizes risks for tasks like "${safeParams.task}".</li>
+            </ul>
+            <h5>${window.CONFIG?.RECOMMENDATIONS_MITIGATION_HEADER || 'Risk Mitigation Strategies'}</h5>
+            <p>${window.CONFIG?.RECOMMENDATIONS_MITIGATION_TEXT || 'Use the following strategies to mitigate risks.'} Use the following strategies to mitigate risks for "${safeParams.task}" and tighten the confidence interval (${confidenceInterval}).</p>
+            <table class="recommendation-table">
+                <thead>
+                    <tr>
+                        <th>${window.CONFIG?.COMBINATION_TABLE_COL_COMBINATION || 'Combination'}</th>
+                        <th>${window.CONFIG?.WHAT_IT_DOES_LABEL || 'What It Does'}</th>
+                        <th>${window.CONFIG?.POTENTIAL_IMPACT_LABEL || 'Potential Impact'}</th>
+                        <th>${window.CONFIG?.DISTRIBUTION_IMPACT_LABEL || 'Distribution Impact'}</th>
+                        <th>${window.CONFIG?.MATHEMATICAL_FORMULA_LABEL || 'Mathematical Formula'}</th>
+                        <th>${window.CONFIG?.WHY_IT_HELPS_LABEL || 'Why It Helps'}</th>
+                        <th>${window.CONFIG?.NEXT_STEP_LABEL || 'Next Step'}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_LABEL || 'Budget Flexibility'}</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_DOES_TEXT || 'Adjusts allowable budget overruns.'} Adjusts allowable budget overruns for "${safeParams.task}".</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_IMPACT_TEXT || 'Increases tolerance for costs.'} Increases tolerance for costs up to ${safeParams.worstCase1_5.toFixed(2)} units at 50% flexibility.</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_DISTRIBUTION_TEXT || 'Shifts the PDF curve.'} Shifts the PDF curve right, potentially narrowing the confidence interval (${confidenceInterval}).</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_FORMULA || 'N/A'}</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_HELPS_TEXT || 'Reduces risk of exceeding budget.'} Reduces risk of exceeding budget for tasks like "Cost" (e.g., ${confidenceIntervalUpper} units).</td>
+                        <td>${window.CONFIG?.BUDGET_FLEXIBILITY_NEXT_STEP || 'Set to 50–60% to allow controlled overruns.'} Set to 50–60% to allow controlled overruns while maintaining a tight interval.</td>
+                    </tr>
+                    <tr>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_LABEL || 'Schedule Flexibility'}</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_DOES_TEXT || 'Adjusts allowable schedule extensions.'} Adjusts allowable schedule extensions for "${safeParams.task}".</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_IMPACT_TEXT || 'Permits delays.'} Permits delays up to ${safeParams.worstCase1_5.toFixed(2)} units at 50% flexibility.</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_DISTRIBUTION_TEXT || 'Shifts the PDF curve.'} Shifts the PDF curve, impacting the confidence interval (${confidenceInterval}).</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_FORMULA || 'N/A'}</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_HELPS_TEXT || 'Mitigates delay risks.'} Mitigates delay risks, especially for variable tasks like "Project_5".</td>
+                        <td>${window.CONFIG?.SCHEDULE_FLEXIBILITY_NEXT_STEP || 'Set to 50–60% to balance schedule risks.'} Set to 50–60% to balance schedule risks.</td>
+                    </tr>
+                    <tr>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_LABEL || 'Scope Certainty'}</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_DOES_TEXT || 'Reduces scope creep risk.'} Reduces scope creep risk for "${safeParams.task}".</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_IMPACT_TEXT || 'Lowers scope creep.'} Lowers scope creep to ${safeParams.scopeCreep}% at current settings.</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_DISTRIBUTION_TEXT || 'Narrows the PDF curve.'} Narrows the PDF curve, tightening the confidence interval (${confidenceInterval}).</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_FORMULA || 'N/A'}</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_HELPS_TEXT || 'Enhances predictability.'} Enhances predictability for tasks like "Project_1" with narrow intervals.</td>
+                        <td>${window.CONFIG?.SCOPE_CERTAINTY_NEXT_STEP || 'Increase to 75–80% to minimize scope creep.'} Increase to 75–80% to minimize scope creep.</td>
+                    </tr>
+                    <tr>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_LABEL || 'Quality Tolerance'}</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_DOES_TEXT || 'Manages quality trade-offs.'} Manages quality trade-offs for "${safeParams.task}".</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_IMPACT_TEXT || 'Balances defect risk.'} Balances defect risk against cost/schedule.</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_DISTRIBUTION_TEXT || 'Adjusts the PDF curve shape.'} Adjusts the PDF curve shape, impacting ${confidenceInterval}.</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_FORMULA || 'N/A'}</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_HELPS_TEXT || 'Reduces defect risk.'} Reduces defect risk, critical for high-quality tasks like "Cost".</td>
+                        <td>${window.CONFIG?.QUALITY_TOLERANCE_NEXT_STEP || 'Set to 40–50% to ensure quality.'} Set to 40–50% to ensure quality without excessive costs.</td>
+                    </tr>
+                    <tr>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_LABEL || 'Combined Effect'}</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_DOES_TEXT || 'Balances all adjustments.'} Balances all adjustments for "${safeParams.task}".</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_IMPACT_TEXT || 'Optimizes overall risk.'} Optimizes overall risk, achieving ${safeParams.adjProb.toFixed(1)}% success.</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_DISTRIBUTION_TEXT || 'Optimizes the PDF/CDF curves.'} Optimizes the PDF/CDF curves for ${confidenceInterval}.</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_FORMULA || 'N/A'}</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_HELPS_TEXT || 'Balances risks.'} Balances risks for a stable outcome.</td>
+                        <td>${window.CONFIG?.COMBINED_EFFECT_NEXT_STEP || 'Use the Slider Combination Table.'} Use the Slider Combination Table to find optimal settings.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <h5>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_HEADER || 'Example Scenarios'}</h5>
+            <p>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_TEXT || 'These examples are tailored for your task.'} These examples are tailored for "${safeParams.task}" based on its confidence interval (${confidenceInterval}).</p>
+            <ul>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_BASELINE || 'Baseline'}:</strong> At baseline (0% sliders), the success probability is ${safeParams.origProb.toFixed(1)}% (${safeParams.baselineRiskLevel} risk), with potential for <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong>. The confidence interval (${confidenceInterval}) shows the range of likely outcomes.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_CURRENT || 'Current'}:</strong> Current settings (${safeParams.budgetFlexibility.toFixed(0)}%, ${safeParams.scheduleFlexibility.toFixed(0)}%, ${safeParams.scopeCertainty.toFixed(0)}%, ${safeParams.qualityTolerance.toFixed(0)}%) achieve ${safeParams.adjProb.toFixed(1)}% success (${safeParams.currentRiskLevel} risk), with a confidence interval of ${confidenceInterval}.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_IMPROVE || 'Improve'}:</strong> To improve outcomes for "${safeParams.task}", increase Budget Flexibility to 50–60% (up to ${safeParams.worstCase1_5.toFixed(2)} units) to mitigate <strong>cost overruns</strong>, set Scope Certainty to 75% to reduce <strong>scope creep</strong> to ${safeParams.scopeCreep}% or lower, and lower Quality Tolerance to 40–50% for <strong>quality assurance</strong>. This can tighten the confidence interval and increase success probability.</li>
+                <li><strong>${window.CONFIG?.RECOMMENDATIONS_EXAMPLE_CHECK || 'Check'}:</strong> Use the <strong>Slider Combination Table</strong> (filter “Above 75%”) to confirm a <strong>low risk</strong> profile (${safeParams.adjProb.toFixed(1)}% ≥ 75%). The <strong>PDF chart</strong> shows a tighter, left-shifted curve (mean: ${safeParams.adjustedMean.toFixed(2)}), and the <strong>CDF chart</strong> confirms the 90% confidence interval (${confidenceInterval}), ensuring high certainty for planning.</li>
+            </ul>
+        `;
+        recommendationsContent.innerHTML = template;
+        MathJax.typeset();
+    }
+
+    function validateInputs() {
+        return validateTargetInput() && validateConfidenceInput();
+    }
+
+    function validateTargetInput() {
+        const targetInput = document.getElementById('target-value-input');
+        const targetMessage = document.getElementById('target-value-message');
+        const task = document.getElementById('task-select')?.value;
+        if (!targetInput || !targetMessage || !task || !tasks[task]) {
+            if (targetMessage) targetMessage.textContent = window.CONFIG?.ERROR_NO_TARGET_VALUE || 'No target value provided';
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_NO_TARGET_VALUE || 'No target value provided';
+                errorMessageDiv.style.display = 'block';
+            }
+            console.warn('validateTargetInput: missing targetInput, targetMessage, or task data');
+            return false;
+        }
+        const value = parseFloat(targetInput.value);
+        if (isNaN(value) || !Number.isFinite(value)) {
+            targetMessage.textContent = window.CONFIG?.ERROR_NO_TARGET_VALUE || 'No target value provided';
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_NO_TARGET_VALUE || 'No target value provided';
+                errorMessageDiv.style.display = 'block';
+            }
+            console.warn('validateTargetInput: invalid target value');
+            return false;
+        }
+        if (value < tasks[task].optimistic || value > tasks[task].pessimistic) {
+            targetMessage.textContent = `${window.CONFIG?.ERROR_INVALID_TARGET_VALUE || 'Target value must be between'} ${tasks[task].optimistic.toFixed(2)} and ${tasks[task].pessimistic.toFixed(2)}.`;
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = `${window.CONFIG?.ERROR_INVALID_TARGET_VALUE || 'Target value must be between'} ${tasks[task].optimistic.toFixed(2)} and ${tasks[task].pessimistic.toFixed(2)}.`;
+                errorMessageDiv.style.display = 'block';
+            }
+            console.warn('validateTargetInput: target value out of range');
+            return false;
+        }
+        targetMessage.textContent = '';
+        window.sliderState.targetValue = value.toString();
+        return true;
+    }
+
+    function validateConfidenceInput() {
+        const confidenceInput = document.getElementById('confidence-level-input');
+        const confidenceMessage = document.getElementById('confidence-level-message');
+        if (!confidenceInput || !confidenceMessage) {
+            if (confidenceMessage) confidenceMessage.textContent = window.CONFIG?.ERROR_NO_CONFIDENCE_LEVEL || 'No confidence level provided';
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_NO_CONFIDENCE_LEVEL || 'No confidence level provided';
+                errorMessageDiv.style.display = 'block';
+            }
+            console.warn('validateConfidenceInput: missing confidenceInput or confidenceMessage');
+            return false;
+        }
+        const value = parseInt(confidenceInput.value);
+        if (isNaN(value) || value < 1 || value > 100) {
+            confidenceMessage.textContent = window.CONFIG?.ERROR_INVALID_CONFIDENCE_LEVEL || 'Confidence level must be between 1 and 100';
+            const errorMessageDiv = document.getElementById('error-message');
+            if (errorMessageDiv) {
+                errorMessageDiv.textContent = window.CONFIG?.ERROR_INVALID_CONFIDENCE_LEVEL || 'Confidence level must be between 1 and 100';
+                errorMessageDiv.style.display = 'block';
+            }
+            console.warn('validateConfidenceInput: invalid confidence level');
+            return false;
+        }
+        confidenceMessage.textContent = '';
+        return true;
+    }
+
+    function toggleModeInputs() {
+        const mode = document.getElementById('mode-select')?.value || 'target';
+        const targetContainer = document.getElementById('target-input-container');
+        const confidenceContainer = document.getElementById('confidence-input-container');
+        if (targetContainer && confidenceContainer) {
+            targetContainer.style.display = mode === 'target' ? 'flex' : 'none';
+            confidenceContainer.style.display = mode === 'confidence' ? 'flex' : 'none';
+        } else {
+            console.warn('toggleModeInputs: missing targetContainer or confidenceContainer');
+        }
+    }
+
+    function updateTargetRange() {
+        const targetRange = document.getElementById('target-range');
+        const task = document.getElementById('task-select')?.value;
+        if (!targetRange || !task || !tasks[task]) {
+            if (targetRange) targetRange.textContent = 'N/A';
+            console.warn('updateTargetRange: missing targetRange or task data');
+            return;
+        }
+        targetRange.textContent = `${tasks[task].optimistic.toFixed(2)} - ${tasks[task].pessimistic.toFixed(2)}`;
+    }
+
+    function setInitialTargetValue() {
+        const targetInput = document.getElementById('target-value-input');
+        const taskSelect = document.getElementById('task-select');
+        const task = taskSelect?.value;
+        if (!targetInput || !taskSelect || !task || !tasks[task]) {
+            console.warn('setInitialTargetValue: missing targetInput, taskSelect, or task data');
+            if (targetInput) targetInput.value = '';
+            return;
+        }
+        const defaultValue = tasks[task].mostLikely || (window.CONFIG?.DEFAULT_MOST_LIKELY || 0);
+        targetInput.value = defaultValue.toFixed(2);
+        window.sliderState.targetValue = defaultValue.toString();
+        validateTargetInput();
+        updateTargetRange();
+    }
+
+    function updateTargetInputRange() {
+        const targetInput = document.getElementById('target-value-input');
+        const taskSelect = document.getElementById('task-select');
+        const task = taskSelect?.value;
+        if (!targetInput || !taskSelect || !task || !tasks[task]) {
+            console.warn('updateTargetInputRange: missing targetInput, taskSelect, or task data');
+            return;
+        }
+        targetInput.min = tasks[task].optimistic.toFixed(2);
+        targetInput.max = tasks[task].pessimistic.toFixed(2);
+        targetInput.step = 'any';
+        validateTargetInput();
+    }
+
+    function drawAllPlots() {
+        drawPdfPlot();
+        drawCdfPlot();
+    }
+</script>
+    </body>
+</html>
+

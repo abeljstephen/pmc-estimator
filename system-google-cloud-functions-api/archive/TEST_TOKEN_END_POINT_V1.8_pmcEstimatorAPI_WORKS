@@ -1,0 +1,24 @@
+function testEndpoints() {
+  const endpoints = [
+    { url: 'https://oauth2.googleapis.com/token', method: 'GET' },
+    { url: 'https://oauth2.googleapis.com/token', method: 'POST', payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer' } },
+    { url: 'https://www.googleapis.com/discovery/v1/apis', method: 'GET' },
+    { url: 'https://www.googleapis.com/oauth2/v1/certs', method: 'GET' }
+  ];
+  endpoints.forEach(({ url, method, payload }) => {
+    try {
+      const options = {
+        method: method,
+        muteHttpExceptions: true,
+        contentType: payload ? 'application/x-www-form-urlencoded' : undefined,
+        payload: payload ? payload : undefined
+      };
+      const response = UrlFetchApp.fetch(url, options);
+      Logger.log(`Response code for ${url} (${method}): ${response.getResponseCode()}`);
+      Logger.log(`Response content for ${url} (${method}): ${response.getContentText().substring(0, 500)}...`);
+    } catch (e) {
+      Logger.log(`Test failed for ${url} (${method}): ${e.message}`);
+    }
+  });
+}
+

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 1em;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 0.5em;
+      }
+      th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #2c5282;
+        color: white;
+      }
+      input[type="text"], input[type="number"] {
+        width: 100%;
+        padding: 5px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 0.5em 1em;
+        background-color: #2c5282;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #1a365d;
+      }
+      #results {
+        margin-top: 1em;
+      }
+      #results p {
+        font-size: 14px;
+        color: #333;
+      }
+      #results a {
+        color: #2c5282;
+        text-decoration: underline;
+      }
+      .error {
+        color: red;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Batch Estimate Input</h3>
+    <p>Enter your task estimates in the table below. Select one task for plotting by checking the box.</p>
+    <table id="taskTable">
+      <thead>
+        <tr>
+          <th>Select for Plot</th>
+          <th>Task Name</th>
+          <th>Best Case</th>
+          <th>Most Likely</th>
+          <th>Worst Case</th>
+        </tr>
+      </thead>
+      <tbody id="taskTableBody">
+        <!-- Tasks will be populated dynamically or use default -->
+      </tbody>
+    </table>
+    <button onclick="addRow()">Add Task</button>
+    <button onclick="submitBatch()">Estimate Project</button>
+    <div id="errorMessage" class="error"></div>
+    <div id="results">
+      <p><strong>Results:</strong></p>
+      <p id="sheetUrl">Sheet URL: Not generated yet</p>
+      <p id="plotUrl">Plot URL: Not generated yet</p>
+    </div>
+
+    <script>
+      // Get query parameters from URL
+      function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+      }
+
+      // Populate table with tasks from query parameter or default
+      function populateTable() {
+        const tasksParam = getQueryParam('tasks');
+        let tasks = [];
+        try {
+          if (tasksParam) {
+            tasks = JSON.parse(decodeURIComponent(tasksParam));
+            if (!Array.isArray(tasks)) throw new Error('Tasks must be an array');
+          }
+        } catch (e) {
+          console.error('Invalid tasks parameter:', e.message);
+          document.getElementById('errorMessage').textContent = 'Error loading tasks: ' + e.message;
+        }
+
+        // Default tasks if none provided
+        if (tasks.length === 0) {
+          tasks = [
+            { taskName: 'Task_1', bestCase: 20, mostLikely: 30, worstCase: 50, selectedForPlot: true },
+            { taskName: 'Task_2', bestCase: 40, mostLikely: 60, worstCase: 80, selectedForPlot: false }
+          ];
+        }
+
+        const tbody = document.getElementById('taskTableBody');
+        tbody.innerHTML = '';
+        tasks.forEach((task, index) => {
+          const row = tbody.insertRow();
+          row.innerHTML = `
+            <td><input type="checkbox" name="selectedForPlot" value="${index}" ${task.selectedForPlot ? 'checked' : ''}></td>
+            <td><input type="text" value="${task.taskName || 'Task_' + (index + 1)}"></td>
+            <td><input type="number" value="${task.bestCase || 0}" step="any"></td>
+            <td><input type="number" value="${task.mostLikely || 0}" step="any"></td>
+            <td><input type="number" value="${task.worstCase || 0}" step="any"></td>
+          `;
+        });
+        enforceSingleSelection();
+      }
+
+      // Ensure only one checkbox can be selected at a time
+      function enforceSingleSelection() {
+        const checkboxes = document.getElementsByName('selectedForPlot');
+        checkboxes.forEach((checkbox, index) => {
+          checkbox.addEventListener('change', function() {
+            if (this.checked) {
+              checkboxes.forEach((otherCheckbox, otherIndex) => {
+                if (otherIndex !== index) {
+                  otherCheckbox.checked = false;
+                }
+              });
+            }
+          });
+        });
+      }
+
+      // Add a new row to the table
+      function addRow() {
+        const tbody = document.getElementById('taskTableBody');
+        const rowCount = tbody.rows.length;
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td><input type="checkbox" name="selectedForPlot" value="${rowCount}"></td>
+          <td><input type="text" value="Task_${rowCount + 1}"></td>
+          <td><input type="number" value="0" step="any"></td>
+          <td><input type="number" value="0" step="any"></td>
+          <td><input type="number" value="0" step="any"></td>
+        `;
+        enforceSingleSelection();
+      }
+
+      // Submit the table data
+      function submitBatch() {
+        const tbody = document.getElementById('taskTableBody');
+        const rows = tbody.rows;
+        const estimatesArray = [];
+        let selectedIndex = -1;
+        let errorMessage = '';
+
+        // Collect data from table
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const checkbox = row.cells[0].getElementsByTagName('input')[0];
+          const taskName = row.cells[1].getElementsByTagName('input')[0].value;
+          const bestCase = parseFloat(row.cells[2].getElementsByTagName('input')[0].value);
+          const mostLikely = parseFloat(row.cells[3].getElementsByTagName('input')[0].value);
+          const worstCase = parseFloat(row.cells[4].getElementsByTagName('input')[0].value);
+
+          // Validate inputs
+          if (!taskName) {
+            errorMessage = `Task name is required for row ${i + 1}.`;
+            break;
+          }
+          if (isNaN(bestCase) || !isFinite(bestCase) || 
+              isNaN(mostLikely) || !isFinite(mostLikely) || 
+              isNaN(worstCase) || !isFinite(worstCase)) {
+            errorMessage = `All estimates must be valid numbers for row ${i + 1}.`;
+            break;
+          }
+          if (bestCase > mostLikely || mostLikely > worstCase) {
+            errorMessage = `Invalid estimate order for row ${i + 1}: must be Best Case ≤ Most Likely ≤ Worst Case.`;
+            break;
+          }
+          if (bestCase === mostLikely || mostLikely === worstCase) {
+            errorMessage = `Estimates are too close for row ${i + 1}: Best Case, Most Likely, and Worst Case must be distinct.`;
+            break;
+          }
+
+          estimatesArray.push({
+            taskName: taskName,
+            bestCase: bestCase,
+            mostLikely: mostLikely,
+            worstCase: worstCase,
+            selectedForPlot: checkbox.checked
+          });
+
+          if (checkbox.checked) {
+            selectedIndex = i;
+          }
+        }
+
+        // Ensure exactly one task is selected for plotting
+        if (selectedIndex === -1 && estimatesArray.length > 0) {
+          errorMessage = 'Please select one task for plotting.';
+        }
+
+        // Display error if any
+        const errorDiv = document.getElementById('errorMessage');
+        errorDiv.textContent = errorMessage;
+        if (errorMessage) {
+          return;
+        }
+
+        // Submit to server
+        google.script.run
+          .withSuccessHandler(function(response) {
+            document.getElementById('sheetUrl').innerHTML = 'Sheet URL: <a href="' + response.sheetUrl + '" target="_blank">' + response.sheetUrl + '</a>';
+            document.getElementById('plotUrl').innerHTML = 'Plot URL: <a href="' + response.plotUrl + '" target="_blank">' + response.plotUrl + '</a>';
+            window.open(response.plotUrl, '_blank');
+          })
+          .withFailureHandler(function(error) {
+            errorDiv.textContent = 'Error: ' + error.message;
+            document.getElementById('sheetUrl').innerHTML = 'Sheet URL: Failed to generate';
+            document.getElementById('plotUrl').innerHTML = 'Plot URL: Failed to generate';
+          })
+          .createEstimateSheet(estimatesArray);
+      }
+
+      // Initialize table and single-selection enforcement
+      populateTable();
+    </script>
+  </body>
+</html>
