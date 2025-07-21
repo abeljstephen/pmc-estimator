@@ -1550,7 +1550,6 @@ function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, 
    🟪 EXPORT HTTP HANDLER
    - HTTP endpoint for processing requests
 ============================================================================ */
-
 module.exports = {
   pmcEstimatorAPI: functions.http('pmcEstimatorAPI', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -1558,28 +1557,58 @@ module.exports = {
     res.set('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') return res.status(204).send('');
     if (!req.body) {
+      console.error('No request body provided');
       return res.status(400).json({ error: 'Request body is required.' });
     }
+
     try {
       console.log('Input request:', JSON.stringify(req.body));
       if (req.body.task && req.body.sliderValues) {
+        // Validate single task input
         const { task, sliderValues, targetValue, optimizeFor, confidenceLevel, targetProbabilityOnly = false } = req.body;
-        const baseData = processTask({
-          task: task.task,
-          optimistic: task.optimistic,
-          mostLikely: task.mostLikely,
-          pessimistic: task.pessimistic,
-          sliderValues,
-          targetValue,
-          optimizeFor,
-          confidenceLevel
-        });
+        if (!task.task || !Number.isFinite(task.optimistic) || !Number.isFinite(task.mostLikely) || !Number.isFinite(task.pessimistic)) {
+          console.error('Invalid task input:', task);
+          return res.status(400).json({ error: 'Task must include valid task name and finite optimistic, mostLikely, and pessimistic values.' });
+        }
+        if (!sliderValues || typeof sliderValues !== 'object') {
+          console.error('Invalid sliderValues:', sliderValues);
+          return res.status(400).json({ error: 'sliderValues must be a valid object.' });
+        }
+
+        let baseData;
+        try {
+          baseData = processTask({
+            task: task.task,
+            optimistic: task.optimistic,
+            mostLikely: task.mostLikely,
+            pessimistic: task.pessimistic,
+            sliderValues,
+            targetValue,
+            optimizeFor,
+            confidenceLevel
+          });
+        } catch (err) {
+          console.error('Error in processTask:', err.message);
+          return res.status(500).json({ error: `Failed to process task: ${err.message}` });
+        }
+
+        // Validate baseData and triangleMean
+        if (!baseData || !baseData.triangleMean || !Number.isFinite(baseData.triangleMean.value)) {
+          console.warn('baseData or triangleMean is invalid, using fallback values');
+          baseData = {
+            ...baseData,
+            triangleMean: { value: task.mostLikely, description: "Triangle mean (fallback)" },
+            pertMean: { value: task.mostLikely, description: "PERT mean (fallback)" }
+          };
+        }
+
         const targetProbabilityPoints = calculateTargetProbabilityPoints(
           task.optimistic,
           task.pessimistic,
           baseData.triangleMean.value,
           [targetValue || baseData.triangleMean.value, baseData.triangleMean.value, baseData.pertMean.value]
         );
+
         const response = targetProbabilityOnly
           ? {
               task: baseData.task,
@@ -1603,9 +1632,15 @@ module.exports = {
         console.log('Output response (single task):', JSON.stringify(response));
         res.json(response);
       } else if (Array.isArray(req.body)) {
+        // Validate array of tasks
+        if (!req.body.every(t => t.task && Number.isFinite(t.optimistic) && Number.isFinite(t.mostLikely) && Number.isFinite(t.pessimistic) && t.sliderValues)) {
+          console.error('Invalid task array input:', req.body);
+          return res.status(400).json({ error: 'All tasks must include valid task name, finite optimistic, mostLikely, pessimistic values, and sliderValues.' });
+        }
+
         const results = req.body.map(task => {
           try {
-            return processTask({
+            const result = processTask({
               task: task.task,
               optimistic: task.optimistic,
               mostLikely: task.mostLikely,
@@ -1615,13 +1650,16 @@ module.exports = {
               optimizeFor: task.optimizeFor,
               confidenceLevel: task.confidenceLevel
             });
+            return result;
           } catch (err) {
+            console.error(`Failed to process task ${task.task}:`, err.message);
             return { error: `Failed to process task ${task.task}: ${err.message}` };
           }
         });
         console.log('Output results (array):', JSON.stringify(results));
         res.json({ results });
       } else {
+        console.error('Invalid request body format:', req.body);
         res.status(400).json({ error: 'Invalid request body. Must be an array of tasks or a single task with sliderValues.' });
       }
     } catch (err) {
