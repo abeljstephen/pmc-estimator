@@ -1570,10 +1570,12 @@ module.exports = {
           console.error('Invalid task input:', task);
           return res.status(400).json({ error: 'Task must include valid task name and finite optimistic, mostLikely, and pessimistic values.' });
         }
-        if (!sliderValues || typeof sliderValues !== 'object') {
-          console.error('Invalid sliderValues:', sliderValues);
-          return res.status(400).json({ error: 'sliderValues must be a valid object.' });
-        }
+        const effectiveSliders = {
+          budgetFlexibility: Number.isFinite(sliderValues?.budgetFlexibility) ? sliderValues.budgetFlexibility : 0,
+          scheduleFlexibility: Number.isFinite(sliderValues?.scheduleFlexibility) ? sliderValues.scheduleFlexibility : 0,
+          scopeCertainty: Number.isFinite(sliderValues?.scopeCertainty) ? sliderValues.scopeCertainty : 0,
+          riskTolerance: Number.isFinite(sliderValues?.riskTolerance) ? sliderValues.riskTolerance : 0
+        };
 
         let baseData;
         try {
@@ -1582,7 +1584,7 @@ module.exports = {
             optimistic: task.optimistic,
             mostLikely: task.mostLikely,
             pessimistic: task.pessimistic,
-            sliderValues,
+            sliderValues: effectiveSliders,
             targetValue,
             optimizeFor,
             confidenceLevel
@@ -1633,22 +1635,34 @@ module.exports = {
         res.json(response);
       } else if (Array.isArray(req.body)) {
         // Validate array of tasks
-        if (!req.body.every(t => t.task && Number.isFinite(t.optimistic) && Number.isFinite(t.mostLikely) && Number.isFinite(t.pessimistic) && t.sliderValues)) {
+        if (!req.body.every(t => t.task && Number.isFinite(t.optimistic) && Number.isFinite(t.mostLikely) && Number.isFinite(t.pessimistic))) {
           console.error('Invalid task array input:', req.body);
-          return res.status(400).json({ error: 'All tasks must include valid task name, finite optimistic, mostLikely, pessimistic values, and sliderValues.' });
+          return res.status(400).json({ error: 'All tasks must include valid task name and finite optimistic, mostLikely, and pessimistic values.' });
         }
 
         const results = req.body.map(task => {
           try {
+            // Provide default sliderValues if missing
+            const effectiveSliders = task.sliderValues || {
+              budgetFlexibility: 0,
+              scheduleFlexibility: 0,
+              scopeCertainty: 0,
+              riskTolerance: 0
+            };
             const result = processTask({
               task: task.task,
               optimistic: task.optimistic,
               mostLikely: task.mostLikely,
               pessimistic: task.pessimistic,
-              sliderValues: task.sliderValues,
-              targetValue: task.targetValue,
-              optimizeFor: task.optimizeFor,
-              confidenceLevel: task.confidenceLevel
+              sliderValues: {
+                budgetFlexibility: Number.isFinite(effectiveSliders.budgetFlexibility) ? effectiveSliders.budgetFlexibility : 0,
+                scheduleFlexibility: Number.isFinite(effectiveSliders.scheduleFlexibility) ? effectiveSliders.scheduleFlexibility : 0,
+                scopeCertainty: Number.isFinite(effectiveSliders.scopeCertainty) ? effectiveSliders.scopeCertainty : 0,
+                riskTolerance: Number.isFinite(effectiveSliders.riskTolerance) ? effectiveSliders.riskTolerance : 0
+              },
+              targetValue: Number.isFinite(task.targetValue) ? task.targetValue : task.mostLikely,
+              optimizeFor: task.optimizeFor || 'target',
+              confidenceLevel: Number.isFinite(task.confidenceLevel) ? task.confidenceLevel : 0.9
             });
             return result;
           } catch (err) {
