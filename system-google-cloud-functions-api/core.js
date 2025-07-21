@@ -1585,52 +1585,47 @@ module.exports = {
             mostLikely: task.mostLikely,
             pessimistic: task.pessimistic,
             sliderValues: effectiveSliders,
-            targetValue,
-            optimizeFor,
-            confidenceLevel
+            targetValue: Number.isFinite(targetValue) ? targetValue : task.mostLikely,
+            optimizeFor: optimizeFor || 'target',
+            confidenceLevel: Number.isFinite(confidenceLevel) ? confidenceLevel : 0.9
           });
         } catch (err) {
           console.error('Error in processTask:', err.message);
           return res.status(500).json({ error: `Failed to process task: ${err.message}` });
         }
 
-        // Validate baseData and triangleMean
-        if (!baseData || !baseData.triangleMean || !Number.isFinite(baseData.triangleMean.value)) {
-          console.warn('baseData or triangleMean is invalid, using fallback values');
-          baseData = {
-            ...baseData,
-            triangleMean: { value: task.mostLikely, description: "Triangle mean (fallback)" },
-            pertMean: { value: task.mostLikely, description: "PERT mean (fallback)" }
+        // Ensure all fields are included in the response
+        const response = {
+          ...baseData,
+          targetProbabilityPoints: {
+            value: calculateTargetProbabilityPoints(
+              task.optimistic,
+              task.pessimistic,
+              baseData.triangleMean?.value || task.mostLikely,
+              [targetValue || baseData.triangleMean?.value || task.mostLikely, baseData.triangleMean?.value || task.mostLikely, baseData.pertMean?.value || task.mostLikely]
+            ),
+            description: "Target Probability points for specified values"
+          }
+        };
+
+        if (targetProbabilityOnly) {
+          response = {
+            task: baseData.task,
+            targetProbabilityPoints: response.targetProbabilityPoints,
+            targetProbabilityOriginalCdf: baseData.targetProbabilityOriginalCdf,
+            targetProbabilityAdjustedCdf: baseData.targetProbabilityAdjustedCdf,
+            targetProbabilityOriginalPdf: baseData.targetProbabilityOriginalPdf,
+            targetProbabilityAdjustedPdf: baseData.targetProbabilityAdjustedPdf,
+            decisionOptimizerPoints: baseData.decisionOptimizerPoints,
+            decisionOptimizerOriginalPoints: baseData.decisionOptimizerOriginalPoints,
+            decisionOptimizerAdjustedPoints: baseData.decisionOptimizerAdjustedPoints,
+            decisionOptimizerMetrics: baseData.decisionOptimizerMetrics,
+            sliderCombinations: baseData.sliderCombinations,
+            optimalCombination: baseData.optimalCombination,
+            optimalData: baseData.optimalData
           };
         }
 
-        const targetProbabilityPoints = calculateTargetProbabilityPoints(
-          task.optimistic,
-          task.pessimistic,
-          baseData.triangleMean.value,
-          [targetValue || baseData.triangleMean.value, baseData.triangleMean.value, baseData.pertMean.value]
-        );
-
-        const response = targetProbabilityOnly
-          ? {
-              task: baseData.task,
-              targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" },
-              targetProbabilityOriginalCdf: baseData.targetProbabilityOriginalCdf,
-              targetProbabilityAdjustedCdf: baseData.targetProbabilityAdjustedCdf,
-              targetProbabilityOriginalPdf: baseData.targetProbabilityOriginalPdf,
-              targetProbabilityAdjustedPdf: baseData.targetProbabilityAdjustedPdf,
-              decisionOptimizerPoints: baseData.decisionOptimizerPoints,
-              decisionOptimizerOriginalPoints: baseData.decisionOptimizerOriginalPoints,
-              decisionOptimizerAdjustedPoints: baseData.decisionOptimizerAdjustedPoints,
-              decisionOptimizerMetrics: baseData.decisionOptimizerMetrics,
-              sliderCombinations: baseData.sliderCombinations,
-              optimalCombination: baseData.optimalCombination,
-              optimalData: baseData.optimalData
-            }
-          : {
-              ...baseData,
-              targetProbabilityPoints: { value: targetProbabilityPoints, description: "Target Probability points for specified values" }
-            };
         console.log('Output response (single task):', JSON.stringify(response));
         res.json(response);
       } else if (Array.isArray(req.body)) {
@@ -1642,7 +1637,6 @@ module.exports = {
 
         const results = req.body.map(task => {
           try {
-            // Provide default sliderValues if missing
             const effectiveSliders = task.sliderValues || {
               budgetFlexibility: 0,
               scheduleFlexibility: 0,
@@ -1664,7 +1658,18 @@ module.exports = {
               optimizeFor: task.optimizeFor || 'target',
               confidenceLevel: Number.isFinite(task.confidenceLevel) ? task.confidenceLevel : 0.9
             });
-            return result;
+            return {
+              ...result,
+              targetProbabilityPoints: {
+                value: calculateTargetProbabilityPoints(
+                  task.optimistic,
+                  task.pessimistic,
+                  result.triangleMean?.value || task.mostLikely,
+                  [task.targetValue || result.triangleMean?.value || task.mostLikely, result.triangleMean?.value || task.mostLikely, result.pertMean?.value || task.mostLikely]
+                ),
+                description: "Target Probability points for specified values"
+              }
+            };
           } catch (err) {
             console.error(`Failed to process task ${task.task}:`, err.message);
             return { error: `Failed to process task ${task.task}: ${err.message}` };
