@@ -1564,7 +1564,7 @@ module.exports = {
     try {
       console.log('Input request:', JSON.stringify(req.body));
       if (req.body.task && req.body.sliderValues) {
-        // Validate single task input
+        // Single task input
         const { task, sliderValues, targetValue, optimizeFor, confidenceLevel, targetProbabilityOnly = false } = req.body;
         if (!task.task || !Number.isFinite(task.optimistic) || !Number.isFinite(task.mostLikely) || !Number.isFinite(task.pessimistic)) {
           console.error('Invalid task input:', task);
@@ -1594,7 +1594,17 @@ module.exports = {
           return res.status(500).json({ error: `Failed to process task: ${err.message}` });
         }
 
-        // Ensure all fields are included in the response
+        // Ensure baseData has required fields
+        if (!baseData || !baseData.triangleMean || !Number.isFinite(baseData.triangleMean.value)) {
+          console.warn('baseData or triangleMean is invalid, using fallback values');
+          baseData = {
+            ...baseData,
+            task: { value: task.task, description: "Task name" },
+            triangleMean: { value: task.mostLikely, description: "Triangle mean (fallback)" },
+            pertMean: { value: task.mostLikely, description: "PERT mean (fallback)" }
+          };
+        }
+
         const response = {
           ...baseData,
           targetProbabilityPoints: {
@@ -1629,7 +1639,7 @@ module.exports = {
         console.log('Output response (single task):', JSON.stringify(response));
         res.json(response);
       } else if (Array.isArray(req.body)) {
-        // Validate array of tasks
+        // Array of tasks
         if (!req.body.every(t => t.task && Number.isFinite(t.optimistic) && Number.isFinite(t.mostLikely) && Number.isFinite(t.pessimistic))) {
           console.error('Invalid task array input:', req.body);
           return res.status(400).json({ error: 'All tasks must include valid task name and finite optimistic, mostLikely, and pessimistic values.' });
@@ -1643,7 +1653,7 @@ module.exports = {
               scopeCertainty: 0,
               riskTolerance: 0
             };
-            const result = processTask({
+            const baseData = processTask({
               task: task.task,
               optimistic: task.optimistic,
               mostLikely: task.mostLikely,
@@ -1658,21 +1668,38 @@ module.exports = {
               optimizeFor: task.optimizeFor || 'target',
               confidenceLevel: Number.isFinite(task.confidenceLevel) ? task.confidenceLevel : 0.9
             });
+
+            // Ensure baseData has required fields
+            if (!baseData || !baseData.triangleMean || !Number.isFinite(baseData.triangleMean.value)) {
+              console.warn(`baseData or triangleMean is invalid for task ${task.task}, using fallback values`);
+              return {
+                task: { value: task.task, description: "Task name" },
+                triangleMean: { value: task.mostLikely, description: "Triangle mean (fallback)" },
+                pertMean: { value: task.mostLikely, description: "PERT mean (fallback)" },
+                error: `Invalid baseData for task ${task.task}`
+              };
+            }
+
             return {
-              ...result,
+              ...baseData,
               targetProbabilityPoints: {
                 value: calculateTargetProbabilityPoints(
                   task.optimistic,
                   task.pessimistic,
-                  result.triangleMean?.value || task.mostLikely,
-                  [task.targetValue || result.triangleMean?.value || task.mostLikely, result.triangleMean?.value || task.mostLikely, result.pertMean?.value || task.mostLikely]
+                  baseData.triangleMean?.value || task.mostLikely,
+                  [task.targetValue || baseData.triangleMean?.value || task.mostLikely, baseData.triangleMean?.value || task.mostLikely, baseData.pertMean?.value || task.mostLikely]
                 ),
                 description: "Target Probability points for specified values"
               }
             };
           } catch (err) {
             console.error(`Failed to process task ${task.task}:`, err.message);
-            return { error: `Failed to process task ${task.task}: ${err.message}` };
+            return {
+              task: { value: task.task, description: "Task name" },
+              triangleMean: { value: task.mostLikely, description: "Triangle mean (fallback)" },
+              pertMean: { value: task.mostLikely, description: "PERT mean (fallback)" },
+              error: `Failed to process task ${task.task}: ${err.message}`
+            };
           }
         });
         console.log('Output results (array):', JSON.stringify(results));
