@@ -3,11 +3,28 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.0.0",
+    "@google-cloud/functions": "^3.0.0",
+    "@google-cloud/functions-framework": "^3.5.1",
+    "@google-cloud/iam": "^2.0.0",
+    "bayesian-optimizer": "^1.2.0",
+    "google-auth-library": "^10.0.0",
+    "jstat": "^1.9.6",
+    "kd-tree-javascript": "^1.0.3",
     "mathjs": "^12.0.0",
-    "jstat": "^1.9.6"
+    "ml": "^8.0.0",
+    "ml-random-forest": "^2.1.0",
+    "ml-regression": "^6.3.0",
+    "node-fetch": "^2.6.7",
+    "numeric": "^1.2.6",
+    "seedrandom": "^3.0.5"
   },
   "scripts": {
-    "start": "functions-framework --target=pmcEstimatorAPI --port=8080"
+    "start": "functions-framework --target=pmcEstimatorAPI --port=8080",
+    "deploy": "node deploy_pmc_api.js"
+  },
+  "engines": {
+    "node": ">=20 <23",
+    "npm": ">=10"
   }
 }
+

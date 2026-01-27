@@ -8,495 +8,1199 @@
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Roboto', sans-serif;
-            background: #f5f7fa;
-            margin: 0;
-            padding: 20px;
-            transition: all 0.3s ease-in-out;
-        }
-        .simulator-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            padding: 20px;
-        }
-        .step-section {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-        }
-        h2 {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2c5282;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .step-description {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 15px;
-            line-height: 1.6;
-        }
-        #loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            font-size: 18px;
-            color: #333;
-        }
-        .control-row {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 10px;
-            max-width: 100%;
-            flex-wrap: nowrap;
-        }
-        .control-row label, .control-row select, .control-row input {
-            font-size: 12px;
-            color: #333;
-            white-space: nowrap;
-        }
-        .control-row div {
-            flex-shrink: 0;
-        }
-        .control-row select, .control-row input[type="number"] {
-            padding: 5px;
-            border: 1px solid #2c5282;
-            border-radius: 4px;
-            width: 150px;
-        }
-        .constrained-button-container {
-            display: flex;
-            align-items: center;
-            border: 2px solid #2c5282;
-            border-radius: 6px;
-            padding: 10px;
-            background: #f9f9f9;
-            min-width: 350px;
-            max-width: 450px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .constrained-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: nowrap;
-            width: 100%;
-        }
-        .value-input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            min-width: 120px;
-        }
-        #target-input-container {
-            display: flex;
-        }
-        #confidence-input-container {
-            display: none;
-        }
-        .constrained-row label,
-        .constrained-row select,
-        .constrained-row input {
-            font-size: 12px;
-            color: #333;
-            white-space: nowrap;
-        }
-        .constrained-row select,
-        .constrained-row input[type="number"] {
-            padding: 5px;
-            border: 1px solid #2c5282;
-            border-radius: 4px;
-            width: 100px;
-            flex-shrink: 0;
-        }
-        .optimize-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .optimize-container label {
-            font-size: 12px;
-            color: #333;
-        }
-        .optimize-container select {
-            padding: 5px;
-            border: 1px solid #2c5282;
-            border-radius: 4px;
-            width: 150px;
-        }
-        @media (max-width: 768px) {
-            .control-row {
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-            .control-row select {
-                width: 120px;
-            }
-            .constrained-button-container {
-                min-width: 100%;
-                max-width: 100%;
-            }
-            .constrained-row {
-                gap: 5px;
-                flex-wrap: wrap;
-            }
-            .constrained-row select,
-            .constrained-row input[type="number"] {
-                width: 80px;
-            }
-            .optimize-container select {
-                width: 120px;
-            }
-        }
-        .option {
-            padding: 15px;
-            background: #ffffff;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: transform 0.2s ease-in-out;
-        }
-        .option.active-option {
-            border: 2px solid #2c5282;
-        }
-        .option h3 {
-            font-size: 16px;
-            font-weight: bold;
-            color: #2c5282;
-            margin-bottom: 10px;
-        }
-        .option p {
-            font-size: 14px;
-            color: #666;
-            line-height: 1.6;
-        }
-        .decision-grid-container {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .decision-grid {
-            flex: 1;
-            text-align: center;
-            padding: 8px;
-            background: #f9f9f9;
-            border-radius: 4px;
-        }
-        .decision-grid label {
-            font-size: 12px;
-            color: #333;
-        }
-        .decision-grid input[type="range"] {
-            width: 100%;
-            border: 1px solid #2c5282;
-            border-radius: 4px;
-            padding: 2px;
-            background: #ffffff;
-            transition: all 0.3s ease-in-out;
-        }
-        .decision-grid input[type="range"]:hover {
-            border-color: #1a365d;
-            background: #f0f0f0;
-        }
-        .decision-grid input[type="range"]:disabled {
-            background: #e0e0e0;
-            cursor: not-allowed;
-        }
-        .decision-grid span {
-            font-size: 12px;
-            color: #333;
-        }
-        .help-icon {
-            font-size: 12px;
-            color: #2c5282;
-            cursor: help;
-            padding: 2px 5px;
-            background-color: #f0f0f0;
-            border-radius: 50%;
-            margin-left: 5px;
-            display: inline-block;
-        }
-        .plot-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 900px;
-            overflow-y: auto;
-        }
-        #pdf-chart, #cdf-chart {
-            width: 100%;
-            height: 400px;
-            position: relative;
-        }
-        .side-by-side {
-            display: flex;
-            flex-direction: row;
-            gap: 15px;
-            max-height: 400px;
-        }
-        .side-by-side > div {
-            flex: 1;
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            padding: 8px;
-            position: relative;
-        }
-        .simulator-content {
-            display: flex;
-            flex-direction: row;
-            gap: 20px;
-        }
-        .simulator-left {
-            flex: 0 0 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .simulator-right {
-            display: none;
-        }
-        .clear-button {
-            padding: 5px 10px;
-            background-color: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .clear-button:hover {
-            background-color: #cc0000;
-        }
-        .results-section {
-            padding: 15px;
-            background: #e6f4ea;
-            border: 1px solid #ddd;
-            border-left: 3px solid #28a745;
-            border-radius: 4px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .results-header {
-            font-size: 16px;
-            font-weight: bold;
-            color: #2c5282;
-            margin-bottom: 10px;
-        }
-        .results-text {
-            font-size: 14px;
-            color: #333;
-            line-height: 1.6;
-        }
-        .dynamic {
-            color: #1f77b4;
-            font-weight: bold;
-        }
-        .glow {
-            background: linear-gradient(90deg, #ffeb3b, #fff176);
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-weight: bold;
-            display: inline-block;
-        }
-        .use-case {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            font-size: 10px;
-            padding: 5px;
-            background: #f0f0f0;
-            border-radius: 4px 0 0 0;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        .use-case-content {
-            display: none;
-            font-size: 10px;
-            color: #666;
-            margin: 5px 0;
-            padding: 5px;
-            line-height: 1.4;
-            background: #fff;
-            border-radius: 4px;
-        }
-        .toggle-use-case {
-            font-size: 10px;
-            font-weight: bold;
-            color: #2c5282;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 2px 5px;
-        }
-        .summary-section-container {
-            margin: 10px 0;
-            padding: 10px;
-            background: #ffffff;
-            border-radius: 6px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-        }
-        .toggle-summary {
-            font-size: 14px;
-            font-weight: bold;
-            color: #ffffff;
-            background: #2c5282;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            text-align: left;
-        }
-        .summary-content {
-            display: none;
-            flex-direction: column;
-            gap: 15px;
-            padding: 10px;
-        }
-        .analysis-wrapper {
-            background: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-        }
-        .white-box-container {
-            background: #fff;
-            border-radius: 6px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            padding: 8px;
-            margin-top: 10px;
-        }
-        #metrics-table-container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            padding: 10px;
-            background: #f8f8f8;
-            border-radius: 4px;
-        }
-        #metrics-table-container table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        #metrics-table-container th, #metrics-table-container td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-            font-size: 12px;
-        }
-        #metrics-table-container th {
-            background-color: #2c5282;
-            color: white;
-            font-weight: bold;
-        }
-        .table-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #2c5282;
-            background-color: #e6eef9;
-            padding: 5px;
-            border-radius: 3px;
-        }
-        #combination-table-body td {
-            padding: 5px 6px;
-            font-size: 10px;
-            font-family: Arial, sans-serif;
-            white-space: nowrap;
-        }
-        #combination-table-body td:last-child {
-            white-space: normal;
-            word-wrap: break-word;
-        }
-        .dual-value-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 10px;
-        }
-        .dual-value-table th, .dual-value-table td {
-            padding: 5px 6px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
-        .dual-value-table th {
-            background: #2c5282;
-            color: white;
-            font-weight: bold;
-        }
-        #pagination-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        #pagination-controls button {
-            padding: 4px 8px;
-            background-color: #2c5282;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        #pagination-controls button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        #page-info {
-            font-size: 12px;
-            color: #333;
-        }
-        #back-to-top {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 8px 15px;
-            background-color: #2c5282;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            display: none;
-        }
-        #recommendations-content p {
-            font-size: 14px;
-            color: #333;
-            line-height: 1.6;
-        }
-        #recommendations-content ul li {
-            font-size: 14px;
-            color: #333;
-            line-height: 1.6;
-            margin-left: 20px;
-        }
-        #recommendations-content ul li ul li {
-            font-size: 14px;
-            color: #333;
-            line-height: 1.6;
-            margin-left: 40px;
-        }
+/* Global box-sizing for consistent sizing */
+* {
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #2c5282;
+    --hover-color: #1a365d;
+    --track-bg: #e0e0e0;
+    --fill-bg: #2c5282;
+    --accent-color: #28a745;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --slider-gradient: linear-gradient(90deg, #4b6cb7, #182848);
+    --thumb-color: #ffffff;
+    --thumb-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    --button-hover-bg: #3b82f6;
+    --button-hover-shadow: 0 0 8px rgba(44, 82, 130, 0.6);
+    --input-gradient: linear-gradient(90deg, #f3f4f6, #e5e7eb);
+    --tooltip-bg: #333;
+    --tooltip-color: #fff;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background: #f5f7fa;
+    margin: 0;
+    padding: 10px; /* Reduced to widen content */
+    transition: all 0.3s ease-in-out;
+}
+
+.simulator-container {
+    max-width: 1200px; /* Widened to nearly browser edges */
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 10px; /* Reduced to widen content */
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+.step-section {
+    margin: 10px 0; /* Reduced margin */
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-description {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    font-size: 16px;
+    color: #333;
+    transition: opacity 0.3s ease;
+}
+
+#loading-overlay.hidden {
+    display: none !important;
+    opacity: 0;
+    z-index: -1 !important;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 8px;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    position: relative;
+    z-index: 9;
+    pointer-events: auto;
+    width: 100%;
+}
+
+.control-row label {
+    font-size: 11px;
+    color: #333;
+    white-space: nowrap;
+    pointer-events: none;
+    margin-right: 6px;
+}
+
+.control-row select {
+    padding: 6px 20px 6px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    width: 160px; /* Widened */
+    min-height: 32px;
+    cursor: pointer;
+    z-index: 11;
+    background: #ffffff;
+    font-size: 11px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+}
+
+.control-row select:focus, .control-row select:hover {
+    border-color: var(--hover-color);
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+    background: #f9fafb;
+    outline: none;
+}
+
+.control-row div {
+    flex-shrink: 0;
+}
+
+.select-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 160px;
+    z-index: 10;
+}
+
+.select-wrapper select {
+    width: 100%;
+    padding: 6px 20px 6px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    background: #ffffff;
+    font-size: 11px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    z-index: 11;
+    pointer-events: auto;
+    position: relative;
+    min-height: 32px;
+}
+
+.select-wrapper .dropdown-arrow {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><path fill="%232c5282" d="M7.293 2.293a1 1 0 00-1.414 0L5 4.586 2.707 2.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 000-1.414z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    z-index: 12;
+}
+
+.constrained-button-container {
+    display: flex;
+    align-items: center;
+    border: 2px solid var(--primary-color);
+    border-radius: 6px;
+    padding: 8px;
+    background: #f9f9f9;
+    min-width: 420px; /* Widened */
+    max-width: 460px; /* Widened */
+    box-shadow: var(--shadow);
+    position: relative;
+    z-index: 9;
+}
+
+.constrained-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    width: 100%;
+    z-index: 9;
+    pointer-events: auto;
+}
+
+.value-input-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 140px; /* Widened */
+    max-width: 220px; /* Widened */
+    z-index: 11;
+    position: relative;
+}
+
+#target-input-container {
+    display: flex;
+}
+
+#confidence-input-container {
+    display: none;
+}
+
+.constrained-row label {
+    font-size: 11px;
+    color: #333;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.constrained-row select {
+    padding: 5px 18px 5px 8px;
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    width: 110px; /* Widened */
+    min-height: 28px;
+    cursor: pointer;
+    z-index: 11;
+    background: #ffffff;
+    font-size: 11px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+}
+
+.constrained-row select:focus, .constrained-row select:hover {
+    border-color: var(--hover-color);
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+    background: #f9fafb;
+    outline: none;
+}
+
+.constrained-row .select-wrapper {
+    width: 110px;
+}
+
+.constrained-row .select-wrapper select {
+    width: 100%;
+    padding: 5px 18px 5px 8px;
+}
+
+.constrained-row input[type="number"] {
+    padding: 5px 8px;
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    width: 100px; /* Widened */
+    min-height: 28px;
+    flex-shrink: 0;
+    cursor: text;
+    z-index: 11;
+    font-size: 11px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    pointer-events: auto;
+    background: var(--input-gradient);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    position: relative;
+}
+
+.constrained-row input[type="number"]:focus, .constrained-row input[type="number"]:hover {
+    border-color: var(--hover-color);
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+    background: #ffffff;
+    outline: none;
+}
+
+.constrained-row input[type="number"]::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 14px;
+    background: var(--primary-color);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 12;
+}
+
+.constrained-row .value-input-container span {
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.optimize-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 9;
+    pointer-events: auto;
+}
+
+.optimize-container label {
+    font-size: 11px;
+    color: #333;
+    pointer-events: none;
+}
+
+.optimize-container select {
+    padding: 6px 20px 6px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    width: 160px; /* Widened */
+    min-height: 32px;
+    cursor: pointer;
+    z-index: 11;
+    background: #ffffff;
+    font-size: 11px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+}
+
+.optimize-container select:focus, .optimize-container select:hover {
+    border-color: var(--hover-color);
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+    background: #f9fafb;
+    outline: none;
+}
+
+.optimize-container .select-wrapper {
+    width: 160px;
+}
+
+.optimize-container .select-wrapper select {
+    width: 100%;
+    padding: 6px 20px 6px 10px;
+}
+
+.slider-wrapper {
+    position: relative;
+    width: 100%;
+    height: 36px;
+    padding: 10px 0;
+    z-index: 12;
+    pointer-events: auto;
+}
+
+.slider-wrapper input[type="range"] {
+    width: 100%;
+    height: 36px;
+    background: var(--track-bg);
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    outline: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 8px;
+    pointer-events: auto;
+    position: relative;
+    z-index: 13;
+}
+
+.slider-wrapper input[type="range"]::-webkit-slider-runnable-track {
+    height: 14px;
+    background: var(--slider-gradient);
+    border-radius: 8px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+    pointer-events: auto;
+}
+
+.slider-wrapper input[type="range"]::-moz-range-track {
+    height: 14px;
+    background: var(--slider-gradient);
+    border-radius: 8px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+    pointer-events: auto;
+}
+
+.slider-wrapper input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    background: var(--thumb-color);
+    border-radius: 50%;
+    cursor: grab;
+    margin-top: -5px;
+    z-index: 14;
+    box-shadow: var(--thumb-shadow);
+    border: 2px solid var(--primary-color);
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+}
+
+.slider-wrapper input[type="range"]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: var(--thumb-color);
+    border-radius: 50%;
+    cursor: grab;
+    z-index: 14;
+    box-shadow: var(--thumb-shadow);
+    border: 2px solid var(--primary-color);
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+}
+
+.slider-wrapper input[type="range"]:hover::-webkit-slider-thumb,
+.slider-wrapper input[type="range"]:hover::-moz-range-thumb {
+    background: #f0f0f0;
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+
+.slider-wrapper input[type="range"]:active::-webkit-slider-thumb,
+.slider-wrapper input[type="range"]:active::-moz-range-thumb {
+    cursor: grabbing;
+    transform: scale(1.15);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+.slider-wrapper input[type="range"]:focus {
+    outline: none;
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+}
+
+.slider-wrapper input[type="range"]:disabled {
+    background: var(--track-bg);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.slider-wrapper input[type="range"]:disabled::-webkit-slider-thumb,
+.slider-wrapper input[type="range"]:disabled::-moz-range-thumb {
+    background: #999;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.decision-grid span {
+    font-size: 12px;
+    color: #333;
+    margin-top: 6px;
+    display: inline-block;
+}
+
+.filter-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    width: 100%;
+    z-index: 9;
+    pointer-events: auto;
+    min-height: 36px;
+}
+
+.filter-container .select-wrapper {
+    width: 160px; /* Widened */
+    position: relative;
+    z-index: 10;
+}
+
+.filter-container .select-wrapper select {
+    width: 100%;
+    padding: 6px 20px 6px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    z-index: 11;
+    pointer-events: auto;
+    position: relative;
+    min-height: 32px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.filter-container .select-wrapper select:hover {
+    border-color: var(--hover-color);
+    box-shadow: var(--button-hover-shadow);
+    background: #f9fafb;
+    transform: scale(1.05);
+}
+
+.filter-container .select-wrapper select:focus {
+    border-color: var(--hover-color);
+    box-shadow: 0 0 5px rgba(44, 82, 130, 0.4);
+    background: #f9fafb;
+    outline: none;
+}
+
+.filter-container .select-wrapper .dropdown-arrow {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><path fill="%232c5282" d="M7.293 2.293a1 1 0 00-1.414 0L5 4.586 2.707 2.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 000-1.414z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    z-index: 12;
+}
+
+#slider-impact-reference-guide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px;
+}
+
+#combination-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px; /* Slightly larger for readability */
+}
+
+#pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    width: 100%;
+    z-index: 12;
+}
+
+#pagination-controls button {
+    padding: 8px 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 13;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+    width: 60px;
+    text-align: center;
+    font-size: 11px;
+    position: relative;
+    min-height: 32px;
+}
+
+#pagination-controls button:hover {
+    background-color: var(--button-hover-bg);
+    transform: scale(1.05);
+    box-shadow: var(--button-hover-shadow);
+}
+
+#pagination-controls button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+#page-info {
+    font-size: 11px;
+    color: #333;
+    z-index: 12;
+}
+
+.toggle-use-case, .toggle-summary {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--primary-color);
+    background: var(--primary-color);
+    color: #ffffff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    z-index: 12;
+    pointer-events: auto;
+    position: relative;
+    min-height: 32px;
+}
+
+.toggle-use-case {
+    background: none;
+    color: var(--primary-color);
+    padding: 6px 10px;
+}
+
+.toggle-use-case:hover, .toggle-summary:hover {
+    background-color: var(--button-hover-bg);
+    color: #ffffff;
+    transform: scale(1.05);
+    box-shadow: var(--button-hover-shadow);
+}
+
+.toggle-use-case:focus, .toggle-summary:focus {
+    outline: 2px solid var(--hover-color);
+    outline-offset: 2px;
+}
+
+.option {
+    padding: 12px;
+    background: #ffffff;
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease-in-out;
+    position: relative;
+    z-index: 2;
+}
+
+.option.active-option {
+    border: 2px solid var(--primary-color);
+}
+
+.option h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.option p {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.decision-grid-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 10;
+    width: 100%;
+}
+
+.decision-grid {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 5px;
+    position: relative;
+    z-index: 11;
+}
+
+.decision-grid label {
+    font-size: 12px;
+    color: #333;
+    pointer-events: none;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.help-icon {
+    font-size: 11px;
+    color: var(--primary-color);
+    cursor: help;
+    padding: 3px 6px;
+    background-color: #f0f0f0;
+    border-radius: 50%;
+    margin-left: 6px;
+    display: inline-block;
+    z-index: 16;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    pointer-events: auto;
+    position: relative;
+}
+
+.help-icon:hover {
+    background-color: #e0e0e0;
+    transform: scale(1.1);
+}
+
+.help-icon:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--tooltip-bg);
+    color: var(--tooltip-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 17;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.help-icon::after {
+    opacity: 0;
+}
+
+.plot-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 800px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+#pdf-chart, #cdf-chart {
+    width: 100%;
+    height: 350px;
+    position: relative;
+    z-index: 3;
+    padding-bottom: 48px;
+}
+
+.side-by-side {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    max-height: 350px;
+    width: 100%;
+}
+
+.side-by-side > div {
+    flex: 1;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 8px;
+    position: relative;
+    z-index: 4;
+}
+
+.use-case {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    font-size: 10px;
+    padding: 4px 8px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    z-index: 6;
+    display: flex;
+}
+
+.use-case-content {
+    display: none;
+    font-size: 10px;
+    color: #666;
+    margin: 4px 0;
+    padding: 4px;
+    line-height: 1.4;
+    background: #fff;
+    border-radius: 4px;
+    z-index: 6;
+}
+
+.simulator-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+.simulator-left {
+    flex: 0 0 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.simulator-right {
+    display: none;
+}
+
+.clear-button {
+    padding: 8px 12px;
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+    min-height: 32px;
+}
+
+.clear-button:hover {
+    background-color: #cc0000;
+    transform: scale(1.05);
+    box-shadow: var(--button-hover-shadow);
+}
+
+.results-section {
+    padding: 12px;
+    background: #e6f4ea;
+    border: 1px solid #ddd;
+    border-left: 3px solid var(--accent-color);
+    border-radius: 5px;
+    max-height: 300px; /* Increased for more text room */
+    overflow-y: auto;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+.results-header {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.results-text {
+    font-size: 13px; /* Slightly larger for readability */
+    color: #333;
+    line-height: 1.6; /* Increased for text display */
+}
+
+.results-text h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin: 10px 0 5px;
+}
+
+.results-text ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.results-text ul li {
+    margin-bottom: 8px;
+}
+
+.dynamic {
+    color: #1f77b4;
+    font-weight: bold;
+}
+
+.glow {
+    background: linear-gradient(90deg, #ffeb3b, #fff176);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.summary-section-container {
+    margin: 8px 0;
+    padding: 8px;
+    background: #ffffff;
+    border-radius: 5px;
+    box-shadow: var(--shadow);
+    position: relative;
+    z-index: 2;
+    width: 100%;
+}
+
+.summary-content {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+    z-index: 2;
+}
+
+.analysis-wrapper {
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 8px;
+    z-index: 2;
+    width: 100%;
+}
+
+.white-box-container {
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+    margin-top: 8px;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+}
+
+#metrics-table-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+    background: #f8f8f8;
+    border-radius: 5px;
+    z-index: 2;
+    width: 100%;
+}
+
+#metrics-table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+#metrics-table-container th, #metrics-table-container td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+    font-size: 11px;
+}
+
+#metrics-table-container th {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+}
+
+.table-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--primary-color);
+    background-color: #e6eef9;
+    padding: 4px;
+    border-radius: 3px;
+}
+
+#combination-table-body td {
+    padding: 5px;
+    font-size: 11px;
+    font-family: Arial, sans-serif;
+    white-space: nowrap;
+}
+
+#combination-table-body td:last-child {
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+.dual-value-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.dual-value-table th, .dual-value-table td {
+    border: 1px solid #ddd;
+    padding: 5px;
+    text-align: center;
+}
+
+.dual-value-table th {
+    background: var(--primary-color);
+    color: white;
+    font-weight: bold;
+}
+
+#back-to-top {
+    padding: 8px 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: none;
+    z-index: 100;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    pointer-events: auto;
+    position: fixed;
+    bottom: 15px;
+    right: 15px;
+    font-size: 11px;
+    min-height: 32px;
+}
+
+#back-to-top:hover {
+    background-color: var(--button-hover-bg);
+    transform: scale(1.05);
+    box-shadow: var(--button-hover-shadow);
+}
+
+#recommendations-content p {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.6;
+}
+
+#recommendations-content h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin: 10px 0 5px;
+}
+
+#recommendations-content ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+#recommendations-content ul li {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+#recommendations-content ul li ul li {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.6;
+    margin-left: 15px;
+}
+
+@media (max-width: 768px) {
+    .step-section {
+        padding: 6px;
+    }
+    .control-row {
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+    .control-row select {
+        width: 140px;
+        padding: 5px 16px 5px 8px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+    .control-row input[type="number"] {
+        width: 90px;
+        padding: 5px 8px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+    .select-wrapper {
+        width: 140px;
+    }
+    .select-wrapper select {
+        padding: 5px 16px 5px 8px;
+        font-size: 10px;
+    }
+    .select-wrapper .dropdown-arrow {
+        right: 6px;
+        width: 8px;
+        height: 8px;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><path fill="%232c5282" d="M6.293 1.293a1 1 0 00-1.414 0L4 3.586 1.707 1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 000-1.414z"/></svg>');
+    }
+    .constrained-button-container {
+        min-width: 100%;
+        max-width: 100%;
+        padding: 6px;
+    }
+    .constrained-row {
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    .constrained-row select {
+        width: 100px;
+        padding: 4px 14px 4px 6px;
+        font-size: 10px;
+        min-height: 26px;
+    }
+    .constrained-row input[type="number"] {
+        width: 90px;
+        padding: 4px 6px;
+        font-size: 10px;
+        min-height: 26px;
+    }
+    .constrained-row .select-wrapper {
+        width: 100px;
+    }
+    .constrained-row .select-wrapper select {
+        width: 100%;
+        padding: 4px 14px 4px 6px;
+    }
+    .constrained-row .dropdown-arrow {
+        right: 5px;
+        width: 8px;
+        height: 8px;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><path fill="%232c5282" d="M6.293 1.293a1 1 0 00-1.414 0L4 3.586 1.707 1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 000-1.414z"/></svg>');
+    }
+    .constrained-row .value-input-container span {
+        font-size: 10px;
+    }
+    .constrained-row input[type="number"]::after {
+        width: 3px;
+        height: 12px;
+        right: 5px;
+    }
+    .optimize-container select {
+        width: 140px;
+        padding: 5px 16px 5px 8px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+    .optimize-container .select-wrapper {
+        width: 140px;
+    }
+    .optimize-container .select-wrapper select {
+        width: 100%;
+        padding: 5px 16px 5px 8px;
+    }
+    .optimize-container .dropdown-arrow {
+        right: 5px;
+        width: 8px;
+        height: 8px;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><path fill="%232c5282" d="M6.293 1.293a1 1 0 00-1.414 0L4 3.586 1.707 1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 000-1.414z"/></svg>');
+    }
+    .slider-wrapper {
+        height: 32px;
+        padding: 8px 0;
+    }
+    .slider-wrapper input[type="range"] {
+        height: 32px;
+    }
+    .slider-wrapper input[type="range"]::-webkit-slider-runnable-track,
+    .slider-wrapper input[type="range"]::-moz-range-track {
+        height: 12px;
+    }
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb,
+    .slider-wrapper input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        margin-top: -4px;
+    }
+    .toggle-use-case, .toggle-summary {
+        padding: 6px 10px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+    .toggle-use-case:hover, .toggle-summary:hover {
+        background-color: var(--button-hover-bg);
+        transform: scale(1.05);
+        box-shadow: var(--button-hover-shadow);
+    }
+    .help-icon {
+        font-size: 10px;
+        padding: 2px 5px;
+    }
+    .help-icon:hover::after {
+        font-size: 9px;
+        padding: 3px 6px;
+    }
+    .filter-container .select-wrapper {
+        width: 140px;
+    }
+    .results-section {
+        max-height: 280px;
+    }
+    #pagination-controls button {
+        padding: 6px 10px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+    #back-to-top {
+        padding: 6px 10px;
+        font-size: 10px;
+        min-height: 28px;
+    }
+}
     </style>
 </head>
 <body>
-    <div id="loading-overlay">Loading, please wait...</div>
+    <div id="loading-overlay" class="hidden">Loading, please wait...</div>
     <div id="probability-simulator" class="simulator-container">
         <!-- Initial Setup / User Choices Section -->
         <div class="step-section" id="initial-setup">
@@ -505,37 +1209,46 @@
             <div class="control-row">
                 <div id="task-select-container">
                     <label for="task-select">Select Task:</label>
-                    <select id="task-select">
-                        <option value="">Loading tasks...</option>
-                    </select>
+                    <div class="select-wrapper">
+                        <select id="task-select">
+                            <option value="">Loading tasks...</option>
+                        </select>
+                        <span class="dropdown-arrow"></span>
+                    </div>
                 </div>
                 <div class="constrained-button-container">
                     <div class="constrained-row">
                         <div id="mode-select-container">
-                            <label for="mode-select">Target Mode:</label>
-                            <select id="mode-select">
-                                <option value="target">Target</option>
-                                <option value="confidence">Confidence</option>
-                            </select>
+                            <label for="mode-select">Mode:</label>
+                            <div class="select-wrapper">
+                                <select id="mode-select">
+                                    <option value="target">Target</option>
+                                    <option value="confidence">Confidence</option>
+                                </select>
+                                <span class="dropdown-arrow"></span>
+                            </div>
                         </div>
                         <div class="value-input-container" id="target-input-container">
                             <label for="target-value-input">Value (<span id="target-range"></span>):</label>
-                            <input type="number" id="target-value-input" style="width: 100px;" value="">
+                            <input type="number" id="target-value-input" value="">
                             <span id="target-value-message" style="color: red; margin-left: 5px;"></span>
                         </div>
                         <div class="value-input-container" id="confidence-input-container" style="display: none;">
                             <label for="confidence-level-input">Value (1-100%):</label>
-                            <input type="number" id="confidence-level-input" min="1" max="100" value="90" style="width: 100px;">
+                            <input type="number" id="confidence-level-input" min="1" max="100" value="90">
                             <span id="confidence-level-message" style="color: red; margin-left: 5px;"></span>
                         </div>
                     </div>
                 </div>
                 <div id="optimize-container">
                     <label for="optimize-select">Optimize:</label>
-                    <select id="optimize-select">
-                        <option value="no">No</option>
-                        <option value="yes">Yes</option>
-                    </select>
+                    <div class="select-wrapper">
+                        <select id="optimize-select">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                        <span class="dropdown-arrow"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -543,7 +1256,21 @@
         <!-- Exploration Results Section -->
         <div class="step-section results-section" id="explore-results">
             <h3 class="results-header">Exploration Results</h3>
-            <p class="results-text">Select a mode to view results.</p>
+            <div class="results-text">
+                <h4>Overview</h4>
+                <p>Starting with your initial estimates (Optimistic: <span class="dynamic" id="explore-optimistic-estimate">10.00</span>, Most Likely: <span class="dynamic" id="explore-most-likely-estimate">15.00</span>, Pessimistic: <span class="dynamic" id="explore-pessimistic-estimate">50.00</span>), we’ve converted them into a probability model to calculate your <strong>risk profile</strong>, which reflects the likelihood of meeting your target of <span class="dynamic" id="explore-target-value">30.00</span> units or achieving a value at your confidence level of <span class="dynamic" id="explore-confidence-level">90%</span>:</p>
+                <ul>
+                    <li><strong>Baseline Risk Profile:</strong> At 0% slider settings, your success probability is <span class="dynamic" id="explore-baseline-probability">75.8%</span> for <span class="dynamic" id="explore-baseline-target">30.00</span> (or <span class="dynamic" id="explore-baseline-value-at-confidence">32.24</span> at <span class="dynamic" id="explore-baseline-confidence">90%</span>), indicating a <em>low risk</em> risk profile with potential for <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong>.
+                        <ul>
+                            <li><strong>PERT Mean:</strong> <span class="dynamic" id="explore-baseline-pert-mean"></span> units. This is the weighted average of your estimates (Optimistic + 4×Most Likely + Pessimistic)/6, emphasizing the most likely outcome. Use this to understand the expected project outcome under baseline conditions and guide resource planning.</li>
+                            <li><strong>Monte Carlo Smoothed 90th Percentile:</strong> <span class="dynamic" id="explore-mc-smoothed-90th-percentile"></span> units with 95% Confidence Interval: [<span class="dynamic" id="explore-baseline-ci-lower"></span>, <span class="dynamic" id="explore-baseline-ci-upper"></span>] units. This range indicates where 90% of outcomes are expected to fall, providing a measure of uncertainty. Use this to assess risk exposure and set contingency plans for potential overruns.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Current Risk Profile:</strong> With current settings (Budget Flexibility: <span class="dynamic" id="explore-current-budget-flexibility">0%</span>, Schedule Flexibility: <span class="dynamic" id="explore-current-schedule-flexibility">0%</span>, Scope Certainty: <span class="dynamic" id="explore-current-scope-certainty">0%</span>, Tolerance for Poor Quality: <span class="dynamic" id="explore-current-quality-tolerance">0%</span>), your success probability is <span class="dynamic" id="explore-current-probability">92.5%</span> for <span class="dynamic" id="explore-current-target">30.00</span> (or <span class="dynamic" id="explore-current-value-at-confidence">29.28</span> at <span class="dynamic" id="explore-current-confidence">90%</span>), reflecting a <em>very low risk</em> risk profile, improved by <span class="dynamic" id="explore-improvement-percentage">22.0%</span>.</li>
+                    <li><strong>Optimized Risk Profile:</strong> Using <strong>decision optimization</strong> (Optimize dropdown set to “Yes”), you can achieve <span class="dynamic" id="explore-optimized-probability">90.5%</span> for <span class="dynamic" id="explore-optimized-target">19.50</span> units, reflecting a <em>very low risk</em> risk profile with minimal risks.</li>
+                </ul>
+                <p>The sliders enable you to manage these risks. The list below details each slider’s individual impact, with their combined effect driving <span class="dynamic" id="explore-current-probability-footer">92.5%</span> or <span class="dynamic" id="explore-current-value-at-confidence-footer">29.28</span>, as shown in the <strong>Slider Combination Table</strong>.</p>
+            </div>
         </div>
         <!-- Interactive Probability Content -->
         <div class="step-section" id="interactive-probability-content">
@@ -554,32 +1281,40 @@
                         <div class="decision-grid-container">
                             <div class="decision-grid">
                                 <label for="targetBudgetFlexibility">Budget Flexibility (%)</label>
-                                <input type="range" id="targetBudgetFlexibility" min="0" max="100" step="1" value="0">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="targetBudgetFlexibility" min="0" max="100" step="1" value="0">
+                                </div>
                                 <span id="targetBudgetFlexibilityValue">0%</span>
-                                <span class="help-icon" title="Higher flexibility allows for a larger budget buffer.">?</span>
+                                <span class="help-icon" title="Higher flexibility allows for a larger budget buffer;">?</span>
                             </div>
                             <div class="decision-grid">
                                 <label for="targetScheduleFlexibility">Schedule Flexibility (%)</label>
-                                <input type="range" id="targetScheduleFlexibility" min="0" max="100" step="1" value="0">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="targetScheduleFlexibility" min="0" max="100" step="1" value="0">
+                                </div>
                                 <span id="targetScheduleFlexibilityValue">0%</span>
-                                <span class="help-icon" title="Higher flexibility extends the timeline.">?</span>
+                                <span class="help-icon" title="Higher flexibility extends the timeline;">?</span>
                             </div>
                             <div class="decision-grid">
                                 <label for="targetScopeCertainty">Scope Certainty (%)</label>
-                                <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="0">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="0">
+                                </div>
                                 <span id="targetScopeCertaintyValue">0%</span>
-                                <span class="help-icon" title="Higher certainty reduces outcome range.">?</span>
+                                <span class="help-icon" title="Higher certainty reduces outcome range;">?</span>
                             </div>
                             <div class="decision-grid">
                                 <label for="targetQualityTolerance">Tolerance for Poor Quality (%)</label>
-                                <input type="range" id="targetQualityTolerance" min="0" max="100" step="1" value="0">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="targetQualityTolerance" min="0" max="100" step="1" value="0">
+                                </div>
                                 <span id="targetQualityToleranceValue">0%</span>
-                                <span class="help-icon" title="Higher tolerance accepts more defects or lower quality.">?</span>
+                                <span class="help-icon" title="Higher tolerance accepts more defects or lower quality;">?</span>
                             </div>
                         </div>
                         <div class="plot-container">
                             <div class="side-by-side">
-                                <div id="pdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                <div id="pdf-chart" style="width: 100%; height: 350px; position: relative;">
                                     <div id="pdf-use-case" class="use-case">
                                         <button class="toggle-use-case" data-target="pdf-use-case-content" aria-expanded="false">▼ Use Case</button>
                                         <div id="pdf-use-case-content" class="use-case-content">
@@ -589,7 +1324,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div id="cdf-chart" style="width: 100%; height: 400px; position: relative;">
+                                <div id="cdf-chart" style="width: 100%; height: 350px; position: relative;">
                                     <div id="cdf-use-case" class="use-case">
                                         <button class="toggle-use-case" data-target="cdf-use-case-content" aria-expanded="false">▼ Use Case</button>
                                         <div id="cdf-use-case-content" class="use-case-content">
@@ -604,17 +1339,20 @@
                         <div class="white-box-container">
                             <button class="toggle-summary" data-target="slider-impact-reference-guide" aria-expanded="true">▲ Slider Combination</button>
                             <div id="slider-impact-reference-guide" style="display: block; padding: 8px;">
-                                <div style="margin-bottom: 5px; text-align: center; display: flex; align-items: center; justify-content: center;">
+                                <div class="filter-container">
                                     <label for="probability-filter">Filter:</label>
-                                    <select id="probability-filter">
-                                        <option value="current" selected>Current Selection</option>
-                                        <option value="all">All</option>
-                                        <option value="above50">Above 50%</option>
-                                        <option value="above75">Above 75%</option>
-                                        <option value="below50">Below 50%</option>
-                                        <option value="optimized">Optimized</option>
-                                    </select>
-                                    <span class="help-icon" title="This table shows combinations of slider settings and their probability of achieving the target value. Filter options: 'Current Selection' shows current settings, 'All' shows all combinations, 'Above 50%'/'Above 75%' show combinations with probability above 50%/75%, 'Below 50%' shows below 50%, and 'Optimized' shows the optimal settings. Use the filter to narrow down results, navigate pages, and adjust sliders to test scenarios.">?</span>
+                                    <div class="select-wrapper">
+                                        <select id="probability-filter">
+                                            <option value="current" selected>Current Selection</option>
+                                            <option value="all">All</option>
+                                            <option value="above50">Above 50%</option>
+                                            <option value="above75">Above 75%</option>
+                                            <option value="below50">Below 50%</option>
+                                            <option value="optimized">Optimized</option>
+                                        </select>
+                                        <span class="dropdown-arrow"></span>
+                                    </div>
+                                    <span class="help-icon" title="This table shows combinations of slider settings and their probability of achieving the target value. Filter options: 'Current Selection' shows current settings, 'All' shows all combinations, 'Above 50%'/'Above 75%' show combinations with probability above 50%/75%, 'Below 50%' shows below 50%, and 'Optimized' shows the optimal settings. Use the filter to narrow down results, navigate pages, and adjust sliders to test scenarios;">?</span>
                                 </div>
                                 <table id="combination-table" class="dual-value-table">
                                     <tbody id="combination-table-body">
@@ -637,7 +1375,21 @@
                 <div id="insights-recommendations-content" class="summary-content" style="display: none;">
                     <div id="recommendations-section">
                         <h4>Recommendations</h4>
-                        <div id="recommendations-content"></div>
+                        <div id="recommendations-content">
+                            <h4>Overview</h4>
+                            <p>Starting with your initial estimates (Optimistic: <span class="dynamic" id="recommendations-optimistic-estimate">10.00</span>, Most Likely: <span class="dynamic" id="recommendations-most-likely-estimate">15.00</span>, Pessimistic: <span class="dynamic" id="recommendations-pessimistic-estimate">50.00</span>), we’ve converted them into a probability model to calculate your <strong>risk profile</strong>, which reflects the likelihood of meeting your target of <span class="dynamic" id="recommendations-target-value">30.00</span> units or achieving a value at your confidence level of <span class="dynamic" id="recommendations-confidence-level">90%</span>:</p>
+                            <ul>
+                                <li><strong>Baseline Risk Profile:</strong> At 0% slider settings, your success probability is <span class="dynamic" id="recommendations-baseline-probability">75.8%</span> for <span class="dynamic" id="recommendations-baseline-target">30.00</span> (or <span class="dynamic" id="recommendations-baseline-value-at-confidence">32.24</span> at <span class="dynamic" id="recommendations-baseline-confidence">90%</span>), indicating a <em>low risk</em> risk profile with potential for <strong>cost overruns</strong>, <strong>schedule delays</strong>, <strong>scope creep</strong>, or <strong>defects</strong>.
+                                    <ul>
+                                        <li><strong>PERT Mean:</strong> <span class="dynamic" id="recommendations-baseline-pert-mean"></span> units. This is the weighted average of your estimates (Optimistic + 4×Most Likely + Pessimistic)/6, emphasizing the most likely outcome. Use this to understand the expected project outcome under baseline conditions and guide resource planning.</li>
+                                        <li><strong>Monte Carlo Smoothed 90th Percentile:</strong> <span class="dynamic" id="recommendations-mc-smoothed-90th-percentile"></span> units with 95% Confidence Interval: [<span class="dynamic" id="recommendations-baseline-ci-lower"></span>, <span class="dynamic" id="recommendations-baseline-ci-upper"></span>] units. This range indicates where 90% of outcomes are expected to fall, providing a measure of uncertainty. Use this to assess risk exposure and set contingency plans for potential overruns.</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Current Risk Profile:</strong> With current settings (Budget Flexibility: <span class="dynamic" id="recommendations-current-budget-flexibility">0%</span>, Schedule Flexibility: <span class="dynamic" id="recommendations-current-schedule-flexibility">0%</span>, Scope Certainty: <span class="dynamic" id="recommendations-current-scope-certainty">0%</span>, Tolerance for Poor Quality: <span class="dynamic" id="recommendations-current-quality-tolerance">0%</span>), your success probability is <span class="dynamic" id="recommendations-current-probability">92.5%</span> for <span class="dynamic" id="recommendations-current-target">30.00</span> (or <span class="dynamic" id="recommendations-current-value-at-confidence">29.28</span> at <span class="dynamic" id="recommendations-current-confidence">90%</span>), reflecting a <em>very low risk</em> risk profile, improved by <span class="dynamic" id="recommendations-improvement-percentage">22.0%</span>.</li>
+                                <li><strong>Optimized Risk Profile:</strong> Using <strong>decision optimization</strong> (Optimize dropdown set to “Yes”), you can achieve <span class="dynamic" id="recommendations-optimized-probability">90.5%</span> for <span class="dynamic" id="recommendations-optimized-target">19.50</span> units, reflecting a <em>very low risk</em> risk profile with minimal risks.</li>
+                            </ul>
+                            <p>The sliders enable you to manage these risks. The list below details each slider’s individual impact, with their combined effect driving <span class="dynamic" id="recommendations-current-probability-footer">92.5%</span> or <span class="dynamic" id="recommendations-current-value-at-confidence-footer">29.28</span>, as shown in the <strong>Slider Combination Table</strong>.</p>
+                        </div>
                     </div>
                     <div id="metrics-table-container" class="white-box-container">
                         <div class="table-title">Statistical Metrics</div>
@@ -752,6 +1504,9 @@
     </div>
     <button id="back-to-top">Back to Top</button>
 
+
+
+
     <script type="text/javascript">
         // Global state
         let isInitialized = false;
@@ -775,53 +1530,64 @@
             google.charts.setOnLoadCallback(initialize);
         });
 
-        function initialize() {
-            document.title = 'Interactive Probability Simulator';
-            setupToggleListeners();
-            setupSliderListeners();
-            setupControlListeners();
-            restoreSliders();
-            fetchTasks(function() {
-                console.log('Tasks fetched, count:', Object.keys(tasks).length);
-                if (Object.keys(tasks).length > 0) {
-                    fetchTargetProbabilityData(function() {
-                        console.log('Data fetched, initializing UI');
-                        isInitialized = true;
-                        setInitialTask();
-                        setInitialTargetValue();
-                        updateTargetRange();
-                        updateModeSelectLabel();
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                        document.getElementById('loading-overlay').style.display = 'none';
-                    });
-                } else {
-                    taskValidationError = true;
-                    document.getElementById('task-select').innerHTML = '<option value="">No valid tasks available</option>';
-                    document.getElementById('loading-overlay').textContent = 'Error: No valid tasks found (best case < most likely < worst case not satisfied). Using default values. Please contact support.';
-                    setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 3000);
-                    updateResults();
+function initialize() {
+    console.log('initialize: Starting');
+    document.title = 'Interactive Probability Simulator';
+    setupToggleListeners();
+    setupSliderListeners();
+    setupControlListeners();
+    restoreSliders();
+    fetchTasks(function() {
+        console.log('initialize: Tasks fetched, count:', Object.keys(tasks).length);
+        if (Object.keys(tasks).length > 0) {
+            fetchTargetProbabilityData(function() {
+                console.log('initialize: Data fetched, initializing UI');
+                isInitialized = true;
+                setInitialTask();
+                setInitialTargetValue();
+                updateTargetRange();
+                updateModeSelectLabel();
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.style.display = 'none';
+                    console.log('initialize: Loading overlay hidden');
                 }
-            });
-
-            window.addEventListener('scroll', function() {
-                document.getElementById('back-to-top').style.display = window.scrollY > 200 ? 'block' : 'none';
-            }, { passive: true });
-            document.getElementById('back-to-top').addEventListener('click', function() {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, { passive: true });
+            }, true);
+        } else {
+            console.log('initialize: No valid tasks');
+            taskValidationError = true;
+            document.getElementById('task-select').innerHTML = '<option value="">No valid tasks available</option>';
+            document.getElementById('loading-overlay').textContent = 'Error: No valid tasks found (best case < most likely < worst case not satisfied). Using default values. Please contact support.';
+            setTimeout(() => {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.style.display = 'none';
+                    console.log('initialize: Loading overlay hidden after timeout');
+                }
+            }, 3000);
+            updateResults();
         }
+    });
+
+    window.addEventListener('scroll', function() {
+        document.getElementById('back-to-top').style.display = window.scrollY > 200 ? 'block' : 'none';
+    }, { passive: true });
+    document.getElementById('back-to-top').addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, { passive: true });
+}
 
         function updateModeSelectLabel() {
-            const modeSelect = document.getElementById('mode-select');
-            const label = document.querySelector('#mode-select-container label');
-            if (modeSelect && label) {
-                const mode = modeSelect.value || 'target';
-                label.textContent = mode.charAt(0).toUpperCase() + mode.slice(1) + ' Mode';
-            }
-        }
+    const modeSelect = document.getElementById('mode-select');
+    const label = document.querySelector('#mode-select-container label');
+    if (modeSelect && label) {
+        label.textContent = 'Mode'; // Changed to static "Mode"
+    }
+}
 
         function setInitialTask() {
             const taskSelect = document.getElementById('task-select');
@@ -973,110 +1739,120 @@
         }
 
         function setupSliderListeners() {
-            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
-            const debounce = function(func, wait) {
-                let timeout;
-                return function() {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(func, wait);
-                };
-            };
-            sliders.forEach(function(id) {
-                const slider = document.getElementById(id);
-                if (!slider) return;
-                slider.addEventListener('input', debounce(function() {
-                    if (isOptimizeMode) return;
-                    const key = id.replace(/^target/, '').replace(/^./, function(c) { return c.toLowerCase(); });
-                    const value = parseFloat(slider.value);
-                    window.sliderState[key] = value.toString();
-                    fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                    });
-                }, 200));
-            });
+    console.log('Setting up slider listeners...');
+    const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetQualityTolerance'];
+    sliders.forEach(id => {
+        const slider = document.getElementById(id);
+        if (!slider) {
+            console.error(`Slider ${id} not found`);
+            return;
         }
-
-        function setupControlListeners() {
-            const taskSelect = document.getElementById('task-select');
-            const modeSelect = document.getElementById('mode-select');
-            const targetInput = document.getElementById('target-value-input');
-            const confidenceInput = document.getElementById('confidence-level-input');
-            const optimizeSelect = document.getElementById('optimize-select');
-
-            if (taskSelect) {
-                taskSelect.addEventListener('change', function() {
-                    taskValidationError = tasks[this.value] && !isValidTask(tasks[this.value]);
-                    updateTargetRange();
-                    setInitialTargetValue();
-                    updateTargetInputRange();
-                    if (validateInputs()) fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                    });
-                });
+        console.log(`Binding slider ${id}, disabled: ${slider.disabled}`);
+        // Set initial progress fill
+        slider.style.background = `linear-gradient(to right, var(--fill-bg) ${slider.value}%, var(--track-bg) ${slider.value}%)`;
+        // Click event for debugging
+        slider.addEventListener('click', function(e) {
+            console.log(`Slider ${id} clicked at value: ${slider.value}, coords: (${e.clientX}, ${e.clientY})`);
+        });
+        // Input event for functionality
+        slider.addEventListener('input', function() {
+            console.log(`Slider ${id} changed to: ${slider.value}`);
+            slider.style.background = `linear-gradient(to right, var(--fill-bg) ${slider.value}%, var(--track-bg) ${slider.value}%)`;
+            if (isOptimizeMode) {
+                console.log('Slider input ignored: optimize mode active');
+                return;
             }
+            const key = id.replace(/^target/, '').replace(/^./, c => c.toLowerCase());
+            window.sliderState[key] = slider.value;
+            fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+            });
+        });
+    });
+}
 
-            if (modeSelect) {
-                modeSelect.addEventListener('change', function() {
-                    toggleModeInputs();
-                    updateModeSelectLabel();
-                    if (!isOptimizeMode) {
-                        restoreSliders();
-                    }
-                    if (validateInputs()) fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                    });
-                });
-            }
+function setupControlListeners() {
+    const taskSelect = document.getElementById('task-select');
+    const modeSelect = document.getElementById('mode-select');
+    const targetInput = document.getElementById('target-value-input');
+    const confidenceInput = document.getElementById('confidence-level-input');
+    const optimizeSelect = document.getElementById('optimize-select');
 
-            if (targetInput) {
-                targetInput.addEventListener('input', function() {
-                    if (validateTargetInput()) fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                    });
-                });
-            }
+    if (taskSelect) {
+        taskSelect.addEventListener('change', function() {
+            taskValidationError = tasks[this.value] && !isValidTask(tasks[this.value]);
+            updateTargetRange();
+            setInitialTargetValue();
+            updateTargetInputRange();
+            if (validateInputs()) fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+            });
+        });
+    }
 
-            if (confidenceInput) {
-                confidenceInput.addEventListener('input', function() {
-                    if (validateConfidenceInput()) fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        populateCombinationTable(1);
-                    });
-                });
-            }
-
-            if (optimizeSelect) {
-                optimizeSelect.addEventListener('change', function() {
-                    isOptimizeMode = this.value === 'yes';
-                    enableSliders(!isOptimizeMode);
-                    restoreSliders();
-                    fetchTargetProbabilityData(function() {
-                        drawAllPlots();
-                        updateResults();
-                        syncSliderDisplays();
-                        console.log('Optimize mode changed, sliderValues:', window.sliderState);
-                        populateCombinationTable(1);
-                    });
-                });
-            }
-
+    if (modeSelect) {
+        modeSelect.addEventListener('change', function() {
             toggleModeInputs();
             updateModeSelectLabel();
-        }
+            if (!isOptimizeMode) {
+                restoreSliders();
+            }
+            if (validateInputs()) fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+            });
+        });
+    }
+
+    if (targetInput) {
+        targetInput.addEventListener('input', function() {
+            if (validateTargetInput()) fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+            });
+        });
+    }
+
+    if (confidenceInput) {
+        confidenceInput.addEventListener('input', function() {
+            if (validateConfidenceInput()) fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                populateCombinationTable(1);
+            });
+        });
+    }
+
+    if (optimizeSelect) {
+        optimizeSelect.addEventListener('change', function() {
+            isOptimizeMode = this.value === 'yes';
+            enableSliders(!isOptimizeMode);
+            restoreSliders();
+            document.getElementById('probability-filter').value = isOptimizeMode ? 'optimized' : 'current'; // Set default filter
+            fetchTargetProbabilityData(function() {
+                drawAllPlots();
+                updateResults();
+                syncSliderDisplays();
+                console.log('Optimize mode changed, sliderValues:', window.sliderState);
+                populateCombinationTable(1);
+            });
+        });
+    }
+
+    toggleModeInputs();
+    updateModeSelectLabel();
+}
 
         function updateTargetRange() {
             const task = document.getElementById('task-select')?.value;
@@ -1191,107 +1967,126 @@
             }
         }
 
-        function updateResults() {
-            const task = document.getElementById('task-select')?.value;
-            if (!task || !tasks[task] || !isValidTask(tasks[task]) || taskValidationError) {
-                const exploreResults = document.getElementById('explore-results');
-                if (exploreResults) {
-                    exploreResults.innerHTML = `
-                        <h3 class="results-header">Exploration Results</h3>
-                        <p class="results-text">Error: Invalid task data (best case < most likely < worst case not satisfied) or no task selected. Using default values (target: 2400.00). Please select a valid task or contact support.</p>
-                    `;
-                }
-                const recommendationsContent = document.getElementById('recommendations-content');
-                if (recommendationsContent) {
-                    recommendationsContent.innerHTML = '<p class="results-text">Error: Invalid task data or no task selected.</p>';
-                }
-                return;
-            }
-            if (!targetProbabilityData) {
-                const exploreResults = document.getElementById('explore-results');
-                if (exploreResults) {
-                    exploreResults.innerHTML = '<h3 class="results-header">Exploration Results</h3><p class="results-text">Error: Unable to load results due to API failure.</p>';
-                }
-                const recommendationsContent = document.getElementById('recommendations-content');
-                if (recommendationsContent) {
-                    recommendationsContent.innerHTML = '<p class="results-text">Error: Unable to load results due to API failure.</p>';
-                }
-                return;
-            }
-
-            const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task].mostLikely || 2400.00;
-            const mode = document.getElementById('mode-select')?.value || 'target';
-            const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) || 90;
-            const origProb = targetProbabilityData.targetProbability?.value.original * 100 || 54.0;
-            const adjProb = targetProbabilityData.targetProbability?.value.adjusted * 100 || 97.6;
-            const optimalData = targetProbabilityData?.optimalData?.value || {};
-            let optimalValue = optimalData.optimalObjective || targetValue;
-            const optimalProb = optimalData.probability * 100 || 100.0;
-            const metrics = targetProbabilityData?.decisionOptimizerMetrics?.value || {};
-            const bestCase = tasks[task]?.optimistic.toFixed(2) || '1800.00';
-            const mostLikely = tasks[task]?.mostLikely.toFixed(2) || '2400.00';
-            const worstCase = tasks[task]?.pessimistic.toFixed(2) || '3000.00';
-            const sliderSettings = isOptimizeMode ? {
-                budgetFlexibility: optimalData?.optimalSliderSettings?.budgetFlexibility ?? window.sliderState.budgetFlexibility ?? 0,
-                scheduleFlexibility: optimalData?.optimalSliderSettings?.scheduleFlexibility ?? window.sliderState.scheduleFlexibility ?? 0,
-                scopeCertainty: optimalData?.optimalSliderSettings?.scopeCertainty ?? window.sliderState.scopeCertainty ?? 0,
-                qualityTolerance: optimalData?.optimalSliderSettings?.qualityTolerance ?? window.sliderState.qualityTolerance ?? 0
-            } : window.sliderState;
-            const valueAtConfidence = targetProbabilityData.valueAtConfidence?.value.adjusted || 2325.50;
-            const originalValueAtConfidence = targetProbabilityData.valueAtConfidence?.value.original || 2504.91;
-
-            if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) {
-                optimalValue = targetValue;
-            }
-
-            if (isOptimizeMode) {
-                console.log('Optimize mode slider settings:', sliderSettings);
-                if (!optimalData?.optimalSliderSettings) {
-                    console.warn('Optimal slider settings missing in API response');
-                }
-            }
-
-            let exploreText = '';
-            if (isOptimizeMode) {
-                exploreText = `
-                    The task <span class="dynamic">"${task}"</span> (Best Case: <span class="dynamic">${bestCase}</span>, Most Likely: <span class="dynamic">${mostLikely}</span>, Worst Case: <span class="dynamic">${worstCase}</span>) was modeled using a Monte Carlo beta-smoothed probability distribution. 
-                    <span class="glow">With optimized settings (Budget Flexibility: ${sliderSettings.budgetFlexibility}%, Schedule Flexibility: ${sliderSettings.scheduleFlexibility}%, Scope Certainty: ${sliderSettings.scopeCertainty}%, Tolerance for Poor Quality: ${sliderSettings.qualityTolerance}%</span>), you can achieve an optimal target of <span class="dynamic">${optimalValue.toFixed(2)}</span> with <span class="dynamic">${optimalProb.toFixed(1)}%</span> confidence—a success probability of <span class="dynamic">${optimalProb.toFixed(1)}%</span>, 
-                    compared to <span class="dynamic">${origProb.toFixed(1)}%</span> for your target of <span class="dynamic">${targetValue.toFixed(2)}</span>. 
-                    For reference, the <span class="dynamic">${confidenceLevel}%</span> confidence value without optimization was <span class="dynamic">${originalValueAtConfidence.toFixed(2)}</span>. 
-                    These settings are tuned to maximize your outcome against the defined <span class="dynamic">${mode}</span>.
-                `;
-            } else if (mode === 'target') {
-                exploreText = `
-                    The task <span class="dynamic">"${task}"</span> (Best Case: <span class="dynamic">${bestCase}</span>, Most Likely: <span class="dynamic">${mostLikely}</span>, Worst Case: <span class="dynamic">${worstCase}</span>) was modeled using a Monte Carlo beta-smoothed distribution. 
-                    With current settings (Budget Flexibility: <span class="dynamic">${sliderSettings.budgetFlexibility}%</span>, Schedule Flexibility: <span class="dynamic">${sliderSettings.scheduleFlexibility}%</span>, 
-                    Scope Certainty: <span class="dynamic">${sliderSettings.scopeCertainty}%</span>, Tolerance for Poor Quality: <span class="dynamic">${sliderSettings.qualityTolerance}%</span>), 
-                    the <span class="glow">probability of achieving your target value of ${targetValue.toFixed(2)} is ${adjProb.toFixed(1)}%</span>, 
-                    leaving only a <span class="dynamic">${(100 - adjProb).toFixed(1)}%</span> chance of failure.
-                    Adjust sliders below to see how your target changes. If you want to see the slider settings that will optimize your target, select "Yes" in the Optimize dropdown.
-                `;
-            } else {
-                exploreText = `
-                    The task <span class="dynamic">"${task}"</span> (Best Case: <span class="dynamic">${bestCase}</span>, Most Likely: <span class="dynamic">${mostLikely}</span>, Worst Case: <span class="dynamic">${worstCase}</span>) was modeled using a Monte Carlo beta-smoothed distribution. 
-                    With your current slider settings (Budget Flexibility: <span class="dynamic">${sliderSettings.budgetFlexibility}%</span>, Schedule Flexibility: <span class="dynamic">${sliderSettings.scheduleFlexibility}%</span>, 
-                    Scope Certainty: <span class="dynamic">${sliderSettings.scopeCertainty}%</span>, Tolerance for Poor Quality: <span class="dynamic">${sliderSettings.qualityTolerance}%</span>), 
-                    <span class="glow">you can expect to achieve ${valueAtConfidence.toFixed(2)} with ${confidenceLevel}% confidence</span>—meaning there's a <span class="dynamic">${100 - confidenceLevel}%</span> chance of exceeding this value.
-                    Adjust sliders below to see how your confidence changes. If you want to see the slider settings that will optimize your confidence, select "Yes" in the Optimize dropdown.
-                `;
-            }
-
-            const exploreResults = document.getElementById('explore-results');
-            if (exploreResults) {
-                exploreResults.innerHTML = `
-                    <h3 class="results-header">Exploration Results</h3>
-                    <p class="results-text">${exploreText}</p>
-                `;
-            } else {
-                console.error('Explore results element not found');
-            }
-
-            updateRecommendations();
-            updateMetricsTable();
+function updateResults() {
+    console.log('updateResults: Starting execution'); // Line 1
+    const task = document.getElementById('task-select')?.value; // Line 2
+    if (!task || !tasks[task] || !isValidTask(tasks[task]) || taskValidationError) { // Line 3
+        console.log('updateResults: Invalid task or taskValidationError', { task, tasks: Object.keys(tasks), taskValidationError }); // Line 4
+        const exploreResults = document.getElementById('explore-results'); // Line 5
+        if (exploreResults) { // Line 6
+            exploreResults.innerHTML = '<h3 class="results-header">Exploration Results</h3><div class="results-text"><p>Error: Invalid task data (best case < most likely < worst case not satisfied) or no task selected. Using default values (target: 2400.00). Please select a valid task or contact support.</p></div>'; // Line 7
         }
+        const recommendationsContent = document.getElementById('recommendations-content'); // Line 8
+        if (recommendationsContent) { // Line 9
+            recommendationsContent.innerHTML = '<p class="results-text">Error: Invalid task data or no task selected.</p>'; // Line 10
+        }
+        console.log('updateResults: Error displayed, exiting'); // Line 11
+        return; // Line 12
+    }
+    if (!targetProbabilityData) { // Line 13
+        console.log('updateResults: targetProbabilityData is null'); // Line 14
+        const exploreResults = document.getElementById('explore-results'); // Line 15
+        if (exploreResults) { // Line 16
+            exploreResults.innerHTML = '<h3 class="results-header">Exploration Results</h3><div class="results-text"><p>Error: Unable to load results due to API failure. Please check your connection or contact support.</p></div>'; // Line 17
+        }
+        const recommendationsContent = document.getElementById('recommendations-content'); // Line 18
+        if (recommendationsContent) { // Line 19
+            recommendationsContent.innerHTML = '<p class="results-text">Error: Unable to load results due to API failure.</p>'; // Line 20
+        }
+        console.log('updateResults: API error displayed, exiting'); // Line 21
+        return; // Line 22
+    }
+
+    // Sanitize and validate dynamic values
+    console.log('updateResults: Validating dynamic values', { targetProbabilityData, sliderState: window.sliderState }); // Line 23
+    const targetValue = parseFloat(window.sliderState.targetValue) || tasks[task].mostLikely || 2400.00; // Line 24
+    const mode = document.getElementById('mode-select')?.value || 'target'; // Line 25
+    const confidenceLevel = parseInt(document.getElementById('confidence-level-input')?.value) || 90; // Line 26
+    const origProb = Number.isFinite(targetProbabilityData.targetProbability?.value?.original) ? (targetProbabilityData.targetProbability.value.original * 100) : 53.7; // Line 27
+    let adjProb = Number.isFinite(targetProbabilityData.targetProbability?.value?.adjusted) ? (targetProbabilityData.targetProbability.value.adjusted * 100) : 53.7; // Line 28
+    const optimalData = targetProbabilityData?.optimalData?.value || {}; // Line 29
+    let optimalValue = Number.isFinite(optimalData.optimalObjective) ? optimalData.optimalObjective : targetValue; // Line 30
+    const optimalProb = Number.isFinite(optimalData.probability) ? (optimalData.probability * 100) : 100.0; // Line 31
+    const bestCase = Number.isFinite(tasks[task]?.optimistic) ? tasks[task].optimistic.toFixed(2) : '1800.00'; // Line 32
+    const mostLikely = Number.isFinite(tasks[task]?.mostLikely) ? tasks[task].mostLikely.toFixed(2) : '2400.00'; // Line 33
+    const worstCase = Number.isFinite(tasks[task]?.pessimistic) ? tasks[task].pessimistic.toFixed(2) : '3000.00'; // Line 34
+    const sliderSettings = isOptimizeMode ? { // Line 35
+        budgetFlexibility: Number.isFinite(optimalData?.optimalSliderSettings?.budgetFlexibility) ? Math.round(optimalData.optimalSliderSettings.budgetFlexibility) : 0, // Line 36
+        scheduleFlexibility: Number.isFinite(optimalData?.optimalSliderSettings?.scheduleFlexibility) ? Math.round(optimalData.optimalSliderSettings.scheduleFlexibility) : 0, // Line 37
+        scopeCertainty: Number.isFinite(optimalData?.optimalSliderSettings?.scopeCertainty) ? Math.round(optimalData.optimalSliderSettings.scopeCertainty) : 0, // Line 38
+        qualityTolerance: Number.isFinite(optimalData?.optimalSliderSettings?.qualityTolerance) ? Math.round(optimalData.optimalSliderSettings.qualityTolerance) : 0 // Line 39
+    } : { // Line 40
+        budgetFlexibility: Number.isFinite(parseFloat(window.sliderState.budgetFlexibility)) ? Math.round(parseFloat(window.sliderState.budgetFlexibility)) : 0, // Line 41
+        scheduleFlexibility: Number.isFinite(parseFloat(window.sliderState.scheduleFlexibility)) ? Math.round(parseFloat(window.sliderState.scheduleFlexibility)) : 0, // Line 42
+        scopeCertainty: Number.isFinite(parseFloat(window.sliderState.scopeCertainty)) ? Math.round(parseFloat(window.sliderState.scopeCertainty)) : 0, // Line 43
+        qualityTolerance: Number.isFinite(parseFloat(window.sliderState.qualityTolerance)) ? Math.round(parseFloat(window.sliderState.qualityTolerance)) : 0 // Line 44
+    };
+    const valueAtConfidence = Number.isFinite(targetProbabilityData.valueAtConfidence?.value?.adjusted) ? targetProbabilityData.valueAtConfidence.value.adjusted.toFixed(2) : '2458.12'; // Line 45
+    const originalValueAtConfidence = Number.isFinite(targetProbabilityData.valueAtConfidence?.value?.original) ? targetProbabilityData.valueAtConfidence.value.original.toFixed(2) : '2509.10'; // Line 46
+    const pertMean = Number.isFinite(targetProbabilityData.pertMean?.value) ? targetProbabilityData.pertMean.value.toFixed(2) : '2400.00'; // Line 47
+    const mcSmoothed90thPercentile = Number.isFinite(targetProbabilityData.mcSmoothedVaR?.value) ? targetProbabilityData.mcSmoothedVaR.value.toFixed(2) : '2527.61'; // Line 48
+    const mcSmoothedCILower = Number.isFinite(targetProbabilityData.mcSmoothedConfidenceInterval?.value?.lower) ? targetProbabilityData.mcSmoothedConfidenceInterval.value.lower.toFixed(2) : '2395.48'; // Line 49
+    const mcSmoothedCIUpper = Number.isFinite(targetProbabilityData.mcSmoothedConfidenceInterval?.value?.upper) ? targetProbabilityData.mcSmoothedConfidenceInterval.value.upper.toFixed(2) : '2408.05'; // Line 50
+
+    // Ensure optimal value is within valid range
+    if (task && tasks[task] && (optimalValue < tasks[task].optimistic || optimalValue > tasks[task].pessimistic)) { // Line 51
+        console.log(`updateResults: Adjusting optimalValue from ${optimalValue} to ${targetValue}`); // Line 52
+        optimalValue = targetValue; // Line 53
+    }
+
+    // Fix adjusted probability for 0% sliders
+    const isZeroSliders = sliderSettings.budgetFlexibility === 0 && sliderSettings.scheduleFlexibility === 0 && // Line 54
+                         sliderSettings.scopeCertainty === 0 && sliderSettings.qualityTolerance === 0;
+    if (!isOptimizeMode && isZeroSliders) { // Line 55
+        console.log('updateResults: Forcing adjProb to match origProb for zero sliders', { origProb, adjProb }); // Line 56
+        adjProb = origProb; // Line 57
+    }
+
+    // Determine risk levels
+    const baselineRiskLevel = origProb >= 90 ? 'very low risk' : origProb >= 75 ? 'low risk' : origProb >= 50 ? 'moderate risk' : 'high risk'; // Line 58
+    const currentRiskLevel = adjProb >= 90 ? 'very low risk' : adjProb >= 75 ? 'low risk' : adjProb >= 50 ? 'moderate risk' : 'high risk'; // Line 59
+    const optimizedRiskLevel = optimalProb >= 90 ? 'very low risk' : optimalProb >= 75 ? 'low risk' : optimalProb >= 50 ? 'moderate risk' : 'high risk'; // Line 60
+    console.log('updateResults: Risk levels', { baselineRiskLevel, currentRiskLevel, optimizedRiskLevel }); // Line 61
+
+    // Escape dynamic values to prevent HTML injection issues
+    const escapeHTML = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); // Line 62
+
+    // Determine current outcome text based on mode and optimize
+    let currentOutcomeText; // Line 63
+    if (isOptimizeMode) { // Line 64
+        currentOutcomeText = 'you have a <span class="dynamic">' + escapeHTML(optimalProb.toFixed(1)) + '</span>% chance of hitting <span class="dynamic">' + escapeHTML(optimalValue.toFixed(2)) + '</span> (or reaching <span class="dynamic">' + escapeHTML(valueAtConfidence) + '</span> with <span class="dynamic">' + escapeHTML(confidenceLevel) + '</span>% confidence)'; // Line 65
+    } else if (mode === 'target') { // Line 66
+        currentOutcomeText = 'you have a <span class="dynamic">' + escapeHTML(adjProb.toFixed(1)) + '</span>% chance of hitting <span class="dynamic">' + escapeHTML(targetValue.toFixed(2)) + '</span> (or reaching <span class="dynamic">' + escapeHTML(valueAtConfidence) + '</span> with <span class="dynamic">' + escapeHTML(confidenceLevel) + '</span>% confidence)'; // Line 67
+    } else { // Line 68
+        currentOutcomeText = 'you can expect to hit <span class="dynamic">' + escapeHTML(valueAtConfidence) + '</span> with <span class="dynamic">' + escapeHTML(confidenceLevel) + '</span>% confidence'; // Line 69
+    }
+    console.log('updateResults: currentOutcomeText generated', currentOutcomeText); // Line 70
+
+    // Construct exploreText with explicit concatenation
+    let exploreText = '<ul>' + // Line 71
+        '<li><strong>Starting Risk</strong>: With sliders set to 0% (no extra flexibility), you have a <span class="dynamic">' + escapeHTML(origProb.toFixed(1)) + '</span>% chance of hitting <span class="dynamic">' + escapeHTML(targetValue.toFixed(2)) + '</span> (or reaching <span class="dynamic">' + escapeHTML(originalValueAtConfidence) + '</span> with <span class="dynamic">' + escapeHTML(confidenceLevel) + '</span>% confidence). This is a <span class="dynamic">' + escapeHTML(baselineRiskLevel) + '</span> risk level, meaning you might face issues like higher costs, delays, extra work, or quality problems.' + // Line 72
+        '<ul>' + // Line 73
+        '<li><strong>Best Guess (PERT Mean)</strong>: <span class="dynamic">' + escapeHTML(pertMean) + '</span> units. This is your best estimate for the project’s outcome, like how long it’ll take or how much it’ll cost, based on your three guesses. Use this number to start planning your budget or schedule, but know it doesn’t account for unexpected problems.</li>' + // Line 74
+        '<li><strong>Safe Estimate (90th Percentile)</strong>: 90% of the time, your project will cost or take no more than <span class="dynamic">' + escapeHTML(mcSmoothed90thPercentile) + '</span> units. Use this number to plan for extra costs, longer timelines, or risks, so you’re ready for most situations. The average outcome is very likely (95% chance) to be between <span class="dynamic">' + escapeHTML(mcSmoothedCILower) + '</span> and <span class="dynamic">' + escapeHTML(mcSmoothedCIUpper) + '</span> units, helping you plan resources like staff or materials realistically.</li>' + // Line 75
+        '</ul></li>' + // Line 76
+        '<li><strong>Current Risk</strong>: With your current slider settings (Budget Flexibility: <span class="dynamic">' + escapeHTML(sliderSettings.budgetFlexibility) + '</span>%, Schedule Flexibility: <span class="dynamic">' + escapeHTML(sliderSettings.scheduleFlexibility) + '</span>%, Scope Certainty: <span class="dynamic">' + escapeHTML(sliderSettings.scopeCertainty) + '</span>%, Tolerance for Poor Quality: <span class="dynamic">' + escapeHTML(sliderSettings.qualityTolerance) + '</span>%), ' + currentOutcomeText + '. This gives you a <span class="dynamic">' + escapeHTML(currentRiskLevel) + '</span> risk level, which is <span class="dynamic">' + escapeHTML(isZeroSliders ? '0.0' : ((adjProb - origProb) / origProb * 100).toFixed(1)) + '</span>% better than the starting risk.</li>' + // Line 77
+        '<li><strong>Best Possible Risk</strong>: By choosing “Yes” in the Optimize dropdown, you can get a <span class="dynamic">' + escapeHTML(optimalProb.toFixed(1)) + '</span>% chance of hitting <span class="dynamic">' + escapeHTML(optimalValue.toFixed(2)) + '</span> units, with a <span class="dynamic">' + escapeHTML(optimizedRiskLevel) + '</span> risk level that keeps problems to a minimum.</li>' + // Line 78
+        '</ul>' + // Line 79
+        '<p><strong>What to Do Next</strong>: Move the sliders to give yourself more flexibility in budget, schedule, scope, or quality to improve your chances or lower the outcome you’re confident in. Check the Slider Combination Table to find the best settings for your goals. For the easiest way to reduce risk, select “Yes” in the Optimize dropdown to get the best settings automatically.</p>'; // Line 80
+    console.log('updateResults: exploreText generated', exploreText); // Line 81
+
+    const exploreResults = document.getElementById('explore-results'); // Line 82
+    if (exploreResults) { // Line 83
+        exploreResults.innerHTML = '<h3 class="results-header">Exploration Results</h3><div class="results-text">' + exploreText + '</div>'; // Line 84
+        console.log('updateResults: exploreResults updated'); // Line 85
+    } else {
+        console.error('Explore results element not found'); // Line 86
+    }
+
+    updateRecommendations(); // Line 87
+    updateMetricsTable(); // Line 88
+    console.log('updateResults: Completed execution'); // Line 89
+}
 
         function fetchTargetProbabilityData(callback, force = false) {
             const task = document.getElementById('task-select')?.value;

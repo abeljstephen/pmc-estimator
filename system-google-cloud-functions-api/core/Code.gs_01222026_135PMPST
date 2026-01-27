@@ -1,0 +1,1169 @@
+/************************************************************
+ * Code.gs — PMC (PERT + PLOT)
+ * - Local execution version (no Google Cloud API)
+ * - Uses core logic from main/main.gs and other local files
+ * - All functions are global in Apps Script — no require needed
+ * - All old Cloud API code is commented out but preserved for reference
+ ************************************************************/
+
+/************************************************************
+ * 1. CONFIG
+ ************************************************************/
+var CFG = {
+  // --- Sheets ---
+  SRC_SHEET_NAME: 'data',
+  SRC_SHEET_INDEX: 0,
+
+  OUT_SHEET_NAME: 'Estimate Calculations',
+  LOG_SHEET_NAME: 'PERT_Logs',
+
+  // --- Layout ---
+  DATA_ROW_HEIGHT_PX: 50,
+  COL_WIDTH_PX: 110,
+  STATUS_COL_WIDTH_PX: 300,
+  JSON_COL_WIDTH_PX: 220,
+
+  // --- API (OBSOLETE - commented out after migration to local execution) ---
+  // ENDPOINT: 'https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI',
+  // TARGET_AUDIENCE: 'https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI',
+  MAX_POINTS: 200,
+
+  // --- Retry / timing (kept for compatibility, not used in local mode) ---
+  API_RETRIES: 3,
+  P2_MAX_RETRIES: 2,
+  P2_STRONG_RETRY: true,
+  LOOP_SAFETY_MS: 6*60*1000 - 15000,
+
+  // --- Logic ---
+  CONFIDENCE: 0.95,
+
+  // --- Behavior ---
+  ALLOW_P3_WITHOUT_SLIDERS: true,
+  DUPLICATE_BASELINE_ON_NO_IMPROVE: true
+};
+
+/************************************************************
+ * 2. HEADERS
+ ************************************************************/
+var HEADERS = [
+  'Name','Best Case','Most Likely','Worst Case',
+  'PERT','MC Smoothed 95% CI Lower','MC Smoothed 95% CI Upper','% Confidence of Original PERT Value',
+  'Optimal Budget Flexibility','Optimal Schedule Flexibility','Optimal Scope Certainty','Optimal Scope Reduction Allowance','Optimal Rework Percentage','Optimal Risk Tolerance','Optimal User Confidence',
+  '% Confidence of Original PERT Value After Slider Optimization','MC Smoothed Sensitivity Change','KL Divergence To Triangle',
+  'Baseline MC Smoothed Points (PDF)','Baseline MC Smoothed Points (CDF)',
+  'Optimized MC Smoothed Points (PDF)','Optimized MC Smoothed Points (CDF)',
+  'Status'
+];
+
+var HEADER_NOTES = [
+  'Task name or identifier',
+  'Optimistic estimate (best-case)',
+  'Most likely estimate (expected)',
+  'Pessimistic estimate (worst-case)',
+
+  'PERT mean (local core)',
+  '95% CI lower (MC-smoothed, local core)',
+  '95% CI upper (MC-smoothed, local core)',
+  'Baseline probability at target=PERT (local core)',
+
+  'Optimized budget flexibility (%)',
+  'Optimized schedule flexibility (%)',
+  'Optimized scope certainty (%)',
+  'Optimized scope reduction allowance (%)',
+  'Optimized rework percentage (%)',
+  'Optimized risk tolerance (%)',
+  'Optimized user confidence (%)',
+
+  'Optimized probability at PERT (local core)',
+  'Sensitivity change (local core)',
+  'KL divergence Triangle→MC-smoothed baseline (local core)',
+
+  'Baseline MC-smoothed PDF (JSON from local core)',
+  'Baseline MC-smoothed CDF (local core)',
+  'Optimized MC-smoothed PDF (JSON from local core)',
+  'Optimized MC-smoothed CDF (local core)',
+
+  'Phase/status with timestamps'
+];
+
+/************************************************************
+ * 3. UTILITIES
+ ************************************************************/
+function nowStamp() {
+  const d = new Date();
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+}
+function tsMsg(msg) { return `${msg} @ ${nowStamp()}`; }
+function safeAlert_(msg) { try { SpreadsheetApp.getUi().alert(msg); } catch(_){} }
+function toast_(title, msg, sec) {
+  try { SpreadsheetApp.getActiveSpreadsheet().toast(msg || '', title || '', sec || 5); } catch(_) {}
+}
+
+function isNumber(x) { return typeof x === 'number' && Number.isFinite(x); }
+function num(v) {
+  if (v === null || v === undefined || v === '') return null;
+
+  let n;
+  if (typeof v === 'number') {
+    n = v;  // Trust direct number from getValues() — no re-conversion to avoid precision loss
+  } else if (typeof v === 'string') {
+    n = parseFloat(v.trim());
+  } else {
+    n = Number(v);  // Fallback for other types
+  }
+
+  // Extra safety: check finite and not NaN
+  return Number.isFinite(n) && !isNaN(n) ? n : null;
+}
+function toFixed6(v) { return isNumber(v) ? Number(v).toFixed(6) : ''; }
+function clipArray(arr, n) { return Array.isArray(arr) ? arr.slice(0, Math.max(0, n|0)) : []; }
+function scale01To100_(v) {
+  const n = num(v);
+  if (!isNumber(n)) return null;
+  return (n >= 0 && n <= 1) ? (n * 100) : (isNumber(n) ? n : null);
+}
+function normalizePoints_(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const p of arr) {
+    if (!p || typeof p !== 'object') continue;
+    const x = num(p.x);
+    const y = num(p.y);
+    if (isNumber(x) && isNumber(y)) out.push({ x, y });
+  }
+  out.sort((a,b) => a.x - b.x);
+  return out;
+}
+function setHeaderNotes_(sheet) {
+  const rng = sheet.getRange(1, 1, 1, HEADERS.length);
+  rng.setValues([HEADERS]).setFontWeight('bold');
+  for (let c = 1; c <= HEADERS.length; c++) {
+    sheet.getRange(1, c).setNote(HEADER_NOTES[c-1] || '');
+  }
+}
+
+/* -------- NEW: slider key aliasing + normalization helpers ---------- */
+
+var SLIDER_KEYS = [
+  'budgetFlexibility','scheduleFlexibility','scopeCertainty',
+  'scopeReductionAllowance','reworkPercentage','risktolerance','userConfidence'
+];
+
+function aliasSliderKey_(name) {
+  if (!name) return null;
+  const n = String(name).toLowerCase().replace(/\s+/g, '').replace(/[^a-z]/g, '');
+  const map = {
+    'budgetflexibility': 'budgetFlexibility',
+    'scheduleflexibility': 'scheduleFlexibility',
+    'scopecertainty': 'scopeCertainty',
+    'scopereductionallowance': 'scopeReductionAllowance',
+    'reworkpercentage': 'reworkPercentage',
+    'risktolerance': 'riskTolerance',
+    'userconfidence': 'userConfidence'
+  };
+  return map[n] || null;
+}
+
+function normalizeSlidersToPct_(src) {
+  if (!src || typeof src !== 'object') return null;
+  const out = {};
+  if (Array.isArray(src)) {
+    src.forEach(it => {
+      const key = aliasSliderKey_(it?.slider || it?.key || it?.name || it?.field);
+      const v = num(it?.value ?? it?.target ?? it?.optimized ?? it?.opt ?? it?.setting);
+      if (key && isNumber(v)) out[key] = scale01To100_(v) || v;
+    });
+  } else {
+    Object.keys(src).forEach(k => {
+      const key = aliasSliderKey_(k) || k;
+      const v = num(src[k]);
+      if (isNumber(v)) out[key] = scale01To100_(v) || v;
+    });
+  }
+  const filtered = {};
+  SLIDER_KEYS.forEach(k => { 
+    const v = out[k];
+    if (isNumber(v)) filtered[k] = Math.max(0, Math.min(100, v)); 
+  });
+  return Object.keys(filtered).length > 0 ? filtered : null;
+}
+
+function isDefaultSliderVector_(slidersPct) {
+  if (!slidersPct || typeof slidersPct !== 'object') return false;
+  const def = { budgetFlexibility:25, scheduleFlexibility:12.5, scopeCertainty:90, scopeReductionAllowance:25, reworkPercentage:0, riskTolerance:70, userConfidence:77.5 };
+  return SLIDER_KEYS.every(k => isNumber(slidersPct[k]) && Math.abs(slidersPct[k] - def[k]) < 1e-6);
+}
+
+/* -------- PERT helper -------- */
+function computePertMean_(O, M, P) {
+  const o = num(O), m = num(M), p = num(P);
+  if ([o,m,p].every(isNumber)) return (o + 4*m + p) / 6;
+  return null;
+}
+
+/************************************************************
+ * 4. MENUS
+ ************************************************************/
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+
+  const pert = ui.createMenu('PERT')
+    .addItem('PERT All Rows', 'pertRunAllRows')
+    .addItem('PERT Selected Rows', 'pertRunSelectedRows')
+    .addSeparator()
+    .addItem('Export Run Log', 'writeLogsToSheet');
+
+  const plot = ui.createMenu('PLOT').addItem('Open', 'openPlotUi');
+
+  ui.createMenu('PMC')
+    .addSubMenu(pert)
+    .addSubMenu(plot)
+    .addToUi();
+}
+
+function openPlotUi() {
+  const html = HtmlService.createHtmlOutputFromFile('Plot')
+    .setTitle('PLOT')
+    .setWidth(1200)
+    .setHeight(900)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  SpreadsheetApp.getUi().showModelessDialog(html, 'PLOT');
+}
+
+/************************************************************
+ * 5. AUTH (OBSOLETE - commented out after migration)
+ ************************************************************/
+// The following auth code was for Google Cloud API calls.
+// It is no longer needed since all logic runs locally in Apps Script.
+// Keep for reference if reverting to Cloud deployment.
+/*
+function connectToAPI(targetAudience) {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const keyJsonString = scriptProperties.getProperty('SERVICE_ACCOUNT_KEY');
+  if (!keyJsonString) throw new Error('SERVICE_ACCOUNT_KEY not set in script properties');
+
+  let keyJson;
+  try { keyJson = JSON.parse(keyJsonString); }
+  catch (e) { throw new Error('Failed to parse SERVICE_ACCOUNT_KEY: ' + e.message); }
+
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'auth_token_' + targetAudience;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      const tokenData = JSON.parse(cached);
+      const now = Math.floor(Date.now() / 1000);
+      if (tokenData.expiry > now + 60) return tokenData.id_token;
+    } catch (_) {}
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const claimSet = {
+    iss: keyJson.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+    target_audience: targetAudience
+  };
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const toSign = Utilities.base64EncodeWebSafe(JSON.stringify(header)) + '.' +
+                 Utilities.base64EncodeWebSafe(JSON.stringify(claimSet));
+  const signature = Utilities.computeRsaSha256Signature(toSign, keyJson.private_key);
+  const jwt = toSign + '.' + Utilities.base64EncodeWebSafe(signature);
+
+  const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    throw new Error('Failed to obtain token: ' + resp.getContentText());
+  }
+  const tokenData = JSON.parse(resp.getContentText());
+  cache.put(cacheKey, JSON.stringify({ id_token: tokenData.id_token, expiry: now + 3600 }), 3600);
+  return tokenData.id_token;
+}
+*/
+
+/************************************************************
+ * 6. API CALLER (UPDATED FOR LOCAL EXECUTION)
+ ************************************************************/
+function callEstimatorAPI_(payloadObj, label) {
+  // Pure local execution — direct call to core function (no HTTP, no auth)
+  try {
+    const tasks = Array.isArray(payloadObj) ? payloadObj : (payloadObj.tasks || [payloadObj]);
+    const result = pmcEstimatorAPI(tasks);  // ← This is the local core function from main/main.gs
+    Logger.log(`Local core call (${label}): Success`);
+    return { ok: true, code: 200, body: result };
+  } catch (e) {
+    Logger.log(`Local core call (${label}): Error - ${e.message}`);
+    return { ok: false, code: 0, body: null, error: e.message || 'Local execution failed' };
+  }
+}
+/************************************************************
+ * 7. PAYLOAD BUILDERS
+ ************************************************************/
+function normalizeSlidersOut_(sliders) {
+  if (!sliders || typeof sliders !== 'object') return undefined;
+  const out = {};
+  SLIDER_KEYS.forEach(k => {
+    const n = num(sliders[k]);
+    if (isNumber(n)) out[k] = Math.max(0, Math.min(100, n));
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function buildTaskPayload_(task, options) {
+  const normalizedSliders = normalizeSlidersOut_(options.sliderValues);
+
+  const t = {
+    task: task.task || task.name || '',
+    name: task.task || task.name || '',
+    optimistic: num(task.optimistic),
+    mostLikely: num(task.mostLikely),
+    pessimistic: num(task.pessimistic),
+    targetValue: num(options.targetValue),
+    confidenceLevel: isNumber(options.confidenceLevel) ? options.confidenceLevel : CFG.CONFIDENCE,
+    wantPoints: !!options.wantPoints,
+    includeOptimizedPoints: !!options.includeOptimizedPoints,
+    includeMetrics: true,
+    maxPoints: isNumber(options.maxPoints) ? options.maxPoints : CFG.MAX_POINTS,
+    optimize: !!options.optimize,
+    optimizeFor: options.optimize ? (options.optimizeFor || 'target') : undefined,
+    sliderValues: normalizedSliders,
+    profile: options.profile || 'full',
+    suppressOtherDistros: false,
+    adaptive: !!options.adaptive
+  };
+  if (options.extraFlags && typeof options.extraFlags === 'object') {
+    Object.assign(t, options.extraFlags);
+  }
+  Object.keys(t).forEach(k => { if (t[k] === undefined || t[k] === null) delete t[k]; });
+  return [ t ];
+}
+
+/*  CENTRAL: baseline request carries targetValue = PERT  */
+function payloadBaseline_(task, targetPert) {
+  return buildTaskPayload_(task, {
+    targetValue: targetPert,  // send PERT as target
+    wantPoints: true,
+    includeOptimizedPoints: false,
+    extraFlags: {
+      returnProbabilityAtPert: true,
+      distributionType: 'monte-carlo-smoothed'
+    }
+  });
+}
+
+function payloadOptimize_(task, pert, strong) {
+  return buildTaskPayload_(task, {
+    targetValue: pert,  // optimize at PERT
+    wantPoints: true,
+    optimize: true,
+    optimizeFor: 'target',
+    includeOptimizedPoints: true,
+    adaptive: false, // FIXED MODE
+    extraFlags: Object.assign({
+      returnArrays: true,
+      materialize: true,
+      returnOptimalSliderSettings: true,
+      includeSliderSettings: true,
+      requireOptimizedPoints: true,
+      forceOptimizedPoints: true,
+      distributionType: 'monte-carlo-smoothed'
+    }, strong ? {
+      searchDepth: 3,
+      algorithm: 'de',
+      optimizationBudget: 250
+    } : {})
+  });
+}
+
+function payloadMaterialize_(task, pert, sliders, extraFlags) {
+  return buildTaskPayload_(task, {
+    targetValue: pert, // materialize at PERT
+    wantPoints: true,
+    includeOptimizedPoints: true,
+    sliderValues: sliders,
+    adaptive: false, // FIXED MODE
+    extraFlags: Object.assign({
+      requireOptimizedPoints: true,
+      forceOptimizedPoints: true,
+      allowBaselineCopy: true,
+      neutralOnNoOp: true,
+      returnArrays: true,
+      materialize: true,
+      distributionType: 'monte-carlo-smoothed'
+    }, extraFlags || {})
+  });
+}
+
+/************************************************************
+ * 8. RESPONSE NORMALIZERS
+ ************************************************************/
+function firstResult_(body) {
+  if (!body) return null;
+  if (Array.isArray(body) && body.length > 0) return body[0];
+  if (Array.isArray(body.results) && body.results.length > 0) return body.results[0];
+  if (Array.isArray(body.tasks) && body.tasks.length > 0) return body.tasks[0];
+  if (body.result) return body.result;
+  if (body.data) return body.data;
+  return body;
+}
+
+function getAnyPath_(obj, paths) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  for (let p of paths) {
+    try {
+      let val = obj;
+      for (const k of p.split('.')) {
+        if (val == null || !(k in val)) {
+          val = undefined;
+          break;
+        }
+        val = val[k];
+      }
+      if (val !== undefined && val !== null) return val;
+    } catch(_){}
+  }
+  return undefined;
+}
+
+/* ---- Baseline fields (broadened; still no computed fallbacks) ---- */
+function parseBaseline_(resObj) {
+  if (!resObj) return { pert: null, ciL: null, ciU: null, baseProb: null, kld: null, basePDF: [], baseCDF: [] };
+  try {
+    // PERT
+    const pert = num(getAnyPath_(resObj, [
+      'baseline.pert.value','baseline.pert','baseline.mean.value','baseline.mean',
+      'pertMean.value','pertMean','adapted.baseline.pert','metrics.pertMean.value'
+    ]));
+
+    // 95% CI
+    const ciL = num(getAnyPath_(resObj, [
+      'baseline.metrics.monteCarloSmoothed.ci.lower','baseline.metrics.monteCarloSmoothed.lower',
+      'metrics.monteCarloSmoothed.ci.lower','metrics.monteCarloSmoothed.lower',
+      'ci.monteCarloSmoothed.lower','ci.lower'
+    ]));
+    const ciU = num(getAnyPath_(resObj, [
+      'baseline.metrics.monteCarloSmoothed.ci.upper','baseline.metrics.monteCarloSmoothed.upper',
+      'metrics.monteCarloSmoothed.ci.upper','metrics.monteCarloSmoothed.upper',
+      'ci.monteCarloSmoothed.upper','ci.upper'
+    ]));
+
+    // Baseline probability at PERT (server-computed)
+    const baseProbAtPert = num(getAnyPath_(resObj, [
+      'baseline.probabilityAtPert.value','baseline.probabilityAtPert',
+      'targetProbability.value.original','targetProbability.value',
+      'adapted.baseline.probabilityAtPert','probabilityAtPert.value'
+    ]));
+
+    // KL to triangle
+    const kld = num(getAnyPath_(resObj, [
+      'baseline.metrics.klDivergenceToTriangle','baseline.metrics.kld',
+      'metrics.klDivergenceToTriangle','metrics.kld'
+    ]));
+
+    // Baseline MC-smoothed points
+    const basePDF = normalizePoints_(getAnyPath_(resObj, [
+      'baseline.monteCarloSmoothed.pdfPoints','baseline.pdfPoints',
+      'allDistributions.value.monteCarloSmoothed.pdfPoints','allDistributions.value.pdfPoints',
+      'monteCarloSmoothed.pdfPoints'
+    ]) || []);
+    const baseCDF = normalizePoints_(getAnyPath_(resObj, [
+      'baseline.monteCarloSmoothed.cdfPoints','baseline.cdfPoints',
+      'allDistributions.value.monteCarloSmoothed.cdfPoints','allDistributions.value.cdfPoints',
+      'monteCarloSmoothed.cdfPoints'
+    ]) || []);
+
+    return { pert, ciL, ciU, baseProb: baseProbAtPert, kld, basePDF, baseCDF };
+  } catch (e) {
+    Logger.log(`parseBaseline error: ${e.message}`);
+    return { pert: null, ciL: null, ciU: null, baseProb: null, kld: null, basePDF: [], baseCDF: [] };
+  }
+}
+
+/* ---- Optimized fields (robust; no silent defaults) ---- */
+function parseOptimized_(resObj) {
+  if (!resObj) return { sliders: null, optProb: null, sensChange: null, optPDF: [], optCDF: [], status: 'error' };
+  try {
+    // Did the optimizer produce reshaped points?
+    const optPDF = normalizePoints_(getAnyPath_(resObj, [
+      'optimize.reshapedPoints.monteCarloSmoothed.pdfPoints','optimize.reshapedPoints.pdfPoints',
+      'optimizedResult.reshapedPoints.monteCarloSmoothed.pdfPoints','optimizedResult.reshapedPoints.pdfPoints',
+      'optimizedReshapedPoints.pdfPoints','adjusted.pdfPoints'
+    ]) || []);
+
+    const optCDF = normalizePoints_(getAnyPath_(resObj, [
+      'optimize.reshapedPoints.monteCarloSmoothed.cdfPoints','optimize.reshapedPoints.cdfPoints',
+      'optimizedResult.reshapedPoints.monteCarloSmoothed.cdfPoints','optimizedResult.reshapedPoints.cdfPoints',
+      'optimizedReshapedPoints.cdfPoints','adjusted.cdfPoints'
+    ]) || []);
+
+    // Optimizer status (prefer explicit OK)
+    const optStatus = String(getAnyPath_(resObj, ['optimize.status','status']) || '').toLowerCase().trim();
+    const optimizerLooksGood = (optPDF.length > 1 || optCDF.length > 1 || optStatus === 'ok' || optStatus === 'complete');
+
+    // Pull probability / sensitivity only from optimizer outputs
+    const optProb = num(getAnyPath_(resObj, [
+      'optimize.probabilityAtTarget.value','optimize.probabilityAtTarget',
+      'optimizedResult.probability.value','optimizedResult.probability',
+      'targetProbability.value.adjustedOptimized','targetProbability.value.adaptiveOptimized',
+      'targetProbability.value.optimized','probability.value'
+    ]));
+
+    const sensChange = num(getAnyPath_(resObj, [
+      'optimize.metrics.sensitivityChange','optimize.sensitivityChange',
+      'sliderSensitivity.value.change','sliderSensitivity.change',
+      'metrics.sensitivityChange','sensitivityChange.value'
+    ]));
+
+    // Candidate slider sources (same spirit as deploy harness)
+    const sliderSrcCandidates = [
+      'optimalSliderSettings.value','optimalSliderSettings',
+      'optimizedResult.sliders','optimizedResult.sliderSettings',
+      'optimize.best.sliders','optimize.bestSliderSettings',
+      'optimize.slidersFinal','optimize.sliders'
+    ];
+    let slidersRaw = null;
+    for (const p of sliderSrcCandidates) {
+      const v = getAnyPath_(resObj, [p]);
+      if (v && typeof v === 'object' && Object.keys(v).length > 0) { 
+        slidersRaw = v; 
+        break; 
+      }
+    }
+    let slidersPct = normalizeSlidersToPct_(slidersRaw);
+
+    // If optimizer did NOT give us points AND the vector equals the known default, suppress it.
+    if (!optimizerLooksGood && slidersPct && isDefaultSliderVector_(slidersPct)) {
+      slidersPct = null;
+    }
+
+    return { sliders: slidersPct, optProb, sensChange, optPDF, optCDF, status: optStatus };
+  } catch (e) {
+    Logger.log(`parseOptimized error: ${e.message}`);
+    return { sliders: null, optProb: null, sensChange: null, optPDF: [], optCDF: [], status: 'error' };
+  }
+}
+
+
+/* -------- Plot viewer normalization (no synthetic fallbacks) -------- */
+
+function normalizePlotResponseForUI_(resp) {
+  try {
+    const first = firstResult_(resp) || resp || {};
+
+    // Remap baseline if not directly present
+    if (!first.targetProbabilityOriginalPdf && !first.targetProbabilityOriginalCdf) {
+      const basePdf = getAnyPath_(first, ['baseline.monteCarloSmoothed.pdfPoints','allDistributions.value.monteCarloSmoothed.pdfPoints']);
+      const baseCdf = getAnyPath_(first, ['baseline.monteCarloSmoothed.cdfPoints','allDistributions.value.monteCarloSmoothed.cdfPoints']);
+      if (basePdf || baseCdf) {
+        first.targetProbabilityOriginalPdf = { value: normalizePoints_(basePdf || []) };
+        first.targetProbabilityOriginalCdf = { value: normalizePoints_(baseCdf || []) };
+      }
+    }
+
+    // Remap optimized if not directly present
+    if (!first.targetProbabilityAdjustedPdf && !first.targetProbabilityAdjustedCdf) {
+      const adjPdf = getAnyPath_(first, [
+        'optimize.reshapedPoints.monteCarloSmoothed.pdfPoints',
+        'optimizedResult.reshapedPoints.monteCarloSmoothed.pdfPoints',
+        'optimizedReshapedPoints.pdfPoints'
+      ]);
+      const adjCdf = getAnyPath_(first, [
+        'optimize.reshapedPoints.monteCarloSmoothed.cdfPoints',
+        'optimizedResult.reshapedPoints.monteCarloSmoothed.cdfPoints',
+        'optimizedReshapedPoints.cdfPoints'
+      ]);
+      if (adjPdf || adjCdf) {
+        first.targetProbabilityAdjustedPdf = { value: normalizePoints_(adjPdf || []) };
+        first.targetProbabilityAdjustedCdf = { value: normalizePoints_(adjCdf || []) };
+      }
+    }
+
+    return first;
+  } catch (e) {
+    Logger.log(`normalizePlotResponseForUI error: ${e.message}`);
+    return firstResult_(resp) || resp || {};
+  }
+}
+
+/************************************************************
+ * 9. PERT ENTRY POINTS
+ ************************************************************/
+function getSourceSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (CFG.SRC_SHEET_NAME) {
+    const byName = ss.getSheetByName(CFG.SRC_SHEET_NAME);
+    if (byName) return byName;
+  }
+  const sheets = ss.getSheets();
+  for (const sh of sheets) {
+    try {
+      const a1 = String(sh.getRange(1,1).getDisplayValue() || '').trim().toLowerCase();
+      if (a1 === 'name' || a1 === 'task' || a1 === 'title') return sh;
+    } catch(_){}
+  }
+  for (const sh of sheets) {
+    if (sh.getLastColumn() >= 4 && sh.getLastRow() >= 2) return sh;
+  }
+  return sheets[Math.max(0, Math.min(CFG.SRC_SHEET_INDEX, sheets.length - 1))] || null;
+}
+
+/** UNFILTERED: read by column names, return every row that has a non-empty Name */
+function getAllTasks() {
+  try {
+    Logger.log('getAllTasks() started @ ' + new Date().toISOString());
+    Logger.log('NUM_VERSION_CHECK: aggressive-parse-v5-Jan16-2026');
+
+    const sh = getSourceSheet_();
+    if (!sh) {
+      Logger.log('ERROR: No source sheet found');
+      return [{ task:'(No source sheet found)', optimistic:null, mostLikely:null, pessimistic:null }];
+    }
+    Logger.log('Source sheet found: ' + sh.getName() + ' (ID: ' + sh.getSheetId() + ')');
+
+    const lastRow = sh.getLastRow();
+    Logger.log('Last row in sheet: ' + lastRow);
+    if (lastRow < 2) {
+      Logger.log('ERROR: Sheet empty (lastRow < 2)');
+      return [{ task:'(Source sheet empty: add rows under headers)', optimistic:null, mostLikely:null, pessimistic:null }];
+    }
+
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    Logger.log('Raw headers array length: ' + headers.length);
+    Logger.log('Raw headers read: ' + headers.map(h => JSON.stringify(h)).join(' | '));
+    Logger.log('Headers types: ' + headers.map(h => typeof h).join(' | '));
+
+    let nameCol = -1, optCol = -1, mostCol = -1, pessCol = -1;
+    for (let c = 0; c < headers.length; c++) {
+      const h = String(headers[c] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      Logger.log('Checking header ' + (c+1) + ': "' + h + '" (cleaned length: ' + h.length + ')');
+
+      if (h.includes('name') || h.includes('task')) nameCol = c + 1;
+      if (h.includes('best case') || h.includes('best_case') || h.includes('bestcase') || h.includes('optimistic')) optCol = c + 1;
+      if (h.includes('most likely') || h.includes('most_likely') || h.includes('mostlikely')) mostCol = c + 1;
+      if (h.includes('worst case') || h.includes('worst_case') || h.includes('worstcase') || h.includes('pessimistic')) pessCol = c + 1;
+    }
+
+    Logger.log('Column detection result (1-based):');
+    Logger.log('  nameCol: ' + nameCol + ' (expected >0)');
+    Logger.log('  optCol (Best/Optimistic):  ' + optCol);
+    Logger.log('  mostCol (Most Likely):     ' + mostCol);
+    Logger.log('  pessCol (Worst/Pessimistic): ' + pessCol);
+
+    if (nameCol === -1 || optCol === -1 || mostCol === -1 || pessCol === -1) {
+      Logger.log('ERROR: Missing one or more required columns');
+      return [{ task:`(Missing required headers: Name/Task, Best Case/Optimistic, Most Likely, Worst Case/Pessimistic)`, optimistic:null, mostLikely:null, pessimistic:null }];
+    }
+
+    const values = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
+    Logger.log('Data rows read: ' + values.length + ' rows (from row 2 to ' + lastRow + ')');
+    Logger.log('Total columns in data: ' + (values[0] ? values[0].length : 0));
+
+    const out = [];
+    for (let i = 0; i < values.length; i++) {
+      const r = values[i];
+      const nameRaw = r[nameCol - 1];
+      const name = (nameRaw != null && String(nameRaw).trim()) || '';
+
+      Logger.log('Processing Row ' + (i+2) + ':');
+      Logger.log('  Raw name cell: "' + nameRaw + '" (type: ' + typeof nameRaw + ')');
+      Logger.log('  Cleaned name: "' + name + '" (length: ' + name.length + ')');
+
+      if (!name) {
+        Logger.log('  → Skipped (empty name after trim)');
+        continue;
+      }
+
+      const rawO = r[optCol - 1];
+      const rawM = r[mostCol - 1];
+      const rawP = r[pessCol - 1];
+
+      Logger.log('  Raw Best Case cell: ' + rawO + ' (type: ' + typeof rawO + ', string repr: "' + String(rawO) + '")');
+      Logger.log('  Raw Most Likely cell: ' + rawM + ' (type: ' + typeof rawM + ', string repr: "' + String(rawM) + '")');
+      Logger.log('  Raw Worst Case cell: ' + rawP + ' (type: ' + typeof rawP + ', string repr: "' + String(rawP) + '")');
+
+      // Bypass num() — use raw values directly (they are already numbers!)
+      const O = rawO;
+      const M = rawM;
+      const P = rawP;
+
+      Logger.log('  After bypass (raw): O = ' + O + ' (type: ' + typeof O + ', string repr: "' + String(O) + '")');
+      Logger.log('  After bypass (raw): M = ' + M + ' (type: ' + typeof M + ', string repr: "' + String(M) + '")');
+      Logger.log('  After bypass (raw): P = ' + P + ' (type: ' + typeof P + ', string repr: "' + String(P) + '")');
+
+      const isOValid = isNumber(O);
+      const isMValid = isNumber(M);
+      const isPValid = isNumber(P);
+
+      Logger.log('  isNumber(O): ' + isOValid + ', isNumber(M): ' + isMValid + ', isNumber(P): ' + isPValid);
+
+      if (isOValid && isMValid && isPValid) {
+        Logger.log('  → VALID TASK ADDED (using raw values): "' + name + '" (O=' + O + ', M=' + M + ', P=' + P + ')');
+        out.push({ task: name, optimistic: O, mostLikely: M, pessimistic: P });
+      } else {
+        Logger.log('  → Skipped (invalid raw number(s) in estimates) - O valid: ' + isOValid + ', M valid: ' + isMValid + ', P valid: ' + isPValid);
+      }
+    }
+
+    Logger.log('Final result: ' + out.length + ' valid tasks found');
+    if (out.length > 0) {
+      Logger.log('Added tasks summary (using raw values):');
+      out.forEach((t, idx) => {
+        Logger.log('  Task ' + (idx+1) + ': ' + t.task + ' (O=' + t.optimistic + ', M=' + t.mostLikely + ', P=' + t.pessimistic + ')');
+      });
+    } else {
+      Logger.log('No valid tasks → returning dummy task');
+    }
+
+    if (!out.length) {
+      return [{ task:'(No names found in column)', optimistic:null, mostLikely:null, pessimistic:null }];
+    }
+
+    Logger.log('getAllTasks() completed successfully - returning ' + out.length + ' tasks');
+    return out;
+  } catch (e) {
+    Logger.log('ERROR in getAllTasks: ' + e.message + ' (stack: ' + e.stack + ')');
+    return [{ task:`(Error reading source: ${e.message})`, optimistic:null, mostLikely:null, pessimistic:null }];
+  }
+}
+
+/************************************************************
+ * 10. PLOT DATA
+ ************************************************************/
+function getTargetProbabilityData(params) {
+  if (!params || !params.task) throw new Error('Missing params.task');
+
+  const task = {
+    task: params.task, name: params.task,
+    optimistic: params.optimistic, mostLikely: params.mostLikely, pessimistic: params.pessimistic
+  };
+
+  // Default target for Plot UI is PERT if caller didn't provide one
+  const defaultPert = computePertMean_(task.optimistic, task.mostLikely, task.pessimistic);
+  const chosenTarget = (params.targetValue != null && params.targetValue !== '')
+    ? params.targetValue
+    : defaultPert;
+
+  const extra = {
+    returnArrays: true,
+    materialize: true,
+    returnOptimalSliderSettings: true,
+    includeSliderSettings: true,
+    requireOptimizedPoints: !!(params && (params.isOptimizeMode || params.optimize)),
+    forceOptimizedPoints: !!(params && (params.isOptimizeMode || params.optimize)),
+    includeAllDistributions: true,
+    returnAllDistributions: true,
+    returnDistributions: true,
+    returnBaselineDistributions: true,
+    includeTriangle: true,
+    includeBetaPert: true,
+    returnTriangle: true,
+    returnBetaPert: true,
+    returnMonteCarloSmoothed: true,
+    distributions: ['triangle','betaPert','monteCarloSmoothed'],
+    includeAdjusted: true,
+    returnAdjusted: true,
+    returnSliderAdjustedPoints: true,
+    returnDecisionReports: true,
+    distributionType: 'monte-carlo-smoothed'
+  };
+
+  const payload = buildTaskPayload_(task, {
+    targetValue: chosenTarget, // ← PERT if unspecified
+    confidenceLevel: (typeof params.confidenceLevel === 'number') ? params.confidenceLevel : CFG.CONFIDENCE,
+    wantPoints: true,
+    includeOptimizedPoints: !!params.isOptimizeMode || !!params.optimize,
+    optimize: !!params.isOptimizeMode || !!params.optimize,
+    optimizeFor: (params.mode === 'mean' || params.mode === 'risk') ? params.mode : 'target',
+    sliderValues: params.sliderValues || undefined,
+    adaptive: !!params.adaptive,
+    extraFlags: extra
+  });
+
+  const r = callEstimatorAPI_(payload, 'plot_proxy');
+  if (!r.ok) throw new Error(r.error || 'API error');
+
+  return normalizePlotResponseForUI_(r.body);
+}
+
+/************************************************************
+ * 11. RE-MATERIALIZE (Selection)
+ ************************************************************/
+function rematerializeSelection() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const out = ss.getSheetByName(CFG.OUT_SHEET_NAME);
+  if (!out) { safeAlert_('No output sheet found.'); return; }
+  const sel = out.getActiveRange();
+  if (!sel) { safeAlert_('Select rows in the output sheet first.'); return; }
+
+  const startRow = Math.max(2, sel.getRow());
+  const endRow = Math.min(out.getLastRow(), startRow + sel.getNumRows() - 1);
+
+  let ok = 0, err = 0, skip = 0;
+  for (let r = startRow; r <= endRow; r++) {
+    const name = String(out.getRange(r, 1).getValue() || '').trim();
+    const O = num(out.getRange(r, 2).getValue());
+    const M = num(out.getRange(r, 3).getValue());
+    const P = num(out.getRange(r, 4).getValue());
+    const pert = num(out.getRange(r, 5).getValue());
+
+    if (!name || !isNumber(pert) || !isNumber(O) || !isNumber(M) || !isNumber(P)) { 
+      skip++; 
+      continue; 
+    }
+
+    const sliders = {};
+    for (let i = 0; i < SLIDER_KEYS.length; i++) {
+      const v = num(out.getRange(r, 9 + i).getValue());
+      if (isNumber(v)) sliders[SLIDER_KEYS[i]] = v;
+    }
+
+    const task = { task: name, optimistic: O, mostLikely: M, pessimistic: P };
+    const res = doMaterialize_(task, pert, sliders, r, out);
+    if (res && res.ok) ok++; else err++;
+  }
+  toast_('Re-materialize', `OK=${ok}, Skipped=${skip}, Error=${err}`, 6);
+}
+
+function doMaterialize_(task, pert, sliders, row, out) {
+  const extraFlags = CFG.DUPLICATE_BASELINE_ON_NO_IMPROVE ? { duplicateBaselineOnNoImprove: true } : {};
+  const matPayload = payloadMaterialize_(task, pert, sliders, extraFlags);
+  const matRes = callEstimatorAPI_(matPayload, `materialize-${task.task}`);
+  if (!matRes.ok) {
+    return { ok: false, error: matRes.error };
+  }
+  const body = firstResult_(matRes.body);
+  if (!body) return { ok: false, error: 'Empty response body' };
+  const parsedBase = parseBaseline_(body);
+  const parsedOpt = parseOptimized_(body);
+
+  // Require baseline PERT for validity
+  if (!isNumber(parsedBase.pert)) {
+    return { ok: false, error: 'No PERT in materialize response' };
+  }
+
+  // Write baseline fields (strict)
+  out.getRange(row, 5).setValue(toFixed6(parsedBase.pert));
+  out.getRange(row, 6).setValue(toFixed6(parsedBase.ciL));
+  out.getRange(row, 7).setValue(toFixed6(parsedBase.ciU));
+  out.getRange(row, 8).setValue(toFixed6(parsedBase.baseProb));
+  out.getRange(row, 18).setValue(toFixed6(parsedBase.kld));
+
+  // Write input sliders (cols 9–15)
+  let col = 9;
+  SLIDER_KEYS.forEach(k => {
+    const v = num(sliders[k]);
+    out.getRange(row, col++).setValue(isNumber(v) ? v : '');
+  });
+
+  // Write optimized/adjusted metrics (only if present)
+  col = 16;
+  out.getRange(row, col++).setValue(toFixed6(parsedOpt.optProb));
+  out.getRange(row, col++).setValue(toFixed6(parsedOpt.sensChange));
+
+  // Write clipped JSON points
+  const clip = CFG.MAX_POINTS;
+  const points = [parsedBase.basePDF, parsedBase.baseCDF, parsedOpt.optPDF, parsedOpt.optCDF];
+  points.forEach((pts, idx) => {
+    const jsonCol = 19 + idx;
+    const jsonStr = JSON.stringify(clipArray(pts, clip));
+    out.getRange(row, jsonCol).setValue(jsonStr);
+  });
+
+  shadeConfidenceColumns_(out);
+  return { ok: true };
+}
+
+/************************************************************
+ * 12. PERT RUNNERS
+ ************************************************************/
+function ensureHeadersAndWidths_(sheet) {
+  const lastCol = sheet.getMaxColumns();
+  if (lastCol < HEADERS.length) {
+    sheet.insertColumnsAfter(lastCol, HEADERS.length - lastCol);
+  }
+  setHeaderNotes_(sheet);
+  sheet.getRange(1, 1, 1, HEADERS.length)
+    .setBackground('#4285f4')
+    .setFontColor('white')
+    .setHorizontalAlignment('center');
+
+  for (let c = 1; c <= HEADERS.length; c++) {
+    sheet.setColumnWidth(c, c <= 4 ? 120 : (c <= 18 ? 150 : 250));
+  }
+}
+
+function pertRunAllRows() {
+  const tasks = getAllTasks();
+  if (!tasks || !tasks.length) { safeAlert_('No tasks found.'); return; }
+  runTasks_(tasks, 'All Rows');
+}
+
+function pertRunSelectedRows() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const src = getSourceSheet_();
+  if (!src) { safeAlert_('No source sheet.'); return; }
+
+  const headers = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
+  let nameCol = -1, optCol = -1, mostCol = -1, pessCol = -1;
+  for (let c = 0; c < headers.length; c++) {
+    const h = String(headers[c] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (h.includes('name') || h.includes('task')) nameCol = c + 1;
+    if (h.includes('best case') || h.includes('best_case') || h.includes('bestcase') || h.includes('optimistic')) optCol = c + 1;
+    if (h.includes('most likely') || h.includes('most_likely') || h.includes('mostlikely')) mostCol = c + 1;
+    if (h.includes('worst case') || h.includes('worst_case') || h.includes('worstcase') || h.includes('pessimistic')) pessCol = c + 1;
+  }
+  if (nameCol === -1) {
+    safeAlert_('Name column not found in source sheet.'); return;
+  }
+
+  const sel = src.getActiveRange();
+  if (!sel || sel.getColumn() !== nameCol || sel.getRow() < 2) {
+    safeAlert_(`Select cells in the Name column (starting from row 2) in the source sheet.`); return;
+  }
+  const startRow = Math.max(2, sel.getRow());
+  const endRow = Math.min(src.getLastRow(), startRow + sel.getNumRows() - 1);
+  const numCols = Math.max(optCol, mostCol, pessCol, nameCol);
+  const values = src.getRange(startRow, 1, endRow - startRow + 1, numCols).getValues();
+  const tasks = [];
+  for (let i = 0; i < values.length; i++) {
+    const r = values[i];
+    const name = String(r[nameCol - 1] || '').trim();
+    if (!name) continue;
+    const O = num(r[optCol - 1]), M = num(r[mostCol - 1]), P = num(r[pessCol - 1]);
+    if (isNumber(O) && isNumber(M) && isNumber(P)) {
+      tasks.push({ task: name, optimistic: O, mostLikely: M, pessimistic: P });
+    }
+  }
+  if (!tasks.length) { safeAlert_('No valid tasks selected.'); return; }
+  runTasks_(tasks, 'Selected Rows');
+}
+
+function runTasks_(tasks, mode) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let out = ss.getSheetByName(CFG.OUT_SHEET_NAME);
+
+  if (!out) {
+    out = ss.insertSheet(CFG.OUT_SHEET_NAME);
+  }
+  if (out.getLastRow() > 1) {
+    out.getRange(2, 1, out.getLastRow() - 1, Math.max(out.getLastColumn(), HEADERS.length)).clearContent();
+  }
+  ensureHeadersAndWidths_(out);
+
+  const logSheet = ensureLogSheet_();
+  const startRow = 2;
+
+  let ok = 0, err = 0, partial = 0;
+  const startTime = Date.now();
+  logSheet.appendRow([tsMsg(`${mode}: Starting ${tasks.length} tasks`)]);
+
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const row = startRow + i;
+    const statusCol = HEADERS.length;
+    try {
+      out.getRange(row, 1, 1, 4).setValues([[task.task, task.optimistic || '', task.mostLikely || '', task.pessimistic || '']]);
+      out.getRange(row, statusCol).setValue('Running...');
+
+      const res = doSingleTask_(task, row, out, logSheet);
+      if (res && res.ok) {
+        out.getRange(row, statusCol).setValue(tsMsg('OK'));
+        ok++;
+      } else if (res && res.partial) {
+        out.getRange(row, statusCol).setValue(tsMsg('PARTIAL'));
+        partial++;
+      } else {
+        out.getRange(row, statusCol).setValue(tsMsg('ERROR: ' + (res ? res.error : 'Unknown')));
+        err++;
+      }
+    } catch (e) {
+      out.getRange(row, statusCol).setValue(tsMsg('EXCEPTION: ' + e.message));
+      err++;
+      logSheet.appendRow([tsMsg(`Task "${task.task}": ${e.message}`)]);
+    }
+    SpreadsheetApp.flush();
+    if (Date.now() - startTime > CFG.LOOP_SAFETY_MS) {
+      logSheet.appendRow([tsMsg('Safety timeout hit')]);
+      break;
+    }
+  }
+
+  shadeConfidenceColumns_(out);
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const msg = `Done: ${ok} OK, ${partial} partial, ${err} errors in ${elapsed}s`;
+  toast_(mode, msg, 10);
+  logSheet.appendRow([tsMsg(msg)]);
+}
+
+function doSingleTask_(task, row, out, logSheet) {
+  let hasBaseline = false;
+  // Start with local PERT so we always have a target for Phase 2 even if the baseline call fails
+  let pertForOpt = computePertMean_(task.optimistic, task.mostLikely, task.pessimistic);
+
+  // Phase 1 — Baseline @ PERT (probabilityAtPert comes from server regardless)
+  try {
+    const targetPert = pertForOpt;
+    const baselinePayload = payloadBaseline_(task, targetPert);
+    const baseRes = callEstimatorAPI_(baselinePayload, `baseline-${task.task}`);
+    if (baseRes.ok) {
+      const baseParsed = parseBaseline_(firstResult_(baseRes.body));
+      if (isNumber(baseParsed.pert)) {
+        // Prefer the server PERT for Phase 2
+        pertForOpt = baseParsed.pert;
+
+        out.getRange(row, 5).setValue(toFixed6(baseParsed.pert));
+        out.getRange(row, 6).setValue(toFixed6(baseParsed.ciL));
+        out.getRange(row, 7).setValue(toFixed6(baseParsed.ciU));
+        out.getRange(row, 8).setValue(toFixed6(baseParsed.baseProb));
+        out.getRange(row, 18).setValue(toFixed6(baseParsed.kld));
+
+        const clip = CFG.MAX_POINTS;
+        [baseParsed.basePDF, baseParsed.baseCDF].forEach((pts, idx) => {
+          const jsonCol = 19 + idx;
+          const jsonStr = JSON.stringify(clipArray(pts, clip));
+          out.getRange(row, jsonCol).setValue(jsonStr);
+        });
+
+        hasBaseline = true;
+      } else {
+        logSheet.appendRow([tsMsg(`Task "${task.task}": No PERT from baseline`)]);
+      }
+    } else {
+      logSheet.appendRow([tsMsg(`Task "${task.task}": Baseline API failed - ${baseRes.error}`)]);
+    }
+  } catch (e) {
+    logSheet.appendRow([tsMsg(`Task "${task.task}": Baseline exception - ${e.message}`)]);
+  }
+
+  // Phase 2 — Optimization @ PERT (fixed mode, MC-smoothed)
+  let hasOpt = false;
+  try {
+    const strong = CFG.P2_STRONG_RETRY;
+    const optPayload = payloadOptimize_(task, pertForOpt, strong);
+    const optRes = callEstimatorAPI_(optPayload, `opt-${task.task}`);
+    if (optRes.ok) {
+      const body = firstResult_(optRes.body);
+      const optParsed = parseOptimized_(body);
+
+      // Sliders (cols 9–15): accept only when optimizer produced real settings & not default vector
+      let col = 9;
+      if (optParsed.sliders && !isDefaultSliderVector_(optParsed.sliders)) {
+        SLIDER_KEYS.forEach(k => {
+          const v = num(optParsed.sliders[k]);
+          out.getRange(row, col++).setValue(isNumber(v) ? v : '');
+        });
+        hasOpt = true;
+      } else {
+        col += SLIDER_KEYS.length;
+      }
+
+      // Optimized probability @ PERT (col 16) and sensitivity change (col 17)
+      out.getRange(row, col++).setValue(toFixed6(optParsed.optProb));
+      out.getRange(row, col++).setValue(toFixed6(optParsed.sensChange));
+
+      // Optimized points JSON (cols 21–22)
+      const clip = CFG.MAX_POINTS;
+      [optParsed.optPDF, optParsed.optCDF].forEach((pts, idx) => {
+        const jsonCol = 21 + idx;
+        const jsonStr = JSON.stringify(clipArray(pts, clip));
+        out.getRange(row, jsonCol).setValue(jsonStr);
+      });
+
+      // Write optimizer status to status col if available
+      if (optParsed.status && optParsed.status !== 'error') {
+        out.getRange(row, HEADERS.length).setValue(optParsed.status);
+      }
+
+      if (isNumber(optParsed.optProb) || optParsed.optPDF.length > 0 || optParsed.optCDF.length > 0 || optParsed.sliders) {
+        hasOpt = true;
+      }
+    } else {
+      logSheet.appendRow([tsMsg(`Task "${task.task}": Opt API failed - ${optRes.error}`)]);
+    }
+  } catch (e) {
+    logSheet.appendRow([tsMsg(`Task "${task.task}": Opt exception - ${e.message}`)]);
+  }
+
+  if (hasBaseline && hasOpt) {
+    return { ok: true };
+  } else if (hasBaseline || hasOpt) {
+    return { partial: true };
+  } else {
+    return { ok: false, error: 'Both baseline and opt failed' };
+  }
+}
+
+function ensureLogSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let log = ss.getSheetByName(CFG.LOG_SHEET_NAME);
+  if (!log) {
+    log = ss.insertSheet(CFG.LOG_SHEET_NAME);
+    log.getRange(1, 1).setValue('Timestamped Log').setFontWeight('bold');
+  }
+  return log;
+}
+
+function writeLogsToSheet() {
+  const logSheet = ensureLogSheet_();
+  toast_('Export Log', 'Log sheet already active—view "PERT_Logs"', 5);
+}
+
+/************************************************************
+ * 13. FORMATTING HELPERS
+ ************************************************************/
+function shadeConfidenceColumns_(sheet) {
+  try {
+    const COLS = [5, 8, 16];
+    const COLOR = '#d9ead3';
+    const headerRow = 1;
+
+    COLS.forEach(col => {
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= headerRow) return;
+
+      const rng = sheet.getRange(headerRow + 1, col, lastRow - headerRow, 1);
+      const vals = rng.getDisplayValues().map(r => (r[0] || '').toString().trim());
+      let lastNonEmpty = 0;
+      for (let i = vals.length - 1; i >= 0; i--) {
+        if (vals[i]) { lastNonEmpty = i + (headerRow + 1); break; }
+      }
+      if (lastNonEmpty > headerRow) {
+        sheet.getRange(headerRow + 1, col, lastNonEmpty - headerRow, 1).setBackground(COLOR);
+      }
+    });
+  } catch (_) {}
+}
+
+
+function testCoreCall() {
+  const testTask = {
+    task: "Test Project",
+    optimistic: 10,
+    mostLikely: 20,
+    pessimistic: 30
+  };
+  const payload = [{
+    task: testTask.task,
+    name: testTask.task,
+    optimistic: testTask.optimistic,
+    mostLikely: testTask.mostLikely,
+    pessimistic: testTask.pessimistic,
+    targetValue: 20, // PERT
+    confidenceLevel: 0.95,
+    wantPoints: true,
+    includeOptimizedPoints: false
+  }];
+  
+  try {
+    const result = pmcEstimatorAPI(payload);
+    Logger.log('TEST CORE CALL RESULT: ' + JSON.stringify(result, null, 2));
+  } catch (e) {
+    Logger.log('TEST CORE CALL ERROR: ' + e.message + ' (stack: ' + e.stack + ')');
+  }
+}

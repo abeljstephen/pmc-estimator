@@ -1,3 +1,4 @@
+
 /**
  * SECTION 1: MENU SETUP
  * Defines the custom menu in Google Sheets to provide user access to key functionalities.
@@ -163,7 +164,7 @@ function getAllTasks() {
       Logger.log('Error: No data found in the first sheet');
       throw new Error('No data found in the first sheet');
     }
-    const dataRange = firstSheet.getRange(2, 1, lastRow - 1, 4);
+    const dataRange = firstSheet.getRange(2, 1, lastRow - 1, Math.max(4, firstSheet.getLastColumn()));
     const data = dataRange.getValues();
     const tasks = data.map(row => {
       const [name, bestCase, mostLikely, worstCase] = row;
@@ -201,15 +202,23 @@ function getAllTasks() {
  * Adds PERT columns to the "Estimate Calculations" sheet using API-provided metrics.
  * Highlights PERT Mean and Monte Carlo Smoothed 90th Percentile Confidence in light green for emphasis.
  * Adds a description row (row 2) under the header with explanations for each column.
- * Validates input data and displays UI alerts for invalid rows, allowing the user to continue or cancel.
+ * Validates input data and handles errors appropriately based on context (UI or web app).
+ * @param {boolean} isWebAppContext - Indicates if called from a web app (no UI alerts).
+ * @returns {Object} Result object with status and message for web app context.
  */
-function addPertColumns() {
+function addPertColumns(isWebAppContext = false) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = "Estimate Calculations";
   let sheet = ss.getSheetByName(sheetName);
-  const ui = SpreadsheetApp.getUi();
+  let result = { status: 'success', message: '' };
 
-  if (sheet) {
+  // Show progress sidebar
+  if (!isWebAppContext) {
+    showProgressSidebar();
+  }
+
+  if (sheet && !isWebAppContext) {
+    const ui = SpreadsheetApp.getUi();
     const response = ui.alert(
       "Sheet exists",
       "The sheet '" + sheetName + "' already exists. Do you want to overwrite its content?",
@@ -221,12 +230,17 @@ function addPertColumns() {
     } else {
       throw new Error("Operation cancelled by user.");
     }
+  } else if (sheet) {
+    // In web app context, silently overwrite the sheet
+    sheet.clear();
   } else {
     sheet = ss.insertSheet(sheetName);
   }
 
   const headers = [
     "Name", "Best Case", "Most Likely", "Worst Case",
+    "MC Smoothed 95% CI Lower", "MC Smoothed 95% CI Upper", "Status"
+    /* Commented out columns for future reference:
     "Triangle Mean", "Triangle Variance", "Triangle StdDev", "Triangle Skewness", "Triangle Kurtosis", "Triangle Points",
     "PERT Mean", "PERT StdDev", "PERT Variance", "PERT Skewness", "PERT Kurtosis", "PERT Points",
     "Beta Mean", "Beta Variance", "Beta Skewness", "Beta Kurtosis", "Alpha", "Beta", "Beta Mode", "Beta Points",
@@ -234,6 +248,7 @@ function addPertColumns() {
     "MC On Beta Smoothed Mean", "MC On Beta Smoothed Variance", "MC On Beta Smoothed Skewness", "MC On Beta Smoothed Kurtosis", "MC On Beta Smoothed VaR 90%", "MC On Beta Smoothed CVaR 90%", "MC On Beta Smoothed MAD", "MC On Beta Smoothed 90th Percentile Confidence", "MC On Beta Smoothed Points",
     "Weighted Estimate (Conservative)", "Weighted Estimate (Neutral)", "Weighted Estimate (Optimistic)",
     "Probability Exceeding PERT Mean (Beta)", "Probability Exceeding PERT Mean (MC Unsmoothed)", "Probability Exceeding PERT Mean (MC Smoothed)", "CDF Points"
+    */
   ];
 
   const descriptions = [
@@ -241,6 +256,10 @@ function addPertColumns() {
     "Optimistic estimate (best-case scenario). Use as the lower bound for planning.", 
     "Most likely estimate (expected value). Use as the central estimate for planning.", 
     "Pessimistic estimate (worst-case scenario). Use as the upper bound for planning.",
+    "Lower bound of the 95% confidence interval for the Monte Carlo smoothed mean. Use for risk assessment.",
+    "Upper bound of the 95% confidence interval for the Monte Carlo smoothed mean. Use for risk assessment.",
+    "Indicates whether the row was processed successfully ('Done') or lists any errors/issues encountered."
+    /* Commented out descriptions for future reference:
     "Average of triangle distribution estimates. Use for a simple average estimate.", 
     "Spread of triangle distribution. Use to assess estimate variability.", 
     "Standard deviation of triangle distribution. Use to measure estimate uncertainty.", 
@@ -285,11 +304,16 @@ function addPertColumns() {
     "Probability of exceeding PERT Mean (MC Unsmoothed). Use to assess raw simulation likelihood.", 
     "Probability of exceeding PERT Mean (MC Smoothed). Use to assess refined simulation likelihood.", 
     "Cumulative distribution points for visualization. Use in Plot.html for CDF plots."
+    */
   ];
 
   // Set headers and descriptions
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
   sheet.getRange(2, 1, 1, headers.length).setValues([descriptions]).setFontStyle('italic');
+  // Set second row height to 60 pixels and column widths to 360 pixels with word-wrap
+  sheet.setRowHeight(2, 60);
+  sheet.setColumnWidths(1, headers.length, 360);
+  sheet.getRange(2, 1, 1, headers.length).setWrap(true);
 
   const firstSheet = ss.getSheets()[0];
   if (firstSheet.getLastColumn() < 4) {
@@ -301,7 +325,7 @@ function addPertColumns() {
     throw new Error("No data found in the first sheet.");
   }
 
-  const dataRange = firstSheet.getRange(2, 1, lastRow - 1, 4);
+  const dataRange = firstSheet.getRange(2, 1, lastRow - 1, Math.max(4, firstSheet.getLastColumn()));
   const data = dataRange.getValues();
   const errorMessages = [];
 
@@ -358,14 +382,20 @@ function addPertColumns() {
   });
 
   if (errorMessages.length > 0) {
-    const errorSummary = errorMessages.join('\n');
-    const response = ui.alert(
-      'Errors Encountered',
-      `${errorSummary}\n\nPress "Continue" to proceed with "N/A" for invalid rows, or "Cancel" to stop.`,
-      ui.ButtonSet.OK_CANCEL
-    );
-    if (response === ui.Button.CANCEL) {
-      throw new Error("Operation cancelled by user due to invalid input data.");
+    if (!isWebAppContext) {
+      const ui = SpreadsheetApp.getUi();
+      const errorSummary = errorMessages.join('\n');
+      const response = ui.alert(
+        'Errors Encountered',
+        `${errorSummary}\n\nPress "Continue" to proceed with "N/A" for invalid rows, or "Cancel" to stop.`,
+        ui.ButtonSet.OK_CANCEL
+      );
+      if (response === ui.Button.CANCEL) {
+        throw new Error("Operation cancelled by user due to invalid input data.");
+      }
+    } else {
+      // In web app context, log errors and proceed
+      result.message = errorMessages.join('; ');
     }
   }
 
@@ -381,6 +411,7 @@ function addPertColumns() {
     } catch (error) {
       Logger.log('API call failed: ' + error.message);
       errorMessages.push(`API call failed: ${error.message} and will result in "N/A" for valid tasks`);
+      result.message = errorMessages.join('; ');
     }
   }
 
@@ -388,11 +419,7 @@ function addPertColumns() {
   let resultIndex = 0;
   const allRowData = tasks.map((task, index) => {
     if (task.error) {
-      return [task.name, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"];
+      return [task.name, "N/A", "N/A", "N/A", "N/A", "N/A", task.error];
     }
     const result = results[resultIndex] || {};
     resultIndex++;
@@ -400,61 +427,16 @@ function addPertColumns() {
       const error = `Row ${index + 2} may be an issue due to API error: ${result.error} and will result in "N/A"`;
       Logger.log(error);
       errorMessages.push(error);
-      return [task.task || "Unnamed Task", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
-              "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"];
+      return [task.task || "Unnamed Task", "N/A", "N/A", "N/A", "N/A", "N/A", error];
     }
     return [
       result.task?.value || "N/A",
       result.bestCase?.value || "N/A",
       result.mostLikely?.value || "N/A",
       result.worstCase?.value || "N/A",
-      result.triangleMean?.value || "N/A",
-      result.triangleVariance?.value || "N/A",
-      result.triangleStdDev?.value || "N/A",
-      result.triangleSkewness?.value || "N/A",
-      result.triangleKurtosis?.value || "N/A",
-      result.trianglePoints?.value ? JSON.stringify(result.trianglePoints.value) : "N/A",
-      result.pertMean?.value || "N/A",
-      result.pertStdDev?.value || "N/A",
-      result.pertVariance?.value || "N/A",
-      result.pertSkewness?.value || "N/A",
-      result.pertKurtosis?.value || "N/A",
-      result.pertPoints?.value ? JSON.stringify(result.pertPoints.value) : "N/A",
-      result.betaMean?.value || "N/A",
-      result.betaVariance?.value || "N/A",
-      result.betaSkewness?.value || "N/A",
-      result.betaKurtosis?.value || "N/A",
-      result.alpha?.value || "N/A",
-      result.beta?.value || "N/A",
-      result.betaMode?.value || "N/A",
-      result.betaPoints?.value ? JSON.stringify(result.betaPoints.value) : "N/A",
-      result.mcMean?.value || "N/A",
-      result.mcVariance?.value || "N/A",
-      result.mcSkewness?.value || "N/A",
-      result.mcKurtosis?.value || "N/A",
-      result.mcVaR?.value || "N/A",
-      result.mcCVaR?.value || "N/A",
-      result.mcMAD?.value || "N/A",
-      result.mcPoints?.value ? JSON.stringify(result.mcPoints.value) : "N/A",
-      result.mcSmoothedMean?.value || "N/A",
-      result.mcSmoothedVariance?.value || "N/A",
-      result.mcSmoothedSkewness?.value || "N/A",
-      result.mcSmoothedKurtosis?.value || "N/A",
-      result.mcSmoothedVaR?.value || "N/A",
-      result.mcSmoothedCVaR?.value || "N/A",
-      result.mcSmoothedMAD?.value || "N/A",
-      result.mcSmoothedConfidenceValues?.value?.valueAt90Percent || "N/A",
-      result.mcSmoothedPoints?.value ? JSON.stringify(result.mcSmoothedPoints.value) : "N/A",
-      result.weightedConservative?.value || "N/A",
-      result.weightedNeutral?.value || "N/A",
-      result.weightedOptimistic?.value || "N/A",
-      result.probExceedPertMeanBeta?.value || "N/A",
-      result.probExceedPertMeanMCUnsmoothed?.value || "N/A",
-      result.probExceedPertMeanMCSmoothed?.value || "N/A",
-      result.cdfPoints?.value ? JSON.stringify(result.cdfPoints.value) : "N/A"
+      result.mcSmoothedConfidenceInterval?.value?.lower || "N/A",
+      result.mcSmoothedConfidenceInterval?.value?.upper || "N/A",
+      "Done"
     ];
   });
 
@@ -462,28 +444,92 @@ function addPertColumns() {
     // Write data starting at row 3 to accommodate description row
     sheet.getRange(3, 1, allRowData.length, allRowData[0].length).setValues(allRowData);
     const numRows = allRowData.length;
-    // Highlight PERT Mean (column 11) and MC Smoothed 90th Percentile Confidence (column 40)
-    const columnsToHighlight = [11, 40];
+    // Highlight MC Smoothed 95% CI Lower (column 5) and Upper (column 6)
+    const columnsToHighlight = [5, 6];
     columnsToHighlight.forEach(col => {
       sheet.getRange(1, col).setFontWeight('bold').setBackground('#d1e7dd');
       sheet.getRange(3, col, numRows, 1).setBackground('#d1e7dd');
     });
+    // Enable word-wrap for Status column (column 7)
+    sheet.getRange(3, 7, numRows, 1).setWrap(true);
   }
 
-  if (errorMessages.length > tasks.length) {
+  // Close progress sidebar
+  if (!isWebAppContext) {
+    SpreadsheetApp.getUi().showSidebar(
+      HtmlService.createHtmlOutputFromFile('ProgressSidebar')
+        .setTitle('Processing Progress')
+        .setWidth(300)
+        .setContent('<div style="padding: 20px; text-align: center; font-family: Arial, sans-serif;">Processing complete!</div>')
+    );
+    // Delay to show completion message briefly, then close
+    Utilities.sleep(1000);
+    SpreadsheetApp.getUi().showSidebar(
+      HtmlService.createHtmlOutput('<script>google.script.host.close();</script>')
+    );
+  }
+
+  if (errorMessages.length > 0 && !isWebAppContext) {
+    const ui = SpreadsheetApp.getUi();
     const errorSummary = errorMessages.slice(tasks.length).join('\n');
     ui.alert(
       'Additional Errors Encountered',
       `${errorSummary}\n\nThe script completed with "N/A" for affected rows.`,
       ui.ButtonSet.OK
     );
-  } else if (errorMessages.length === 0) {
+  } else if (errorMessages.length === 0 && !isWebAppContext) {
+    const ui = SpreadsheetApp.getUi();
     ui.alert(
       'Success',
       'PERT calculations completed successfully.',
       ui.ButtonSet.OK
     );
   }
+
+  if (errorMessages.length > 0) {
+    result.message = errorMessages.join('; ');
+  } else {
+    result.message = 'PERT calculations completed successfully.';
+  }
+
+  return result;
+}
+
+/**
+ * Displays a sidebar with a processing message.
+ */
+function showProgressSidebar() {
+  const html = HtmlService.createHtmlOutputFromFile('ProgressSidebar')
+    .setTitle('Processing Progress')
+    .setWidth(300);
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Displays a sidebar with a progress bar for addPertColumns.
+ */
+function showProgressSidebar() {
+  const html = HtmlService.createHtmlOutputFromFile('ProgressSidebar')
+    .setTitle('Processing Progress')
+    .setWidth(300);
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Updates the progress bar in the sidebar.
+ * @param {number} percentage - The percentage of completion (0 to 100).
+ */
+function updateProgress(percentage) {
+  // This function is called client-side to update the progress bar
+  // No server-side action needed here; handled in HTML
+}
+
+/**
+ * Closes the progress sidebar.
+ */
+function closeProgressSidebar() {
+  // Client-side JavaScript will handle closing the sidebar
+  // No server-side action needed
 }
 
 /**
@@ -847,196 +893,28 @@ function getTargetProbabilityData(params) {
  * Handles web app requests for creating and submitting estimate sheets.
  */
 
+
 /**
  * Shows the HTML form or auto-creates the Sheet for the web app.
  * @param {Object} e - HTTP event with parameters.
  * @returns {HtmlOutput|TextOutput} HTML form or JSON response.
  */
 function doGet(e) {
+  Logger.log('doGet parameters: ' + JSON.stringify(e?.parameter));
   try {
-    if (e && e.parameter && e.parameter.sheetId) {
+    if (e?.parameter?.sheetId) {
+      Logger.log('Serving Plot.html');
       return HtmlService.createHtmlOutputFromFile('Plot')
         .setTitle("PERT Estimate Plot")
         .append('<script>var sheetId = "' + e.parameter.sheetId + '";</script>');
     }
-
-    if (e && e.parameter && e.parameter.data) {
-      const tasks = JSON.parse(e.parameter.data);
-      if (!Array.isArray(tasks) || tasks.length === 0) {
-        throw new Error("Invalid or empty tasks array.");
-      }
-      tasks.forEach(task => {
-        if (!task.taskName || 
-            typeof task.bestCase !== 'number' || !isFinite(task.bestCase) ||
-            typeof task.mostLikely !== 'number' || !isFinite(task.mostLikely) ||
-            typeof task.worstCase !== 'number' || !isFinite(task.worstCase)) {
-          throw new Error("Invalid task data: " + JSON.stringify(task));
-        }
-        if (task.bestCase > task.mostLikely || task.mostLikely > task.worstCase) {
-          throw new Error("Invalid estimate order: " + JSON.stringify(task));
-        }
-        if (task.bestCase === task.mostLikely || task.mostLikely === task.worstCase) {
-          throw new Error("Estimates too close: " + JSON.stringify(task));
-        }
-        const range = task.worstCase - task.bestCase;
-        const minRange = task.mostLikely * 0.001;
-        if (range < minRange) {
-          throw new Error(`Estimate range too small (${range} < ${minRange}): ` + JSON.stringify(task));
-        }
-        if (task.bestCase === task.mostLikely && task.mostLikely === task.worstCase) {
-          throw new Error("Zero variance: " + JSON.stringify(task));
-        }
-      });
-
-      const template = HtmlService.createTemplateFromFile('submit');
-      template.prefillData = tasks;
-      return template.evaluate().setTitle("Review and Submit Estimates");
-    }
-
-    return HtmlService.createHtmlOutputFromFile('submit')
-      .setTitle("Submit Your Estimates");
+    Logger.log('Serving submit.html');
+    const template = HtmlService.createTemplateFromFile('submit');
+    // Pass tasks parameter to template if provided
+    template.tasks = e?.parameter?.tasks ? decodeURIComponent(e.parameter.tasks) : '';
+    return template.evaluate().setTitle("Submit Your Estimates");
   } catch (error) {
     Logger.log("Error in doGet: " + error.message);
-    return ContentService.createTextOutput(
-      JSON.stringify({ error: error.message })
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-/**
- * Creates a spreadsheet and returns URLs for the web app.
- * @param {Array} tasks - Array of task objects.
- * @returns {Object} Object containing sheetUrl and plotUrl.
- */
-function createEstimateSheet(tasks) {
-  if (!tasks || tasks.length === 0) {
-    throw new Error("No tasks provided.");
-  }
-
-  tasks.forEach(task => {
-    if (!task.taskName || 
-        typeof task.bestCase !== 'number' || !isFinite(task.bestCase) ||
-        typeof task.mostLikely !== 'number' || !isFinite(task.mostLikely) ||
-        typeof task.worstCase !== 'number' || !isFinite(task.worstCase)) {
-      throw new Error("Invalid task data: " + JSON.stringify(task));
-    }
-    if (task.bestCase > task.mostLikely || task.mostLikely > task.worstCase) {
-      throw new Error("Invalid estimate order: " + JSON.stringify(task));
-    }
-    if (task.bestCase === task.mostLikely || task.mostLikely === task.worstCase) {
-      throw new Error("Estimates too close: " + JSON.stringify(task));
-    }
-    const range = task.worstCase - task.bestCase;
-    const minRange = task.mostLikely * 0.001;
-    if (range < minRange) {
-      throw new Error(`Estimate range too small (${range} < ${minRange}): ` + JSON.stringify(task));
-    }
-    if (task.bestCase === task.mostLikely && task.mostLikely === task.worstCase) {
-      throw new Error("Zero variance: " + JSON.stringify(task));
-    }
-  });
-
-  const spreadsheet = SpreadsheetApp.create("Project Estimates");
-  const sheet = spreadsheet.getActiveSheet();
-  sheet.clear();
-
-  sheet.getRange("A1:E1").setValues([
-    ["Name", "best_case", "most_likely", "worst_case", "SelectedForPlot"]
-  ]);
-
-  tasks.forEach((task, i) => {
-    sheet.getRange(i + 2, 1, 1, 5).setValues([
-      [task.taskName, task.bestCase, task.mostLikely, task.worstCase, task.selectedForPlot ? "TRUE" : "FALSE"]
-    ]);
-  });
-
-  SpreadsheetApp.setActiveSpreadsheet(spreadsheet);
-  addPertColumns();
-
-  const calcSheet = spreadsheet.getSheetByName('Estimate Calculations');
-  const sheetId = spreadsheet.getId();
-  const sheetUrl = spreadsheet.getUrl() + "#gid=" + calcSheet.getSheetId();
-  const plotUrl = ScriptApp.getService().getUrl() + "?sheetId=" + sheetId;
-
-  return {
-    sheetUrl: sheetUrl,
-    plotUrl: plotUrl
-  };
-}
-
-/**
- * Handles POST requests to auto-create a sheet for the web app.
- * @param {Object} e - HTTP event with parameters.
- * @returns {TextOutput} JSON containing sheetUrl and plotUrl.
- */
-function doPost(e) {
-  try {
-    if (!e || !e.parameter || !e.parameter.data) {
-      throw new Error("Missing data parameter.");
-    }
-
-    const tasks = JSON.parse(e.parameter.data);
-    if (!Array.isArray(tasks) || tasks.length === 0) {
-      throw new Error("Invalid or empty tasks array.");
-    }
-
-    // Validate tasks
-    tasks.forEach(task => {
-      if (!task.taskName || 
-          typeof task.bestCase !== 'number' || !isFinite(task.bestCase) ||
-          typeof task.mostLikely !== 'number' || !isFinite(task.mostLikely) ||
-          typeof task.worstCase !== 'number' || !isFinite(task.worstCase)) {
-        throw new Error("Invalid task data: " + JSON.stringify(task));
-      }
-      if (task.bestCase > task.mostLikely || task.mostLikely > task.worstCase) {
-        throw new Error("Invalid estimate order: " + JSON.stringify(task));
-      }
-      if (task.bestCase === task.mostLikely || task.mostLikely === task.worstCase) {
-        throw new Error("Estimates too close: " + JSON.stringify(task));
-      }
-      const range = task.worstCase - task.bestCase;
-      const minRange = task.mostLikely * 0.001;
-      if (range < minRange) {
-        throw new Error(`Estimate range too small (${range} < ${minRange}): ` + JSON.stringify(task));
-      }
-      if (task.bestCase === task.mostLikely && task.mostLikely === task.worstCase) {
-        throw new Error("Zero variance: " + JSON.stringify(task));
-      }
-    });
-
-    const spreadsheet = SpreadsheetApp.create("Project Estimates");
-    const sheet = spreadsheet.getActiveSheet();
-    sheet.clear();
-
-    sheet.getRange("A1:E1").setValues([
-      ["Name", "best_case", "most_likely", "worst_case", "SelectedForPlot"]
-    ]);
-
-    tasks.forEach((task, i) => {
-      sheet.getRange(i + 2, 1, 1, 5).setValues([
-        [task.taskName, task.bestCase, task.mostLikely, task.worstCase, task.selectedForPlot ? "TRUE" : "FALSE"]
-      ]);
-    });
-
-    spreadsheet.setActiveSheet(sheet);
-    addPertColumns();
-
-    const calcSheet = spreadsheet.getSheetByName('Estimate Calculations');
-    spreadsheet.setActiveSheet(calcSheet);
-
-    const sheetId = spreadsheet.getId();
-    const plotUrl = ScriptApp.getService().getUrl() + "?sheetId=" + sheetId;
-
-    const result = {
-      sheetUrl: spreadsheet.getUrl(),
-      plotUrl: plotUrl
-    };
-
-    return ContentService.createTextOutput(
-      JSON.stringify(result)
-    ).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    Logger.log("Error in doPost: " + error.message);
     return ContentService.createTextOutput(
       JSON.stringify({ error: error.message })
     ).setMimeType(ContentService.MimeType.JSON);

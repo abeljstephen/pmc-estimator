@@ -1,0 +1,193 @@
+#!/bin/bash
+
+# Script to inspect settings for pmcEstimatorAPI Cloud Function
+# Updated: July 12, 2025, 7:38 PM PDT
+# Purpose: Dynamically fetch variables and collect configuration details with visible progress
+
+echo "Starting script..."
+
+# Initialize variables
+PROJECT_ID=""
+PROJECT_NUMBER=""
+SERVICE_NAME="pmcEstimatorAPI"
+SERVICE_ACCOUNT=""
+APPS_SCRIPT_SERVICE_ACCOUNT="icarenow@pmc-estimator.iam.gserviceaccount.com"
+REGION="us-central1"
+TRIGGER_URL=""
+INGRESS_SETTING=""
+API_GATEWAY_ID=""
+ENDPOINTS_ID=""
+SERVICE_ACCOUNT_KEY_ID=""
+APPS_SCRIPT_KEY_ID=""
+LOG_TIMESTAMP="2025-07-12T19:00:00Z"  # Updated to recent time
+LOG_LIMIT=10
+OUTPUT_FILE="pmc_estimator_api_settings_$(date +%Y%m%d_%H%M%S).txt"
+
+# Validate prerequisites
+if ! command -v gcloud &> /dev/null; then
+    echo "Error: gcloud CLI not found. Please install Google Cloud SDK."
+    exit 1
+fi
+if ! command -v jq &> /dev/null; then
+    echo "Warning: jq not found. Some JSON parsing may fail. Install with 'brew install jq'."
+fi
+if ! command -v timeout &> /dev/null; then
+    echo "Warning: timeout command not found. Install with 'brew install coreutils' for better error handling."
+fi
+
+# Fetch PROJECT_ID
+echo "Fetching Project ID..."
+PROJECT_ID=$(gcloud config get-value project)
+if [ -z "$PROJECT_ID" ]; then
+    echo "Error: Could not fetch PROJECT_ID. Ensure gcloud is authenticated."
+    exit 1
+fi
+echo "Project ID: $PROJECT_ID"
+
+# Fetch PROJECT_NUMBER
+echo "Fetching Project Number..."
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+if [ -z "$PROJECT_NUMBER" ]; then
+    PROJECT_NUMBER="unknown"
+fi
+
+# Confirm Cloud Function and REGION
+echo "Checking Cloud Function: $SERVICE_NAME..."
+if gcloud functions describe $SERVICE_NAME --region=$REGION --project=$PROJECT_ID &> /dev/null; then
+    echo "Confirmed: $SERVICE_NAME is a Cloud Function in $REGION"
+else
+    echo "Error: Cloud Function $SERVICE_NAME not found in $REGION. Trying other regions..."
+    REGION=$(gcloud functions list --project=$PROJECT_ID --format='value(region)' | grep $SERVICE_NAME | head -n 1)
+    if [ -z "$REGION" ]; then
+        echo "Error: Could not find $SERVICE_NAME as a Cloud Function in any region."
+        exit 1
+    fi
+    echo "Found in region: $REGION"
+fi
+
+# Fetch TRIGGER_URL
+echo "Fetching TRIGGER_URL..."
+TRIGGER_URL=$(gcloud functions describe $SERVICE_NAME --region=$REGION --format='value(httpsTrigger.url)')
+if [ -z "$TRIGGER_URL" ]; then
+    echo "Error: Could not fetch TRIGGER_URL for $SERVICE_NAME in $REGION."
+    TRIGGER_URL="https://$REGION-$PROJECT_ID.cloudfunctions.net/$SERVICE_NAME"
+fi
+
+# Fetch SERVICE_ACCOUNT
+echo "Fetching Cloud Function Service Account..."
+SERVICE_ACCOUNT=$(gcloud functions describe $SERVICE_NAME --region=$REGION --format='value(serviceAccountEmail)')
+if [ -z "$SERVICE_ACCOUNT" ]; then
+    SERVICE_ACCOUNT="pmc-estimator@appspot.gserviceaccount.com"
+fi
+
+# Fetch INGRESS_SETTING
+echo "Fetching Ingress Setting..."
+INGRESS_SETTING=$(gcloud functions describe $SERVICE_NAME --region=$REGION --format='value(ingressSettings)')
+if [ -z "$INGRESS_SETTING" ]; then
+    INGRESS_SETTING="unknown"
+fi
+
+# Fetch API_GATEWAY_ID
+echo "Fetching API Gateway ID..."
+API_GATEWAY_ID=$(timeout 10s gcloud api-gateway apis list --project=$PROJECT_ID --format='value(name)' | head -n 1 || echo "none")
+if [ "$API_GATEWAY_ID" = "none" ]; then
+    echo "No API Gateway configurations found."
+fi
+
+# Fetch ENDPOINTS_ID
+echo "Fetching Cloud Endpoints ID..."
+ENDPOINTS_ID=$(timeout 10s gcloud endpoints services list --project=$PROJECT_ID --format='value(serviceName)' | head -n 1 || echo "none")
+
+# Fetch SERVICE_ACCOUNT_KEY_ID
+echo "Fetching Cloud Function Service Account Key ID..."
+SERVICE_ACCOUNT_KEY_ID=$(gcloud iam service-accounts keys list --iam-account=$SERVICE_ACCOUNT --project=$PROJECT_ID --format='value(name)' | head -n 1 | awk -F'/' '{print $NF}')
+
+# Fetch APPS_SCRIPT_KEY_ID
+echo "Fetching Apps Script Service Account Key ID..."
+APPS_SCRIPT_KEY_ID=$(gcloud iam service-accounts keys list --iam-account=$APPS_SCRIPT_SERVICE_ACCOUNT --project=$PROJECT_ID --format='value(name)' | head -n 1 | awk -F'/' '{print $NF}')
+
+# Check if Apps Script Service Account has invoker permission
+echo "Checking Apps Script Service Account invoker permission..."
+APPS_SCRIPT_INVOKER=$(gcloud functions get-iam-policy $SERVICE_NAME --region=$REGION --project=$PROJECT_ID --format=json | jq '.bindings[] | select(.role=="roles/cloudfunctions.invoker") | .members[]' | grep "$APPS_SCRIPT_SERVICE_ACCOUNT" || echo "none")
+if [ "$APPS_SCRIPT_INVOKER" = "none" ]; then
+    echo "Warning: $APPS_SCRIPT_SERVICE_ACCOUNT does not have roles/cloudfunctions.invoker."
+fi
+
+# Initialize output file
+echo "Writing to output file: $OUTPUT_FILE..."
+echo "API Settings Report - $(date)" > $OUTPUT_FILE
+echo "Project ID: $PROJECT_ID" >> $OUTPUT_FILE
+echo "Project Number: $PROJECT_NUMBER" >> $OUTPUT_FILE
+echo "Service Name: $SERVICE_NAME" >> $OUTPUT_FILE
+echo "Service Type: Cloud Function" >> $OUTPUT_FILE
+echo "Region: $REGION" >> $OUTPUT_FILE
+echo "Trigger URL: $TRIGGER_URL" >> $OUTPUT_FILE
+echo "Cloud Function Service Account: $SERVICE_ACCOUNT" >> $OUTPUT_FILE
+echo "Apps Script Service Account: $APPS_SCRIPT_SERVICE_ACCOUNT" >> $OUTPUT_FILE
+echo "Ingress Setting: $INGRESS_SETTING" >> $OUTPUT_FILE
+echo "API Gateway ID: $API_GATEWAY_ID" >> $OUTPUT_FILE
+echo "Endpoints ID: $ENDPOINTS_ID" >> $OUTPUT_FILE
+echo "Cloud Function Service Account Key ID: $SERVICE_ACCOUNT_KEY_ID" >> $OUTPUT_FILE
+echo "Apps Script Service Account Key ID: $APPS_SCRIPT_KEY_ID" >> $OUTPUT_FILE
+echo "Apps Script Invoker Permission: $( [ "$APPS_SCRIPT_INVOKER" != "none" ] && echo "Present" || echo "Missing" )" >> $OUTPUT_FILE
+echo "Generated: $(date)" >> $OUTPUT_FILE
+echo "----------------------------------------" >> $OUTPUT_FILE
+
+# 1. Enabled APIs
+echo "Fetching enabled APIs..."
+echo "\n1. Enabled APIs" >> $OUTPUT_FILE
+gcloud services list --enabled --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: Failed to list enabled APIs" >> $OUTPUT_FILE
+
+# 2. Service Accounts
+echo "Fetching service accounts..."
+echo "\n2. Service Accounts" >> $OUTPUT_FILE
+gcloud iam service-accounts list --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: Failed to list service accounts" >> $OUTPUT_FILE
+
+# 3. Service Account IAM Roles (Cloud Function)
+echo "Fetching IAM roles for Cloud Function service account..."
+echo "\n3. Cloud Function Service Account IAM Roles" >> $OUTPUT_FILE
+gcloud projects get-iam-policy $PROJECT_ID --format=json | jq '.bindings[] | select(.members[] | contains("serviceAccount:'$SERVICE_ACCOUNT'"))' >> $OUTPUT_FILE || echo "Error: Failed to retrieve IAM roles for $SERVICE_ACCOUNT" >> $OUTPUT_FILE
+
+# 4. Service Account IAM Roles (Apps Script)
+echo "Fetching IAM roles for Apps Script service account..."
+echo "\n4. Apps Script Service Account IAM Roles" >> $OUTPUT_FILE
+gcloud projects get-iam-policy $PROJECT_ID --format=json | jq '.bindings[] | select(.members[] | contains("serviceAccount:'$APPS_SCRIPT_SERVICE_ACCOUNT'"))' >> $OUTPUT_FILE || echo "Error: Failed to retrieve IAM roles for $APPS_SCRIPT_SERVICE_ACCOUNT" >> $OUTPUT_FILE
+
+# 5. Cloud Function Details
+echo "Fetching Cloud Function details..."
+echo "\n5. Cloud Function Details" >> $OUTPUT_FILE
+gcloud functions describe $SERVICE_NAME --region=$REGION --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: Cloud Function $SERVICE_NAME not found in $REGION" >> $OUTPUT_FILE
+
+# 6. Cloud Function IAM Policy
+echo "Fetching Cloud Function IAM policy..."
+echo "\n6. Cloud Function IAM Policy" >> $OUTPUT_FILE
+gcloud functions get-iam-policy $SERVICE_NAME --region=$REGION --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: IAM policy not found for $SERVICE_NAME" >> $OUTPUT_FILE
+
+# 7. Recent API Logs
+echo "Fetching API logs..."
+echo "\n7. Recent API Logs" >> $OUTPUT_FILE
+gcloud logging read "resource.type=cloud_function resource.labels.function_name=$SERVICE_NAME timestamp>=\"$LOG_TIMESTAMP\"" --project=$PROJECT_ID --limit=$LOG_LIMIT >> $OUTPUT_FILE || echo "No logs found" >> $OUTPUT_FILE
+
+# 8. API Gateway Configurations
+echo "Fetching API Gateway configurations..."
+echo "\n8. API Gateway Configurations" >> $OUTPUT_FILE
+gcloud api-gateway apis list --project=$PROJECT_ID >> $OUTPUT_FILE || echo "No API Gateway configurations found" >> $OUTPUT_FILE
+if [ -n "$API_GATEWAY_ID" ] && [ "$API_GATEWAY_ID" != "none" ]; then
+    gcloud api-gateway apis describe $API_GATEWAY_ID --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: API Gateway $API_GATEWAY_ID not found" >> $OUTPUT_FILE
+fi
+
+# 9. Cloud Endpoints
+echo "Fetching Cloud Endpoints..."
+echo "\n9. Cloud Endpoints" >> $OUTPUT_FILE
+gcloud endpoints services list --project=$PROJECT_ID >> $OUTPUT_FILE || echo "No Cloud Endpoints found" >> $OUTPUT_FILE
+if [ -n "$ENDPOINTS_ID" ]; then
+    gcloud endpoints services describe $ENDPOINTS_ID --project=$PROJECT_ID >> $OUTPUT_FILE || echo "Error: Endpoint $ENDPOINTS_ID not found" >> $OUTPUT_FILE
+fi
+
+# 10. Billing Status
+echo "Checking billing status..."
+echo "\n10. Billing Status" >> $OUTPUT_FILE
+gcloud billing projects describe $PROJECT_ID --format='value(billingEnabled)' >> $OUTPUT_FILE || echo "Error: Failed to fetch billing status" >> $OUTPUT_FILE
+echo "Note: Check Google Cloud Console (Billing > Overview) for detailed usage and budget alerts." >> $OUTPUT_FILE
+
+echo "Script completed. Check $OUTPUT_FILE for details."

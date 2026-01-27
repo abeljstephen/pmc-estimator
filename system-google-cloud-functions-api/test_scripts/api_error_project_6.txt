@@ -1,0 +1,33 @@
+* Host us-central1-pmc-estimator.cloudfunctions.net:443 was resolved.
+* IPv6: 2001:4860:4802:36::36
+* IPv4: 216.239.36.54
+*   Trying [2001:4860:4802:36::36]:443...
+* Connected to us-central1-pmc-estimator.cloudfunctions.net (2001:4860:4802:36::36) port 443
+* ALPN: curl offers h2,http/1.1
+* (304) (OUT), TLS handshake, Client hello (1):
+} [349 bytes data]
+*  CAfile: /etc/ssl/cert.pem
+*  CApath: none
+* (304) (IN), TLS handshake, Server hello (2):
+{ [122 bytes data]
+* (304) (IN), TLS handshake, Unknown (8):
+{ [15 bytes data]
+* (304) (IN), TLS handshake, Certificate (11):
+{ [9906 bytes data]
+* (304) (IN), TLS handshake, CERT verify (15):
+{ [80 bytes data]
+* (304) (IN), TLS handshake, Finished (20):
+{ [52 bytes data]
+* (304) (OUT), TLS handshake, Finished (20):
+} [52 bytes data]
+* SSL connection using TLSv1.3 / AEAD-AES256-GCM-SHA384 / [blank] / UNDEF
+* ALPN: server accepted h2
+* Server certificate:
+*  subject: CN=misc.google.com
+*  start date: Aug 18 08:40:31 2025 GMT
+*  expire date: Nov 10 08:40:30 2025 GMT
+*  subjectAltName: host "us-central1-pmc-estimator.cloudfunctions.net" matched cert's "*.cloudfunctions.net"
+*  issuer: C=US; O=Google Trust Services; CN=WE2
+*  SSL certificate verify ok.
+* using HTTP/2
+* Connection #0 to host us-central1-pmc-estimator.cloudfunctions.net left intact

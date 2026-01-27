@@ -1,0 +1,345 @@
+/*
+ * File: /Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/test_scripts/test_distribution.js
+ * Tests distribution reshaping and probability calculations for pmcEstimatorAPI.
+ * Supports triangle, PERT, beta, Monte Carlo raw, and Monte Carlo smoothed distributions.
+ * Used to validate slider-driven reshaping in a PM context (cost, scope, schedule, risk).
+ *
+ * Architectural/Code Design Roadmap:
+ * 1. Strict Range Compliance:
+ *    - Purpose: Ensure inputs (target, sliders) within valid ranges (e.g., target in [1800, 3000], sliders in [0, 100]).
+ * 2. Numerical Stability:
+ *    - Purpose: Prevent NaN/Infinity in probability calculations.
+ * 3. Robust Error Handling:
+ *    - Purpose: Propagate errors to caller without fallbacks.
+ * 4. Performance Optimization:
+ *    - Purpose: Achieve <30ms total run time, <5ms for reshaping, <15ms for optimization.
+ * 5. Granular Diagnostics:
+ *    - Purpose: Log baseline, optimized, and user-specified results for tracing.
+ * 6. Code Separation:
+ *    - Purpose: General logic for testing, no production-specific code.
+ * 7. Strict Error Propagation:
+ *    - Purpose: Propagate all errors without defaults or fallbacks.
+ * 8. Universal Distribution Support:
+ *    - Purpose: Test all distributions with copula-driven reshaping via beta distribution fitting.
+ * 9. PM Context:
+ *    - Purpose: Ensure sliders (budgetFlexibility, scheduleFlexibility, etc.) reflect cost, scope, schedule, and risk, with correlations via copula.
+ *
+ * Mathematical Principles:
+ * - Reshaping: Use adjusted moments (mean-shift, skew, variance, kurtosis) from copula-utils.js to fit a beta distribution, generating new PDF/CDF points (Mood et al., 1974).
+ * - Probability: P(X ≤ targetValue) computed via interpolation of reshaped CDF.
+ * - Sliders: S = [s1, ..., s7] (7x1), C (7x4, sliders x moments), R (7x7, correlations), M = C^T * S' (4x1 moments, S' = copula(S, R)).
+ * - Justification: Beta distribution is flexible for PM uncertainties (cost, schedule), with copula modeling correlations (e.g., budget-schedule trade-offs) (Hulett, 2007).
+ * - Why This Approach: Universal reshaping via copula ensures consistent, correlated slider contributions to mean, skew, variance, kurtosis, aligning with PM risk analysis (ICSRA).
+ *
+ * Fixes Applied:
+ * - [2025-09-03] Removed useCopulaForReshaping parameter, as all reshaping uses copula (Fix 1).
+ * - [2025-09-03] Updated to use universal reshaping via beta distribution fitting (Fix 2).
+ * - [2025-09-03] Corrected require paths to core/baseline for distribution modules (Fix 3).
+ * - [2025-09-03] Removed erroneous copula-utils.js import and verified all paths (Fix 4).
+ * - [2025-09-03] Enhanced input validation for target and sliders (Fix 5).
+ * - [2025-09-03] Added logging for baseline, optimized, and user-specified results (Fix 6).
+ * - [2025-09-03] Added detailed logging for baselineResult to diagnose Invalid baseline points error (Fix 7).
+ * - [2025-09-03] Updated import names to match baseline module exports (Fix 8).
+ * - [2025-09-03] Added import for interpolateCdf from metrics.js (Fix 9).
+ * - [2025-09-03] Fixed start variable scoping issue in optimization block (Fix 10).
+ * - [2025-09-03] Ensured consistent start variable scoping across all blocks (Fix 11).
+ * - [2025-09-03] Fixed start scoping in optimization catch clause (Fix 12).
+ *
+ * References:
+ * - Mood et al. (1974). Introduction to the Theory of Statistics.
+ * - Hulett, D. (2007). Integrated Cost and Schedule Risk Analysis Using Monte Carlo Simulation.
+ * - Sklar, A. (1959). Fonctions de répartition à n dimensions et leurs marges.
+ */
+
+'use strict';
+
+const path = require('path');
+const readline = require('readline');
+const { generateTrianglePoints } = require(path.join(__dirname, '../core/baseline/triangle-points'));
+const { generatePertPoints } = require(path.join(__dirname, '../core/baseline/pert-points'));
+const { generateBetaPoints } = require(path.join(__dirname, '../core/baseline/beta-points'));
+const { generateMonteCarloRawPoints } = require(path.join(__dirname, '../core/baseline/monte-carlo-raw'));
+const { generateMonteCarloSmoothedPoints } = require(path.join(__dirname, '../core/baseline/monte-carlo-smoothed'));
+const { optimizeSliders } = require(path.join(__dirname, '../core/optimization/slider-optimizer'));
+const { computeSliderProbability } = require(path.join(__dirname, '../core/reshaping/slider-adjustments'));
+const { isValidPdfArray, isValidCdfArray } = require(path.join(__dirname, '../core/helpers/validation'));
+const { interpolateCdf } = require(path.join(__dirname, '../core/helpers/metrics'));
+
+console.log('test_distribution.js: File found at', __filename);
+console.log('test_distribution.js: Starting');
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+/**
+ * Prompts user for input with validation.
+ * @param {string} question - Prompt text
+ * @param {Function} validator - Validation function
+ * @param {any} defaultValue - Default value if input is empty
+ * @returns {Promise<any>} - Validated input
+ */
+function prompt(question, validator, defaultValue) {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      if (answer === '' && defaultValue !== undefined) {
+        resolve(defaultValue);
+      } else {
+        const validated = validator(answer);
+        if (validated.valid) {
+          resolve(validated.value);
+        } else {
+          console.log(validated.message);
+          resolve(prompt(question, validator, defaultValue));
+        }
+      }
+    });
+  });
+}
+
+/**
+ * Validates distribution type input.
+ * @param {string} input - User input
+ * @returns {Object} - { valid, value, message }
+ */
+function validateDistributionType(input) {
+  const num = parseInt(input, 10);
+  const types = ['triangle', 'pert', 'beta', 'monte-carlo-raw', 'monte-carlo-smoothed'];
+  if (!Number.isFinite(num) || num < 1 || num > types.length) {
+    return { valid: false, message: `Invalid input. Please enter a number between 1 and ${types.length}.`, value: null };
+  }
+  return { valid: true, value: types[num - 1], message: null };
+}
+
+/**
+ * Validates target value input.
+ * @param {string} input - User input
+ * @returns {Object} - { valid, value, message }
+ */
+function validateTargetValue(input) {
+  const num = parseFloat(input);
+  if (!Number.isFinite(num) || num < 1800 || num > 3000) {
+    return { valid: false, message: 'Invalid target value. Please enter a number between 1800 and 3000.', value: null };
+  }
+  return { valid: true, value: num, message: null };
+}
+
+/**
+ * Validates yes/no input.
+ * @param {string} input - User input
+ * @returns {Object} - { valid, value, message }
+ */
+function validateYesNo(input) {
+  const normalized = input.toLowerCase();
+  if (normalized !== 'y' && normalized !== 'n') {
+    return { valid: false, message: 'Please enter y or n.', value: null };
+  }
+  return { valid: true, value: normalized === 'y', message: null };
+}
+
+/**
+ * Tests the distribution with user inputs.
+ * @param {string} distributionType - Distribution type
+ * @param {number} targetValue - Target value
+ * @param {Object} userSliders - User-defined sliders
+ */
+async function testDistribution(distributionType, targetValue, userSliders) {
+  console.log(`testDistribution: Testing distribution: ${distributionType}`);
+  const optimistic = 1800;
+  const mostLikely = 2400;
+  const pessimistic = 3000;
+
+  // Step 1: Generate baseline distribution - Based on distributionType.
+  console.log('testDistribution: Computing baseline');
+  console.time('testDistribution-baseline');
+  let baselineResult;
+  let baselineTime;
+  try {
+    const start = performance.now();
+    switch (distributionType) {
+      case 'triangle':
+        baselineResult = await generateTrianglePoints({ optimistic, mostLikely, pessimistic, numSamples: 1000 });
+        break;
+      case 'pert':
+        baselineResult = await generatePertPoints({ optimistic, mostLikely, pessimistic, numSamples: 1000 });
+        break;
+      case 'beta':
+        baselineResult = await generateBetaPoints({ optimistic, mostLikely, pessimistic, numSamples: 1000 });
+        break;
+      case 'monte-carlo-raw':
+        baselineResult = await generateMonteCarloRawPoints({ optimistic, mostLikely, pessimistic, numSamples: 1000 });
+        break;
+      case 'monte-carlo-smoothed':
+        baselineResult = await generateMonteCarloSmoothedPoints({ optimistic, mostLikely, pessimistic, numSamples: 1000 });
+        break;
+      default:
+        throw new Error('Invalid distribution type');
+    }
+
+    console.log('testDistribution: Baseline result', {
+      pdfPointsLength: baselineResult?.pdfPoints?.length,
+      cdfPointsLength: baselineResult?.cdfPoints?.length,
+      pdfPointsSample: baselineResult?.pdfPoints?.slice(0, 5),
+      cdfPointsSample: baselineResult?.cdfPoints?.slice(0, 5),
+      error: baselineResult?.error
+    });
+
+    if (baselineResult?.error || !baselineResult || !isValidPdfArray(baselineResult.pdfPoints) || !isValidCdfArray(baselineResult.cdfPoints)) {
+      throw new Error(baselineResult?.error || 'Invalid baseline points');
+    }
+
+    const baselineProbability = interpolateCdf(baselineResult.cdfPoints, targetValue);
+    if (baselineProbability.error || !Number.isFinite(baselineProbability.value)) {
+      throw new Error(baselineProbability.error || 'Invalid baseline probability');
+    }
+
+    baselineTime = performance.now() - start;
+    console.log(`(1) Baseline Probability: ${baselineProbability.value}`);
+    console.timeEnd('testDistribution-baseline');
+  } catch (error) {
+    console.error('testDistribution: Baseline failed', { message: error.message, stack: error.stack });
+    throw new Error(`Baseline computation failed: ${error.message || 'Unknown error'}`);
+  }
+
+  // Step 2: Optimize sliders - Using copula-driven reshaping.
+  console.log('testDistribution: Computing optimized sliders');
+  console.time('testDistribution-optimized');
+  let optimizedResult;
+  let optimizedTime;
+  const optimizeStart = performance.now();
+  try {
+    const params = {
+      points: baselineResult,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      targetValue,
+      optimizeFor: 'target',
+      distributionType
+    };
+    optimizedResult = await optimizeSliders(params);
+    if (optimizedResult.error) {
+      throw new Error(optimizedResult.error);
+    }
+    optimizedTime = performance.now() - optimizeStart;
+    console.log(`(2) Optimized Sliders:`, optimizedResult.sliders, `Probability: ${optimizedResult.probability?.value || 'N/A'}`);
+    console.timeEnd('testDistribution-optimized');
+  } catch (error) {
+    console.error('testDistribution: Optimized Sliders failed', { message: error.message, stack: error.stack });
+    console.log(`(2) Optimized Sliders failed`, { message: error.message, stack: error.stack });
+    optimizedResult = { sliders: {}, reshapedPoints: null, probability: { value: 0, error: error.message }, error: error.message };
+    optimizedTime = performance.now() - optimizeStart;
+    throw new Error(`Optimized sliders failed: ${error.message || 'Unknown error'}`);
+  }
+
+  // Step 3: Compute user-specified sliders - Using copula-driven reshaping.
+  console.log('testDistribution: Computing user sliders', { userSliders });
+  console.time('testDistribution-user');
+  let userResult;
+  let userTime;
+  const userStart = performance.now();
+  try {
+    userResult = await computeSliderProbability({
+      points: baselineResult,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      targetValue,
+      sliderValues: userSliders,
+      shiftDirection: targetValue < mostLikely ? -1 : targetValue > mostLikely ? 1 : 0,
+      distributionType
+    });
+    if (userResult.error) {
+      throw new Error(userResult.error);
+    }
+    userTime = performance.now() - userStart;
+    console.log(`(3) User Sliders Probability: ${userResult.probability.value}`);
+    console.timeEnd('testDistribution-user');
+  } catch (error) {
+    console.error('testDistribution: User Sliders failed', { message: error.message, stack: error.stack });
+    console.log(`(3) User Sliders failed`, { message: error.message, stack: error.stack });
+    userResult = { reshapedPoints: null, probability: { value: 0, error: error.message }, error: error.message };
+    userTime = performance.now() - userStart;
+    throw new Error(`User sliders failed: ${error.message || 'Unknown error'}`);
+  }
+
+  // Step 4: Log consolidated results - Compare baseline, user, and optimized.
+  console.time('logConsolidatedTable');
+  console.log('Consolidated Distribution Test Results');
+  console.log('-----------------------------------------------------------------------------------');
+  console.log(`| Metric                     | Baseline           | User-Specified (Target ${targetValue}) | Optimized (Target ${targetValue}) |`);
+  console.log('-----------------------------------------------------------------------------------');
+  console.log(`| Probability P(X ≤ ${targetValue})    | ${(baselineProbability.value * 100).toFixed(2)}%            | ${(userResult.probability.value * 100).toFixed(2)}%                      | ${(optimizedResult.probability?.value * 100 || 'N/A').toFixed(2)}%                     |`);
+  console.log(`| Budget Flexibility         | 0                  | ${userSliders.budgetFlexibility}                          | ${optimizedResult.sliders.budgetFlexibility || 'N/A'}                     |`);
+  console.log(`| Schedule Flexibility       | 0                  | ${userSliders.scheduleFlexibility}                          | ${optimizedResult.sliders.scheduleFlexibility || 'N/A'}                     |`);
+  console.log(`| Scope Certainty            | 0                  | ${userSliders.scopeCertainty}                          | ${optimizedResult.sliders.scopeCertainty || 'N/A'}                     |`);
+  console.log(`| Scope Reduction Allowance  | 0                  | ${userSliders.scopeReductionAllowance}                          | ${optimizedResult.sliders.scopeReductionAllowance || 'N/A'}                     |`);
+  console.log(`| Rework Percentage          | 0                  | ${userSliders.reworkPercentage}                           | ${optimizedResult.sliders.reworkPercentage || 'N/A'}                     |`);
+  console.log(`| Risk Tolerance             | 0                  | ${userSliders.riskTolerance}                         | ${optimizedResult.sliders.riskTolerance || 'N/A'}                     |`);
+  console.log(`| User Confidence            | 0                  | ${userSliders.userConfidence}                         | ${optimizedResult.sliders.userConfidence || 'N/A'}                     |`);
+  console.log(`| PDF Points                 | ${baselineResult.pdfPoints.length}                | ${userResult.reshapedPoints?.pdfPoints.length || 'N/A'}                          | ${optimizedResult.reshapedPoints?.pdfPoints.length || 'N/A'}                     |`);
+  console.log(`| CDF Points                 | ${baselineResult.cdfPoints.length}                | ${userResult.reshapedPoints?.cdfPoints.length || 'N/A'}                          | ${optimizedResult.reshapedPoints?.cdfPoints.length || 'N/A'}                     |`);
+  console.log(`| Execution Time (ms)        | ${baselineTime.toFixed(3)}              | ${userTime.toFixed(3)}                       | ${optimizedTime.toFixed(3)}                  |`);
+  console.log('-----------------------------------------------------------------------------------');
+  console.timeEnd('logConsolidatedTable');
+}
+
+/**
+ * Main function to run the test.
+ */
+async function main() {
+  let distributionType = 'triangle'; // Default for logging
+  console.time(`testDistribution-${distributionType}`);
+  try {
+    // Step 1: Prompt for distribution type - Select from supported types.
+    distributionType = await prompt(
+      'Select distribution type:\n1. triangle\n2. pert\n3. beta\n4. monte-carlo-raw\n5. monte-carlo-smoothed\nEnter number (1-5): ',
+      validateDistributionType
+    );
+
+    // Step 2: Prompt for target value - Must be in [1800, 3000].
+    const targetValue = await prompt(
+      'Enter target value (1800 to 3000, default 2400): ',
+      validateTargetValue,
+      2400
+    );
+
+    // Step 3: Prompt for user sliders - Use defaults or custom.
+    const defaultSliders = {
+      budgetFlexibility: 20,
+      scheduleFlexibility: 40,
+      scopeCertainty: 60,
+      scopeReductionAllowance: 80,
+      reworkPercentage: 0,
+      riskTolerance: 100,
+      userConfidence: 100
+    };
+    console.log('Default sliders:', defaultSliders);
+    const useDefault = await prompt(
+      'Use default sliders? (y/n): ',
+      validateYesNo,
+      true
+    );
+    const userSliders = useDefault ? defaultSliders : await promptForCustomSliders();
+
+    // Step 4: Run test - Compute and log results.
+    await testDistribution(distributionType, targetValue, userSliders);
+  } catch (error) {
+    console.error('main: Error', { message: error.message, stack: error.stack });
+  } finally {
+    console.timeEnd(`testDistribution-${distributionType}`);
+    rl.close();
+  }
+}
+
+/**
+ * Prompts for custom sliders (not used with defaults).
+ * @returns {Object} - Custom slider values
+ */
+async function promptForCustomSliders() {
+  throw new Error('Custom slider input not implemented');
+}
+
+// Run the test
+main();

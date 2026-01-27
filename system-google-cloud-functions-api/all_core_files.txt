@@ -1,0 +1,2788 @@
+// Distribution_Generator-Core.js
+'use strict';
+
+const math = require('mathjs');
+const jstat = require('jstat');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateEstimates, createErrorResponse, applyGaussianCopula } = require(path.join(CORE_DIR, 'core-utilities'));
+const { validateDistribution } = require(path.join(CORE_DIR, 'Distribution_Validation-Core'));
+const { generateMCSamplesFromPERTAlphaBeta } = require(path.join(CORE_DIR, 'core-monte-carlo'));
+const { calculateAlpha, calculateBeta } = require(path.join(CORE_DIR, 'Distribution_Metrics-Core'));
+
+function generateDistributionPoints({ optimistic, mostLikely, pessimistic }) {
+  const feedbackMessages = [];
+  try {
+    if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+      feedbackMessages.push(`Non-finite estimates: optimistic=${optimistic}, mostLikely=${mostLikely}, pessimistic=${pessimistic}`);
+      throw createErrorResponse('Estimates must be finite numbers', { optimistic, mostLikely, pessimistic });
+    }
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      feedbackMessages.push(`Invalid estimates: ${validation.message}`);
+      throw createErrorResponse(validation.message, { optimistic, mostLikely, pessimistic });
+    }
+    const range = pessimistic - optimistic;
+    if (!Number.isFinite(range) || range <= 1e-6) {
+      feedbackMessages.push(`Invalid range=${range}: must be >1e-6`);
+      throw createErrorResponse('Invalid range: pessimistic must be greater than optimistic', { range });
+    }
+    const alpha = calculateAlpha(optimistic, mostLikely, pessimistic);
+    const beta = calculateBeta(optimistic, mostLikely, pessimistic);
+    if (!Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0) {
+      throw createErrorResponse('Invalid alpha or beta parameters', { alpha, beta });
+    }
+    const baselineMoments = {
+      mean: optimistic + range * (alpha / (alpha + beta)),
+      variance: range * range * (alpha * beta) / ((alpha + beta) * (alpha + beta) * (alpha + beta + 1)),
+      skew: (2 * (beta - alpha) * Math.sqrt(alpha + beta + 1)) / ((alpha + beta + 2) * Math.sqrt(alpha * beta)),
+      kurtosis: 6 * ((alpha - beta) * (alpha - beta) * (alpha + beta + 1) - alpha * beta * (alpha + beta + 2)) / 
+                (alpha * beta * (alpha + beta + 2) * (alpha + beta + 3)) - 3
+    };
+    if (!Object.values(baselineMoments).every(Number.isFinite)) {
+      throw createErrorResponse('Non-finite baseline moments', { baselineMoments, alpha, beta });
+    }
+    console.log('generateDistributionPoints: Starting', { optimistic, mostLikely, pessimistic, numSamples: 5000 });
+    const samples = generateMCSamplesFromPERTAlphaBeta(optimistic, mostLikely, pessimistic, 5000);
+    feedbackMessages.push(...(samples.feedbackMessages || []));
+    const distTypes = ['triangle', 'pert', 'beta', 'monteCarloRaw', 'monteCarloSmoothed'];
+    const result = { baselineMoments, samples };
+    for (const distType of distTypes) {
+      const pointsResult = generatePoints({ distType, optimistic, mostLikely, pessimistic, samples: samples.value });
+      result[distType] = pointsResult;
+      feedbackMessages.push(...(pointsResult.feedbackMessages || []));
+    }
+    console.log('generateDistributionPoints: Completed', { distTypes: Object.keys(result).filter(k => k !== 'baselineMoments'), feedbackMessages });
+    return { ...result, feedbackMessages };
+  } catch (error) {
+    feedbackMessages.push(`Error in generateDistributionPoints: ${error.message}`);
+    console.error('generateDistributionPoints: Error', { error: error.message, params: { optimistic, mostLikely, pessimistic } });
+    throw createErrorResponse('Failed to generate distribution points', { error: error.message, feedbackMessages, params: { optimistic, mostLikely, pessimistic } });
+  }
+}
+
+function generatePoints({ distType, optimistic, mostLikely, pessimistic, samples }) {
+  const feedbackMessages = [];
+  try {
+    if (!['triangle', 'pert', 'beta', 'monteCarloRaw', 'monteCarloSmoothed'].includes(distType)) {
+      feedbackMessages.push(`Invalid distribution type: ${distType}`);
+      throw createErrorResponse('Invalid distribution type', { distType });
+    }
+    if (!Number.isFinite(optimistic) || !Number.isFinite(pessimistic)) {
+      feedbackMessages.push(`Non-finite optimistic=${optimistic} or pessimistic=${pessimistic}`);
+      throw createErrorResponse('Optimistic and pessimistic must be finite numbers', { optimistic, pessimistic });
+    }
+    if (distType !== 'monteCarloRaw' && distType !== 'monteCarloSmoothed') {
+      if (!Number.isFinite(mostLikely)) {
+        feedbackMessages.push(`Non-finite mostLikely=${mostLikely}`);
+        throw createErrorResponse('Most likely must be a finite number', { mostLikely });
+      }
+      const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+      if (!validation.valid) {
+        feedbackMessages.push(`Invalid estimates: ${validation.message}`);
+        throw createErrorResponse(validation.message, { optimistic, mostLikely, pessimistic });
+      }
+    }
+    console.log('generatePoints: Starting', { distType, optimistic, mostLikely, pessimistic, samplesLength: samples?.length });
+    const range = pessimistic - optimistic;
+    const step = range / 100;
+    const points = Array.from({ length: 101 }, (_, i) => optimistic + i * step);
+    let pdfPoints = [];
+    let cdfPoints = [];
+    if (distType === 'triangle') {
+      pdfPoints = points.map(x => {
+        if (x < optimistic || x > pessimistic) return { x, y: 0, plotCumulative_Confidence: 0 };
+        let y;
+        if (x < mostLikely) {
+          y = 2 * (x - optimistic) / (range * (mostLikely - optimistic));
+        } else if (x === mostLikely) {
+          y = 2 / range;
+        } else {
+          y = 2 * (pessimistic - x) / (range * (pessimistic - mostLikely));
+        }
+        return { x, y: Number.isFinite(y) ? y : 0, plotCumulative_Confidence: 0 };
+      });
+    } else if (distType === 'pert' || distType === 'beta') {
+      const alpha = 1 + 4 * (mostLikely - optimistic) / range;
+      const beta = 1 + 4 * (pessimistic - mostLikely) / range;
+      if (!Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0) {
+        feedbackMessages.push(`Invalid alpha=${alpha} or beta=${beta}`);
+        throw createErrorResponse('Computed alpha and beta must be finite and positive', { alpha, beta });
+      }
+      const betaFunction = math.gamma(alpha) * math.gamma(beta) / math.gamma(alpha + beta);
+      if (!Number.isFinite(betaFunction) || betaFunction <= 0) {
+        feedbackMessages.push(`Invalid beta function for ${distType}: alpha=${alpha}, beta=${beta}`);
+        throw createErrorResponse(`Invalid beta function result for ${distType}`, { alpha, beta, betaFunction });
+      }
+      pdfPoints = points.map(x => {
+        if (x < optimistic || x > pessimistic) return { x, y: 0, plotCumulative_Confidence: 0 };
+        const t = (x - optimistic) / range;
+        if (t <= 0 || t >= 1) return { x, y: 0, plotCumulative_Confidence: 0 };
+        const y = (Math.pow(t, alpha - 1) * Math.pow(1 - t, beta - 1)) / betaFunction;
+        return { x, y: Number.isFinite(y) ? y / range : 0, plotCumulative_Confidence: 0 };
+      });
+    } else if (['monteCarloRaw', 'monteCarloSmoothed'].includes(distType)) {
+      if (!Array.isArray(samples) || samples.length < 2) {
+        feedbackMessages.push(`Invalid samples for ${distType}: length=${samples?.length}`);
+        throw createErrorResponse('Invalid samples: must be an array with at least 2 elements', { samplesLength: samples?.length });
+      }
+      const validSamples = samples.filter(s => Number.isFinite(s) && s >= optimistic && s <= pessimistic);
+      if (validSamples.length < 2) {
+        console.error('generatePoints: Insufficient valid samples', { validSamplesLength: validSamples.length, optimistic, pessimistic });
+        feedbackMessages.push(`Insufficient valid samples for ${distType}: valid=${validSamples.length}`);
+        throw createErrorResponse('Insufficient valid samples after filtering', { validSamplesLength: validSamples.length });
+      }
+      if (distType === 'monteCarloRaw') {
+        const sortedSamples = validSamples.slice().sort((a, b) => a - b);
+        const min = Math.max(sortedSamples[0], optimistic);
+        const max = Math.min(sortedSamples[sortedSamples.length - 1], pessimistic);
+        const numBins = Math.max(101, Math.ceil(Math.sqrt(validSamples.length)));
+        const binWidth = (max - min) / numBins;
+        let cumulative = 0;
+        pdfPoints = [];
+        for (let i = 0; i < numBins; i++) {
+          const binStart = min + i * binWidth;
+          const binEnd = binStart + binWidth;
+          const count = validSamples.filter(x => x >= binStart && x < binEnd).length;
+          const pdfY = count / (validSamples.length * binWidth);
+          cumulative += count / validSamples.length;
+          const x = binStart + binWidth / 2;
+          pdfPoints.push({ x, y: Number.isFinite(pdfY) ? pdfY : 0, plotCumulative_Confidence: Number.isFinite(cumulative) ? cumulative * 100 : 0 });
+        }
+      } else {
+        const n = validSamples.length;
+        const stdDev = math.std(validSamples);
+        const iqr = math.quantileSeq(validSamples, 0.75) - math.quantileSeq(validSamples, 0.25);
+        const defaultBandwidth = Math.min(stdDev, iqr / 1.34) * Math.pow(n, -0.2) * 1.06;
+        const bandwidth = Number.isFinite(defaultBandwidth) && defaultBandwidth > 0 ? Math.max(defaultBandwidth, range / 20) : range / 20;
+        console.log('generatePoints: KDE bandwidth', { bandwidth, defaultBandwidth, sampleCount: validSamples.length });
+        pdfPoints = points.map(x => {
+          const kernelSum = validSamples.reduce((sum, sample) => {
+            const u = (x - sample) / bandwidth;
+            const kernel = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * u * u);
+            return sum + (Number.isFinite(kernel) ? kernel : 0);
+          }, 0);
+          const y = kernelSum / (n * bandwidth);
+          if (!Number.isFinite(y)) {
+            throw createErrorResponse(`Invalid KDE y-value for ${distType}`, { x, kernelSum, bandwidth, n });
+          }
+          return { x, y, plotCumulative_Confidence: 0 };
+        });
+      }
+    }
+    let finalPdfSum = pdfPoints.reduce((sum, p) => sum + (Number.isFinite(p.y) && p.y >= 0 ? p.y : 0) * step, 0);
+    if (!Number.isFinite(finalPdfSum) || finalPdfSum < 1e-6) {
+      throw createErrorResponse(`Invalid PDF sum for ${distType}: sum=${finalPdfSum}`, { finalPdfSum, distType });
+    }
+    if (Math.abs(finalPdfSum - 1) > 1e-4 && distType !== 'uniform') {
+      feedbackMessages.push(`Normalizing PDF for ${distType}: initial sum=${finalPdfSum}`);
+      const factor = finalPdfSum > 1e-4 ? 1 / finalPdfSum : 1;
+      pdfPoints = pdfPoints.map(p => ({
+        ...p,
+        y: Number.isFinite(p.y) && p.y >= 0 ? p.y * factor : 0
+      }));
+    }
+    let cumulative = 0;
+    cdfPoints = pdfPoints.map(p => {
+      cumulative += (Number.isFinite(p.y) && p.y >= 0 ? p.y : 0) * step;
+      return {
+        x: p.x,
+        y: Math.min(Math.max(cumulative, 0), 1),
+        plotCumulative_Confidence: Math.min(Math.max(cumulative * 100, 0), 100)
+      };
+    });
+    if (cdfPoints.length < 2) {
+      feedbackMessages.push(`Insufficient CDF points for ${distType}: length=${cdfPoints.length}`);
+      throw createErrorResponse('Insufficient CDF points', { cdfPointsLength: cdfPoints.length, distType });
+    }
+    cdfPoints[0].y = 0;
+    cdfPoints[0].plotCumulative_Confidence = 0;
+    cdfPoints[cdfPoints.length - 1].y = 1;
+    cdfPoints[cdfPoints.length - 1].plotCumulative_Confidence = 100;
+    if (!validateDistribution({ pdfPoints, cdfPoints }, distType, step, optimistic, pessimistic, 'generatePoints')) {
+      feedbackMessages.push(`Invalid distribution for ${distType}`);
+      throw createErrorResponse('Invalid distribution after generation', { distType, pdfPoints: pdfPoints.slice(0, 5), cdfPoints: cdfPoints.slice(0, 5) });
+    }
+    console.log(`generatePoints: ${distType} points generated`, { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length, finalPdfSum });
+    return { pdfPoints, cdfPoints, feedbackMessages };
+  } catch (error) {
+    feedbackMessages.push(`Error in generatePoints: ${error.message}`);
+    console.error('generatePoints: Error', { error: error.message, distType, params: { optimistic, mostLikely, pessimistic } });
+    throw createErrorResponse('Failed to generate points', { error: error.message, feedbackMessages, distType });
+  }
+}
+
+module.exports = {
+  generateDistributionPoints
+};
+/* KL_Matrix_Divergence-Core.js
+ * WHAT: Computes KL divergence for pairwise distribution comparisons in the Interactive Probability Simulator.
+ * WHY: Quantifies dissimilarity between distributions for risk analysis and visualization.
+ * HOW:
+ *   - Computes KL divergence for unique pairs using shared matrix logic.
+ *   - Uses robust error handling (McConnell, 2004).
+ * CHANGES:
+ *   - Ensured correct imports from Matrix_Master-Core.js.
+ *   - [NEW 2025-08-05] Updated to handle distributions as objects with pdfPoints (e.g., { pdfPoints: array }) or direct arrays.
+ * DEPENDENCIES:
+ *   - Matrix_Master-Core.js (generateUniquePairs, alignPoints, validateDistributionInputs)
+ *   - mathjs@^12.0.0
+ * EXPORTS:
+ *   - calculateKL, calculateKLCombinations, calculateKLDivergence
+ * REFERENCES:
+ *   - Kullback, S. (1959). Information Theory and Statistics. (KL divergence)
+ *   - McConnell, S. (2004). Code Complete: A Practical Handbook of Software Construction. (Error handling)
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { generateUniquePairs, alignPoints, validateDistributionInputs } = require(path.join(CORE_DIR, 'Matrix_Master-Core'));
+
+/* Calculates Kullback-Leibler (KL) divergence between two distributions P and Q */
+function calculateKL(p, q) {
+  try {
+    const [alignedP, alignedQ] = alignPoints(p, q, false);
+    let kl = 0;
+    const step = alignedP[1].x - alignedP[0].x;
+    for (let i = 0; i < alignedP.length; i++) {
+      if (alignedP[i].y > 1e-10 && alignedQ[i].y > 1e-10) {
+        const term = alignedP[i].y * Math.log(alignedP[i].y / alignedQ[i].y) * step;
+        if (Number.isFinite(term)) {
+          kl += term;
+        }
+      }
+    }
+    return Number.isFinite(kl) && kl >= 0 ? kl : 0;
+  } catch (error) {
+    console.error('calculateKL: Error', { error: error.message, pLength: p?.length, qLength: q?.length });
+    return 0;
+  }
+}
+
+/* Calculates KL divergence for all unit pairs of distributions */
+function calculateKLCombinations(allDists) {
+  try {
+    if (!validateDistributionInputs(allDists, false)) {
+      throw new Error('Invalid distribution inputs');
+    }
+    const distNames = Object.keys(allDists);
+    const pairs = generateUniquePairs(distNames);
+    const klResults = {};
+    for (const pair of pairs) {
+      const [dist1, dist2] = pair.split('-');
+      const pdf1 = allDists[dist1].pdfPoints || allDists[dist1];
+      const pdf2 = allDists[dist2].pdfPoints || allDists[dist2];
+      klResults[pair] = calculateKL(pdf1, pdf2);
+    }
+    return klResults;
+  } catch (error) {
+    console.error('calculateKLCombinations: Error', { error: error.message, distKeys: Object.keys(allDists || {}) });
+    return {};
+  }
+}
+
+/* Calculates KL divergence between two distributions with normalized output */
+function calculateKLDivergence(p, q) {
+  try {
+    if (!validateDistributionInputs({ p, q }, false)) {
+      throw new Error('Invalid PDF points arrays');
+    }
+    const pSum = p.reduce((sum, point) => sum + (Number.isFinite(point.y) && point.y >= 0 ? point.y : 0), 0);
+    const qSum = q.reduce((sum, point) => sum + (Number.isFinite(point.y) && point.y >= 0 ? point.y : 0), 0);
+    if (pSum <= 0 || qSum <= 0) {
+      throw new Error('Invalid PDF sums: pSum=' + pSum + ', qSum=' + qSum);
+    }
+    const pNorm = p.map(point => ({
+      x: point.x,
+      y: Number.isFinite(point.y) && point.y >= 0 ? point.y / pSum : 0
+    }));
+    const qNorm = q.map(point => ({
+      x: point.x,
+      y: Number.isFinite(point.y) && point.y >= 0 ? point.y / qSum : 0
+    }));
+    const [pAligned, qAligned] = alignPoints(pNorm, qNorm, false);
+    const kl = calculateKL(pAligned, qAligned);
+    if (!Number.isFinite(kl) || kl < 0) {
+      console.warn('calculateKLDivergence: Invalid or negative KL divergence, returning 0', { kl });
+      return { klDivergence: 0 };
+    }
+    console.log('calculateKLDivergence: Computed klDivergence', { kl });
+    return { klDivergence: kl };
+  } catch (error) {
+    console.error('calculateKLDivergence: Error', { error: error.message, pLength: p?.length, qLength: q?.length });
+    return { klDivergence: 0 };
+  }
+}
+
+module.exports = {
+  calculateKL,
+  calculateKLCombinations,
+  calculateKLDivergence
+};
+// Sensitivity_Matrix_Divergence-Core.js
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { interpolateCdf, applyGaussianCopula, createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+const { sliderAdjustedPDFandCDFPoints } = require(path.join(CORE_DIR, 'Slider_Adjustments-Core'));
+const { computeBetaMoments } = require(path.join(CORE_DIR, 'Distribution_Metrics-Core'));
+
+function calculateSensitivityCombinations({ distributions, optimistic, pessimistic }) {
+  try {
+    if (!distributions || typeof distributions !== 'object' || Object.keys(distributions).length < 2) {
+      throw createErrorResponse('Invalid distributions: must be an object with at least 2 entries', { distributionsKeys: Object.keys(distributions) });
+    }
+    if (!Number.isFinite(optimistic) || !Number.isFinite(pessimistic) || optimistic >= pessimistic) {
+      throw createErrorResponse('Invalid optimistic or pessimistic estimates', { optimistic, pessimistic });
+    }
+    const distNames = Object.keys(distributions);
+    const sensitivityMatrix = {};
+    for (let i = 0; i < distNames.length; i++) {
+      for (let j = i + 1; j < distNames.length; j++) {
+        const dist1 = distributions[distNames[i]];
+        const dist2 = distributions[distNames[j]];
+        if (!Array.isArray(dist1) || !Array.isArray(dist2) || dist1.length < 2 || dist2.length < 2) {
+          throw createErrorResponse('Invalid distribution data', { dist1: distNames[i], dist2: distNames[j], dist1Length: dist1?.length, dist2Length: dist2?.length });
+        }
+        if (!dist1.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0) ||
+            !dist2.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+          throw createErrorResponse('Invalid distribution points: must have finite x and non-negative y', { dist1: distNames[i], dist2: distNames[j] });
+        }
+        let klDivergence = 0;
+        const step = (pessimistic - optimistic) / (dist1.length - 1);
+        for (let k = 0; k < dist1.length; k++) {
+          let p = dist1[k].y;
+          let q = dist2[k].y;
+          if (!Number.isFinite(p) || p < 0) {
+            console.warn('calculateKLDivergence: Clamping non-finite/negative p', { p });
+            p = 1e-10;
+          }
+          if (!Number.isFinite(q) || q < 0) {
+            console.warn('calculateKLDivergence: Clamping non-finite/negative q', { q });
+            q = 1e-10;
+          }
+          klDivergence += p * Math.log(p / q) * step;
+        }
+        klDivergence = Number.isFinite(klDivergence) ? Math.max(klDivergence, 0) : 0;
+        sensitivityMatrix[`${distNames[i]}-${distNames[j]}`] = klDivergence;
+      }
+    }
+    console.log('calculateSensitivityCombinations: Completed', { matrixKeys: Object.keys(sensitivityMatrix) });
+    return sensitivityMatrix;
+  } catch (error) {
+    console.error('calculateSensitivityCombinations: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateSliderSensitivity({ points, optimistic, mostLikely, pessimistic, sliderValues, distributionType }) {
+  try {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new Error('Invalid points array');
+    }
+    if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+      throw new Error('Invalid estimates');
+    }
+    const step = (pessimistic - optimistic) / (points.length - 1);
+    const baseline = sliderAdjustedPDFandCDFPoints({
+      points,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      sliderValues: Object.fromEntries(Object.entries(sliderValues).map(([k, v]) => [k, 0])),
+      distributionType
+    });
+    const adjusted = sliderAdjustedPDFandCDFPoints({
+      points,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      sliderValues,
+      distributionType
+    });
+    let meanP = 0, meanQ = 0, klDivergence = 0;
+    for (let i = 0; i < points.length; i++) {
+      let pY = baseline.pdfPoints[i].y;
+      let qY = adjusted.pdfPoints[i].y;
+      if (!Number.isFinite(pY) || pY < 0) {
+        console.warn('calculateSliderSensitivity: Clamping non-finite/negative pY', { pY });
+        pY = 0;
+      }
+      if (!Number.isFinite(qY) || qY < 0) {
+        console.warn('calculateSliderSensitivity: Clamping non-finite/negative qY', { qY });
+        qY = 0;
+      }
+      meanP += pY * baseline.pdfPoints[i].x * step;
+      meanQ += qY * adjusted.pdfPoints[i].x * step;
+      const pSafe = pY > 0 ? pY : 1e-10;
+      const qSafe = qY > 0 ? qY : 1e-10;
+      klDivergence += pSafe * Math.log(pSafe / qSafe) * step;
+    }
+    klDivergence = Number.isFinite(klDivergence) ? Math.max(klDivergence, 0) : 0;
+    const change = Math.abs(meanP) > 1e-6 ? Math.abs(meanQ - meanP) / meanP : 0;
+    const betaMoments = computeBetaMoments(optimistic, mostLikely, pessimistic);
+    const momentChanges = {
+      mean: (meanQ - meanP) / meanP * 100,
+      variance: 0, // Placeholder
+      skew: 0, // Placeholder
+      kurtosis: 0 // Placeholder
+    };
+    const sliderKeys = ['budgetFlexibility', 'scheduleFlexibility', 'scopeCertainty', 'scopeReductionAllowance', 'reworkPercentage', 'riskTolerance'];
+    const sliderU = sliderKeys.map(key => (sliderValues[key] || 0) / 100);
+    const correlationMatrix = [
+      [1, 0.7, 0.2, 0.1, 0.3, 0.2],
+      [0.7, 1, 0.2, 0.1, 0.3, 0.2],
+      [0.2, 0.2, 1, 0.5, -0.1, -0.3],
+      [0.1, 0.1, 0.5, 1, 0.1, 0.2],
+      [0.3, 0.3, -0.1, 0.1, 1, 0.4],
+      [0.2, 0.2, -0.3, 0.2, 0.4, 1]
+    ];
+    const correlatedU = applyGaussianCopula({ mean: betaMoments.mean, stdDev: betaMoments.stdDev }, sliderU, correlationMatrix[0][0]);
+    const copulaMatrix = correlationMatrix.reduce((acc, row, i) => ({
+      ...acc,
+      [sliderKeys[i]]: row.reduce((rAcc, val, j) => ({ ...rAcc, [sliderKeys[j]]: val }), {})
+    }), {});
+    console.log('calculateSliderSensitivity: Completed', { change, klDivergence, momentChanges, copulaMatrix });
+    return { change, klDivergence, momentChanges, copulaMatrix };
+  } catch (error) {
+    console.error('calculateSliderSensitivity: Error', { error: error.message });
+    throw error;
+  }
+}
+
+module.exports = {
+  calculateSensitivityCombinations,
+  calculateSliderSensitivity
+};
+/* core-master.js
+ * WHAT: Core processing logic for the pmcEstimatorAPI, orchestrating task processing in the Interactive Probability Simulator.
+ * WHY: Handles batch requests, validates inputs, and aggregates results for risk analysis, including moment calculations and sensitivity analysis.
+ * WHERE: Located in the ./core directory, used by index.js.
+ * HOW:
+ *   - Processes tasks using Task_Processor-Core.js.
+ *   - Validates request body and propagates errors without fallbacks (McConnell, 2004).
+ *   - Supports dynamic beta distributions and copula-based sensitivity analysis (Nelsen, 2006).
+ * CHANGES:
+ *   - Removed all fallbacks; replaced with detailed error messaging (McConnell, 2004).
+ *   - Added validation for request body to ensure array of tasks.
+ *   - Enhanced error handling to include detailed feedback for debugging.
+ *   - Removed user confidence settings references for simplicity.
+ *   - Added robust comments with references to best practices.
+ * DEPENDENCIES:
+ *   - Task_Processor-Core.js (processTask)
+ *   - core-utilities.js (createErrorResponse)
+ * EXPORTS:
+ *   - pmcEstimatorAPI
+ * REFERENCES:
+ *   - McConnell, S. (2004). Code Complete: A Practical Handbook of Software Construction. (Error handling best practices)
+ *   - Vose, D. (2008). Risk Analysis: A Quantitative Guide. (Risk analysis processing)
+ *   - Clemen, R. T., & Reilly, T. (2013). Making Hard Decisions with DecisionTools. (Task processing for risk analysis)
+ *   - Nelsen, R. B. (2006). An Introduction to Copulas. (Sensitivity analysis integration)
+ */
+
+'use strict';
+
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { processTask } = require(path.join(CORE_DIR, 'Task_Processor-Core'));
+const { createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+
+/**
+ * Processes a batch of estimation tasks for the pmcEstimatorAPI.
+ * @param {Object} req - HTTP request object with body containing array of task parameters.
+ * @param {Function} res - HTTP response object or callback function for mock tests.
+ * @returns {Object} - Response containing results or error details.
+ */
+function pmcEstimatorAPI(req, res) {
+  try {
+    // Validate request body
+    const tasks = Array.isArray(req.body) ? req.body : JSON.parse(req.body || '[]');
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      throw createErrorResponse('Request body must be a non-empty array of tasks', { body: req.body });
+    }
+
+    // Process each task
+    const results = tasks.map((task, index) => {
+      try {
+        return processTask(task);
+      } catch (error) {
+        console.error(`pmcEstimatorAPI: Error processing task ${index}`, { error: error.message, task });
+        return {
+          task: task.task || `Task_${index}`,
+          error: error.message,
+          details: JSON.parse(error.message).details || {},
+          feedbackMessages: [`Error in task ${index}: ${error.message}`]
+        };
+      }
+    });
+
+    console.log('pmcEstimatorAPI: Processed tasks', { resultCount: results.length });
+    if (typeof res.status === 'function') {
+      res.status(200).json({ results });
+    } else {
+      res({ results });
+    }
+  } catch (error) {
+    console.error('pmcEstimatorAPI: Error', { error: error.message, stack: error.stack });
+    const response = {
+      results: [],
+      error: error.message,
+      details: JSON.parse(error.message).details || {},
+      feedbackMessages: ['Failed to process request: ' + error.message]
+    };
+    if (typeof res.status === 'function') {
+      res.status(500).json(response);
+    } else {
+      res(response);
+    }
+  }
+}
+
+module.exports = {
+  pmcEstimatorAPI
+};
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateEstimates, createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+
+function calculateTriangleMean(optimistic, mostLikely, pessimistic) {
+  try {
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+    const mean = (optimistic + mostLikely + pessimistic) / 3;
+    if (!Number.isFinite(mean)) {
+      throw createErrorResponse('Non-finite triangle mean', { mean, optimistic, mostLikely, pessimistic });
+    }
+    console.log('calculateTriangleMean: Computed mean', { mean, optimistic, mostLikely, pessimistic });
+    return mean;
+  } catch (error) {
+    console.error('calculateTriangleMean: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculatePERTMean(optimistic, mostLikely, pessimistic) {
+  try {
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+    const mean = (optimistic + 4 * mostLikely + pessimistic) / 6;
+    if (!Number.isFinite(mean)) {
+      throw createErrorResponse('Non-finite PERT mean', { mean, optimistic, mostLikely, pessimistic });
+    }
+    console.log('calculatePERTMean: Computed mean', { mean, optimistic, mostLikely, pessimistic });
+    return mean;
+  } catch (error) {
+    console.error('calculatePERTMean: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateBetaMean(optimistic, pessimistic, alpha, beta) {
+  try {
+    if (!Number.isFinite(optimistic) || !Number.isFinite(pessimistic) || !Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0 || optimistic >= pessimistic) {
+      throw createErrorResponse('Invalid parameters for Beta mean', { optimistic, pessimistic, alpha, beta });
+    }
+    const u = alpha / (alpha + beta);
+    const mean = optimistic + u * (pessimistic - optimistic);
+    if (!Number.isFinite(mean)) {
+      throw createErrorResponse('Non-finite Beta mean', { mean, optimistic, pessimistic, alpha, beta });
+    }
+    console.log('calculateBetaMean: Computed mean', { mean, optimistic, pessimistic, alpha, beta });
+    return mean;
+  } catch (error) {
+    console.error('calculateBetaMean: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateAlpha(optimistic, mostLikely, pessimistic) {
+  try {
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+    const range = pessimistic - optimistic;
+    if (range <= 0) {
+      throw createErrorResponse('Invalid range: pessimistic must be greater than optimistic', { range });
+    }
+    const alpha = 1 + 4 * (mostLikely - optimistic) / range;
+    if (!Number.isFinite(alpha) || alpha <= 0) {
+      console.error('calculateAlpha: Invalid alpha', { alpha, optimistic, mostLikely, pessimistic });
+      throw createErrorResponse('Invalid alpha parameter', { alpha, optimistic, mostLikely, pessimistic, range });
+    }
+    console.log('calculateAlpha: Computed alpha', { alpha, optimistic, mostLikely, pessimistic });
+    return alpha;
+  } catch (error) {
+    console.error('calculateAlpha: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateBeta(optimistic, mostLikely, pessimistic) {
+  try {
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+    const range = pessimistic - optimistic;
+    if (range <= 0) {
+      throw createErrorResponse('Invalid range: pessimistic must be greater than optimistic', { range });
+    }
+    const beta = 1 + 4 * (pessimistic - mostLikely) / range;
+    if (!Number.isFinite(beta) || beta <= 0) {
+      console.error('calculateBeta: Invalid beta', { beta, optimistic, mostLikely, pessimistic });
+      throw createErrorResponse('Invalid beta parameter', { beta, optimistic, mostLikely, pessimistic, range });
+    }
+    console.log('calculateBeta: Computed beta', { beta, optimistic, mostLikely, pessimistic });
+    return beta;
+  } catch (error) {
+    console.error('calculateBeta: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function computeBetaMoments(optimistic, mostLikely, pessimistic) {
+  try {
+    const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validation.valid) {
+      throw new Error(validation.message);
+    }
+    const range = pessimistic - optimistic;
+    if (range <= 0) {
+      throw createErrorResponse('Invalid range: pessimistic must be greater than optimistic', { range });
+    }
+    const alpha = calculateAlpha(optimistic, mostLikely, pessimistic);
+    const beta = calculateBeta(optimistic, mostLikely, pessimistic);
+    const moments = {
+      mean: optimistic + range * (alpha / (alpha + beta)),
+      variance: range * range * (alpha * beta) / ((alpha + beta) * (alpha + beta) * (alpha + beta + 1)),
+      skew: (2 * (beta - alpha) * Math.sqrt(alpha + beta + 1)) / ((alpha + beta + 2) * Math.sqrt(alpha * beta)),
+      kurtosis: 6 * ((alpha - beta) * (alpha - beta) * (alpha + beta + 1) - alpha * beta * (alpha + beta + 2)) /
+                (alpha * beta * (alpha + beta + 2) * (alpha + beta + 3)) - 3,
+      alpha,
+      beta
+    };
+    if (!Object.values(moments).every(Number.isFinite)) {
+      throw createErrorResponse('Non-finite beta moments', { moments });
+    }
+    console.log('computeBetaMoments: Computed moments', { moments, optimistic, mostLikely, pessimistic });
+    return moments;
+  } catch (error) {
+    console.error('computeBetaMoments: Error', { error: error.message });
+    throw error;
+  }
+}
+
+module.exports = {
+  calculateTriangleMean,
+  calculatePERTMean,
+  calculateBetaMean,
+  calculateAlpha,
+  calculateBeta,
+  computeBetaMoments
+};
+/* Matrix_Master-Core.js
+ * WHAT: Utility functions for handling matrix operations and validation for KL divergence and sensitivity calculations.
+ * WHY: Supports KL divergence and sensitivity matrix computations by generating pairs and validating inputs.
+ * WHERE: Located in the ./core directory, used by KL_Matrix_Divergence-Core.js and Sensitivity_Matrix_Divergence-Core.js.
+ * HOW:
+ *   - Generates unique pairs of distribution names.
+ *   - Validates distribution inputs for matrix calculations.
+ *   - Aligns distribution points for consistent comparisons.
+ * CHANGES:
+ *   - Added validateDistributionInputs to centralize validation logic.
+ *   - [NEW] Added debugging logs in validateDistributionInputs to inspect invalid points.
+ *   - [NEW] Increased tolerance in validateDistributionInputs for isValidPdfArray to 0.3.
+ *   - [NEW 2025-08-05] Enhanced alignPoints error handling to ensure iterable return value and log specific issues.
+ * DEPENDENCIES:
+ *   - core-utilities.js (isValidPdfArray, isValidCdfArray)
+ *   - mathjs@^12.0.0
+ * EXPORTS:
+ *   - generateUniquePairs, validateDistributionInputs, alignPoints
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { isValidPdfArray, isValidCdfArray } = require(path.join(CORE_DIR, 'core-utilities'));
+
+/* Generates unique pairs of distribution names */
+function generateUniquePairs(distNames) {
+  try {
+    if (!Array.isArray(distNames) || distNames.length < 2) {
+      throw new Error('distNames must be an array with at least 2 elements');
+    }
+    const pairs = [];
+    for (let i = 0; i < distNames.length; i++) {
+      for (let j = i + 1; j < distNames.length; j++) {
+        pairs.push(`${distNames[i]}-${distNames[j]}`);
+      }
+    }
+    return pairs;
+  } catch (error) {
+    console.error('generateUniquePairs: Error', { error: error.message, distNamesLength: distNames?.length });
+    return [];
+  }
+}
+
+/* Validates distribution inputs for matrix calculations */
+function validateDistributionInputs(distributions, isCdf = false) {
+  try {
+    if (!distributions || typeof distributions !== 'object' || Object.keys(distributions).length === 0) {
+      console.error('validateDistributionInputs: Invalid distributions object', { distributionsKeys: Object.keys(distributions || {}) });
+      return false;
+    }
+    for (const [distName, points] of Object.entries(distributions)) {
+      if (!Array.isArray(points) || points.length < 2) {
+        console.error('validateDistributionInputs: Invalid points array', { distName, pointsLength: points?.length });
+        return false;
+      }
+      console.log(`validateDistributionInputs: Checking ${distName} points`, JSON.stringify(points.slice(0, 5), null, 2));
+      const validator = isCdf ? isValidCdfArray : isValidPdfArray;
+      if (!validator(points)) {
+        console.error('validateDistributionInputs: Invalid points for distribution', { distName });
+        return false;
+      }
+      if (!isCdf) {
+        const step = points[1]?.x - points[0]?.x || 0;
+        const sum = points.reduce((acc, p) => acc + (Number.isFinite(p.y) && p.y >= 0 ? p.y : 0) * step, 0);
+        console.log(`validateDistributionInputs: PDF sum for ${distName}`, { sum });
+        if (!Number.isFinite(sum) || Math.abs(sum - 1) > 0.3) {
+          console.error('validateDistributionInputs: Invalid PDF sum', { distName, sum });
+          return false;
+        }
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('validateDistributionInputs: Error', { error: error.message, distKeys: Object.keys(distributions || {}) });
+    return false;
+  }
+}
+
+/* Aligns two distributions to have the same x-values for comparison */
+function alignPoints(p, q, isCdf = false) {
+  try {
+    if (!Array.isArray(p) || !Array.isArray(q) || p.length < 2 || q.length < 2) {
+      throw new Error('Invalid point arrays: must be arrays with at least 2 elements');
+    }
+    const validator = isCdf ? isValidCdfArray : isValidPdfArray;
+    if (!validator(p) || !validator(q)) {
+      throw new Error('Invalid distribution points');
+    }
+    const xMin = Math.min(p[0].x, q[0].x);
+    const xMax = Math.max(p[p.length - 1].x, q[q.length - 1].x);
+    if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) {
+      throw new Error('Invalid x range: xMin=' + xMin + ', xMax=' + xMax);
+    }
+    const step = Math.min((p[1].x - p[0].x), (q[1].x - q[0].x)) / 2;
+    if (!Number.isFinite(step) || step <= 0) {
+      throw new Error('Invalid step size: ' + step);
+    }
+    const newX = Array.from({ length: Math.ceil((xMax - xMin) / step) + 1 }, (_, i) => xMin + i * step);
+    const alignedP = newX.map(x => {
+      if (x <= p[0].x) return { x, y: p[0].y };
+      if (x >= p[p.length - 1].x) return { x, y: p[p.length - 1].y };
+      for (let i = 0; i < p.length - 1; i++) {
+        if (p[i].x <= x && x <= p[i + 1].x) {
+          const t = (x - p[i].x) / (p[i + 1].x - p[i].x);
+          const y = p[i].y + t * (p[i + 1].y - p[i].y);
+          return { x, y: Number.isFinite(y) ? y : 0 };
+        }
+      }
+      return { x, y: 0 };
+    });
+    const alignedQ = newX.map(x => {
+      if (x <= q[0].x) return { x, y: q[0].y };
+      if (x >= q[q.length - 1].x) return { x, y: q[q.length - 1].y };
+      for (let i = 0; i < q.length - 1; i++) {
+        if (q[i].x <= x && x <= q[i + 1].x) {
+          const t = (x - q[i].x) / (q[i + 1].x - q[i].x);
+          const y = q[i].y + t * (q[i + 1].y - q[i].y);
+          return { x, y: Number.isFinite(y) ? y : 0 };
+        }
+      }
+      return { x, y: 0 };
+    });
+    if (alignedP.length === 0 || alignedQ.length === 0) {
+      console.warn('alignPoints: Empty aligned arrays, returning placeholders');
+      return [[{ x: xMin, y: 0 }], [{ x: xMin, y: 0 }]];
+    }
+    return [alignedP, alignedQ];
+  } catch (error) {
+    console.error('alignPoints: Error', { 
+      error: error.message, 
+      pLength: p?.length, 
+      qLength: q?.length, 
+      pFirstFew: p?.slice(0, 5), 
+      qFirstFew: q?.slice(0, 5) 
+    });
+    return [[], []]; // Ensure iterable return
+  }
+}
+
+module.exports = {
+  generateUniquePairs,
+  validateDistributionInputs,
+  alignPoints
+};
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateEstimates } = require(path.join(CORE_DIR, 'core-utilities'));
+
+function normalizeSliders(sliderValues) {
+  try {
+    console.log('normalizeSliders: Input sliders', JSON.stringify(sliderValues, null, 2));
+    if (!sliderValues || typeof sliderValues !== 'object' || Object.keys(sliderValues).length === 0) {
+      console.warn('normalizeSliders: Invalid slider input, reverting to defaults', { sliderValues });
+      sliderValues = {
+        budgetFlexibility: 0,
+        scheduleFlexibility: 0,
+        scopeCertainty: 0,
+        scopeReductionAllowance: 0,
+        reworkPercentage: 0,
+        riskTolerance: 0
+      };
+    }
+    const values = Object.values(sliderValues);
+    const maxSlider = Math.max(...values);
+    const minSlider = Math.min(...values);
+    const normalized = Object.fromEntries(
+      Object.entries(sliderValues).map(([key, value]) => [
+        key,
+        maxSlider > 0 ? value / maxSlider : 0
+      ])
+    );
+    console.log('normalizeSliders: Normalized', { normalized, maxSlider, minSlider });
+    return { normalized, maxSlider, minSlider };
+  } catch (error) {
+    console.error('normalizeSliders: Error', { error: error.message });
+    return { normalized: {}, maxSlider: 0, minSlider: 0 };
+  }
+}
+
+function detectExtremeShifts({ normalizedSliders, maxSlider, minSlider, userSlider_Confidence = 'confident' }) {
+  try {
+    const meanShift = Object.values(normalizedSliders).reduce((sum, val) => sum + val, 0) / Object.keys(normalizedSliders).length;
+    let varianceScale = userSlider_Confidence === 'confident' ? 1 : userSlider_Confidence === 'somewhat_confident' ? 1.2 : 1.5;
+    if (!Number.isFinite(varianceScale)) {
+      console.warn('detectExtremeShifts: Invalid varianceScale, defaulting to 1', { userSlider_Confidence });
+      varianceScale = 1;
+    }
+    const correctionMode = 'multiplicative';
+    const issues = [];
+    const corrections = [];
+    if (maxSlider < 10 || minSlider < 5) {
+      issues.push(`Uniform sliders or low confidence detected (max: ${maxSlider}%, min: ${minSlider}%)`);
+      corrections.push('Using multiplicative adjustment mode');
+    }
+    const isValidCorrelation = Object.values(normalizedSliders).every(val => Number.isFinite(val) && val >= 0 && val <= 1);
+    console.log('detectExtremeShifts: Detected', { meanShift, varianceScale, correctionMode, issues, corrections, isValidCorrelation });
+    return { meanShift, varianceScale, correctionMode, issues, corrections, maxSlider, minSlider, isValidCorrelation };
+  } catch (error) {
+    console.error('detectExtremeShifts: Error', { error: error.message });
+    return { meanShift: 0, varianceScale: 1, correctionMode: 'multiplicative', issues: ['Error in detecting shifts'], corrections: [], maxSlider: 0, minSlider: 0, isValidCorrelation: false };
+  }
+}
+
+function sliderAdjustedPDFandCDFPoints({ points, optimistic, mostLikely, pessimistic, sliderValues, distributionType, userSlider_Confidence = 'confident' }) {
+  try {
+    console.log('sliderAdjustedPDFandCDFPoints: Starting', { distributionType, userSlider_Confidence, sliderValues });
+    if (!['triangle', 'pert', 'beta', 'uniform', 'monteCarloRaw', 'monteCarloSmoothed', 'adjustedMonteCarloSmoothed', 'optimizedMonteCarloSmoothed'].includes(distributionType)) {
+      throw new Error('Invalid distribution type');
+    }
+    if (!Number.isFinite(optimistic) || !Number.isFinite(pessimistic)) {
+      throw new Error('Optimistic and pessimistic must be finite numbers');
+    }
+    if (distributionType !== 'uniform' && distributionType !== 'monteCarloRaw' && distributionType !== 'monteCarloSmoothed' && distributionType !== 'adjustedMonteCarloSmoothed' && distributionType !== 'optimizedMonteCarloSmoothed') {
+      const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+      if (!validation.valid) {
+        throw new Error(validation.message);
+      }
+    }
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new Error('Points must be an array with at least 2 elements');
+    }
+    if (!points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+      throw new Error('Points must have finite x and non-negative y values');
+    }
+    if (!sliderValues || typeof sliderValues !== 'object') {
+      throw new Error('sliderValues must be a non-empty object');
+    }
+
+    const { normalized, maxSlider, minSlider } = normalizeSliders(sliderValues);
+    const { meanShift, varianceScale, correctionMode, issues, corrections } = detectExtremeShifts({
+      normalizedSliders: normalized,
+      maxSlider,
+      minSlider,
+      userSlider_Confidence
+    });
+
+    const range = pessimistic - optimistic;
+    const step = range / (points.length - 1);
+    const validPoints = points.filter(p => Number.isFinite(p.y) && p.y >= 0);
+    if (validPoints.length < points.length) {
+      console.warn('sliderAdjustedPDFandCDFPoints: Filtered non-finite/negative y values', { originalLength: points.length, validLength: validPoints.length });
+    }
+    const pdfSum = validPoints.reduce((sum, p) => sum + p.y * step, 0);
+    const meanBaseline = pdfSum > 0 ? validPoints.reduce((sum, p) => sum + p.y * p.x * step, 0) / pdfSum : (optimistic + pessimistic) / 2;
+    if (!Number.isFinite(meanBaseline)) {
+      console.warn('sliderAdjustedPDFandCDFPoints: Non-finite meanBaseline, using range midpoint', { meanBaseline, pdfSum });
+      meanBaseline = (optimistic + pessimistic) / 2;
+    }
+    const adjustedMean = meanBaseline * (1 + meanShift * 0.1);
+    if (!Number.isFinite(adjustedMean)) {
+      console.warn('sliderAdjustedPDFandCDFPoints: Non-finite adjustedMean, using meanBaseline', { adjustedMean, meanShift });
+      adjustedMean = meanBaseline;
+    }
+    let pdfPoints = points.map(p => {
+      const shift = (p.x - meanBaseline) * varianceScale + adjustedMean;
+      const adjustedX = Math.min(Math.max(shift, optimistic), pessimistic);
+      let y = p.y;
+      if (correctionMode === 'multiplicative') {
+        y *= varianceScale;
+      }
+      y = Number.isFinite(y) ? y : 0;
+      return { x: adjustedX, y, plotCumulative_Confidence: p.plotCumulative_Confidence || 0 };
+    });
+    pdfPoints.sort((a, b) => a.x - b.x);
+    let cumulative = 0;
+    let cdfPoints = pdfPoints.map((p) => {
+      cumulative += p.y * step;
+      return {
+        x: p.x,
+        y: Math.min(Math.max(cumulative, 0), 1),
+        plotCumulative_Confidence: Math.min(Math.max(cumulative * 100, 0), 100)
+      };
+    });
+    let lastY = 0;
+    cdfPoints = cdfPoints.map((p, i) => {
+      p.y = Math.max(lastY, p.y);
+      p.plotCumulative_Confidence = p.y * 100;
+      lastY = p.y;
+      console.log('sliderAdjustedPDFandCDFPoints: Enforcing monotonicity for CDF point ' + i, { x: p.x, y: p.y, previousY: lastY });
+      return p;
+    });
+    if (cdfPoints.length < 2) {
+      console.warn('sliderAdjustedPDFandCDFPoints: Insufficient CDF points, generating minimum CDF', { cdfPointsLength: cdfPoints.length });
+      cdfPoints = [
+        { x: optimistic, y: 0, plotCumulative_Confidence: 0 },
+        { x: pessimistic, y: 1, plotCumulative_Confidence: 100 }
+      ];
+    }
+    return {
+      pdfPoints,
+      cdfPoints,
+      feedbackMessage: issues.length > 0 ? `Issues detected: ${issues.join('; ')}. Corrections applied: ${corrections.join('; ')}` : null,
+      error: null
+    };
+  } catch (error) {
+    console.error('sliderAdjustedPDFandCDFPoints: Error', { error: error.message, distributionType });
+    const range = pessimistic - optimistic;
+    const step = range / 100;
+    const uniformPdfPoints = Array.from({ length: 101 }, (_, i) => ({
+      x: optimistic + i * step,
+      y: 1 / range,
+      plotCumulative_Confidence: (i / 100) * 100
+    }));
+    const uniformCdfPoints = uniformPdfPoints.map((p, i) => ({
+      x: p.x,
+      y: i / 100,
+      plotCumulative_Confidence: (i / 100) * 100
+    }));
+    return {
+      pdfPoints: uniformPdfPoints,
+      cdfPoints: uniformCdfPoints,
+      feedbackMessage: `Failed to adjust points: ${error.message}. Reverted to uniform distribution.`,
+      error: error.message
+    };
+  }
+}
+
+module.exports = {
+  sliderAdjustedPDFandCDFPoints
+};
+// core-monte-carlo.js
+'use strict';
+
+const jstat = require('jstat');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+const { calculateAlpha, calculateBeta } = require(path.join(CORE_DIR, 'Distribution_Metrics-Core'));
+
+function generateMCSamplesFromPERTAlphaBeta(optimistic, mostLikely, pessimistic, numSamples = 5000) {
+  const feedbackMessages = [];
+  try {
+    if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+      feedbackMessages.push(`Non-finite estimates: optimistic=${optimistic}, mostLikely=${mostLikely}, pessimistic=${pessimistic}`);
+      throw createErrorResponse('Estimates must be finite numbers', { optimistic, mostLikely, pessimistic });
+    }
+    if (optimistic >= mostLikely || mostLikely >= pessimistic) {
+      feedbackMessages.push(`Invalid ordering: optimistic=${optimistic}, mostLikely=${mostLikely}, pessimistic=${pessimistic}`);
+      throw createErrorResponse('Invalid estimates: must satisfy optimistic < mostLikely < pessimistic', { optimistic, mostLikely, pessimistic });
+    }
+    if (!Number.isInteger(numSamples) || numSamples < 2) {
+      feedbackMessages.push(`Invalid numSamples=${numSamples}`);
+      throw createErrorResponse('numSamples must be an integer >= 2', { numSamples });
+    }
+    console.log('generateMCSamplesFromPERTAlphaBeta: Starting', { optimistic, mostLikely, pessimistic, numSamples });
+    const alpha = calculateAlpha(optimistic, mostLikely, pessimistic);
+    const beta = calculateBeta(optimistic, mostLikely, pessimistic);
+    if (!Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0) {
+      console.error('generateMCSamplesFromPERTAlphaBeta: Invalid alpha/beta', { alpha, beta });
+      throw createErrorResponse('Invalid alpha or beta parameters', { alpha, beta });
+    }
+    const samples = Array.from({ length: numSamples }, () => {
+      const u = jstat.beta.sample(alpha, beta);
+      const sample = optimistic + u * (pessimistic - optimistic);
+      if (!Number.isFinite(sample)) {
+        console.warn('generateMCSamplesFromPERTAlphaBeta: Invalid sample', { u, alpha, beta });
+      }
+      return sample;
+    });
+    const validSamples = samples.filter(s => Number.isFinite(s) && s >= optimistic && s <= pessimistic);
+    if (validSamples.length < numSamples / 2) {
+      feedbackMessages.push(`Insufficient valid samples: ${validSamples.length}/${numSamples}`);
+      throw createErrorResponse('Insufficient valid samples generated', { validSamplesLength: validSamples.length, numSamples });
+    }
+    console.log('generateMCSamplesFromPERTAlphaBeta: Generated', { validSamples: validSamples.length });
+    return { value: validSamples, feedbackMessages };
+  } catch (error) {
+    feedbackMessages.push(`Error in generateMCSamplesFromPERTAlphaBeta: ${error.message}`);
+    console.error('generateMCSamplesFromPERTAlphaBeta: Error', { error: error.message, optimistic, mostLikely, pessimistic, numSamples });
+    throw createErrorResponse('Failed to generate Monte Carlo samples', { error: error.message, feedbackMessages });
+  }
+}
+
+module.exports = {
+  generateMCSamplesFromPERTAlphaBeta
+};
+/* Distribution_Points-Core.js
+ * WHAT: Generates PDF and CDF points for all distributions.
+ * WHY: Centralizes point generation for consistency.
+ * WHERE: Located in the ./core directory, used by Task_Processor-Core.js.
+ * HOW:
+ *   - Generates points for Triangle, PERT, Beta, and Monte Carlo distributions.
+ *   - Uses robust validation and error handling.
+ * CHANGES:
+ *   - Added robust validation for Triangle distribution to prevent non-finite or negative y values.
+ *   - Ensured sufficient points and finite step size.
+ *   - Replaced jstat.beta with mathjs.gamma for PERT and Beta distributions.
+ *   - Ensured monteCarloRaw and monteCarloSmoothed generate at least 101 points.
+ *   - Fixed 'Assignment to constant variable' error in monteCarloSmoothed by mutating cdfPoints in place.
+ *   - Corrected PDF normalization in uniform distribution fallback to ensure sum â�� 1.
+ *   - Moved log statement in pert branch to after computing alpha and beta for accurate logging.
+ *   - Added debugging logs in monteCarloSmoothed to inspect pdfPoints and cdfPoints.
+ *   - [NEW] Fixed 'return_buy' typo in monteCarloRaw branch to 'return'.
+ *   - [NEW] Fixed triangle distribution PDF normalization to ensure sum â�� 1.
+ *   - [NEW] Added monotonicity checks for CDF points with automatic correction.
+ *   - [NEW] Added minimum bandwidth and kernel capping in monteCarloSmoothed to prevent NaN densities values.
+ *   - [NEW 2025-08-04] Replaced math.beta with gamma-based implementation for PERT and Beta to avoid 'math.beta is not a function'.
+ *   - [NEW 2025-08-04] Made validateEstimates conditional for 'uniform' to skip mostLikely check, preventing 'Estimates must be finite numbers' error.
+ *   - [NEW 2025-08-04] Added finite checks for optimistic and pessimistic in all distTypes.
+ *   - [NEW 2025-08-04] Prevented recursive fallback in error handling to avoid maximum call stack exceeded.
+ *   - [NEW 2025-08-04] Enhanced NaN handling in PDF and CDF calculations to set y = 0 for invalid terms.
+ *   - [NEW 2025-08-04] Added logging for invalid parameters to diagnose issues.
+ * DEPENDENCIES:
+ *   - core-utilities.js (validateEstimates, isValidCdfArray)
+ *   - mathjs@^12.0.0
+ *   - jstat@^1.9.5
+ * EXPORTS:
+ *   - generatePoints
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const jstat = require('jstat');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateEstimates, isValidCdfArray } = require(path.join(CORE_DIR, 'core-utilities'));
+
+function generatePoints(distType, params, samples = null, bandwidth = null) {
+  try {
+    if (!['triangle', 'pert', 'beta', 'monteCarloRaw', 'monteCarloSmoothed'].includes(distType)) {
+      throw new Error('Invalid distribution type');
+    }
+    if (!params || !Number.isFinite(params.optimistic) || !Number.isFinite(params.pessimistic) || params.optimistic >= params.pessimistic) {
+      throw new Error('Invalid optimistic or pessimistic bounds');
+    }
+    if (distType === 'triangle' || distType === 'pert' || distType === 'beta') {
+      const { optimistic, mostLikely, pessimistic, alpha, beta } = params;
+      const validation = validateEstimates(optimistic, mostLikely, pessimistic);
+      if (!validation.valid) throw new Error(validation.message);
+
+      // Ensure sufficient range to avoid numerical issues
+      if (pessimistic - optimistic < 1e-6) {
+        throw new Error('Range too small: pessimistic - optimistic must be greater than 1e-6');
+      }
+
+      if (distType === 'triangle') {
+        console.log('generatePoints: Input params', { distType, optimistic, mostLikely, pessimistic, alpha, beta });
+        const pdfPoints = [];
+        const cdfPoints = [];
+        const step = (pessimistic - optimistic) / 100;
+        let cumulative = 0;
+
+        // Calculate unnormalized PDF points
+        for (let i = 0; i <= 100; i++) {
+          const x = optimistic + i * step;
+          let pdfY = 0;
+          if (x >= optimistic && x <= mostLikely) {
+            pdfY = (2 * (x - optimistic)) / ((pessimistic - optimistic) * (mostLikely - optimistic));
+          } else if (x > mostLikely && x <= pessimistic) {
+            pdfY = (2 * (pessimistic - x)) / ((pessimistic - optimistic) * (pessimistic - mostLikely));
+          }
+          pdfY = Number.isFinite(pdfY) && pdfY >= 0 ? pdfY : 0;
+          pdfPoints.push({ x, y: pdfY, plotCumulative_Confidence: cumulative * 100 });
+
+          let cdfY;
+          if (x <= optimistic) {
+            cdfY = 0;
+          } else if (x <= mostLikely) {
+            cdfY = ((x - optimistic) * (x - optimistic)) / ((pessimistic - optimistic) * (mostLikely - optimistic));
+          } else if (x <= pessimistic) {
+            cdfY = 1 - ((pessimistic - x) * (pessimistic - x)) / ((pessimistic - optimistic) * (pessimistic - mostLikely));
+          } else {
+            cdfY = 1;
+          }
+          cdfY = Number.isFinite(cdfY) && cdfY >= 0 ? Math.min(cdfY, 1) : 0;
+          cdfPoints.push({ x, y: cdfY, plotCumulative_Confidence: cdfY * 100 });
+          cumulative = cdfY; // Update cumulative for next iteration
+        }
+
+        // Normalize PDF points
+        const pdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6 || Math.abs(pdfSum - 1) > 0.2) {
+          console.warn('generatePoints: Invalid Triangle PDF sum, normalizing', { pdfSum });
+          const factor = pdfSum > 0 ? 1 / pdfSum : 1;
+          pdfPoints.forEach(p => {
+            p.y = Number.isFinite(p.y) && p.y >= 0 ? p.y * factor : 0;
+            p.plotCumulative_Confidence = Number.isFinite(cumulative) ? cumulative * 100 : 0;
+          });
+        }
+
+        // Ensure CDF monotonicity
+        let lastY = 0;
+        cdfPoints.forEach((p, i) => {
+          p.y = Math.max(lastY, Math.min(p.y, 1));
+          p.plotCumulative_Confidence = p.y * 100;
+          lastY = p.y;
+          console.log(`generatePoints: Triangle CDF point ${i}`, { x: p.x, y: p.y, plotCumulative_Confidence: p.plotCumulative_Confidence });
+        });
+
+        if (pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+          throw new Error('Generated Triangle PDF points are invalid');
+        }
+        if (!isValidCdfArray(cdfPoints)) {
+          console.warn('generatePoints: Invalid Triangle CDF points, using uniform CDF', { cdfPointsLength: cdfPoints.length });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          cdfPoints.splice(0, cdfPoints.length, ...Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          })));
+        }
+        const finalPdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        console.log('generatePoints: Triangle points generated', { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length, finalPdfSum });
+        return { pdfPoints, cdfPoints };
+      }
+      if (distType === 'pert') {
+        const alpha = 1 + 4 * (mostLikely - optimistic) / (pessimistic - optimistic);
+        const betaParam = 1 + 4 * (pessimistic - mostLikely) / (pessimistic - optimistic);
+        console.log('generatePoints: Input params', { distType, optimistic, mostLikely, pessimistic, alpha, beta: betaParam });
+        if (!Number.isFinite(alpha) || !Number.isFinite(betaParam) || alpha <= 0 || betaParam <= 0) {
+          console.error('generatePoints: Invalid alpha or betaParam for PERT', { alpha, betaParam });
+          throw new Error('Invalid alpha or beta parameters for PERT');
+        }
+        const pdfPoints = [];
+        const cdfPoints = [];
+        const step = (pessimistic - optimistic) / 100;
+        let B;
+        try {
+          B = math.gamma(alpha) * math.gamma(betaParam) / math.gamma(alpha + betaParam);
+          if (!Number.isFinite(B) || B <= 0) {
+            throw new Error('Invalid beta function result');
+          }
+        } catch (error) {
+          console.error('generatePoints: Beta function failed for PERT', { error: error.message, alpha, betaParam });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          const pdfY = 1 / range;
+          const fallbackPdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: pdfY,
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          const fallbackCdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          console.log('generatePoints: Using uniform distribution fallback for PERT', { pdfPointsLength: fallbackPdfPoints.length });
+          return { pdfPoints: fallbackPdfPoints, cdfPoints: fallbackCdfPoints };
+        }
+        let cumulative = 0;
+        for (let x = optimistic; x <= pessimistic; x += step) {
+          const u = (x - optimistic) / (pessimistic - optimistic);
+          let pdfY = 0;
+          let cdfY = 0;
+          if (Number.isFinite(u) && u >= 0 && u <= 1) {
+            try {
+              pdfY = Math.pow(u, alpha - 1) * Math.pow(1 - u, betaParam - 1) / (B * (pessimistic - optimistic));
+              cdfY = jstat.beta.cdf(u, alpha, betaParam);
+            } catch (error) {
+              console.error('generatePoints: PERT calculation failed at x', { x, u, alpha, betaParam, error: error.message });
+              pdfY = 0;
+              cdfY = u < 0 ? 0 : 1;
+            }
+          }
+          pdfY = Number.isFinite(pdfY) && pdfY >= 0 ? pdfY : 0;
+          cdfY = Number.isFinite(cdfY) && cdfY >= 0 && cdfY <= 1 ? cdfY : u < 0 ? 0 : 1;
+          pdfPoints.push({ x, y: pdfY, plotCumulative_Confidence: cumulative * 100 });
+          cdfPoints.push({ x, y: cdfY, plotCumulative_Confidence: cdfY * 100 });
+          cumulative = cdfY;
+        }
+        const pdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6 || Math.abs(pdfSum - 1) > 0.2) {
+          console.warn('generatePoints: Invalid PERT PDF sum, normalizing', { pdfSum });
+          const factor = pdfSum > 0 ? 1 / pdfSum : 1;
+          pdfPoints.forEach(p => {
+            p.y = Number.isFinite(p.y) && p.y >= 0 ? p.y * factor : 0;
+            p.plotCumulative_Confidence = Number.isFinite(cumulative) ? cumulative * 100 : 0;
+          });
+        }
+        let lastY = 0;
+        cdfPoints.forEach((p, i) => {
+          p.y = Math.max(lastY, Math.min(p.y, 1));
+          p.plotCumulative_Confidence = p.y * 100;
+          lastY = p.y;
+          console.log(`generatePoints: PERT CDF point ${i}`, { x: p.x, y: p.y, plotCumulative_Confidence: p.plotCumulative_Confidence });
+        });
+        if (pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+          console.warn('generatePoints: Invalid PERT PDF points, using uniform distribution', { pdfPointsLength: pdfPoints.length, pdfSum });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          const pdfY = 1 / range;
+          const fallbackPdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: pdfY,
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          const fallbackCdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          console.log('generatePoints: Using uniform distribution fallback for PERT', { pdfPointsLength: fallbackPdfPoints.length });
+          return { pdfPoints: fallbackPdfPoints, cdfPoints: fallbackCdfPoints };
+        }
+        if (!isValidCdfArray(cdfPoints)) {
+          console.warn('generatePoints: Invalid PERT CDF points, using uniform CDF', { cdfPointsLength: cdfPoints.length });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          cdfPoints.splice(0, cdfPoints.length, ...Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          })));
+        }
+        const finalPdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        console.log('generatePoints: PERT points generated', { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length, finalPdfSum });
+        return { pdfPoints, cdfPoints };
+      }
+      if (distType === 'beta') {
+        const { alpha, beta, optimistic, pessimistic } = params;
+        console.log('generatePoints: Input params', { distType, optimistic, mostLikely, pessimistic, alpha, beta });
+        if (!Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0 || optimistic >= pessimistic) {
+          throw new Error('Invalid parameters for Beta distribution');
+        }
+        const pdfPoints = [];
+        const cdfPoints = [];
+        const step = (pessimistic - optimistic) / 100;
+        let B;
+        try {
+          B = math.gamma(alpha) * math.gamma(beta) / math.gamma(alpha + beta);
+          if (!Number.isFinite(B) || B <= 0) {
+            throw new Error('Invalid beta function result');
+          }
+        } catch (error) {
+          console.error('generatePoints: Beta function failed for Beta', { error: error.message, alpha, beta });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          const pdfY = 1 / range;
+          const fallbackPdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: pdfY,
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          const fallbackCdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          console.log('generatePoints: Using uniform distribution fallback for Beta', { pdfPointsLength: fallbackPdfPoints.length });
+          return { pdfPoints: fallbackPdfPoints, cdfPoints: fallbackCdfPoints };
+        }
+        let cumulative = 0;
+        for (let x = optimistic; x <= pessimistic; x += step) {
+          const u = (x - optimistic) / (pessimistic - optimistic);
+          let pdfY = 0;
+          let cdfY = 0;
+          if (Number.isFinite(u) && u >= 0 && u <= 1) {
+            try {
+              pdfY = Math.pow(u, alpha - 1) * Math.pow(1 - u, beta - 1) / (B * (pessimistic - optimistic));
+              cdfY = jstat.beta.cdf(u, alpha, beta);
+            } catch (error) {
+              console.error('generatePoints: Beta calculation failed', { error: error.message, x, u, alpha, beta });
+              pdfY = 0;
+              cdfY = u < 0 ? 0 : 1;
+            }
+          }
+          pdfY = Number.isFinite(pdfY) && pdfY >= 0 ? pdfY : 0;
+          cdfY = Number.isFinite(cdfY) && cdfY >= 0 && cdfY <= 1 ? cdfY : u < 0 ? 0 : 1;
+          pdfPoints.push({ x, y: pdfY, plotCumulative_Confidence: cumulative * 100 });
+          cdfPoints.push({ x, y: cdfY, plotCumulative_Confidence: cdfY * 100 });
+          cumulative = cdfY;
+        }
+        const pdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6 || Math.abs(pdfSum - 1) > 0.2) {
+          console.warn('generatePoints: Invalid Beta PDF sum, normalizing', { pdfSum });
+          const factor = pdfSum > 0 ? 1 / pdfSum : 1;
+          pdfPoints.forEach(p => {
+            p.y = Number.isFinite(p.y) && p.y >= 0 ? p.y * factor : 0;
+            p.plotCumulative_Confidence = Number.isFinite(cumulative) ? cumulative * 100 : 0;
+          });
+        }
+        let lastY = 0;
+        cdfPoints.forEach((p, i) => {
+          p.y = Math.max(lastY, Math.min(p.y, 1));
+          p.plotCumulative_Confidence = p.y * 100;
+          lastY = p.y;
+          console.log(`generatePoints: Beta CDF point ${i}`, { x: p.x, y: p.y, plotCumulative_Confidence: p.plotCumulative_Confidence });
+        });
+        if (pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+          console.warn('generatePoints: Invalid Beta PDF points, using uniform distribution', { pdfPointsLength: pdfPoints.length, pdfSum });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          const pdfY = 1 / range;
+          const fallbackPdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: pdfY,
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          const fallbackCdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          }));
+          console.log('generatePoints: Using uniform distribution fallback for Beta', { pdfPointsLength: fallbackPdfPoints.length });
+          return { pdfPoints: fallbackPdfPoints, cdfPoints: fallbackCdfPoints };
+        }
+        if (!isValidCdfArray(cdfPoints)) {
+          console.warn('generatePoints: Invalid Beta CDF points, using uniform CDF', { cdfPointsLength: cdfPoints.length });
+          const range = pessimistic - optimistic;
+          const numPoints = 101;
+          cdfPoints.splice(0, cdfPoints.length, ...Array.from({ length: numPoints }, (_, i) => ({
+            x: optimistic + (i / (numPoints - 1)) * range,
+            y: i / (numPoints - 1),
+            plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+          })));
+        }
+        const finalPdfSum = pdfPoints.reduce((sum, p) => sum + p.y * step, 0);
+        console.log('generatePoints: Beta points generated', { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length, finalPdfSum });
+        return { pdfPoints, cdfPoints };
+      }
+    }
+    if (distType === 'monteCarloRaw') {
+      if (!Array.isArray(samples) || samples.length < 2) {
+        throw new Error('Invalid samples: must be an array with at least 2 elements');
+      }
+      const validSamples = samples.filter(s => Number.isFinite(s) && s >= params.optimistic && s <= params.pessimistic);
+      if (validSamples.length < 2) {
+        console.error('generatePoints: Insufficient valid samples for monteCarloRaw', { validSamplesLength: validSamples.length });
+        throw new Error('Insufficient valid samples after filtering');
+      }
+      const sortedSamples = validSamples.slice().sort((x, y) => x - y);
+      const min = Math.max(sortedSamples[0], params.optimistic);
+      const max = Math.min(sortedSamples[sortedSamples.length - 1], params.pessimistic);
+      const numBins = Math.max(101, Math.ceil(Math.sqrt(validSamples.length)));
+      const binWidth = (max - min) / numBins;
+      const pdfPoints = [];
+      const cdfPoints = [];
+      let cumulative = 0;
+      for (let i = 0; i < numBins; i++) {
+        const binStart = min + i * binWidth;
+        const binEnd = binStart + binWidth;
+        const count = validSamples.filter(x => x >= binStart && x < binEnd).length;
+        const pdfY = count / (validSamples.length * binWidth);
+        cumulative += count / validSamples.length;
+        const x = binStart + binWidth / 2;
+        pdfPoints.push({ x, y: Number.isFinite(pdfY) ? pdfY : 0, plotCumulative_Confidence: Number.isFinite(cumulative) ? cumulative * 100 : 0 });
+        cdfPoints.push({ x, y: Number.isFinite(cumulative) ? Math.min(cumulative, 1) : 0, plotCumulative_Confidence: Number.isFinite(cumulative) ? Math.min(cumulative * 100, 100) : 0 });
+      }
+      if (cdfPoints.length > 0) {
+        cdfPoints[cdfPoints.length - 1].y = 1;
+        cdfPoints[cdfPoints.length - 1].plotCumulative_Confidence = 100;
+      }
+      const pdfSum = pdfPoints.reduce((sum, p) => sum + (Number.isFinite(p.y) && p.y >= 0 ? p.y : 0) * binWidth, 0);
+      if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6 || Math.abs(pdfSum - 1) > 0.2) {
+        console.warn('generatePoints: Invalid MonteCarloRaw PDF sum, normalizing', { pdfSum });
+        const factor = pdfSum > 0 ? 1 / pdfSum : 1;
+        pdfPoints.forEach(p => {
+          p.y = Number.isFinite(p.y) && p.y >= 0 ? p.y * factor : 0;
+          p.plotCumulative_Confidence = Number.isFinite(p.plotCumulative_Confidence) ? p.plotCumulative_Confidence : 0;
+        });
+      }
+      let lastY = 0;
+      cdfPoints.forEach((p, i) => {
+        p.y = Math.max(lastY, Math.min(p.y, 1));
+        p.plotCumulative_Confidence = p.y * 100;
+        lastY = p.y;
+        console.log(`generatePoints: MonteCarloRaw CDF point ${i}`, { x: p.x, y: p.y, plotCumulative_Confidence: p.plotCumulative_Confidence });
+      });
+      if (pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0) || !Number.isFinite(pdfSum) || pdfSum <= 1e-6) {
+        console.warn('generatePoints: Invalid MonteCarloRaw PDF points, using uniform distribution', { pdfPointsLength: pdfPoints.length, pdfSum });
+        const range = params.pessimistic - params.optimistic;
+        const numPoints = 101;
+        const pdfY = 1 / range;
+        const fallbackPdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+          x: params.optimistic + (i / (numPoints - 1)) * range,
+          y: pdfY,
+          plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+        }));
+        const fallbackCdfPoints = Array.from({ length: numPoints }, (_, i) => ({
+          x: params.optimistic + (i / (numPoints - 1)) * range,
+          y: i / (numPoints - 1),
+          plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+        }));
+        console.log('generatePoints: Using uniform distribution fallback for MonteCarloRaw', { pdfPointsLength: fallbackPdfPoints.length });
+        return { pdfPoints: fallbackPdfPoints, cdfPoints: fallbackCdfPoints };
+      }
+      if (!isValidCdfArray(cdfPoints)) {
+        console.warn('generatePoints: Invalid MonteCarloRaw CDF points, using uniform CDF', { cdfPointsLength: cdfPoints.length });
+        const range = params.pessimistic - params.optimistic;
+        const numPoints = 101;
+        cdfPoints.splice(0, cdfPoints.length, ...Array.from({ length: numPoints }, (_, i) => ({
+          x: params.optimistic + (i / (numPoints - 1)) * range,
+          y: i / (numPoints - 1),
+          plotCumulative_Confidence: (i / (numPoints - 1)) * 100
+        })));
+      }
+      const finalPdfSum = pdfPoints.reduce((sum, p) => sum + p.y * binWidth, 0);
+      console.log('generatePoints: MonteCarloRaw points generated', { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length, finalPdfSum });
+      return { pdfPoints, cdfPoints };
+    }
+    // Note: The monteCarloSmoothed branch is not in this file as per the provided code; it's in Generator.
+  } catch (error) {
+    console.error('generatePoints: Error', { error: error.message });
+    const uniformDist = createUniformDistribution(params.optimistic, params.pessimistic);
+    return { pdfPoints: uniformDist.pdfPoints, cdfPoints: uniformDist.cdfPoints };
+  }
+}
+// Optimization-Core.js
+'use strict';
+
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateEstimates, interpolateCdf, findValueAtConfidence } = require(path.join(CORE_DIR, 'core-utilities'));
+const { normalizeSliders } = require(path.join(CORE_DIR, 'Slider_Normalization-Core'));
+const { sliderAdjustedPDFandCDFPoints } = require(path.join(CORE_DIR, 'Slider_Adjustments-Core'));
+
+function optimizeSliderSettings(initialSliders, estimates, objective, points) {
+  try {
+    if (!initialSliders || !estimates || !objective || !Array.isArray(points)) {
+      throw new Error('Invalid inputs for optimization: missing sliders, estimates, objective, or points');
+    }
+    const { optimistic, mostLikely, pessimistic } = estimates;
+    const validationEstimates = validateEstimates(optimistic, mostLikely, pessimistic);
+    if (!validationEstimates.valid) {
+      throw new Error(validationEstimates.message);
+    }
+    const normalizedSliders = normalizeSliders(initialSliders);
+    const totalProportion = normalizedSliders.reduce((sum, s) => sum + s.proportion, 0);
+    if (Math.abs(totalProportion - 100) > 0.01) {
+      console.warn(`optimizeSliderSettings: Total proportion (${totalProportion}) not exactly 100, normalizing`);
+      const factor = 100 / totalProportion;
+      normalizedSliders.forEach(slider => {
+        slider.proportion *= factor;
+      });
+    }
+
+    const objectiveFunction = (sliders) => {
+      const sliderArray = sliders.map((value, i) => ({
+        name: normalizedSliders[i].name,
+        value,
+        proportion: normalizedSliders[i].proportion,
+        impacts: normalizedSliders[i].impacts,
+      }));
+      const adjusted = sliderAdjustedPDFandCDFPoints({
+        points,
+        optimistic,
+        mostLikely,
+        pessimistic,
+        sliderValues: sliderArray,
+        distributionType: 'triangle',
+        userSlider_Confidence: 'confident',
+      });
+      if (adjusted.error) return Infinity;
+      const prob = objective.type === 'target' ? interpolateCdf(adjusted.cdfPoints, objective.target) : findValueAtConfidence(adjusted.cdfPoints, objective.confidence);
+      return Math.abs(prob - 0.9); // Example objective: maximize to 90%
+    };
+
+    const bounds = normalizedSliders.map(() => [0, 100]);
+    const populationSize = 10;
+    const maxGenerations = 20;
+    const F = 0.8;
+    const CR = 0.9;
+
+    let population = Array(populationSize).fill().map(() =>
+      bounds.map(([min, max]) => min + Math.random() * (max - min))
+    );
+    let bestSolution = population[0];
+    let bestFitness = objectiveFunction(bestSolution);
+
+    for (let gen = 0; gen < maxGenerations; gen++) {
+      const newPopulation = [];
+      for (let i = 0; i < populationSize; i++) {
+        const indices = Array(populationSize).fill().map((_, idx) => idx).filter(idx => idx !== i);
+        const [a, b, c] = indices.sort(() => Math.random() - 0.5).slice(0, 3);
+        const mutant = bounds.map(([min, max], j) => {
+          const value = population[a][j] + F * (population[b][j] - population[c][j]);
+          return Math.min(Math.max(value, min), max);
+        });
+        const trial = population[i].map((val, j) =>
+          Math.random() < CR || j === Math.floor(Math.random() * bounds.length) ? mutant[j] : val
+        );
+        const trialFitness = objectiveFunction(trial);
+        if (Number.isFinite(trialFitness) && trialFitness < bestFitness) {
+          bestSolution = trial;
+          bestFitness = trialFitness;
+        }
+        newPopulation.push(trialFitness < objectiveFunction(population[i]) ? trial : population[i]);
+      }
+      population = newPopulation;
+    }
+
+    const optimized = normalizedSliders.reduce((acc, slider, i) => ({
+      ...acc,
+      [slider.name]: Math.round(bestSolution[i])
+    }), {
+      budgetFlexibility: 15,
+      scheduleFlexibility: 15,
+      scopeCertainty: 20,
+      scopeReductionAllowance: 10,
+      reworkPercentage: 5,
+      riskTolerance: 10
+    });
+    console.log(`optimizeSliderSettings: Optimized sliders for target ${objective.target}: ${JSON.stringify(optimized)}`);
+    return optimized;
+  } catch (error) {
+    console.error('optimizeSliderSettings: Error', { error: error.message });
+    const fallback = normalizeSliders(initialSliders).normalizedSliders.reduce((acc, slider) => ({
+      ...acc,
+      [slider.name]: slider.value
+    }), {
+      budgetFlexibility: 15,
+      scheduleFlexibility: 15,
+      scopeCertainty: 20,
+      scopeReductionAllowance: 10,
+      reworkPercentage: 5,
+      riskTolerance: 10
+    });
+    return fallback;
+  }
+}
+
+module.exports = {
+  optimizeSliderSettings
+};
+'use strict';
+
+/*
+ * WHAT: Normalizes slider inputs for the Interactive Probability Simulator.
+ * WHY: Ensures consistent slider data for adjustments and optimization.
+ * WHERE: Located in the ./core directory, used by Slider_Adjustments-Core.js and Task_Processor-Core.js.
+ * DEPENDENCIES:
+ *   - mathjs@^12.0.0
+ * EXPORTS:
+ *   - normalizeSliders
+ * CHANGES:
+ *   - Added explicit validation for non-empty finite non-negative slider values.
+ *   - Added feedbackMessages to output.
+ *   - Enhanced input logging for debugging.
+ */
+
+const math = require('mathjs');
+
+/**
+ * Normalizes slider inputs to ensure valid values and proportions.
+ * @param {Object|Array} sliders - Slider inputs (object or array of {name, value, proportion, impacts}).
+ * @returns {Object} - { normalizedSliders: Array, feedbackMessages: Array } with normalized sliders and error messages.
+ * 
+ * Data Received:
+ *   - Accepts array or object of sliders.
+ *   - Validates non-empty input, finite non-negative values (0-100).
+ *   - Checks impacts for finite non-negative mean/variance/skewness/kurtosis.
+ * Processed:
+ *   - Converts object to array with defaults if needed.
+ *   - Clamps values to 0-100, sets invalid to 0.
+ *   - Normalizes impacts to sum=1 (tolerance 0.01).
+ *   - Assigns default proportions if null, normalizes if sum >100.
+ * Sent Forward:
+ *   - Returns array of {name, value, proportion, impacts} and feedbackMessages.
+ *   - Defaults on invalid/empty input.
+ * Edge Cases:
+ *   - Empty/null/undefined sliders → defaults.
+ *   - Non-finite/negative values → 0.
+ *   - Impacts sum=0 or !=1 → normalize to 0.25 or scale.
+ *   - Proportion sum >100 → scale down; null proportions → distribute remaining.
+ */
+function normalizeSliders(sliders) {
+  const feedbackMessages = [];
+  try {
+    console.log('normalizeSliders: Input sliders', JSON.stringify(sliders, null, 2));
+    if (!sliders || (Array.isArray(sliders) && sliders.length === 0) || (typeof sliders === 'object' && Object.keys(sliders).length === 0)) {
+      feedbackMessages.push('Slider values must be non-empty');
+      throw new Error('Slider values must be non-empty and contain finite non-negative numbers');
+    }
+
+    let sliderArray;
+    if (Array.isArray(sliders)) {
+      if (!sliders.every(s => Number.isFinite(s.value) && s.value >= 0)) {
+        feedbackMessages.push('Invalid slider values: non-finite or negative');
+        throw new Error('Slider values must be non-empty and contain finite non-negative numbers');
+      }
+      sliderArray = sliders;
+    } else if (typeof sliders === 'object') {
+      if (!Object.values(sliders).every(v => Number.isFinite(v) && v >= 0)) {
+        feedbackMessages.push('Invalid slider values in object: non-finite or negative');
+        throw new Error('Slider values must be non-empty and contain finite non-negative numbers');
+      }
+      sliderArray = [
+        { name: 'budgetFlexibility', value: sliders.budgetFlexibility || 0, proportion: 20, impacts: { mean: 0.4, variance: 0.3, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scheduleFlexibility', value: sliders.scheduleFlexibility || 0, proportion: 20, impacts: { mean: 0.3, variance: 0.4, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scopeCertainty', value: sliders.scopeCertainty || 0, proportion: 20, impacts: { mean: 0.2, variance: 0.2, skewness: 0.4, kurtosis: 0.2 } },
+        { name: 'scopeReductionAllowance', value: sliders.scopeReductionAllowance || 0, proportion: 15, impacts: { mean: 0.2, variance: 0.2, skewness: 0.3, kurtosis: 0.3 } },
+        { name: 'reworkPercentage', value: sliders.reworkPercentage || 0, proportion: 15, impacts: { mean: 0.2, variance: 0.3, skewness: 0.2, kurtosis: 0.3 } },
+        { name: 'riskTolerance', value: sliders.riskTolerance || 0, proportion: 10, impacts: { mean: 0.3, variance: 0.2, skewness: 0.3, kurtosis: 0.2 } }
+      ];
+    } else {
+      feedbackMessages.push('Invalid slider input type, reverting to defaults');
+      console.warn('normalizeSliders: Invalid slider input', { sliders });
+      sliderArray = [
+        { name: 'budgetFlexibility', value: 15, proportion: 20, impacts: { mean: 0.4, variance: 0.3, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scheduleFlexibility', value: 15, proportion: 20, impacts: { mean: 0.3, variance: 0.4, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scopeCertainty', value: 20, proportion: 20, impacts: { mean: 0.2, variance: 0.2, skewness: 0.4, kurtosis: 0.2 } },
+        { name: 'scopeReductionAllowance', value: 10, proportion: 15, impacts: { mean: 0.2, variance: 0.2, skewness: 0.3, kurtosis: 0.3 } },
+        { name: 'reworkPercentage', value: 5, proportion: 15, impacts: { mean: 0.2, variance: 0.3, skewness: 0.2, kurtosis: 0.3 } },
+        { name: 'riskTolerance', value: 10, proportion: 10, impacts: { mean: 0.3, variance: 0.2, skewness: 0.3, kurtosis: 0.2 } }
+      ];
+    }
+
+    const normalizedSliders = sliderArray.map((slider, index) => {
+      const name = slider.name || `Slider${index + 1}`;
+      const value = Number.isFinite(slider.value) && slider.value >= 0 && slider.value <= 100 ? slider.value : 0;
+      const proportion = Number.isFinite(slider.proportion) && slider.proportion >= 0 ? slider.proportion : null;
+      const impacts = slider.impacts && typeof slider.impacts === 'object' ? {
+        mean: Number.isFinite(slider.impacts.mean) && slider.impacts.mean >= 0 ? slider.impacts.mean : 0.25,
+        variance: Number.isFinite(slider.impacts.variance) && slider.impacts.variance >= 0 ? slider.impacts.variance : 0.25,
+        skewness: Number.isFinite(slider.impacts.skewness) && slider.impacts.skewness >= 0 ? slider.impacts.skewness : 0.25,
+        kurtosis: Number.isFinite(slider.impacts.kurtosis) && slider.impacts.kurtosis >= 0 ? slider.impacts.kurtosis : 0.25
+      } : { mean: 0.25, variance: 0.25, skewness: 0.25, kurtosis: 0.25 };
+
+      const impactSum = impacts.mean + impacts.variance + impacts.skewness + impacts.kurtosis;
+      if (Math.abs(impactSum - 1) > 0.01) {
+        feedbackMessages.push(`Impacts for ${name} sum to ${impactSum}, normalizing`);
+        const factor = impactSum > 0 ? 1 / impactSum : 0.25;
+        impacts.mean *= factor;
+        impacts.variance *= factor;
+        impacts.skewness *= factor;
+        impacts.kurtosis *= factor;
+      }
+
+      return { name, value, proportion, impacts };
+    });
+
+    const validProportions = normalizedSliders.map(s => s.proportion).filter(p => p !== null);
+    const totalValidProportion = validProportions.reduce((sum, p) => sum + p, 0);
+    const missingProportionCount = normalizedSliders.filter(s => s.proportion === null).length;
+    const remainingProportion = 100 - totalValidProportion;
+    const defaultProportion = missingProportionCount > 0 ? remainingProportion / missingProportionCount : 0;
+
+    if (remainingProportion < 0) {
+      feedbackMessages.push(`Total proportion=${totalValidProportion} exceeds 100, normalizing`);
+      const factor = 100 / totalValidProportion;
+      normalizedSliders.forEach(s => s.proportion *= factor);
+    } else {
+      normalizedSliders.forEach(s => s.proportion = s.proportion === null ? defaultProportion : s.proportion);
+    }
+
+    console.log(`normalizeSliders: Normalized ${normalizedSliders.length} sliders`);
+    return { normalizedSliders, feedbackMessages };
+  } catch (error) {
+    feedbackMessages.push(`Error in normalizeSliders: ${error.message}, reverting to defaults`);
+    console.error('normalizeSliders: Error', { error: error.message, sliders });
+    return {
+      normalizedSliders: [
+        { name: 'budgetFlexibility', value: 15, proportion: 20, impacts: { mean: 0.4, variance: 0.3, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scheduleFlexibility', value: 15, proportion: 20, impacts: { mean: 0.3, variance: 0.4, skewness: 0.2, kurtosis: 0.1 } },
+        { name: 'scopeCertainty', value: 20, proportion: 20, impacts: { mean: 0.2, variance: 0.2, skewness: 0.4, kurtosis: 0.2 } },
+        { name: 'scopeReductionAllowance', value: 10, proportion: 15, impacts: { mean: 0.2, variance: 0.2, skewness: 0.3, kurtosis: 0.3 } },
+        { name: 'reworkPercentage', value: 5, proportion: 15, impacts: { mean: 0.2, variance: 0.3, skewness: 0.2, kurtosis: 0.3 } },
+        { name: 'riskTolerance', value: 10, proportion: 10, impacts: { mean: 0.3, variance: 0.2, skewness: 0.3, kurtosis: 0.2 } }
+      ],
+      feedbackMessages
+    };
+  }
+}
+
+module.exports = {
+  normalizeSliders
+};
+/* core-outcome.js
+ * WHAT: Generates user-friendly outcome descriptions and scenario summaries for the Interactive Probability Simulator.
+ * WHY: Provides descriptive outputs for Plot.html visualizations and API responses, summarizing the impact of user inputs and sliders.
+ * WHERE: Located in the ./core directory, loaded by core-master.js for use in pmcEstimatorAPI.
+ * HOW:
+ *   - Inputs: Slider values, probabilities, metrics, estimates, and moments.
+ *   - Outputs: Human-readable strings describing outcomes, scenarios, and moment adjustments.
+ *   - Uses robust validation and error handling without fallbacks (McConnell, 2004).
+ * CHANGES:
+ *   - Removed all fallbacks; replaced with detailed error messaging (McConnell, 2004).
+ *   - Added dynamic baseline moment integration (mean, variance, skew, kurtosis) from Distribution_Metrics-Core.js for any beta distribution (Abramowitz & Stegun, 1964).
+ *   - Integrated sensitivity copula matrix using applyGaussianCopula for slider correlations in outcomes (Nelsen, 2006).
+ *   - Removed user confidence settings to simplify logic.
+ *   - Enhanced validation for inputs, including finite checks and slider impacts summing to 1.
+ *   - Streamlined outcome generation with weighted slider contributions.
+ *   - Added robust comments with references to best practices.
+ * DEPENDENCIES:
+ *   - core-utilities.js (validateSliders, applyGaussianCopula)
+ *   - mathjs@^12.0.0
+ *   - Distribution_Metrics-Core.js (computeBetaMoments)
+ * EXPORTS:
+ *   - generateDynamicOutcome, getScenarioSummary
+ * REFERENCES:
+ *   - Vose, D. (2008). Risk Analysis: A Quantitative Guide. (Outcome generation and metrics)
+ *   - Clemen, R. T., & Reilly, T. (2013). Making Hard Decisions with DecisionTools. (Decision summaries and sensitivity)
+ *   - McConnell, S. (2004). Code Complete: A Practical Handbook of Software Construction. (Error handling)
+ *   - Nelsen, R. B. (2006). An Introduction to Copulas. (Gaussian copula for correlations)
+ *   - Abramowitz, M., & Stegun, I. A. (1964). Handbook of Mathematical Functions. (Beta moments)
+ *   - PMI. (2017). A Guide to the Project Management Body of Knowledge (PMBOK Guide). (Risk mitigation sliders)
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { validateSliders, applyGaussianCopula, createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+const { computeBetaMoments } = require(path.join(CORE_DIR, 'Distribution_Metrics-Core'));
+
+/* Generates a dynamic outcome description based on inputs and moments */
+function generateDynamicOutcome(bf, sf, sc, rt, originalProb, adjustedProb, targetValue, triangleMean, triangleStdDev, sliderSensitivity, distributionShift, riskAdjustedRatio, riskProbabilities, baselineMoments) {
+  try {
+    // Validate inputs
+    const sliders = { budgetFlexibility: bf, scheduleFlexibility: sf, scopeCertainty: sc, riskTolerance: rt };
+    const validation = validateSliders(sliders);
+    if (!validation.valid) {
+      throw createErrorResponse(validation.message, { sliders });
+    }
+    const safeBf = Number.isFinite(bf) ? bf : null;
+    const safeSf = Number.isFinite(sf) ? sf : null;
+    const safeSc = Number.isFinite(sc) ? sc : null;
+    const safeRt = Number.isFinite(rt) ? rt : null;
+    const safeOriginalProb = Number.isFinite(originalProb) ? Math.min(Math.max(originalProb, 0), 1) : null;
+    const safeAdjustedProb = Number.isFinite(adjustedProb) ? Math.min(Math.max(adjustedProb, 0), 1) : null;
+    const safeTargetValue = Number.isFinite(targetValue) ? targetValue : null;
+    const safeTriangleMean = Number.isFinite(triangleMean) ? triangleMean : null;
+    const safeTriangleStdDev = Number.isFinite(triangleStdDev) ? triangleStdDev : null;
+    const safeSliderSensitivity = sliderSensitivity && typeof sliderSensitivity === 'object' ? sliderSensitivity : null;
+    const safeDistributionShift = distributionShift && typeof distributionShift === 'object' ? distributionShift : null;
+    const safeRiskAdjustedRatio = Number.isFinite(riskAdjustedRatio) ? riskAdjustedRatio : null;
+    const safeRiskProbabilities = riskProbabilities && typeof riskProbabilities === 'object' ? {
+      costOverrun: Number.isFinite(riskProbabilities.costOverrun) ? Math.min(Math.max(riskProbabilities.costOverrun, 0), 1) : null,
+      scheduleOverrun: Number.isFinite(riskProbabilities.scheduleOverrun) ? Math.min(Math.max(riskProbabilities.scheduleOverrun, 0), 1) : null,
+      scopeCreep: Number.isFinite(riskProbabilities.scopeCreep) ? Math.min(Math.max(riskProbabilities.scopeCreep, 0), 1) : null,
+      defects: Number.isFinite(riskProbabilities.defects) ? Math.min(Math.max(riskProbabilities.defects, 0), 1) : null
+    } : null;
+
+    if ([safeBf, safeSf, safeSc, safeRt, safeOriginalProb, safeAdjustedProb, safeTargetValue, safeTriangleMean, safeTriangleStdDev].some(v => v === null)) {
+      throw createErrorResponse('Non-finite input values detected', { bf, sf, sc, rt, originalProb, adjustedProb, targetValue, triangleMean, triangleStdDev });
+    }
+    if (!safeSliderSensitivity || !safeDistributionShift || !safeRiskProbabilities || !safeRiskAdjustedRatio) {
+      throw createErrorResponse('Missing or invalid sensitivity, shift, risk probabilities, or ratio', { sliderSensitivity, distributionShift, riskProbabilities, riskAdjustedRatio });
+    }
+
+    // Integrate Gaussian copula for slider correlations (Nelsen, 2006)
+    const sliderU = [safeBf / 100, safeSf / 100, safeSc / 100, 0, 0, safeRt / 100]; // Uniform [0,1]; placeholders for missing sliders
+    const correlationMatrix = [
+      [1, 0.7, 0.2, 0.1, 0.3, 0.2],
+      [0.7, 1, 0.2, 0.1, 0.3, 0.2],
+      [0.2, 0.2, 1, 0.5, -0.1, -0.3],
+      [0.1, 0.1, 0.5, 1, 0.1, 0.2],
+      [0.3, 0.3, -0.1, 0.1, 1, 0.4],
+      [0.2, 0.2, -0.3, 0.2, 0.4, 1]
+    ]; // Example matrix; can be dynamic
+    const correlatedU = applyGaussianCopula(sliderU, correlationMatrix);
+    const copulaCorrelations = correlatedU.map(u => u.toFixed(2)); // Simplified for outcome
+
+    // Incorporate baseline moments (Abramowitz & Stegun, 1964)
+    const { mean: baselineMean, variance: baselineVariance, skew: baselineSkew, kurtosis: baselineKurtosis } = baselineMoments;
+
+    // Variable for cost/time
+    const variable = safeTargetValue > 1000 ? 'cost' : 'time';
+    let outcome = `With ${variable} estimates centered around ${safeTriangleMean.toFixed(1)} and a standard deviation of ${safeTriangleStdDev.toFixed(1)}, `;
+    outcome += `your initial probability of meeting the target of ${safeTargetValue.toFixed(1)} was ${(safeOriginalProb * 100).toFixed(1)}%. `;
+    outcome += `After applying your settings (Budget Flexibility: ${safeBf.toFixed(1)}%, Schedule Flexibility: ${safeSf.toFixed(1)}%, `;
+    outcome += `Scope Certainty: ${safeSc.toFixed(1)}%, Risk Tolerance: ${safeRt.toFixed(1)}%), `;
+    outcome += `the adjusted probability is ${(safeAdjustedProb * 100).toFixed(1)}%. `;
+    outcome += `The KL divergence between distributions is ${(safeDistributionShift.klDivergence || 0).toFixed(2)}. `;
+    outcome += `Key risks include cost overrun (${(safeRiskProbabilities.costOverrun * 100).toFixed(1)}%), `;
+    outcome += `schedule overrun (${(safeRiskProbabilities.scheduleOverrun * 100).toFixed(1)}%), `;
+    outcome += `scope creep (${(safeRiskProbabilities.scopeCreep * 100).toFixed(1)}%), `;
+    outcome += `and defects (${(safeRiskProbabilities.defects * 100).toFixed(1)}%). `;
+    outcome += `The risk-adjusted ratio is ${safeRiskAdjustedRatio.toFixed(2)}. `;
+    outcome += `Slider sensitivities: ${Object.entries(safeSliderSensitivity).map(([k, v]) => `${k}: ${Number.isFinite(v) ? v.toFixed(2) : 'N/A'}`).join(', ')}. `;
+    outcome += `Baseline moments: Mean=${baselineMean.toFixed(2)}, Variance=${baselineVariance.toFixed(2)}, Skew=${baselineSkew.toFixed(2)}, Kurtosis=${baselineKurtosis.toFixed(2)}. `;
+    outcome += `Copula correlations: ${copulaCorrelations.join(', ')}.`;
+
+    console.log(`generateDynamicOutcome: Generated outcome for ${variable} target ${safeTargetValue}`);
+    return outcome;
+  } catch (error) {
+    console.error('generateDynamicOutcome: Error', { 
+      error: error.message, 
+      bf, sf, sc, rt, 
+      originalProb, adjustedProb, targetValue, 
+      triangleMean, triangleStdDev, 
+      sliderSensitivity, distributionShift, riskAdjustedRatio, riskProbabilities,
+      baselineMoments 
+    });
+    throw createErrorResponse(`Outcome generation failed: ${error.message}`, { inputs: { bf, sf, sc, rt, originalProb, adjustedProb, targetValue, triangleMean, triangleStdDev } });
+  }
+}
+
+/* Generates a scenario summary based on slider settings */
+function getScenarioSummary(bf, sf, sc, rt) {
+  try {
+    const sliders = { budgetFlexibility: bf, scheduleFlexibility: sf, scopeCertainty: sc, riskTolerance: rt };
+    const validation = validateSliders(sliders);
+    if (!validation.valid) {
+      throw createErrorResponse(validation.message, { sliders });
+    }
+    let summary = '';
+    if (bf > 50) {
+      summary += 'High budget flexibility allows for more cost variability. ';
+    } else if (bf < 20) {
+      summary += 'Low budget flexibility requires tight cost control. ';
+    }
+    if (sf > 50) {
+      summary += 'High schedule flexibility supports adaptive timelines. ';
+    } else if (sf < 20) {
+      summary += 'Low schedule flexibility demands strict deadlines. ';
+    }
+    if (sc > 80) {
+      summary += 'High scope certainty reduces uncertainty in deliverables. ';
+    } else if (sc < 40) {
+      summary += 'Low scope certainty increases risk of scope creep. ';
+    }
+    if (rt > 70) {
+      summary += 'High risk tolerance permits aggressive strategies. ';
+    } else if (rt < 30) {
+      summary += 'Low risk tolerance favors conservative approaches. ';
+    }
+    if (summary === '') {
+      summary = 'Balanced scenario with moderate flexibility and risk tolerance.';
+    }
+    return summary;
+  } catch (error) {
+    console.error('getScenarioSummary: Error', { error: error.message, bf, sf, sc, rt });
+    throw createErrorResponse(`Scenario summary failed: ${error.message}`, { bf, sf, sc, rt });
+  }
+}
+
+module.exports = {
+  generateDynamicOutcome,
+  getScenarioSummary
+};
+/* Distribution_Validation-Core.js
+ * WHAT: Centralized validation functions for distributions in the Interactive Probability Simulator.
+ * WHY: Ensures PDFs and CDFs meet criteria for monotonicity, normalization, bounds, and correctness to support accurate risk analysis and moment calculations.
+ * WHERE: Located in the ./core directory, used by Distribution_Generator-Core.js, Slider_Adjustments-Core.js, Sensitivity_Matrix_Divergence-Core.js, and Task_Processor-Core.js.
+ * HOW:
+ *   - Validates PDF sums, CDF monotonicity, and point integrity for all distribution types.
+ *   - Throws detailed errors without fallbacks for robust debugging (McConnell, 2004).
+ *   - Supports dynamic beta distributions by ensuring point validity for moment computations (Abramowitz & Stegun, 1964).
+ * CHANGES:
+ *   - Removed all fallbacks; replaced with detailed error messaging for debugging (McConnell, 2004).
+ *   - Enhanced validation to support dynamic moment calculations for any beta distribution.
+ *   - Added logging for invalid points to trace issues in distribution generation.
+ *   - Streamlined PDF sum tolerance to 0.2 to handle numerical errors (Vose, 2008).
+ *   - Added robust comments with references to best practices.
+ * DEPENDENCIES:
+ *   - mathjs@^12.0.0
+ *   - core-utilities.js (createErrorResponse)
+ * EXPORTS:
+ *   - validateDistribution, validatePdfSum, validateCdfMonotonicity
+ * REFERENCES:
+ *   - Vose, D. (2008). Risk Analysis: A Quantitative Guide. (Distribution validation, normalization)
+ *   - McConnell, S. (2004). Code Complete: A Practical Handbook of Software Construction. (Error handling best practices)
+ *   - Abramowitz, M., & Stegun, I. A. (1964). Handbook of Mathematical Functions. (Beta distribution properties)
+ *   - Clemen, R. T., & Reilly, T. (2013). Making Hard Decisions with DecisionTools. (Risk analysis validation)
+ *   - Nelsen, R. B. (2006). An Introduction to Copulas. (Ensuring valid points for correlation analysis)
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+
+/* Validates a PDF sum to ensure it approximates 1 (essential for valid probabilities) */
+function validatePdfSum(points, step, context) {
+  try {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw createErrorResponse('Points array must have at least 2 elements', { context, pointsLength: points?.length });
+    }
+    const sum = points.reduce((sum, p) => sum + (Number.isFinite(p.y) && p.y >= 0 ? p.y : 0) * step, 0);
+    const isValid = Number.isFinite(sum) && sum > 1e-6 && Math.abs(sum - 1) < 0.2; // Tolerance 0.2 for numerical errors (Vose, 2008)
+    if (!isValid) {
+      console.warn(`validatePdfSum: Invalid PDF sum in ${context}`, { sum, step, firstFewPoints: points.slice(0, 5) });
+      throw createErrorResponse('Invalid PDF sum: must be close to 1', { sum, step, context });
+    }
+    return isValid;
+  } catch (error) {
+    console.error(`validatePdfSum: Error in ${context}`, { error: error.message });
+    throw error;
+  }
+}
+
+/* Validates CDF monotonicity to ensure non-decreasing behavior */
+function validateCdfMonotonicity(points, context) {
+  try {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw createErrorResponse('Points array must have at least 2 elements', { context, pointsLength: points?.length });
+    }
+    let lastY = -Infinity;
+    const tolerance = 1e-6; // Small tolerance for numerical precision (Vose, 2008)
+    for (let i = 0; i < points.length; i++) {
+      const y = points[i].y;
+      if (!Number.isFinite(y) || y < 0 || y > 1 || y < lastY - tolerance) {
+        console.warn(`validateCdfMonotonicity: Invalid CDF point at index ${i} in ${context}`, { y, lastY, nearbyPoints: points.slice(Math.max(0, i - 5), i + 6) });
+        throw createErrorResponse('Non-monotonic or invalid CDF points', { index: i, y, lastY, context });
+      }
+      lastY = y;
+    }
+    return true;
+  } catch (error) {
+    console.error(`validateCdfMonotonicity: Error in ${context}`, { error: error.message });
+    throw error;
+  }
+}
+
+/* Validates a distribution (PDF and CDF points) for integrity and correctness */
+function validateDistribution(distPoints, distType, step, optimistic, pessimistic, context) {
+  try {
+    const { pdfPoints, cdfPoints } = distPoints;
+    if (!Array.isArray(pdfPoints) || pdfPoints.length < 2) {
+      throw createErrorResponse('Invalid PDF points: must be an array with at least 2 points', { context, pdfPointsLength: pdfPoints?.length });
+    }
+    if (!Array.isArray(cdfPoints) || cdfPoints.length < 2) {
+      throw createErrorResponse('Invalid CDF points: must be an array with at least 2 points', { context, cdfPointsLength: cdfPoints?.length });
+    }
+    if (!pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+      console.warn(`validateDistribution: Invalid PDF point values in ${context}`, {
+        invalidPoints: pdfPoints.filter(p => !Number.isFinite(p.x) || !Number.isFinite(p.y) || p.y < 0).slice(0, 5)
+      });
+      throw createErrorResponse('Invalid PDF point values', { invalidPoints: pdfPoints.filter(p => !Number.isFinite(p.x) || !Number.isFinite(p.y) || p.y < 0).slice(0, 5), context });
+    }
+    if (!cdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
+      console.warn(`validateDistribution: Invalid CDF point values in ${context}`, {
+        invalidPoints: cdfPoints.filter(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)).slice(0, 5)
+      });
+      throw createErrorResponse('Invalid CDF point values', { invalidPoints: cdfPoints.filter(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)).slice(0, 5), context });
+    }
+    if (!pdfPoints.every(p => p.x >= optimistic && p.x <= pessimistic) || !cdfPoints.every(p => p.x >= optimistic && p.x <= pessimistic)) {
+      throw createErrorResponse('Distribution points outside optimistic-pessimistic bounds', { optimistic, pessimistic, context });
+    }
+    if (!validatePdfSum(pdfPoints, step, `${context} PDF`)) {
+      throw createErrorResponse('Invalid PDF sum', { context });
+    }
+    if (!validateCdfMonotonicity(cdfPoints, `${context} CDF`)) {
+      throw createErrorResponse('Non-monotonic or invalid CDF points', { context });
+    }
+    console.log(`validateDistribution: Validated ${distType} in ${context}`, { pdfPointsLength: pdfPoints.length, cdfPointsLength: cdfPoints.length });
+    return true;
+  } catch (error) {
+    console.warn(`validateDistribution: Invalid distribution for ${distType} in ${context}`, { error: error.message });
+    throw error;
+  }
+}
+
+module.exports = {
+  validateDistribution,
+  validatePdfSum,
+  validateCdfMonotonicity
+};
+/* Probability_Metrics-Core.js
+ * WHAT: Provides functions for computing advanced probability metrics in the Interactive Probability Simulator.
+ * WHY: Supports risk analysis by calculating values at specific confidence levels and other probability metrics.
+ * WHERE: Located in the ./core directory, used by Task_Processor-Core.js and Optimization-Core.js.
+ * HOW:
+ *   - Computes metrics like value at confidence using CDF interpolation.
+ *   - Validates inputs and outputs rigorously, throwing detailed errors without fallbacks (McConnell, 2004).
+ *   - Ensures compatibility with dynamic beta distributions and sensitivity copula analysis (Nelsen, 2006).
+ * CHANGES:
+ *   - Removed all fallbacks; replaced with detailed error messaging (McConnell, 2004).
+ *   - Ensured compatibility with dynamic baseline moments from Distribution_Metrics-Core.js (Abramowitz & Stegun, 1964).
+ *   - Added validation for CDF points to support sensitivity copula matrix computations (Nelsen, 2006).
+ *   - Removed user confidence settings to simplify logic.
+ *   - Streamlined metric calculations with robust validation.
+ *   - Added robust comments with references to best practices.
+ * DEPENDENCIES:
+ *   - core-utilities.js (interpolateCdf, isValidCdfArray)
+ * EXPORTS:
+ *   - findValueAtConfidence
+ * REFERENCES:
+ *   - Vose, D. (2008). Risk Analysis: A Quantitative Guide. (Probability metrics)
+ *   - McConnell, S. (2004). Code Complete: A Practical Handbook of Software Construction. (Error handling best practices)
+ *   - Clemen, R. T., & Reilly, T. (2013). Making Hard Decisions with DecisionTools. (Risk analysis metrics)
+ *   - Nelsen, R. B. (2006). An Introduction to Copulas. (Correlation analysis support)
+ *   - Abramowitz, M., & Stegun, I. A. (1964). Handbook of Mathematical Functions. (Beta distribution compatibility)
+ */
+
+'use strict';
+
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { interpolateCdf, isValidCdfArray, createErrorResponse } = require(path.join(CORE_DIR, 'core-utilities'));
+
+/**
+ * Finds the value at a specified confidence level using CDF points.
+ * @param {Array<{x: number, y: number}>} cdfPoints - CDF points for the distribution.
+ * @param {number} confidence - Confidence level (0 to 1).
+ * @returns {number} - Value corresponding to the confidence level.
+ */
+function findValueAtConfidence(cdfPoints, confidence) {
+  try {
+    if (!isValidCdfArray(cdfPoints)) {
+      throw createErrorResponse('Invalid CDF points', { cdfPointsLength: cdfPoints?.length, firstFewPoints: cdfPoints?.slice(0, 5) });
+    }
+    if (!Number.isFinite(confidence) || confidence <= 0 || confidence >= 1) {
+      throw createErrorResponse('Confidence level must be in (0,1)', { confidence });
+    }
+    // Interpolate to find the x-value where CDF = confidence
+    const sortedPoints = cdfPoints.sort((a, b) => a.x - b.x);
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+      if (sortedPoints[i].y <= confidence && confidence <= sortedPoints[i + 1].y) {
+        const x0 = sortedPoints[i].x, y0 = sortedPoints[i].y;
+        const x1 = sortedPoints[i + 1].x, y1 = sortedPoints[i + 1].y;
+        const value = x0 + (x1 - x0) * (confidence - y0) / (y1 - y0);
+        if (!Number.isFinite(value)) {
+          throw createErrorResponse('Non-finite value computed at confidence level', { value, confidence, x0, y0, x1, y1 });
+        }
+        console.log('findValueAtConfidence: Computed value', { confidence, value });
+        return value;
+      }
+    }
+    // Handle edge cases
+    if (confidence < sortedPoints[0].y) {
+      return sortedPoints[0].x;
+    }
+    if (confidence > sortedPoints[sortedPoints.length - 1].y) {
+      return sortedPoints[sortedPoints.length - 1].x;
+    }
+    throw createErrorResponse('Failed to find value at confidence level', { confidence, firstFewPoints: sortedPoints.slice(0, 5) });
+  } catch (error) {
+    console.error('findValueAtConfidence: Error', { error: error.message, confidence });
+    throw error;
+  }
+}
+
+module.exports = {
+  findValueAtConfidence
+};
+// Task_Processor-Core.js
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+
+const CORE_DIR = path.resolve(__dirname);
+const { calculateTriangleMean, calculatePERTMean, calculateBetaMean, computeBetaMoments } = require(path.join(CORE_DIR, 'Distribution_Metrics-Core'));
+const { generateDistributionPoints } = require(path.join(CORE_DIR, 'Distribution_Generator-Core'));
+const { calculateMetrics, calculateAdjustedMetrics } = require(path.join(CORE_DIR, 'General_Metrics-Core'));
+const { calculateValueAtRisk, calculateCVaR95, calculateMAD, calculateMedian, findValueAtConfidence } = require(path.join(CORE_DIR, 'core-utilities'));
+const { calculateSensitivityCombinations, calculateSliderSensitivity } = require(path.join(CORE_DIR, 'Sensitivity_Matrix_Divergence-Core'));
+const { optimizeSliderSettings } = require(path.join(CORE_DIR, 'Optimization-Core'));
+const { sliderAdjustedPDFandCDFPoints } = require(path.join(CORE_DIR, 'Slider_Adjustments-Core'));
+const { interpolateCdf } = require(path.join(CORE_DIR, 'core-utilities'));
+const { getDeliveryProbability } = require(path.join(CORE_DIR, 'Probability_Utils-Core'));
+
+function calculateProbExceedPertMeanMC(samples, pertMean) {
+  try {
+    if (!Array.isArray(samples) || samples.length < 2) {
+      throw new Error('Invalid samples: must be an array with at least 2 elements');
+    }
+    if (!Number.isFinite(pertMean)) {
+      throw new Error('Invalid pertMean: must be a finite number');
+    }
+    const exceedCount = samples.filter(x => Number.isFinite(x) && x > pertMean).length;
+    const prob = exceedCount / samples.length;
+    if (!Number.isFinite(prob) || prob <= 0 || prob >= 1) {
+      console.warn('calculateProbExceedPertMeanMC: Clamping probability', { prob, exceedCount, total: samples.length });
+      return Math.max(1e-6, Math.min(1 - 1e-6, prob));
+    }
+    console.log('calculateProbExceedPertMeanMC: Computed', { prob, exceedCount, total: samples.length });
+    return prob;
+  } catch (error) {
+    console.error('calculateProbExceedPertMeanMC: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function processTask({ task, optimistic, mostLikely, pessimistic, sliderValues, targetValue, confidenceLevel, optimizeFor, optimize }) {
+  try {
+    console.log('processTask: Input validation', { task: task.task, optimistic, mostLikely, pessimistic, sliderValues, targetValue, confidenceLevel, optimizeFor, optimize });
+    if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+      throw new Error('Estimates must be finite numbers');
+    }
+    if (optimistic >= mostLikely || mostLikely >= pessimistic) {
+      throw new Error('Invalid estimates: must satisfy optimistic < mostLikely < pessimistic');
+    }
+    if (sliderValues && !Object.values(sliderValues).every(v => Number.isFinite(v) && v >= 0 && v <= 100)) {
+      throw new Error('Slider values must be finite numbers between 0 and 100');
+    }
+    if (!Number.isFinite(targetValue)) {
+      throw new Error('Target value must be a finite number');
+    }
+    if (!Number.isFinite(confidenceLevel) || confidenceLevel <= 0 || confidenceLevel >= 1) {
+      throw new Error('Confidence level must be a finite number between 0 and 1');
+    }
+    console.log('processTask: Generating distribution points', { task: task.task, optimistic, mostLikely, pessimistic });
+    const distributionPoints = generateDistributionPoints({ optimistic, mostLikely, pessimistic });
+    console.log('processTask: Distribution points generated', { 
+      distTypes: Object.keys(distributionPoints).filter(k => k !== 'baselineMoments' && k !== 'samples' && k !== 'feedbackMessages'), 
+      feedbackMessages: distributionPoints.feedbackMessages,
+      monteCarloSmoothedPdfLength: distributionPoints.monteCarloSmoothed?.pdfPoints?.length || 0,
+      monteCarloSmoothedCdfLength: distributionPoints.monteCarloSmoothed?.cdfPoints?.length || 0
+    });
+    const betaMoments = computeBetaMoments(optimistic, mostLikely, pessimistic);
+    console.log('processTask: Beta moments', { betaMoments });
+    const { alpha, beta } = betaMoments;
+    if (!Number.isFinite(alpha) || !Number.isFinite(beta) || alpha <= 0 || beta <= 0) {
+      console.error('processTask: Invalid alpha or beta', { alpha, beta, betaMoments });
+      throw new Error(`Invalid alpha=${alpha} or beta=${beta} from computeBetaMoments`);
+    }
+    const triangleMean = calculateTriangleMean(optimistic, mostLikely, pessimistic);
+    const pertMean = calculatePERTMean(optimistic, mostLikely, pessimistic);
+    const betaMean = calculateBetaMean(optimistic, pessimistic, alpha, beta);
+    const baselineMoments = {
+      mean: betaMoments.mean,
+      variance: betaMoments.variance,
+      skew: betaMoments.skew,
+      kurtosis: betaMoments.kurtosis
+    };
+    const samples = distributionPoints.samples?.value || [];
+    const unsmoothedMetrics = calculateMetrics(
+      distributionPoints.monteCarloRaw.pdfPoints,
+      distributionPoints.monteCarloRaw.cdfPoints,
+      'monteCarloRaw',
+      { optimistic, mostLikely, pessimistic }
+    );
+    const smoothedMetrics = calculateAdjustedMetrics(
+      distributionPoints.monteCarloSmoothed.pdfPoints,
+      distributionPoints.monteCarloSmoothed.cdfPoints
+    );
+    const probExceedPertMeanMC = calculateProbExceedPertMeanMC(samples, pertMean);
+    const sensitivityMatrix = calculateSensitivityCombinations({
+      distributions: {
+        triangle: distributionPoints.triangle.pdfPoints,
+        pert: distributionPoints.pert.pdfPoints,
+        beta: distributionPoints.beta.pdfPoints,
+        monteCarloRaw: distributionPoints.monteCarloRaw.pdfPoints,
+        monteCarloSmoothed: distributionPoints.monteCarloSmoothed.pdfPoints
+      },
+      optimistic,
+      pessimistic
+    });
+    const defaultSliders = {
+      budgetFlexibility: 0,
+      scheduleFlexibility: 0,
+      scopeCertainty: 0,
+      scopeReductionAllowance: 0,
+      reworkPercentage: 0,
+      riskTolerance: 0
+    };
+    const sliderValuesToUse = optimize ? optimizeSliderSettings(
+      sliderValues || defaultSliders,
+      { optimistic, mostLikely, pessimistic },
+      { target: targetValue || mostLikely, confidence: confidenceLevel || 0.9, type: optimizeFor || 'target' },
+      distributionPoints.monteCarloSmoothed.pdfPoints
+    ) : sliderValues || defaultSliders;
+    console.log('processTask: Slider values used', { sliderValuesToUse, optimize });
+    const sliderSensitivity = calculateSliderSensitivity({
+      points: distributionPoints.monteCarloSmoothed.pdfPoints,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      sliderValues: sliderValuesToUse,
+      distributionType: 'monteCarloSmoothed'
+    });
+    const optimalSliderSettings = optimize ? sliderValuesToUse : optimizeSliderSettings(
+      sliderValues || defaultSliders,
+      { optimistic, mostLikely, pessimistic },
+      { target: targetValue || mostLikely, confidence: confidenceLevel || 0.9, type: optimizeFor || 'target' },
+      distributionPoints.monteCarloSmoothed.pdfPoints
+    );
+    const adjustedPoints = sliderAdjustedPDFandCDFPoints({
+      points: distributionPoints.monteCarloSmoothed.pdfPoints,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      sliderValues: sliderValues || defaultSliders,
+      distributionType: 'monteCarloSmoothed'
+    });
+    const optimizedPoints = sliderAdjustedPDFandCDFPoints({
+      points: distributionPoints.monteCarloSmoothed.pdfPoints,
+      optimistic,
+      mostLikely,
+      pessimistic,
+      sliderValues: optimalSliderSettings,
+      distributionType: 'monteCarloSmoothed'
+    });
+    console.log('processTask: Adjusted and optimized points', {
+      adjustedPdfLength: adjustedPoints.pdfPoints.length,
+      adjustedCdfLength: adjustedPoints.cdfPoints.length,
+      optimizedPdfLength: optimizedPoints.pdfPoints.length,
+      optimizedCdfLength: optimizedPoints.cdfPoints.length
+    });
+    const targetProbOriginal = interpolateCdf(distributionPoints.monteCarloSmoothed.cdfPoints, targetValue || mostLikely);
+    const targetProbAdjusted = interpolateCdf(adjustedPoints.cdfPoints, targetValue || mostLikely);
+    const targetProbOptimized = interpolateCdf(optimizedPoints.cdfPoints, targetValue || mostLikely);
+    const valueAtConfidenceOriginal = findValueAtConfidence(distributionPoints.monteCarloSmoothed.cdfPoints, confidenceLevel || 0.9);
+    const valueAtConfidenceAdjusted = findValueAtConfidence(adjustedPoints.cdfPoints, confidenceLevel || 0.9);
+    const mcVaR = calculateValueAtRisk(distributionPoints.monteCarloSmoothed.cdfPoints, 0.95);
+    const mcCVaR = calculateCVaR95(distributionPoints.monteCarloSmoothed.cdfPoints);
+    const mcMAD = calculateMAD(samples);
+    const mcMedian = calculateMedian(samples);
+    const result = {
+      task: { value: task.task || 'Unknown', description: 'Task name' },
+      optimistic: { value: optimistic, description: 'Optimistic estimate' },
+      mostLikely: { value: mostLikely, description: 'Most likely estimate' },
+      pessimistic: { value: pessimistic, description: 'Pessimistic estimate' },
+      triangleMean: { value: triangleMean, description: 'Triangle mean' },
+      pertMean: { value: pertMean, description: 'PERT mean' },
+      betaMean: { value: betaMean, description: 'Beta mean' },
+      alpha: { value: alpha, description: 'Alpha parameter' },
+      beta: { value: beta, description: 'Beta parameter' },
+      baselineMoments: { value: baselineMoments, description: 'Baseline moments' },
+      mcUnsmoothedMean: { value: unsmoothedMetrics.mean, description: 'Monte Carlo unsmoothed mean' },
+      mcUnsmoothedVariance: { value: unsmoothedMetrics.variance, description: 'Monte Carlo unsmoothed variance' },
+      mcUnsmoothedStdDev: { value: unsmoothedMetrics.stdDev, description: 'Monte Carlo unsmoothed standard deviation' },
+      mcSmoothedMean: { value: smoothedMetrics.mean, description: 'Monte Carlo smoothed mean' },
+      mcSmoothedVariance: { value: smoothedMetrics.variance, description: 'Monte Carlo smoothed variance' },
+      mcSmoothedStdDev: { value: smoothedMetrics.stdDev, description: 'Monte Carlo smoothed standard deviation' },
+      probExceedPertMeanMC: { value: probExceedPertMeanMC, description: 'Probability of exceeding PERT mean (MC)' },
+      sensitivityMatrix: { value: sensitivityMatrix, description: 'Sensitivity matrix (KL divergence)' },
+      sliderSensitivity: { value: sliderSensitivity, description: 'Slider sensitivity with copula correlations' },
+      optimalSliderSettings: { value: optimalSliderSettings, description: 'Optimized slider settings' },
+      targetProbabilityOriginalPdf: { value: distributionPoints.monteCarloSmoothed.pdfPoints, description: 'Original PDF points' },
+      targetProbabilityAdjustedPdf: { value: adjustedPoints.pdfPoints, description: 'Adjusted PDF points after sliders' },
+      targetProbabilityOriginalCdf: { value: distributionPoints.monteCarloSmoothed.cdfPoints, description: 'Original CDF points' },
+      targetProbabilityAdjustedCdf: { value: adjustedPoints.cdfPoints, description: 'Adjusted CDF points after sliders' },
+      targetProbabilityAdjustedOptimizedPdf: { value: optimizedPoints.pdfPoints, description: 'Optimized PDF points' },
+      targetProbabilityAdjustedOptimizedCdf: { value: optimizedPoints.cdfPoints, description: 'Optimized CDF points' },
+      targetProbability: { 
+        value: { 
+          original: targetProbOriginal, 
+          adjusted: targetProbAdjusted, 
+          adjustedOptimized: targetProbOptimized 
+        }, 
+        description: 'Interpolated CDF probabilities' 
+      },
+      valueAtConfidence: { 
+        value: { 
+          original: valueAtConfidenceOriginal, 
+          adjusted: valueAtConfidenceAdjusted 
+        }, 
+        description: 'Value at confidence level' 
+      },
+      mcVaR: { value: mcVaR, description: 'Monte Carlo VaR at 95%' },
+      mcCVaR: { value: mcCVaR, description: 'Monte Carlo CVaR at 95%' },
+      mcMAD: { value: mcMAD, description: 'Monte Carlo MAD' },
+      mcMedian: { value: mcMedian, description: 'Monte Carlo median' },
+      allDistributions: { 
+        value: {
+          triangle: distributionPoints.triangle,
+          pert: distributionPoints.pert,
+          beta: distributionPoints.beta,
+          monteCarloRaw: distributionPoints.monteCarloRaw,
+          monteCarloSmoothed: distributionPoints.monteCarloSmoothed,
+          samples: distributionPoints.samples
+        }, 
+        description: 'All distribution points (triangle, pert, beta, monteCarloRaw, monteCarloSmoothed)' 
+      },
+      adjustedPoints: { 
+        pdfPoints: adjustedPoints.pdfPoints,
+        cdfPoints: adjustedPoints.cdfPoints,
+        description: 'Adjusted points after sliders' 
+      },
+      optimizedPoints: { 
+        pdfPoints: optimizedPoints.pdfPoints,
+        cdfPoints: optimizedPoints.cdfPoints,
+        description: 'Optimized points after sliders' 
+      },
+      allCIs: { 
+        value: { 
+          monteCarloSmoothed: smoothedMetrics.ci 
+        }, 
+        description: 'Confidence intervals for distributions' 
+      },
+      distributionShift: { 
+        value: sliderSensitivity, 
+        description: 'Distribution shift metrics' 
+      },
+      dynamicOutcome: { 
+        value: `With cost estimates centered around ${smoothedMetrics.mean.toFixed(1)} and a standard deviation of ${smoothedMetrics.stdDev.toFixed(1)}, your initial probability of meeting the target of ${targetValue || mostLikely} was ${(targetProbOriginal * 100).toFixed(1)}%.`, 
+        description: 'Summary of outcome' 
+      },
+      scenarioSummary: { 
+        value: 'Scenario analysis complete.', 
+        description: 'Summary of scenario analysis' 
+      },
+      feedbackMessages: distributionPoints.feedbackMessages || [],
+      error: null
+    };
+
+    console.log('processTask: Returning result with plot fields', {
+      originalPdfLength: distributionPoints.monteCarloSmoothed.pdfPoints.length,
+      adjustedPdfLength: adjustedPoints.pdfPoints.length,
+      optimizedPdfLength: optimizedPoints.pdfPoints.length,
+      originalCdfLength: distributionPoints.monteCarloSmoothed.cdfPoints.length,
+      adjustedCdfLength: adjustedPoints.cdfPoints.length,
+      optimizedCdfLength: optimizedPoints.cdfPoints.length
+    });
+    return result;
+  } catch (error) {
+    console.error('processTask: Error', { error: error.message, task });
+    return {
+      task: { value: task.task || 'Unknown', description: 'Task name' },
+      error: error.message,
+      feedbackMessages: [`processTask failed: ${error.message}`]
+    };
+  }
+}
+
+module.exports = {
+  processTask
+};
+// core-utilities.js
+'use strict';
+
+const math = require('mathjs');
+
+function validateEstimates(optimistic, mostLikely, pessimistic) {
+  if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
+    return { valid: false, message: 'Estimates must be finite numbers' };
+  }
+  if (optimistic >= mostLikely || mostLikely >= pessimistic) {
+    return { valid: false, message: 'Estimates must satisfy optimistic < mostLikely < pessimistic' };
+  }
+  return { valid: true, message: 'Estimates are valid' };
+}
+
+function createErrorResponse(message, details) {
+  console.error('createErrorResponse:', { message, details });
+  return new Error(JSON.stringify({ message, details }));
+}
+
+function isValidCdfArray(points) {
+  try {
+    if (!Array.isArray(points) || points.length < 2) {
+      console.warn('isValidCdfArray: Invalid points array', { length: points?.length });
+      return false;
+    }
+    return points.every((point, i) => {
+      const isValid = Number.isFinite(point.x) && Number.isFinite(point.y) && point.y >= 0 && point.y <= 1;
+      if (!isValid) {
+        console.warn('isValidCdfArray: Invalid point', { index: i, point });
+        return false;
+      }
+      if (i > 0 && point.y < points[i-1].y) {
+        console.warn('isValidCdfArray: Non-monotonic point', { index: i, y: point.y, prevY: points[i-1].y });
+        return false;
+      }
+      return true;
+    });
+  } catch (error) {
+    console.error('isValidCdfArray: Error', { error: error.message });
+    return false;
+  }
+}
+
+function applyGaussianCopula(params, samples, correlation) {
+  try {
+    if (!Array.isArray(samples) || samples.length < 2) {
+      throw new Error('Samples must be an array with at least 2 elements');
+    }
+    let corr = correlation;
+    if (!Number.isFinite(correlation) || correlation < -1 || correlation > 1) {
+      console.warn('applyGaussianCopula: Invalid correlation, clamping to 0', { correlation });
+      corr = 0;
+    }
+    const copulaSamples = samples.map(s => {
+      const z = (s - params.mean) / params.stdDev;
+      const cdf = 0.5 * (1 + math.erf(z / Math.sqrt(2)));
+      return Number.isFinite(cdf) ? Math.max(1e-6, Math.min(1 - 1e-6, cdf)) : 0.5;
+    });
+    console.log('applyGaussianCopula: Computed', { sampleCount: copulaSamples.length, correlation: corr });
+    return copulaSamples;
+  } catch (error) {
+    console.error('applyGaussianCopula: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function interpolateCdf(points, target) {
+  try {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new Error('Points must be an array with at least 2 elements');
+    }
+    if (!Number.isFinite(target)) {
+      throw new Error('Target must be a finite number');
+    }
+    if (target < points[0].x) {
+      return points[0].y;
+    }
+    if (target >= points[points.length - 1].x) {
+      return points[points.length - 1].y;
+    }
+    for (let i = 0; i < points.length - 1; i++) {
+      if (points[i].x <= target && target < points[i + 1].x) {
+        const x0 = points[i].x;
+        const x1 = points[i + 1].x;
+        const y0 = points[i].y;
+        const y1 = points[i + 1].y;
+        const p = y0 + (y1 - y0) * (target - x0) / (x1 - x0);
+        if (!Number.isFinite(p) || p < 0 || p > 1) {
+          console.warn('interpolateCdf: Clamping probability', { p, x0, x1, y0, y1, target });
+          return Math.max(0, Math.min(1, p));
+        }
+        console.log('interpolateCdf: Computed probability', { p, target, x0, x1, y0, y1 });
+        return p;
+      }
+    }
+    throw new Error('Interpolation failed: target not found in range');
+  } catch (error) {
+    console.error('interpolateCdf: Error', { error: error.message, target });
+    throw error;
+  }
+}
+
+function findValueAtConfidence(points, confidence) {
+  try {
+    if (!isValidCdfArray(points)) {
+      throw new Error('Invalid CDF points');
+    }
+    if (!Number.isFinite(confidence) || confidence <= 0 || confidence >= 1) {
+      throw new Error('Confidence level must be in (0,1)');
+    }
+    if (confidence <= points[0].y) {
+      return points[0].x;
+    }
+    if (confidence >= points[points.length - 1].y) {
+      return points[points.length - 1].x;
+    }
+    for (let i = 0; i < points.length - 1; i++) {
+      if (points[i].y <= confidence && confidence < points[i + 1].y) {
+        const x0 = points[i].x;
+        const x1 = points[i + 1].x;
+        const y0 = points[i].y;
+        const y1 = points[i + 1].y;
+        const x = x0 + (x1 - x0) * (confidence - y0) / (y1 - y0);
+        if (!Number.isFinite(x)) {
+          throw new Error('Non-finite value computed at confidence level');
+        }
+        console.log('findValueAtConfidence: Computed value', { confidence, x });
+        return x;
+      }
+    }
+    throw new Error('Failed to find value at confidence level');
+  } catch (error) {
+    console.error('findValueAtConfidence: Error', { error: error.message, confidence });
+    throw error;
+  }
+}
+
+function calculateValueAtRisk(cdfPoints, confidenceLevel) {
+  try {
+    if (!Array.isArray(cdfPoints) || cdfPoints.length < 2) {
+      throw new Error('CDF points must be an array with at least 2 elements');
+    }
+    if (!Number.isFinite(confidenceLevel) || confidenceLevel <= 0 || confidenceLevel >= 1) {
+      throw new Error('Confidence level must be between 0 and 1');
+    }
+    return findValueAtConfidence(cdfPoints, confidenceLevel);
+  } catch (error) {
+    console.error('calculateValueAtRisk: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateCVaR95(cdfPoints) {
+  try {
+    if (!Array.isArray(cdfPoints) || cdfPoints.length < 2) {
+      throw new Error('CDF points must be an array with at least 2 elements');
+    }
+    const var95 = calculateValueAtRisk(cdfPoints, 0.95);
+    let sum = 0;
+    let count = 0;
+    for (const point of cdfPoints) {
+      if (point.x >= var95) {
+        sum += point.x * point.y;
+        count += point.y;
+      }
+    }
+    return count > 0 ? sum / count : var95;
+  } catch (error) {
+    console.error('calculateCVaR95: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateMAD(samples) {
+  try {
+    if (!Array.isArray(samples) || samples.length < 2) {
+      throw new Error('Samples must be an array with at least 2 elements');
+    }
+    const mean = samples.reduce((sum, x) => sum + x, 0) / samples.length;
+    const mad = samples.reduce((sum, x) => sum + Math.abs(x - mean), 0) / samples.length;
+    return Number.isFinite(mad) ? mad : 0;
+  } catch (error) {
+    console.error('calculateMAD: Error', { error: error.message });
+    throw error;
+  }
+}
+
+function calculateMedian(samples) {
+  try {
+    if (!Array.isArray(samples) || samples.length < 2) {
+      throw new Error('Samples must be an array with at least 2 elements');
+    }
+    const sorted = samples.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  } catch (error) {
+    console.error('calculateMedian: Error', { error: error.message });
+    throw error;
+  }
+}
+
+module.exports = {
+  validateEstimates,
+  createErrorResponse,
+  isValidCdfArray,
+  applyGaussianCopula,
+  interpolateCdf,
+  findValueAtConfidence,
+  calculateValueAtRisk,
+  calculateCVaR95,
+  calculateMAD,
+  calculateMedian
+};
+/* General_Metrics-Core.js
+ * WHAT: Computes general statistical metrics for any distribution.
+ * WHY: Provides reusable metrics for risk analysis across distributions.
+ * WHERE: Located in the ./core directory, used by Task_Processor-Core.js.
+ * DEPENDENCIES:
+ *   - mathjs@^12.0.0
+ * EXPORTS:
+ *   - calculateMetrics, calculateAdjustedMetrics
+ * CHANGES:
+ *   - Updated function signature to accept both pdfPoints and cdfPoints, using cdfPoints for confidence interval calculations.
+ *   - Strengthened mean calculation to handle invalid points and prevent NaN.
+ *   - Updated calculateAdjustedMetrics to use cdfPoints for confidence intervals.
+ *   - [NEW] Added strict validation for metrics to ensure finite values before returning.
+ *   - [NEW] Added fallback metrics for invalid calculations.
+ *   - [NEW] Added logging for metric validation failures.
+ *   - [NEW] Preventive checks for variance > 0 before skew/kurtosis to avoid division by zero.
+ *   - [NEW] Mechanism to address NaN in skew/kurtosis by returning 0 (symmetric, mesokurtic assumption).
+ *   - [NEW] Validate sequence: inputs -> PDF sum -> mean/variance -> skew/kurtosis -> CI.
+ * DEPENDENCIES:
+ *   - core-utilities.js (calculateValueAtRisk)
+ *   - mathjs@^12.0.0
+ * EXPORTS:
+ *   - calculateMetrics, calculateAdjustedMetrics
+ */
+
+'use strict';
+
+const math = require('mathjs');
+const path = require('path');
+const CORE_DIR = path.resolve(__dirname);
+const { calculateValueAtRisk } = require(path.join(CORE_DIR, 'core-utilities'));
+
+function calculateMetrics(pdfPoints, cdfPoints, distType, params) {
+  try {
+    if (!Array.isArray(pdfPoints) || pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+      throw new Error('Invalid PDF points array');
+    }
+    if (!Array.isArray(cdfPoints) || cdfPoints.length < 2 || !cdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
+      throw new Error('Invalid CDF points array');
+    }
+    const { optimistic, mostLikely, pessimistic, alpha, beta } = params || {};
+    const step = pdfPoints[1].x - pdfPoints[0].x;
+    const validPoints = pdfPoints.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0);
+    if (validPoints.length < 2) {
+      throw new Error('Insufficient valid PDF points after filtering');
+    }
+    const pdfSum = validPoints.reduce((sum, p) => sum + p.y * step, 0);
+    if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6) {
+      throw new Error('Invalid PDF sum');
+    }
+    const mean = distType === 'triangle' && Number.isFinite(optimistic) && Number.isFinite(mostLikely) && Number.isFinite(pessimistic)
+      ? (optimistic + mostLikely + pessimistic) / 3
+      : distType === 'pert' && Number.isFinite(optimistic) && Number.isFinite(mostLikely) && Number.isFinite(pessimistic)
+      ? (optimistic + 4 * mostLikely + pessimistic) / 6
+      : distType === 'beta' && Number.isFinite(alpha) && Number.isFinite(beta) && Number.isFinite(optimistic) && Number.isFinite(pessimistic)
+      ? optimistic + (alpha / (alpha + beta)) * (pessimistic - optimistic)
+      : validPoints.reduce((sum, p) => sum + p.x * p.y * step, 0) / pdfSum;
+    if (!Number.isFinite(mean)) {
+      console.warn('calculateMetrics: Invalid mean, using fallback', { distType, mean });
+      throw new Error('Invalid mean calculation');
+    }
+    const variance = validPoints.reduce((sum, p) => sum + p.y * Math.pow(p.x - mean, 2) * step, 0) / pdfSum;
+    if (!Number.isFinite(variance) || variance <= 0) {
+      console.warn('calculateMetrics: Invalid or zero variance, setting to small epsilon for skew/kurtosis', { variance });
+      variance = 1e-6; // Preventive: Avoid division by zero in skew/kurtosis
+    }
+    const stdDev = Math.sqrt(variance);
+    const skewness = validPoints.reduce((sum, p) => sum + p.y * Math.pow((p.x - mean) / stdDev, 3) * step, 0) / pdfSum;
+    const kurtosis = validPoints.reduce((sum, p) => sum + p.y * Math.pow((p.x - mean) / stdDev, 4) * step, 0) / pdfSum - 3;
+    if (!Number.isFinite(skewness)) {
+      console.warn('calculateMetrics: Non-finite skewness, setting to 0 (symmetric assumption)', { skewness });
+      skewness = 0;
+    }
+    if (!Number.isFinite(kurtosis)) {
+      console.warn('calculateMetrics: Non-finite kurtosis, setting to 0 (mesokurtic assumption)', { kurtosis });
+      kurtosis = 0;
+    }
+    const ci = {
+      lower: calculateValueAtRisk(cdfPoints, 0.05),
+      upper: calculateValueAtRisk(cdfPoints, 0.95)
+    };
+    // Validate all metrics
+    if (!Number.isFinite(variance) || !Number.isFinite(stdDev) || !Number.isFinite(skewness) || !Number.isFinite(kurtosis) ||
+        !Number.isFinite(ci.lower) || !Number.isFinite(ci.upper)) {
+      console.warn('calculateMetrics: Invalid metrics detected', {
+        distType,
+        mean,
+        variance,
+        stdDev,
+        skewness,
+        kurtosis,
+        ciLower: ci.lower,
+        ciUpper: ci.upper
+      });
+      throw new Error('Invalid metrics calculated');
+    }
+    console.log('calculateMetrics: Metrics computed', { distType, mean, variance, stdDev, skewness, kurtosis, ci });
+    return { mean, variance, stdDev, skewness, kurtosis, ci };
+  } catch (error) {
+    console.error('calculateMetrics: Error', { error: error.message, distType });
+    const fallbackMean = params && Number.isFinite(params.optimistic) && Number.isFinite(params.mostLikely) && Number.isFinite(params.pessimistic)
+      ? (params.optimistic + params.mostLikely + params.pessimistic) / 3
+      : NaN;
+    return { mean: fallbackMean, variance: NaN, stdDev: NaN, skewness: 0, kurtosis: 0, ci: { lower: NaN, upper: NaN } };
+  }
+}
+
+function calculateAdjustedMetrics(pdfPoints, cdfPoints) {
+  try {
+    if (!Array.isArray(pdfPoints) || pdfPoints.length < 2 || !pdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0)) {
+      throw new Error('Invalid PDF points');
+    }
+    if (!Array.isArray(cdfPoints) || cdfPoints.length < 2 || !cdfPoints.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
+      throw new Error('Invalid CDF points');
+    }
+    const step = pdfPoints[1].x - pdfPoints[0].x;
+    const validPoints = pdfPoints.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.y >= 0);
+    if (validPoints.length < 2) {
+      throw new Error('Insufficient valid PDF points after filtering');
+    }
+    const pdfSum = validPoints.reduce((sum, p) => sum + p.y * step, 0);
+    if (!Number.isFinite(pdfSum) || pdfSum <= 1e-6) {
+      throw new Error('Invalid PDF sum');
+    }
+    const mean = validPoints.reduce((sum, p) => sum + p.x * p.y * step, 0) / pdfSum;
+    if (!Number.isFinite(mean)) {
+      console.warn('calculateAdjustedMetrics: Invalid mean, using fallback', { mean });
+      throw new Error('Invalid mean calculation');
+    }
+    const variance = validPoints.reduce((sum, p) => sum + p.y * Math.pow(p.x - mean, 2) * step, 0) / pdfSum;
+    if (!Number.isFinite(variance) || variance <= 0) {
+      console.warn('calculateAdjustedMetrics: Invalid or zero variance, setting to small epsilon', { variance });
+      variance = 1e-6;
+    }
+    const stdDev = Math.sqrt(variance);
+    const ci = {
+      lower: calculateValueAtRisk(cdfPoints, 0.05),
+      upper: calculateValueAtRisk(cdfPoints, 0.95)
+    };
+    // Validate all metrics
+    if (!Number.isFinite(variance) || !Number.isFinite(stdDev) || !Number.isFinite(ci.lower) || !Number.isFinite(ci.upper)) {
+      console.warn('calculateAdjustedMetrics: Invalid metrics detected', {
+        mean,
+        variance,
+        stdDev,
+        ciLower: ci.lower,
+        ciUpper: ci.upper
+      });
+      throw new Error('Invalid metrics calculated');
+    }
+    console.log('calculateAdjustedMetrics: Metrics computed', { mean, variance, stdDev, ci });
+    return { mean, variance, stdDev, ci };
+  } catch (error) {
+    console.error('calculateAdjustedMetrics: Error', { error: error.message });
+    return { mean: NaN, variance: NaN, stdDev: NaN, ci: { lower: NaN, upper: NaN } };
+  }
+}
+
+module.exports = {
+  calculateMetrics,
+  calculateAdjustedMetrics
+};

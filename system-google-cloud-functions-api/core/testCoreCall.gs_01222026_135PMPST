@@ -1,0 +1,74 @@
+/**
+ * testCoreCall - Quick debug/test function to call the local core logic directly
+ * 
+ * PURPOSE / WHY THIS HELPS:
+ *   - Bypasses the full menu/sheet workflow (getAllTasks → runTasks → doSingleTask)
+ *   - Calls pmcEstimatorAPI directly with a single hardcoded test task
+ *   - Lets us see the **exact raw response** or error coming from the core (main/main.gs)
+ *   - Critical right now because:
+ *       → We fixed baseline → now we can confirm if the full envelope is returned
+ *       → If baseline + opt both work, we'll see real PERT, CI, sliders, reshaped points
+ *       → If there's still an error (e.g. buildReports, KL, etc.), the stack/log will show exactly where
+ * 
+ * HOW TO USE:
+ *   1. Paste this function into Code.gs (or any .gs file)
+ *   2. Save the project
+ *   3. In the Apps Script editor:
+ *      - Top dropdown → select "testCoreCall"
+ *      - Click Run (▶️)
+ *   4. Immediately check View → Logs (or Executions) for output
+ *   5. Paste the full log here — especially lines starting with:
+ *        - TEST CORE CALL RESULT: { ... }   ← success (full envelope)
+ *        - TEST CORE CALL ERROR: ...        ← caught exception
+ *        - Any "Error", "Warning", or "INFO" from core files
+ * 
+ * EXPECTED OUTCOMES:
+ *   - Success: You'll see a big JSON object with baseline, adjusted, optimize, targetProbability, etc.
+ *   - Failure: You'll see the exact error message + stack (e.g. "buildReports is not defined")
+ * 
+ * TIP: If you get "ReferenceError: pmcEstimatorAPI is not defined"
+ *      → Make sure main/main.gs has function pmcEstimatorAPI(tasks) { ... } at top level
+ */
+function testCoreCall() {
+  // Hardcoded test task matching your sheet row
+  const testTask = {
+    task: "Test Project",
+    optimistic: 10,
+    mostLikely: 20,
+    pessimistic: 30,
+    targetValue: 20,           // example: target = PERT mean
+    confidenceLevel: 0.95,
+    wantPoints: true,
+    includeOptimizedPoints: false
+  };
+
+  // Wrap in array — pmcEstimatorAPI expects tasks[]
+  const payload = [testTask];
+
+  try {
+    console.log('TEST CORE CALL: Starting with task →', JSON.stringify(testTask, null, 2));
+    
+    // This is the critical line — calls your local core logic
+    const result = pmcEstimatorAPI(payload);
+    
+    // Pretty-print the full response (or error envelope)
+    console.log('TEST CORE CALL RESULT:', JSON.stringify(result, null, 2));
+    
+    // Optional: if you want to see just the first result
+    if (result && result.results && result.results.length > 0) {
+      const first = result.results[0];
+      if (first.error) {
+        console.log('CORE RETURNED ERROR:', first.error);
+        if (first.details) console.log('Details:', JSON.stringify(first.details));
+        if (first.stack) console.log('Stack:', first.stack);
+      } else {
+        console.log('CORE SUCCESS — Baseline exists?', !!first.baseline);
+        console.log('PERT mean:', first.baseline?.pert?.value);
+        console.log('Probability at target (baseline):', first.baseline?.probabilityAtTarget?.value);
+      }
+    }
+  } catch (e) {
+    console.log('TEST CORE CALL ERROR:', e.message);
+    console.log('Stack:', e.stack);
+  }
+}

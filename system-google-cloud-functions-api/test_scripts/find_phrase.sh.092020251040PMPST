@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Recursively search from the directory of this script.
+# Finds file/dir names AND content matches, pruning common build/VC dirs.
+# Usage: ./find_phrase.sh <search string or pattern>
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <search string or pattern>"
+  exit 1
+fi
+
+needle="$*"
+
+# Start from the script's own directory
+script_dir="$(cd -- "$(dirname -- "$0")" && pwd -P)"
+cd "$script_dir"
+
+# Common directories to prune
+PRUNE_EXPR='\( -name .git -o -name .hg -o -name .svn -o -name node_modules -o -name dist -o -name build -o -name .venv -o -name .env -o -name .idea -o -name .vscode -o -name .cache -o -name target -o -name out -o -name coverage -o -name .next -o -name .turbo \) -prune -o'
+
+echo "Search string/phrase (quotes optional): $needle"
+echo "Type   | Line   | Path"
+echo "-------+--------+-------------------------------------------------------------"
+
+# 1) File & dir name matches (case-insensitive)
+#    Print as: NAME  |   -    | ./path
+#    (We use eval ONLY to expand the grouping inside PRUNE_EXPR safely.)
+while IFS= read -r -d '' p; do
+  printf "NAME   |   -    | %s\n" "$p"
+done < <(eval "find . $PRUNE_EXPR -type f -iname \"*${needle}*\" -print0")
+while IFS= read -r -d '' p; do
+  printf "NAME   |   -    | %s\n" "$p"
+done < <(eval "find . $PRUNE_EXPR -type d -iname \"*${needle}*\" -print0")
+
+# 2) Content matches (fixed-string search; change -F to -E for regex)
+#    Print as: CONTENT| <line> | ./path
+#    We restrict to regular files and ignore binaries by using grep -I.
+#    We also avoid huge files; tweak or drop the -size filter as you prefer.
+while IFS= read -r -d '' f; do
+  # BSD grep on macOS supports -nH -I -F
+  grep -nH -I -F -- "$needle" "$f" 2>/dev/null | while IFS= read -r line; do
+    file="${line%%:*}"
+    rest="${line#*:}"
+    lno="${rest%%:*}"
+    printf "CONTENT| %6s | %s\n" "$lno" "$file"
+  done
+done < <(eval "find . $PRUNE_EXPR -type f -size -20M -print0")
+
+# Exit status: 0 even if nothing matched, to keep CI/stdout quiet
+exit 0
+

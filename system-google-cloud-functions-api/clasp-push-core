@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# clasp-push-core — runs clasp push from the core/ directory, no matter where you are
+
+# Full path to the core directory (adjust only if you move the project)
+CORE_DIR="/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/core"
+
+# Safety checks
+if [ ! -d "$CORE_DIR" ]; then
+  echo "Error: Core directory not found at $CORE_DIR"
+  echo "Please update CORE_DIR in this script."
+  exit 1
+fi
+
+if [ ! -f "$CORE_DIR/appsscript.json" ]; then
+  echo "Error: appsscript.json not found. Wrong directory?"
+  exit 1
+fi
+
+echo "⇒ Changing to core directory:"
+cd "$CORE_DIR" || exit 1
+echo "   $(pwd)"
+
+echo "⇒ Running clasp push $*"
+clasp push "$@"
+
+echo "⇒ Done!"

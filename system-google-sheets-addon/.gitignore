@@ -1,0 +1,21 @@
+# ================================
+# Local archives / historical snapshots
+# ================================
+archive/
+
+# Timestamped backup variants created during development
+Code.gs_*
+Plot.html_*
+main.gs_*
+optimizer.gs_*
+
+# Temporary key / token storage used during testing
+runTempKeyStorage/
+runScriptPropertiesKeyStorage/
+
+# Optional: other local backup patterns
+*.bak
+*._*
+
+# macOS noise
+.DS_Store

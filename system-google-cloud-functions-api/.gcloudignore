@@ -1,0 +1,60 @@
+# File: .gcloudignore
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore, with the addition of
+# "#!include" directives.
+#
+# For more information, run:
+#   $ gcloud topic gcloudignore
+
+.gcloudignore
+
+# Git-related files
+.git
+.gitignore
+
+# Node.js
+node_modules/
+npm-debug.log
+package-lock.json
+
+# Service account key
+pmc-estimator-b50a03244199.json
+
+# Deployment and test scripts
+deploy_pmc.sh
+deploy_test_api.sh
+deploy_restrict_api_access.sh
+deploy_validate.sh
+test_*.js
+check_js_syntax.sh
+
+# Logs and temporary files
+*.log
+*.json
+!package.json
+curl_response.json
+curl_error.log
+functions_framework.log
+auth_response.json
+unauth_response.json
+unauth_error.log
+token_error.log
+function_error.log
+iam_error.log
+vpc_error.log
+build_error.log
+beta_test_error.log
+triangle_test_error.log
+process_task_error.log
+slider_adjustment_error.log
+api_test_error.log
+npm_install.log
+pmcEstimatorConfiguration_*.json
+
+# Miscellaneous
+.DS_Store
+*.tmp
+*.bak
+cache/
+docs/
+tests/

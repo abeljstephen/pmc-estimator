@@ -1,0 +1,44 @@
+Starting pmcEstimatorAPI deployment...
+[1;33m1. Sourcing deploy_cloud_function_utils.sh...[0m
+[0;32mdeploy_cloud_function_utils.sh sourced successfully.[0m
+[1;33m2. Validating environment...[0m
+[0;32mEnvironment check passed (Node.js v20.19.3, gcloud found).[0m
+[1;33m3. Checking source directory...[0m
+[0;32mSource directory validated.[0m
+[1;33m4. Validating service account key...[0m
+[0;32mService account key validated: icarenow@pmc-estimator.iam.gserviceaccount.com[0m
+[1;33m5. Validating package.json...[0m
+[0;32mpackage.json validated successfully.[0m
+[1;33m6. Validating index.js syntax...[0m
+[0;32mindex.js syntax validated successfully.[0m
+[1;33m7. Validating core directory files...[0m
+[0;32mCore directory files validated successfully.[0m
+[1;33m8. Testing index.js with mock request...[0m
+
+[0;31mError: index.js mock request test failed due to errors[0m
+node:internal/modules/cjs/loader:1215
+  throw err;
+  ^
+
+Error: Cannot find module './Task_Processor-Core'
+Require stack:
+- /Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/index.js
+- /Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+    at Module._load (node:internal/modules/cjs/loader:1043:27)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/index.js:22:25)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/index.js',
+    '/Users/abeljstephen/pmc-estimator/system-google-cloud-functions-api/[eval]'
+  ]
+}
+
+Node.js v20.19.3

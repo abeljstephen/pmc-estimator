@@ -1,0 +1,7 @@
+Updated IAM policy for function [pmcEstimatorAPI].
+bindings:
+- members:
+  - serviceAccount:icarenow@pmc-estimator.iam.gserviceaccount.com
+  role: roles/cloudfunctions.invoker
+etag: BwY85RxhI1o=
+version: 1

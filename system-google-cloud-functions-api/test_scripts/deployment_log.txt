@@ -1,0 +1,5 @@
+[0;31mERROR: Service account key file pmc-estimator-b50a03244199.json not found.[0m
+[1;33mINFO: Prerequisites checked successfully.[0m
+[1;33mINFO: Deploying Cloud Function pmcEstimatorAPI in region us-central1...[0m
+ERROR: (gcloud.functions.deploy) argument `--runtime`: node18 is not a supported runtime on GCF 1st gen. Use `gcloud functions runtimes list` to get a list of available runtimes
+[0;31mERROR: Deployment failed. Check Cloud Build logs: https://console.cloud.google.com/cloud-build/builds;region=us-central1?project=pmc-estimator[0m

@@ -1,0 +1,30 @@
+{
+  "automaticUpdatePolicy": {},
+  "availableMemoryMb": 512,
+  "buildId": "2f6a4827-4fb9-443e-839b-17284b3cace3",
+  "buildName": "projects/615922754202/locations/us-central1/builds/2f6a4827-4fb9-443e-839b-17284b3cace3",
+  "buildServiceAccount": "projects/pmc-estimator/serviceAccounts/615922754202-compute@developer.gserviceaccount.com",
+  "dockerRegistry": "ARTIFACT_REGISTRY",
+  "entryPoint": "pmcEstimatorAPI",
+  "environmentVariables": {
+    "USE_CORE": "1"
+  },
+  "httpsTrigger": {
+    "securityLevel": "SECURE_OPTIONAL",
+    "url": "https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI"
+  },
+  "ingressSettings": "ALLOW_INTERNAL_AND_GCLB",
+  "labels": {
+    "deployment-tool": "cli-gcloud"
+  },
+  "maxInstances": 100,
+  "name": "projects/pmc-estimator/locations/us-central1/functions/pmcEstimatorAPI",
+  "runtime": "nodejs20",
+  "satisfiesPzi": true,
+  "serviceAccountEmail": "pmc-estimator@appspot.gserviceaccount.com",
+  "sourceUploadUrl": "https://storage.googleapis.com/uploads-21274264364.us-central1.cloudfunctions.appspot.com/a8005b4a-c8f8-479b-aae7-bf2876420f2d.zip",
+  "status": "ACTIVE",
+  "timeout": "180s",
+  "updateTime": "2025-08-12T12:17:55.658Z",
+  "versionId": "199"
+}

@@ -1,0 +1,118 @@
+#!/usr/bin/env node
+// validate_pmc_api_deploy.js – FINAL ESM VERSION (Dec 2025)
+// Works with Node.js 20+ (no require error)
+
+import { execSync } from 'child_process';
+import https from 'https';
+import readline from 'readline';
+import { createRequire } from 'module';
+var require = createRequire(import.meta.url);
+
+var rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+var ask = q => new Promise(r => rl.question(q, a => r(a.trim())));
+
+function log(...a) { console.log(...a); }
+
+// ———————————————————————————————————————————————————————————————————————
+// STEP 1: Show header and get basic info
+// ———————————————————————————————————————————————————————————————————————
+log(`\nPMC Estimator API – FINAL VALIDATOR (NUMBERED STEPS)\n` + '='.repeat(80));
+log(`STEP 1: Getting project and user info...`);
+
+var PROJECT = execSync('gcloud config get-value project', { encoding: 'utf8' }).trim();
+var EMAIL   = execSync('gcloud config get-value account', { encoding: 'utf8' }).trim();
+log(`Success Project: ${PROJECT} | User: ${EMAIL}\n`);
+
+// ———————————————————————————————————————————————————————————————————————
+// STEP 2: Define function details
+// ———————————————————————————————————————————————————————————————————————
+log(`STEP 2: Defining function details...`);
+var FUNCTION_NAME = 'pmcEstimatorAPI';
+var REGION = 'us-central1';
+
+// ———————————————————————————————————————————————————————————————————————
+// STEP 3: Extract ALL deployment metadata from GCP
+// ———————————————————————————————————————————————————————————————————————
+log(`STEP 3: Extracting deployment metadata...`);
+let URL = '', RUNTIME = '', ENTRY_POINT = '', MEMORY = '', DEPLOYED_AT = '';
+
+try {
+  URL         = execSync(`gcloud functions describe ${FUNCTION_NAME} --region=${REGION} --format="value(serviceConfig.uri)"`, { encoding: 'utf8' }).trim();
+  RUNTIME     = execSync(`gcloud functions describe ${FUNCTION_NAME} --region=${REGION} --format="value(serviceConfig.runtime)"`, { encoding: 'utf8' }).trim() || 'nodejs20';
+  ENTRY_POINT = execSync(`gcloud functions describe ${FUNCTION_NAME} --region=${REGION} --format="value(serviceConfig.entryPoint)"`, { encoding: 'utf8' }).trim() || 'http';
+  MEMORY      = (execSync(`gcloud functions describe ${FUNCTION_NAME} --region=${REGION} --format="value(serviceConfig.availableMemoryMb)"`, { encoding: 'utf8' }).trim() || '256') + ' MB';
+  const time  = execSync(`gcloud functions describe ${FUNCTION_NAME} --region=${REGION} --format="value(updateTime)"`, { encoding: 'utf8' }).trim();
+  DEPLOYED_AT = new Date(time).toLocaleString('en-US', { timeZone: 'America/Chicago' });
+
+  log(`Success All metadata extracted\n`);
+  log(`Deployment Details`);
+  log(`   Function      : ${FUNCTION_NAME}`);
+  log(`   Runtime       : ${RUNTIME}`);
+  log(`   Entry Point   : ${ENTRY_POINT}`);
+  log(`   Memory        : ${MEMORY}`);
+  log(`   Live URL      : ${URL}`);
+  log(`   Last Deployed : ${DEPLOYED_AT}\n`);
+
+} catch (e) {
+  log(`Failed Function not found. Deploy first.`);
+  process.exit(1);
+}
+
+// ———————————————————————————————————————————————————————————————————————
+// STEP 4: Test access FIRST (no prompt if already granted)
+// ———————————————————————————————————————————————————————————————————————
+log(`STEP 4: Testing if you already have access...`);
+
+async function callApi() {
+  const token = execSync('gcloud auth print-identity-token', { encoding: 'utf8' }).trim();
+  const payload = [{ task: "Health Check", optimistic: 10, mostLikely: 20, pessimistic: 30, targetValue: 22 }];
+  const body = JSON.stringify(payload);
+  const start = Date.now();
+
+  return new Promise(r => {
+    const req = https.request(URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, res => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => r({ ok: res.statusCode === 200, status: res.statusCode, ms: Date.now() - start, body: data }));
+    });
+    req.on('error', e => r({ ok: false, status: 'ERROR', error: e.message }));
+    req.setTimeout(15000, () => { req.destroy(); r({ ok: false, status: 'TIMEOUT' }); });
+    req.write(body);
+    req.end();
+  });
+}
+
+var test = await callApi();
+
+if (test.ok) {
+  log(`Success You already have access!\n`);
+} else {
+  log(`Warning: 403 → Need to grant invoker permission (one-time only)\n`);
+  log(`   Run this command once:\n`);
+  log(`   gcloud functions add-invoker-policy-binding ${FUNCTION_NAME} --region=${REGION} --member="user:${EMAIL}"\n`);
+  await ask(`   Press Enter when done...`);
+}
+
+// ———————————————————————————————————————————————————————————————————————
+// STEP 5: Final health check (real payload)
+// ———————————————————————————————————————————————————————————————————————
+log(`STEP 5: Running final health check...\n`);
+var result = await callApi();
+
+if (result.ok) {
+  log(`ALL GREEN – API IS LIVE, PRIVATE & WORKING! (${result.ms}ms)`);
+  log(`Response: ${result.body.substring(0, 200)}...\n`);
+} else {
+  log(`Failed ${result.status} — run the script again`);
+}
+
+log('='.repeat(80));
+log(`Done: ${new Date().toLocaleString()}\n`);
+rl.close();
