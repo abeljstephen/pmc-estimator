@@ -59,12 +59,12 @@ var HEADER_NOTES = [
   'Baseline probability at target=PERT (local core)',
 
   'Optimized budget flexibility (%)',
-  'Optimized schedule flexibility (%)',
-  'Optimized scope certainty (%)',
-  'Optimized scope reduction allowance (%)',
+  'Optimal schedule flexibility (%)',
+  'Optimal scope certainty (%)',
+  'Optimal scope reduction allowance (%)',
   'Optimized rework percentage (%)',
-  'Optimized risk tolerance (%)',
-  'Optimized user confidence (%)',
+  'Optimal risk tolerance (%)',
+  'Optimal user confidence (%)',
 
   'Optimized probability at PERT (local core)',
   'Sensitivity change (local core)',
@@ -91,7 +91,10 @@ function toast_(title, msg, sec) {
   try { SpreadsheetApp.getActiveSpreadsheet().toast(msg || '', title || '', sec || 5); } catch(_) {}
 }
 
-function isNumber(x) { return typeof x === 'number' && Number.isFinite(x); }
+function isNumber(x) {
+  return x != null && !isNaN(x) && Number.isFinite(x);
+}
+
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
 
@@ -99,12 +102,22 @@ function num(v) {
   if (typeof v === 'number') {
     n = v;
   } else if (typeof v === 'string') {
-    n = parseFloat(v.trim().replace(/[^0-9.-]/g, ''));
+    n = parseFloat(v.trim());
   } else {
     n = Number(v);
   }
-  return Number.isFinite(n) && !isNaN(n) ? n : null;
+
+  if (Number.isFinite(n) && !isNaN(n)) {
+    return n;
+  }
+
+  if (typeof v === 'object' && v !== null && 'value' in v) {
+    return num(v.value);
+  }
+
+  return null;
 }
+
 function toFixed6(v) { return isNumber(v) ? Number(v).toFixed(6) : ''; }
 function clipArray(arr, n) { return Array.isArray(arr) ? arr.slice(0, Math.max(0, n|0)) : []; }
 function scale01To100_(v) {
@@ -112,18 +125,64 @@ function scale01To100_(v) {
   if (!isNumber(n)) return null;
   return (n >= 0 && n <= 1) ? (n * 100) : (isNumber(n) ? n : null);
 }
+
 function normalizePoints_(arr) {
-  if (!Array.isArray(arr)) return [];
-  const out = [];
-  for (const p of arr) {
-    if (!p || typeof p !== 'object') continue;
-    const x = num(p.x);
-    const y = num(p.y);
-    if (isNumber(x) && isNumber(y)) out.push({ x, y });
+  if (!Array.isArray(arr)) {
+    Logger.log('normalizePoints_ received non-array: ' + typeof arr);
+    return [];
   }
+  const out = [];
+  let dropped = 0;
+  let firstFew = [];
+  for (let i = 0; i < arr.length; i++) {
+    const p = arr[i];
+    if (!p || typeof p !== 'object') {
+      dropped++;
+      continue;
+    }
+
+    // Robust x parsing: try direct Number first, then parseFloat, then num()
+    let x;
+    if (typeof p.x === 'number') {
+      x = p.x;
+    } else if (typeof p.x === 'string') {
+      x = parseFloat(p.x.trim());
+    } else {
+      x = num(p.x);
+    }
+
+    if (!isNumber(x)) {
+      dropped++;
+      if (dropped <= 5) {
+        Logger.log('Dropped (bad x) #' + (i+1) + ': raw x = ' + JSON.stringify(p.x) + ', parsed = ' + x);
+      }
+      continue;
+    }
+
+    // y: try to parse as number, keep raw string if fails
+    let yNumeric = num(p.y);
+    let yFinal = yNumeric;
+    if (!isNumber(yNumeric)) {
+      yFinal = p.y != null ? String(p.y) : "0";
+      Logger.log('y numeric parse failed - kept raw string: "' + yFinal + '" at point #' + (i+1));
+    }
+
+    out.push({ x, y: yFinal });
+    if (out.length <= 5) firstFew.push({ x, y: yFinal });
+  }
+
+  Logger.log(`normalizePoints_ processed ${arr.length} raw points → kept ${out.length}, dropped ${dropped}`);
+  if (out.length > 0) {
+    Logger.log('First few points (y may be string): ' + JSON.stringify(firstFew));
+  }
+  if (dropped > 0) {
+    Logger.log('Last dropped point example: ' + JSON.stringify(arr[arr.length-1]));
+  }
+
   out.sort((a,b) => a.x - b.x);
   return out;
 }
+
 function setHeaderNotes_(sheet) {
   const rng = sheet.getRange(1, 1, 1, HEADERS.length);
   rng.setValues([HEADERS]).setFontWeight('bold');
@@ -404,9 +463,7 @@ function parseBaseline_(resObj) {
       'baseline.ci.lower',
       'baseline.monteCarloSmoothed.ciLower',
       'baseline.confidenceInterval.lower',
-      'baseline.ci.lower',
-      'baseline.monteCarloSmoothed.confidenceInterval.lower',   // Added from main.gs patterns
-      'baseline.confidenceInterval.lower'
+      'baseline.ci.lower'
     ])
   );
 
@@ -416,11 +473,16 @@ function parseBaseline_(resObj) {
       'baseline.ci.upper',
       'baseline.monteCarloSmoothed.ciUpper',
       'baseline.confidenceInterval.upper',
-      'baseline.ci.upper',
-      'baseline.monteCarloSmoothed.confidenceInterval.upper',   // Added from main.gs patterns
-      'baseline.confidenceInterval.upper'
+      'baseline.ci.upper'
     ])
   );
+
+  // Fallback for CI paths
+  if (!isNumber(ciL)) ciL = num(getAnyPath_(resObj, ['baseline.confidenceInterval.lower', 'baseline.monteCarloSmoothed.confidenceInterval.lower']));
+  if (!isNumber(ciU)) ciU = num(getAnyPath_(resObj, ['baseline.confidenceInterval.upper', 'baseline.monteCarloSmoothed.confidenceInterval.upper']));
+
+  Logger.log('CI Lower parsed: ' + ciL);
+  Logger.log('CI Upper parsed: ' + ciU);
 
   let baseProb = num(
     getAnyPath_(resObj, [
@@ -472,7 +534,7 @@ function parseBaseline_(resObj) {
   return { pert, ciL, ciU, baseProb, kld, basePDF, baseCDF };
 }
 
-/* ---- Optimized parser — ALL PATHS FROM LOGS + MAIN.GS ---- */
+/* ---- Optimized parser — FINAL VERSION WITH DEBUG-CONFIRMED PATH FIRST ---- */
 function parseOptimized_(resObj) {
   if (!resObj) {
     Logger.log('parseOptimized_: ERROR — resObj is null/undefined');
@@ -481,7 +543,7 @@ function parseOptimized_(resObj) {
 
   Logger.log('parseOptimized_: Starting — full resObj keys: ' + Object.keys(resObj).join(', '));
 
-  // Sliders paths (working)
+  // Sliders paths (working — no change)
   let slidersRaw = 
     getAnyPath_(resObj, ['adaptiveOptimalSliderSettings.value']) || 
     getAnyPath_(resObj, ['adaptiveOptimalSliderSettings']) ||
@@ -509,71 +571,87 @@ function parseOptimized_(resObj) {
 
   const slidersPct = normalizeSlidersToPct_(slidersPlain);
 
-  // ALL PATHS FOR finalProb
-  let optProb = num(
-    getAnyPath_(resObj, [
-      'optimize.finalProb',
-      'optimize.probabilityAtTarget.value',
-      'targetProbability.value.adjustedOptimized',
-      'targetProbability.value.adjusted',
-      'optimize.targetProbability',
-      'decisionReports.1.finalProbability',
-      'optimize.metrics.finalProbability',
-      'targetProbability.value'
-    ])
-  );
+  // Debug every path for optProb
+  const optProbPaths = [
+    'optimize.finalProb',
+    'optimize.probabilityAtTarget.value',
+    'targetProbability.value.adjustedOptimized',
+    'targetProbability.value.adjusted',
+    'optimize.targetProbability',
+    'decisionReports.1.finalProbability',
+    'optimize.metrics.finalProbability',
+    'targetProbability.value'
+  ];
+  let optProbRaw = null;
+  for (let path of optProbPaths) {
+    optProbRaw = getAnyPath_(resObj, [path]);
+    Logger.log('parseOptimized_: Trying optProb path "' + path + '" → ' + JSON.stringify(optProbRaw) + ' (type: ' + typeof optProbRaw + ')');
+    if (optProbRaw !== undefined) break;
+  }
+  let optProb = num(optProbRaw);
+
+  // Debug every path for baseProb (for Q fallback)
+  const baseProbPaths = [
+    'baseline.probabilityAtTarget.value',
+    'baseline.probabilityAtPert.value',
+    'baseline.targetProbability.value.original',
+    'baseline.probabilityAtTarget.value'
+  ];
+  let baseProbRaw = null;
+  for (let path of baseProbPaths) {
+    baseProbRaw = getAnyPath_(resObj, [path]);
+    Logger.log('parseOptimized_: Trying baseProb path "' + path + '" → ' + JSON.stringify(baseProbRaw) + ' (type: ' + typeof baseProbRaw + ')');
+    if (baseProbRaw !== undefined) break;
+  }
+  let baseProb = num(baseProbRaw);
 
   let sensChange = num(getAnyPath_(resObj, ['optimize.metrics.sensitivityChange']));
 
-  if (!isNumber(sensChange)) {
-    const baseProb = num(getAnyPath_(resObj, ['baseline.probabilityAtTarget.value']));
-    const optProbLocal = optProb;
-    if (isNumber(baseProb) && isNumber(optProbLocal)) {
-      sensChange = optProbLocal - baseProb;
-      Logger.log('parseOptimized_: Calculated fallback sensitivityChange = ' + sensChange.toFixed(4));
-    }
+  if (!isNumber(sensChange) && isNumber(optProb) && isNumber(baseProb)) {
+    sensChange = optProb - baseProb;
+    Logger.log('parseOptimized_: Calculated fallback sensitivityChange = ' + sensChange.toFixed(4));
+  } else {
+    Logger.log('parseOptimized_: No sensitivity fallback possible (baseProb=' + baseProb + ', optProb=' + optProb + ')');
   }
 
-  // ALL PATHS FOR reshaped points — EXACT KEY FROM DEBUG FIRST
-  let optPDF = normalizePoints_(
-    getAnyPath_(resObj, [
-      'optimizedReshapedPoints.pdfPoints',                        // FIRST - EXACT MATCH FROM YOUR DEBUG
-      'optimizedReshapedPoints.cdfPoints',                        // Also try CDF here in case swapped
-      'optimize.reshapedPoints.pdfPoints',
-      'optimizedReshapedPoints.value.pdfPoints',
-      'optimize.reshapedPoints.value.pdfPoints',
-      'optimize.monteCarloSmoothed.pdfPoints',
-      'optimize.pdfPoints',
-      'allDistributions.value.monteCarloSmoothed.pdfPoints',
-      'monteCarloSmoothedPoints.pdfPoints'
-    ]) || []
-  );
+  // EXACT PATH FROM YOUR DEBUG LOG — FIRST PRIORITY
+  const pdfPaths = [
+    'optimizedReshapedPoints.pdfPoints',
+    'optimizedReshapedPoints.cdfPoints',
+    'optimize.reshapedPoints.pdfPoints',
+    'optimizedReshapedPoints.value.pdfPoints',
+    'optimize.reshapedPoints.value.pdfPoints',
+    'optimize.monteCarloSmoothed.pdfPoints',
+    'optimize.pdfPoints',
+    'allDistributions.value.monteCarloSmoothed.pdfPoints',
+    'monteCarloSmoothedPoints.pdfPoints'
+  ];
+  let optPDFRaw = null;
+  for (let path of pdfPaths) {
+    optPDFRaw = getAnyPath_(resObj, [path]);
+    Logger.log('parseOptimized_: Trying PDF path "' + path + '" → length=' + (Array.isArray(optPDFRaw) ? optPDFRaw.length : 'not array'));
+    if (Array.isArray(optPDFRaw) && optPDFRaw.length > 0) break;
+  }
+  let optPDF = normalizePoints_(optPDFRaw || []);
 
-  let optCDF = normalizePoints_(
-    getAnyPath_(resObj, [
-      'optimizedReshapedPoints.cdfPoints',                        // FIRST - EXACT MATCH FROM YOUR DEBUG
-      'optimizedReshapedPoints.pdfPoints',                        // Also try PDF here in case swapped
-      'optimize.reshapedPoints.cdfPoints',
-      'optimizedReshapedPoints.value.cdfPoints',
-      'optimize.reshapedPoints.value.cdfPoints',
-      'optimize.monteCarloSmoothed.cdfPoints',
-      'optimize.cdfPoints',
-      'allDistributions.value.monteCarloSmoothed.cdfPoints',
-      'monteCarloSmoothedPoints.cdfPoints'
-    ]) || []
-  );
-
-  // Debug
-  Logger.log('parseOptimized_ points paths tried:');
-  Logger.log('  optPDF length: ' + optPDF.length);
-  Logger.log('  optCDF length: ' + optCDF.length);
-  Logger.log('DEBUG: Full optimizedReshapedPoints contents: ' + JSON.stringify(resObj.optimizedReshapedPoints || {}, null, 2));
-
-  const optStatus = String(
-    getAnyPath_(resObj, ['optimize.status']) ||
-    getAnyPath_(resObj, ['status']) ||
-    'unknown'
-  ).toLowerCase().trim();
+  const cdfPaths = [
+    'optimizedReshapedPoints.cdfPoints',
+    'optimizedReshapedPoints.pdfPoints',
+    'optimize.reshapedPoints.cdfPoints',
+    'optimizedReshapedPoints.value.cdfPoints',
+    'optimize.reshapedPoints.value.cdfPoints',
+    'optimize.monteCarloSmoothed.cdfPoints',
+    'optimize.cdfPoints',
+    'allDistributions.value.monteCarloSmoothed.cdfPoints',
+    'monteCarloSmoothedPoints.cdfPoints'
+  ];
+  let optCDFRaw = null;
+  for (let path of cdfPaths) {
+    optCDFRaw = getAnyPath_(resObj, [path]);
+    Logger.log('parseOptimized_: Trying CDF path "' + path + '" → length=' + (Array.isArray(optCDFRaw) ? optCDFRaw.length : 'not array'));
+    if (Array.isArray(optCDFRaw) && optCDFRaw.length > 0) break;
+  }
+  let optCDF = normalizePoints_(optCDFRaw || []);
 
   Logger.log('parseOptimized_ final extracted results:');
   if (slidersPct) {
@@ -595,43 +673,6 @@ function parseOptimized_(resObj) {
     optCDF,
     status: optStatus
   };
-}
-
-// ────────────────────────────────────────────────
-// Helper: Normalize sliders object to percentages
-// ────────────────────────────────────────────────
-function normalizeSlidersToPct_(sliders) {
-  if (!sliders || typeof sliders !== 'object') return null;
-
-  const keys = [
-    'budgetFlexibility',
-    'scheduleFlexibility',
-    'scopeCertainty',
-    'scopeReductionAllowance',
-    'reworkPercentage',
-    'riskTolerance',
-    'userConfidence'
-  ];
-
-  const result = {};
-  let foundAny = false;
-
-  keys.forEach(key => {
-    let val = sliders[key];
-    if (typeof val === 'number' && !isNaN(val)) {
-      result[key] = val * 100;
-      foundAny = true;
-    } else if (typeof val === 'string') {
-      const clean = val.replace(/[% ]/g, '');
-      const numVal = parseFloat(clean);
-      if (!isNaN(numVal)) {
-        result[key] = numVal;
-        foundAny = true;
-      }
-    }
-  });
-
-  return foundAny ? result : null;
 }
 
 /* -------- Plot viewer normalization (no synthetic fallbacks) -------- */
@@ -727,7 +768,7 @@ function getAllTasks() {
       Logger.log('Header ' + (c+1) + ': "' + h + '"');
 
       if (h.includes('name') || h.includes('task') || h.includes('title')) nameCol = c + 1;
-      if (h.includes('bestcase') || h.includes('optimistic') || h.includes('best')) optCol = c + 1;
+      if (h.includes('bestcase') || h.includes('optimistic') || h.includes('best') ) optCol = c + 1;
       if (h.includes('mostlikely') || h.includes('most') || h.includes('likely')) mostCol = c + 1;
       if (h.includes('worstcase') || h.includes('pessimistic') || h.includes('worst')) pessCol = c + 1;
     }
@@ -885,55 +926,93 @@ function doMaterialize_(task, pert, sliders, row, out) {
   const matPayload = payloadMaterialize_(task, pert, sliders, extraFlags);
   const matRes = callEstimatorAPI_(matPayload, `materialize-${task.task}`);
   if (!matRes.ok) {
+    Logger.log(`Materialize call failed: ${matRes.error}`);
     return { ok: false, error: matRes.error };
   }
   const body = firstResult_(matRes.body);
-  if (!body) return { ok: false, error: 'Empty response body' };
+  if (!body) {
+    Logger.log('Materialize: Empty response body');
+    return { ok: false, error: 'Empty response body' };
+  }
   const parsedBase = parseBaseline_(body);
   const parsedOpt = parseOptimized_(body);
 
   // Strict — only write if core gave PERT
   if (!isNumber(parsedBase.pert)) {
+    Logger.log('No PERT in materialize response');
     return { ok: false, error: 'No PERT in materialize response' };
   }
 
+  Logger.log(`Starting writes for row ${row}`);
   out.getRange(row, 5).setValue(toFixed6(parsedBase.pert));
+  SpreadsheetApp.flush();
   out.getRange(row, 6).setValue(toFixed6(parsedBase.ciL));
+  SpreadsheetApp.flush();
   out.getRange(row, 7).setValue(toFixed6(parsedBase.ciU));
+  SpreadsheetApp.flush();
   out.getRange(row, 8).setValue(parsedBase.baseProb ? (parsedBase.baseProb * 100).toFixed(2) : '');
+  SpreadsheetApp.flush();
 
   let col = 9;
-  if (parsedOpt.sliders) {
+  if (parsedOpt.sliders && typeof parsedOpt.sliders === 'object' && Object.keys(parsedOpt.sliders).length > 0) {
+    Logger.log('Writing sliders: ' + JSON.stringify(parsedOpt.sliders));
     SLIDER_KEYS.forEach(k => {
-      const v = num(parsedOpt.sliders[k]);
-      out.getRange(row, col++).setValue(isNumber(v) ? v.toFixed(2) : '');  // FIXED: no extra *100; slidersPct is already %
+      const rawV = parsedOpt.sliders[k];
+      const v = num(rawV);
+      const displayV = isNumber(v) ? v.toFixed(2) : '—';
+      out.getRange(row, col).setValue(displayV);
+      Logger.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
+      SpreadsheetApp.flush();
+      col++;
     });
   } else {
+    Logger.log('No valid sliders object in parsedOpt for row ' + row);
     col += SLIDER_KEYS.length;
   }
 
   // Optimized probability as percentage
-  const optPct = isNumber(parsedOpt.optProb) ? (parsedOpt.optProb * 100).toFixed(2) : '';
+  let optPct = '';
+  if (isNumber(parsedOpt.optProb)) {
+    optPct = (parsedOpt.optProb * 100).toFixed(2);
+  } else if (optProbRaw != null) {
+    optPct = (Number(optProbRaw) * 100).toFixed(2);
+  }
   out.getRange(row, 16).setValue(optPct);
+  SpreadsheetApp.flush();
+  Logger.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
 
   // Sensitivity Change
-  const sens = isNumber(parsedOpt.sensChange) ? parsedOpt.sensChange.toFixed(4) : '—';
+  let sens = '—';
+  if (isNumber(parsedOpt.sensChange)) {
+    sens = parsedOpt.sensChange.toFixed(4);
+  } else if (isNumber(optProb) && isNumber(baseProb)) {
+    sens = (optProb - baseProb).toFixed(4);
+  }
   out.getRange(row, 17).setValue(sens);
+  SpreadsheetApp.flush();
+  Logger.log(`Sensitivity Change written to col 17: ${sens}`);
 
   // KL Divergence
   const kl = isNumber(parsedBase.kld) ? parsedBase.kld.toFixed(4) : '—';
   out.getRange(row, 18).setValue(kl);
+  SpreadsheetApp.flush();
 
   // Points: Baseline PDF/CDF (cols 19–20 = S–T), Optimized PDF/CDF (21–22 = U–V)
   const clip = CFG.MAX_POINTS;
   const pointsList = [parsedBase.basePDF, parsedBase.baseCDF, parsedOpt.optPDF, parsedOpt.optCDF];
   pointsList.forEach((pts, idx) => {
     const jsonCol = 19 + idx;
-    const jsonStr = JSON.stringify(clipArray(pts, clip));
+    Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
+    const clipped = clipArray(pts || [], clip);
+    const jsonStr = JSON.stringify(clipped);
+    Logger.log(`  JSON length before write: ${jsonStr.length} chars`);
     out.getRange(row, jsonCol).setValue(jsonStr);
+    SpreadsheetApp.flush();
+    Logger.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
   });
 
   shadeConfidenceColumns_(out);
+  Logger.log(`Materialize complete for row ${row}`);
   return { ok: true };
 }
 
@@ -1027,21 +1106,27 @@ function runTasks_(tasks, mode) {
     const statusCol = HEADERS.length;
     try {
       out.getRange(row, 1, 1, 4).setValues([[task.task, task.optimistic || '', task.mostLikely || '', task.pessimistic || '']]);
+      SpreadsheetApp.flush();
       out.getRange(row, statusCol).setValue('Running...');
+      SpreadsheetApp.flush();
 
       const res = doSingleTask_(task, row, out, logSheet);
       if (res && res.ok) {
         out.getRange(row, statusCol).setValue(tsMsg('OK'));
+        SpreadsheetApp.flush();
         ok++;
       } else if (res && res.partial) {
         out.getRange(row, statusCol).setValue(tsMsg('PARTIAL'));
+        SpreadsheetApp.flush();
         partial++;
       } else {
         out.getRange(row, statusCol).setValue(tsMsg('ERROR: ' + (res ? res.error : 'Unknown')));
+        SpreadsheetApp.flush();
         err++;
       }
     } catch (e) {
       out.getRange(row, statusCol).setValue(tsMsg('EXCEPTION: ' + e.message));
+      SpreadsheetApp.flush();
       err++;
       logSheet.appendRow([tsMsg(`Task "${task.task}": ${e.message}`)]);
     }
@@ -1077,18 +1162,25 @@ function doSingleTask_(task, row, out, logSheet) {
         pertForOpt = baseParsed.pert;
 
         out.getRange(row, 5).setValue(toFixed6(baseParsed.pert));
+        SpreadsheetApp.flush();
         out.getRange(row, 6).setValue(toFixed6(baseParsed.ciL));
+        SpreadsheetApp.flush();
         out.getRange(row, 7).setValue(toFixed6(baseParsed.ciU));
+        SpreadsheetApp.flush();
         out.getRange(row, 8).setValue(baseParsed.baseProb ? (baseParsed.baseProb * 100).toFixed(2) : '');
+        SpreadsheetApp.flush();
 
         out.getRange(row, 18).setValue(toFixed6(baseParsed.kld));
+        SpreadsheetApp.flush();
 
         const clip = CFG.MAX_POINTS;
         [baseParsed.basePDF, baseParsed.baseCDF].forEach((pts, idx) => {
           const jsonCol = 19 + idx;
-          const jsonStr = JSON.stringify(clipArray(pts, clip));
+          Logger.log(`Writing baseline points to col ${jsonCol} (length=${pts?.length || '0'})`);
+          const jsonStr = JSON.stringify(clipArray(pts || [], clip));
           out.getRange(row, jsonCol).setValue(jsonStr);
-          Logger.log(`Baseline points written to col ${jsonCol}: length=${pts.length}`);
+          SpreadsheetApp.flush();
+          Logger.log(`Baseline points written to col ${jsonCol}: length=${pts?.length || '0'}`);
         });
 
         hasBaseline = true;
@@ -1119,49 +1211,67 @@ function doSingleTask_(task, row, out, logSheet) {
         let col = 9;
 
         // Write sliders if present
-        if (optParsed.sliders) {
-          Logger.log('Sliders found — writing ' + Object.keys(optParsed.sliders).length + ' values for row ' + row);
+        if (optParsed.sliders && typeof optParsed.sliders === 'object') {
+          Logger.log('Writing sliders: ' + JSON.stringify(optParsed.sliders));
           SLIDER_KEYS.forEach(k => {
             const rawV = optParsed.sliders[k];
-            const v = typeof rawV === 'number' ? rawV : num(rawV);
-            const pct = isNumber(v) ? v.toFixed(2) : '';
-            out.getRange(row, col).setValue(pct);
-            Logger.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${pct || '(empty)'}`);
+            const v = num(rawV);
+            const displayV = isNumber(v) ? v.toFixed(2) : '—';
+            out.getRange(row, col).setValue(displayV);
+            Logger.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
+            SpreadsheetApp.flush();
             col++;
           });
           hasOpt = true;
         } else {
-          Logger.log('No sliders in optParsed for row ' + row);
+          Logger.log('No valid sliders object in parsedOpt');
           col += SLIDER_KEYS.length;
         }
 
         // Optimized probability as percentage
-        const optPct = isNumber(optParsed.optProb) ? (optParsed.optProb * 100).toFixed(2) : '';
+        let optPct = '';
+        if (isNumber(optParsed.optProb)) {
+          optPct = (optParsed.optProb * 100).toFixed(2);
+        } else if (optProbRaw != null) {
+          optPct = (Number(optProbRaw) * 100).toFixed(2);
+        }
         out.getRange(row, 16).setValue(optPct);
-        Logger.log(`Optimized % → col 16 (${String.fromCharCode(64 + 16)}): ${optPct || '(empty)'}`);
+        SpreadsheetApp.flush();
+        Logger.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
 
         // Sensitivity Change
-        const sens = isNumber(optParsed.sensChange) ? optParsed.sensChange.toFixed(4) : '—';
+        let sens = '—';
+        if (isNumber(optParsed.sensChange)) {
+          sens = optParsed.sensChange.toFixed(4);
+        } else if (isNumber(optProb) && isNumber(baseProb)) {
+          sens = (optProb - baseProb).toFixed(4);
+        }
         out.getRange(row, 17).setValue(sens);
-        Logger.log(`Sensitivity Change → col 17 (${String.fromCharCode(64 + 17)}): ${sens}`);
+        SpreadsheetApp.flush();
+        Logger.log(`Sensitivity Change written to col 17: ${sens}`);
 
         // KL Divergence
         const kl = isNumber(baseParsed.kld) ? baseParsed.kld.toFixed(4) : '—';
         out.getRange(row, 18).setValue(kl);
-        Logger.log(`KL Divergence → col 18 (${String.fromCharCode(64 + 18)}): ${kl}`);
+        SpreadsheetApp.flush();
 
         // Points: Baseline PDF/CDF (cols 19–20 = S–T), Optimized PDF/CDF (21–22 = U–V)
         const clip = CFG.MAX_POINTS;
-        const pointsList = [baseParsed.basePDF, baseParsed.baseCDF, optParsed.optPDF, optParsed.optCDF];
+        const pointsList = [parsedBase.basePDF, parsedBase.baseCDF, optParsed.optPDF, optParsed.optCDF];
         pointsList.forEach((pts, idx) => {
           const jsonCol = 19 + idx;
-          const jsonStr = JSON.stringify(clipArray(pts, clip));
+          Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
+          const clipped = clipArray(pts || [], clip);
+          const jsonStr = JSON.stringify(clipped);
+          Logger.log(`  JSON length before write: ${jsonStr.length} chars`);
           out.getRange(row, jsonCol).setValue(jsonStr);
-          Logger.log(`Points col ${jsonCol} (${String.fromCharCode(64 + jsonCol)}): length=${pts.length}`);
+          SpreadsheetApp.flush();
+          Logger.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
         });
 
         if (optParsed.status && optParsed.status !== 'error') {
           out.getRange(row, HEADERS.length).setValue(optParsed.status);
+          SpreadsheetApp.flush();
         }
 
         if (isNumber(optParsed.optProb) || optParsed.optPDF.length > 0 || optParsed.optCDF.length > 0 || optParsed.sliders) {
@@ -1173,6 +1283,7 @@ function doSingleTask_(task, row, out, logSheet) {
         logSheet.appendRow([tsMsg(`Task "${task.task}": Opt call failed - ${optRes.error}`)]);
       }
     } catch (e) {
+      Logger.log(`Opt phase exception: ${e.message}`);
       logSheet.appendRow([tsMsg(`Task "${task.task}": Opt exception - ${e.message}`)]);
     }
   } else {
