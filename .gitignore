@@ -113,3 +113,9 @@ web_modules/
 # This prevents historical backups from appearing in source control
 **/[Aa][Rr][Cc][Hh][Ii][Vv][Ee]/
 
+
+# --- Secrets / credentials (NEVER COMMIT) ---
+system-google-cloud-functions-api/private_key/
+system-google-cloud-functions-api/test_scripts/*.json
+system-google-cloud-functions-api/*key*.json
+
