@@ -1,0 +1,2552 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Probability Plots</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Charts (rendering only) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Zoom plugin (ADDED) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <!-- Export helpers -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- MathJax (for equations in report) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js" async></script>
+
+  <!-- Three.js for 3D hypercube -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --fg:#111827; --muted:#6B7280; --brand:#111827; --accent:#10B981; --accent2:#059669; --opt:#6D28D9;
+      --line:#E5E7EB; --panel:#FFFFFF; --chip:#F3F4F6; --hover:#BFDBFE; --warn:#DC2626; --tab:#374151;
+      --cdf:#3B82F6; --good:#059669; --bad:#F87171;
+
+      /* Series color constants */
+      --base:#10B981;        /* Baseline */
+      --manual:#059669;      /* Manual */
+      --fixed:#6D28D9;       /* Fixed (Optimized) */
+      --adaptive:#F59E0B;    /* Adaptive */
+      --tri:#3B82F6;         /* Triangle */
+      --beta:#7C3AED;        /* Beta-PERT */
+
+      /* Category chips */
+      --cat-capacity:#065f46; --cat-certainty:#1d4ed8; --cat-process:#7c3aed; --cat-behavioral:#b45309; --cat-other:#4b5563;
+    }
+
+    html,body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;color:var(--fg);background:var(--panel);margin:0;height:100%;}
+    *{box-sizing:border-box;}
+    .wrap{padding:8px;max-width:1160px;margin:0 auto;}
+    h1{font-size:16px;font-weight:700;margin:0 0 6px;letter-spacing:.2px;}
+    label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.2px;}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+
+    .toolbar-first-row,.toolbar-second-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
+    .toolbar-first-row{margin-bottom:8px;}
+    .input-group, .initial-values-group { display:flex; flex-direction:column; gap:4px; }
+    .input-group select,.input-group input{min-width:200px}
+    .initial-values-group .chip { min-height:auto; padding:6px 10px; }
+    .toolbar-second-row{border-top:1px solid var(--line);padding-top:8px;gap:8px;}
+    .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:500;min-height:44px;display:flex;align-items:center;}
+    .toolbar-first-row .chip:hover,.toolbar-first-row select:hover,.toolbar-first-row select:focus,
+    .toolbar-second-row input[type="number"]:hover,.toolbar-second-row input[type="number"]:focus,
+    .toolbar-second-row button:hover,.kpi-group .kpi:hover{background:var(--hover);border-color:var(--hover);}
+    .toolbar-first-row select,.toolbar-second-row input[type="number"]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:500;min-height:44px;}
+    .toolbar-second-row button{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;min-height:44px;}
+    .toolbar-second-row button.primary{background:var(--brand);color:#fff;border-color:var(--brand);}
+    .status{font-size:12px;color:var(--muted);font-weight:500;padding:6px 10px;border:1px solid var(--line);border-radius:8px;margin-left:auto;min-height:44px;display:flex;align-items:center;transition:box-shadow .2s;}
+    .status.fetching{background:#3B82F6;color:#fff;}
+    .glow{animation:glow 1.1s ease-in-out infinite alternate;}
+    @keyframes glow{
+      from{ box-shadow:0 0 0 rgba(59,130,246,0.0); }
+      to  { box-shadow:0 0 14px rgba(59,130,246,0.55); }
+    }
+
+    /* KPI tiles */
+    .kpi-group{display:flex;gap:4px;justify-content:flex-start;flex-wrap:wrap;background:#F9FAFB;padding:4px;border-radius:8px;}
+    .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:180px;min-height:48px;cursor:pointer;transition:background-color .2s, box-shadow .2s, opacity .2s;}
+    .kpi .ttl{font-size:10px;color:var(--muted);margin-bottom:2px;letter-spacing:.2px;}
+    .kpi .val{font-size:12px;font-weight:600;}
+    .kpi.updating{box-shadow:0 0 12px rgba(59,130,246,.55);}
+    .kpi.inactive{opacity:.45;cursor:pointer;}
+    .kpi.baseline .val{color:var(--base);}
+    .kpi.adjusted .val{color:var(--manual);}
+    .kpi.optimized .val{color:var(--fixed);}
+    .kpi.adaptive .val{color:var(--adaptive);}
+    .kpi.active{outline:2px solid var(--tab);}
+
+    /* Tabs row */
+    .tabs{display:flex;gap:8px;margin:6px 0;flex-wrap:wrap;align-items:center;}
+    .tab{font-size:12px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;user-select:none;min-height:44px;}
+    .tab:hover{background:var(--hover);border-color:var(--hover);}
+    .tab.active{background:var(--tab);color:#fff;border-color:var(--tab);}
+
+    /* Series toggles (overlay) */
+    .series-toggles{display:none;align-items:center;gap:6px;margin-left:auto;}
+    .series-toggles .tg{border:1px solid var(--line);border-radius:8px;background:#fff;padding:6px 10px;font-size:12px;cursor:pointer;min-height:36px;}
+    .series-toggles .tg[aria-pressed="true"]{background:#111827;color:#fff;border-color:#111827;}
+    .series-toggles .mini-status{font-size:12px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:8px;min-height:36px;}
+    .series-toggles .toggle-group { display: inline-flex; gap: 2px; }
+    .series-toggles .baseline-group { border-right: 1px solid var(--line); padding-right: 8px; margin-right: 8px; }
+
+    /* Plot area */
+    .plot-container{display:flex;flex-direction:column;gap:16px;position:relative;}
+    .plots{flex:1 1 100%;}
+    .plot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);position:relative;}
+    .plot-inner{position:relative;height:min(620px,70vh);display:flex;gap:8px;flex-direction:column;}
+    #pdfCanvas,#cdfCanvas{flex:0 0 auto;max-width:1000px;height:calc(50% - 4px)!important;width:100%!important;}
+
+    /* Hypercube Radar Chart - now in a separate dedicated card below the main plots */
+    #hypercubeSection {
+      display: none; /* Shown only in overlay tab */
+    }
+    #hypercubeSection.visible {
+      display: block;
+    }
+    #radarCard, #hypercube3DCard {
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+      margin-top: 16px;
+    }
+    #hypercubeRadar {
+      height: 440px !important;
+      width: 100% !important;
+    }
+    #hypercube3D {
+      height: 440px !important;
+      width: 100% !important;
+      background: #f8f9fa;
+    }
+    .plot-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .plot-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* Right compare legend — HIDDEN */
+    .right-legend{display:none!important;}
+
+    .legend{font-size:12px;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;}
+    .legend span{word-break:break-word;hyphens:auto;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:normal;}
+    .warn{color:var(--warn);font-size:12px;font-weight:500;margin-top:6px;background:rgba(220,38,38,.1);padding:6px 8px;border-radius:8px;}
+    .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:2px solid transparent;}
+    .dot-base{border-color:var(--base);} .dot-man{border-color:var(--manual);} .dot-fix{border-color:var(--fixed);} .dot-adp{border-color:var(--adaptive);}
+    .dot-tri{border-color:var(--tri);} .dot-beta{border-color:var(--beta);}
+
+    /* Decision Sliders button container - visible only in overlay tab */
+    #slidersButtonContainer {
+      display: none;
+      margin: 16px 0 8px;
+      text-align: center;
+    }
+    #slidersButtonContainer.visible {
+      display: block;
+    }
+    #slidersToggle {
+      background: var(--brand);
+      color: #fff;
+      border: 1px solid var(--brand);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+    #slidersToggle:hover {
+      background: #0f172a;
+    }
+
+    /* Sliders flyout */
+    .sliders-panel {
+      display: none;
+      margin: 16px 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      overflow: hidden;
+      max-width: 100%;
+    }
+    .sliders-panel.active {
+      display: block;
+    }
+
+    .sliders-panel .title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--fg);
+    }
+
+    @media (max-width:640px) {
+      .sliders-panel { padding: 12px; }
+      .sliders-panel .grid-inputs { grid-template-columns: 1fr !important; }
+      .sliders-panel label { grid-column: 1 / -1; }
+      #hypercubeRadar, #hypercube3D { height: 340px !important; }
+    }
+
+    .sliders-panel .note{font-size:12px;color:var(--muted);margin-bottom:8px;display:none;}
+    .sliders-panel .note.active{display:block;}
+    .sliders-panel .grid-inputs{display:grid;grid-template-columns:140px 80px 80px;gap:8px;align-items:center;}
+    .sliders-panel input[type="number"]{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:500;height:44px;}
+    .sliders-panel .input-cell { display: inline-flex; align-items: center; width: 80px; }
+    .sliders-panel .input-cell input { width: 68px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; font-weight: 500; height: 44px; }
+    .sliders-panel .input-cell span { font-size: 12px; color: var(--muted); padding-left: 4px; min-width: 12px; }
+    .sliders-panel input[type="number"]:disabled{opacity:.55;cursor:not-allowed;background:#F9FAFB;}
+    .sliders-panel .col-readonly{opacity:.65;}
+    .sliders-panel .col-readonly input{background:#F9FAFB;}
+    .sliders-panel .col-baseline input{color:#6B7280;}
+    .sliders-panel button.close{background:var(--warn);color:#fff;border:1px solid var(--warn);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;margin-top:8px;}
+
+    /* Live math & report */
+    .live-math{display:none;margin-top:8px;}
+    .live-math.active{display:block;}
+    .lm-acc{border:1px solid var(--line);border-radius:12px;background:var(--panel);}
+    .lm-acc-h{padding:10px;font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;background:var(--chip);}
+    .lm-acc-h:hover{background:var(--hover);}
+    .lm-caret{display:inline-block;transition:transform .15s;margin-right:8px;}
+    .lm-acc.open .lm-caret{transform:rotate(90deg);}
+    .lm-acc-b{padding:10px;border-top:1px solid var(--line);display:none;font-size:12px;line-height:1.4;}
+    .lm-acc.open .lm-acc-b{display:block;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;}
+
+    /* Reporting module styles */
+    .rep-skel{opacity:.7}
+    .rep-row{display:flex;gap:8px;align-items:center}
+    .rep-badge{display:inline-block;border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:2px 6px;font-size:11px;margin-left:6px;}
+    .rep-good{color:var(--good)} .rep-bad{color:var(--bad)}
+    .rep-note{font-size:12px;color:var(--muted)}
+    .rep-card{border:1px solid var(--line);border-radius:10px;padding:8px;margin-top:8px;background:var(--panel)}
+    .rep-tbl{width:100%;border-collapse:collapse;font-size:12px}
+    .rep-tbl th,.rep-tbl td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+    .rep-tbl th{background:#F3F4F6;font-weight:600}
+    .rep-tornado-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .rep-tornado-bar .rep-bar { display:flex; align-items:center; gap:6px; padding:0 6px; flex:1; height: 20px; background: var(--line); border-radius: 10px; position: relative; }
+    .rep-tornado-bar .rep-fill { height: 100%; border-radius:  10px; }
+    .rep-tornado-bar.rep-positive .rep-fill { background: var(--accent); }
+    .rep-tornado-bar.rep-negative .rep-fill { background: var(--warn); }
+
+    @media (max-width:640px){
+      .wrap{padding:6px;}
+      .toolbar-first-row,.toolbar-second-row{flex-direction:column;align-items:flex-start;gap:6px;}
+      .toolbar-second-row{padding-top:6px;}
+      .kpi-group{flex-direction:column;}
+      .kpi{min-width:100%;}
+      .sliders-panel{width:90%;position:static;margin-top:8px;}
+      #pdfCanvas,#cdfCanvas{max-width:100%;}
+      .series-toggles{width:100%;justify-content:flex-start;margin-left:0;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1 title="Probability Plots Dashboard">Probability Plots</h1>
+
+<div class="card">
+  <div class="toolbar-first-row">
+    <div class="input-group">
+      <label>Task:</label>
+      <select id="taskSel" title="Select a task"></select>
+    </div>
+
+    <div class="initial-values-group">
+      <span class="chip" title="Optimistic (Best), Most Likely, Pessimistic (Worst)">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div><span style="color:var(--muted);font-weight:600;min-width:90px;display:inline-block;">Best Case:</span><span id="oVal" class="mono">–</span></div>
+          <div><span style="color:var(--muted);font-weight:600;min-width:90px;display:inline-block;">Most Likely:</span><span id="mVal" class="mono">–</span></div>
+          <div><span style="color:var(--muted);font-weight:600;min-width:90px;display:inline-block;">Worst Case:</span><span id="pVal" class="mono">–</span></div>
+        </div>
+      </span>
+    </div>
+
+    <div class="input-group">
+      <label>Set Target Value</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50" title="Slide to set target value" style="flex:1;" />
+        <span id="targetDisplay" class="mono" style="min-width:60px;font-size:12px;color:var(--cdf);font-weight:500;">–</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar-second-row">
+    <span id="fetchStatus" class="status">Ready</span>
+    <button id="refreshBtn" class="primary">Refresh</button>
+    <button id="resetZoomBtn" title="Reset zoom/pan">Reset Zoom</button>
+  </div>
+</div>
+
+<!-- TABS + KPI GROUP -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="progress" title="Triangle → Beta-PERT → Baseline">Distribution Progression</div>
+  <div class="tab" data-tab="overlay" title="Monte Carlo + optimization overlay">Optimized Overlay</div>
+
+  <div class="series-toggles" id="seriesToggles">
+    <div class="toggle-group baseline-group">
+      <button class="tg" id="rowTglBase" role="switch" aria-pressed="true" title="Toggle Baseline">Baseline</button>
+      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="true" title="Toggle Optimized (Fixed)">Fixed</button>
+    </div>
+    <div class="toggle-group manual-group">
+      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Toggle Manual (Adjusted)">Manual</button>
+      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Toggle Optimized (Adaptive)">Adaptive</button>
+
+      <div id="probeBox" class="chip" style="display:none; align-items:center; gap:6px; min-height:36px; padding:6px 10px;">
+        <span style="font-weight:600;">Probe:</span>
+        <select id="probeSelect" title="Adaptive probe level (1–7)" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:8px; height:28px;">
+          <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
+        </select>
+      </div>
+    </div>
+
+    <span class="mini-status" id="seriesStatus">Ready</span>
+  </div>
+
+  <div class="kpi-group" id="distTiles" style="display:flex; margin-left:auto;">
+    <div class="kpi" id="kpiTriangle" title="Triangle">
+      <div class="ttl">Triangle</div>
+      <div class="val" style="color:var(--tri);">Curve</div>
+    </div>
+    <div class="kpi" id="kpiBeta" title="Beta-PERT">
+      <div class="ttl">Beta-PERT</div>
+      <div class="val" style="color:var(--beta);">Curve</div>
+    </div>
+    <div class="kpi baseline" id="kpiBaseDist" title="Baseline (Monte Carlo)">
+      <div class="ttl">Baseline</div>
+      <div class="val" style="color:var(--base);">Curve</div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI tiles for overlay -->
+<div class="card" id="overlayKpis" style="display:none;">
+  <div class="kpi-group">
+    <div class="kpi baseline inactive" id="kpiBaseline" title="Baseline">
+      <div class="ttl">Baseline</div>
+      <div class="val">–</div>
+    </div>
+    <div class="kpi adjusted inactive" id="kpiAdjusted" title="Manual (Adjusted)">
+      <div class="ttl">Manual (Adjusted)</div>
+      <div class="val">–</div>
+    </div>
+    <div class="kpi optimized" id="kpiOptimized" title="Optimized (Fixed)">
+      <div class="ttl">Optimized (Fixed)</div>
+      <div class="val">–</div>
+    </div>
+    <div class="kpi adaptive inactive" id="kpiAdaptive" title="Optimized (Adaptive)">
+      <div class="ttl">Optimized (Adaptive)</div>
+      <div class="val">–</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main plot container with vertical layout -->
+<div class="plot-container">
+  <!-- Main PDF/CDF plots -->
+  <div class="plots">
+    <div class="plot">
+      <div class="plot-inner">
+        <canvas id="pdfCanvas" title="Probability Density Function (PDF)"></canvas>
+        <canvas id="cdfCanvas" title="Cumulative Distribution Function (CDF)"></canvas>
+        <div class="right-legend" id="rightLegend" aria-live="polite"></div>
+      </div>
+
+      <div class="legend" id="legendOverlay">
+        <span><span class="legend-dot dot-base"></span>Baseline</span>
+        <span><span class="legend-dot dot-man"></span>Manual (Adjusted)</span>
+        <span><span class="legend-dot dot-fix"></span>Fixed (Optimized)</span>
+        <span><span class="legend-dot dot-adp"></span>Adaptive (Optimized)</span>
+      </div>
+      <div class="legend" id="legendDistributions" style="display:flex;">
+        <span><span class="legend-dot dot-tri"></span>Triangle</span>
+        <span><span class="legend-dot dot-beta"></span>Beta-PERT</span>
+        <span><span class="legend-dot dot-base"></span>Baseline</span>
+      </div>
+
+      <div id="plotMsg" class="warn" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Hypercube Radar - separate card below the main plots -->
+  <div id="hypercubeSection">
+    <div id="radarCard" class="card">
+      <div class="plot-title">Radar Plot: 7D Slider Projection</div>
+      <canvas id="hypercubeRadar"></canvas>
+      <div id="radarSubtitle" class="plot-subtitle"></div>
+    </div>
+    <div id="hypercube3DCard" class="card">
+      <div class="plot-title">Hypercube Plot: Rotating Hypercube Projection (3D)</div>
+      <canvas id="hypercube3D"></canvas>
+      <div id="hypercubeSubtitle" class="plot-subtitle"></div>
+    </div>
+  </div>
+
+  <!-- Decision Sliders button + panel -->
+  <div id="slidersButtonContainer">
+    <button id="slidersToggle" title="Open Decision Sliders">Decision Sliders</button>
+  </div>
+
+  <div id="slidersPanel" class="sliders-panel" aria-hidden="true">
+    <div class="title">Decision Sliders</div>
+    <div class="note" id="optimizeNote">
+      Baseline and optimized columns are read-only. Edit the “Manual” column to explore adjustments.
+    </div>
+
+    <div class="grid-inputs" id="slidersGrid">
+      <label></label>
+      <label class="mono col-readonly col-baseline">Baseline (%)</label>
+      <label class="mono">Manual (%)</label>
+      <label class="mono comp-header comp-fixed col-readonly" style="display:none;">Fixed (%)</label>
+      <label class="mono comp-header comp-adaptive col-readonly" style="display:none;">Adaptive (%)</label>
+
+      <label for="s_budget">Budget Flexibility</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_budget_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_budget" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_budget_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_budget_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_schedule">Schedule Flexibility</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_schedule_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_schedule" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_schedule_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_schedule_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_scopeCert">Scope Certainty</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_scopeCert_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_scopeCert" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_scopeCert_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_scopeCert_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_scopeRed">Scope Reduction</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_scopeRed_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_scopeRed" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_scopeRed_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_scopeRed_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_rework">Rework Percentage</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_rework_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_rework" type="number" min="0" max="50" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_rework_fixed" type="number" min="0" max="50" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_rework_adapt" type="number" min="0" max="50" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_risk">Risk Tolerance</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_risk_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_risk" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_risk_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_risk_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+
+      <label for="s_userConf">User Confidence</label>
+      <span class="input-cell col-readonly col-baseline"><input id="s_userConf_base" type="number" value="0" disabled><span>%</span></span>
+      <span class="input-cell"><input id="s_userConf" type="number" min="0" max="100" step="1" value="0"><span>%</span></span>
+      <span class="input-cell comp comp-fixed col-readonly" style="display:none;"><input id="s_userConf_fixed" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+      <span class="input-cell comp comp-adaptive col-readonly" style="display:none;"><input id="s_userConf_adapt" type="number" min="0" max="100" step="1" value="0" readonly><span>%</span></span>
+    </div>
+
+    <div id="slidersNoteMissing" class="note" style="display:none;">Server did not return optimal slider values (both modes zeroed).</div>
+    <button class="close" id="slidersClose" style="display:none;">Close</button>
+  </div>
+
+  <!-- Decision Report (Overlay) -->
+  <div id="decisionReport" class="live-math" aria-live="polite" style="margin-top:8px;"></div>
+
+  <!-- Live math (Overlay) -->
+  <div id="overlayMath" class="live-math" aria-live="polite"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="display:none;position:fixed;top:20px;right:20px;background:var(--accent);color:#fff;padding:12px;border-radius:8px;z-index:1002;">Tip</div>  </div>
+
+  <!-- Show/Hide Hypercube section based on tab -->
+  <script>
+    function updateHypercubeVisibility() {
+      const section = document.getElementById('hypercubeSection');
+      const overlayTab = document.querySelector('.tab[data-tab="overlay"]');
+      if (section && overlayTab) {
+        section.classList.toggle('visible', overlayTab.classList.contains('active'));
+      }
+    }
+    document.addEventListener('DOMContentLoaded', updateHypercubeVisibility);
+    const tabObserver = new MutationObserver(updateHypercubeVisibility);
+    document.querySelectorAll('.tab').forEach(tab => {
+      tabObserver.observe(tab, { attributes: true, attributeFilter: ['class'] });
+    });
+  </script>
+
+  <!-- Show/Hide Decision Sliders button -->
+  <script>
+    function updateSlidersButtonVisibility() {
+      const container = document.getElementById('slidersButtonContainer');
+      const overlayTab = document.querySelector('.tab[data-tab="overlay"]');
+      if (container && overlayTab) {
+        container.classList.toggle('visible', overlayTab.classList.contains('active'));
+      }
+    }
+    document.addEventListener('DOMContentLoaded', updateSlidersButtonVisibility);
+    const tabObserver2 = new MutationObserver(updateSlidersButtonVisibility);
+    document.querySelectorAll('.tab').forEach(tab => {
+      tabObserver2.observe(tab, { attributes: true, attributeFilter: ['class'] });
+    });
+  </script>
+
+  <!-- Reporting visibility + skeleton -->
+  <script>
+  (() => {
+    function onReady(fn){
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn, { once: true });
+      } else { fn(); }
+    }
+    function renderReportSkeletonOrFull(forceSkeleton=false) {
+      const tryRender = () => {
+        if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') {
+          window.PMCReport.renderAll(!!forceSkeleton);
+          const dr = document.getElementById('decisionReport');
+          const om = document.getElementById('overlayMath');
+          if (window.MathJax && window.MathJax.typesetPromise && (dr || om)) {
+            window.MathJax.typesetPromise([dr, om].filter(Boolean)).catch(()=>{});
+          }
+          return true;
+        }
+        return false;
+      };
+      if (tryRender()) return;
+      let tries = 0;
+      const h = setInterval(() => { tries += 1; if (tryRender() || tries > 60) clearInterval(h); }, 50);
+    }
+    function ensureReportVisibleWhenOverlayActive() {
+      const overlayTab = document.querySelector('.tab[data-tab="overlay"]');
+      const dr = document.getElementById('decisionReport');
+      const om = document.getElementById('overlayMath');
+      if (!overlayTab || !dr || !om) return;
+      const isActive = () => overlayTab.classList.contains('active');
+      const showIfActive = () => { if (!isActive()) return; dr.classList.add('active'); om.classList.add('active'); renderReportSkeletonOrFull(false); };
+      overlayTab.addEventListener('click', showIfActive);
+      const mo = new MutationObserver(() => showIfActive());
+      mo.observe(overlayTab, { attributes: true, attributeFilter: ['class'] });
+      window.addEventListener('pmc:baseline:ready', () => { if (isActive()) renderReportSkeletonOrFull(false); });
+      window.addEventListener('pmc:variant:ready',  () => { if (isActive()) renderReportSkeletonOrFull(false); });
+      showIfActive();
+    }
+    onReady(() => { ensureReportVisibleWhenOverlayActive(); renderReportSkeletonOrFull(true); });
+  })();
+  </script>
+
+  <!-- SHIMS -->
+  <script>
+  (function(){
+    if (!window.renderKPIs)           window.renderKPIs = function(){};
+    if (!window.renderRightLegend)    window.renderRightLegend = function(){};
+    if (!window.updateChart)          window.updateChart = function(){};
+    if (!window.renderDecisionReport) window.renderDecisionReport = function(){};
+    if (!window.renderOverlayMath)    window.renderOverlayMath = function(){};
+    console.debug('[Section 6] Shims installed — real renderers attach in Section 8.');
+  })();
+  </script>
+
+  <!-- Core State, Helpers, Charts & Overlay Series Model -->
+  <script>
+    const S = {
+      task: null, tasks: [],
+      O: null, M: null, P: null,
+      target: null,
+      targetSliderMin: null,
+      targetSliderMax: null,
+
+      tab: 'progress',
+      mode: 'inspect',
+      prevMode: null,
+
+      progress: { triOn: true, betaOn: true, baseOn: true },
+
+      overlay: {
+        baselineOn: true,
+        manualOn: false,
+        fixedOn: true,
+        adaptiveOn: false,
+        probeLevel: 3,
+        variants: {
+          manual:   { loading: false, error: null, token: 0 },
+          fixed:    { loading: false, error: null, token: 0 },
+          adaptive: { loading: false, error: null, token: 0 }
+        }
+      },
+
+      pendingVariants: 0,
+
+      trianglePdf: [], triangleCdf: [],
+      betaPertPdf: [], betaPertCdf: [],
+      basePdf: [], baseCdf: [],
+      adjPdf: [], adjCdf: [],
+      optPdfFixed: [], optCdfFixed: [],
+      optPdfAdaptive: [], optCdfAdaptive: [],
+
+      baselineProb: null,
+      adjustedProb: null,
+      optimizedProb: null,
+      adaptiveProb: null,
+
+      pdfChart: null, cdfChart: null,
+
+      fetching: false,
+      fetchTimer: null,
+      baselineCache: {},
+      variantCache: {},
+
+      liveMathPending: false,
+      explainAdj: null,
+      explainOpt: null,
+      explainAdaptive: null,
+      explainBase: null,
+      lastPayload: null,
+
+      optRefetchAttempted: false,
+      slidersEnabled: true,
+      currentGain: null,
+      currentWeights: { budget: 0.20, schedule: 0.20, scopeCert: 0.20, scopeRed: 0.15, rework: -0.15, riskTol: 0.07, userConf: 0.03 },
+      progressionMetrics: {}
+    };
+
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const fmtPct = v => (v == null || isNaN(v)) ? '–' : (v * 100).toFixed(2) + '%';
+    const pct    = v => (v == null || isNaN(v)) ? '–' : (100 * v).toFixed(2) + '%';
+    const num    = (v, d=4) => (v == null || isNaN(v)) ? '–' : Number(v).toFixed(d);
+    const blueNum = (v, d=4) => `<span style="color: var(--cdf);">${num(v, d)}</span>`;
+
+    function isAnyFetching() {
+      return S.fetching || Object.values(S.overlay.variants).some(v => v.loading);
+    }
+    function setStatus(t) {
+      const el = document.getElementById('fetchStatus');
+      const mini = document.getElementById('seriesStatus');
+      const any = isAnyFetching();
+      const text = any ? 'Fetching…' : (t || 'Ready');
+      if (el) { el.textContent = text; el.classList.toggle('fetching', any); el.classList.toggle('glow', any); }
+      if (mini) mini.textContent = text;
+    }
+    function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || ''; }
+    function nullableNum(v) { const n = Number(v); return Number.isFinite(n) ? n : null; }
+
+    function gp(obj, path) {
+      var parts = path.split('.');
+      var cur = obj;
+      for (var i=0;i<parts.length;i++){ var k = parts[i]; if (!cur || !(k in cur)) return null; cur = cur[k]; }
+      return cur;
+    }
+
+    function normalizePoints_(arr, isPdf = true) {
+      if (!Array.isArray(arr)) return [];
+      const out = [];
+      for (const p of arr) {
+        const x = nullableNum(p?.x);
+        const y = nullableNum(p?.y);
+        if (x != null && y != null) out.push({ x, y });
+      }
+      out.sort((a,b)=>a.x-b.x);
+      if (isPdf && out.length >= 2) {
+        if (out[0].y !== 0) out.unshift({ x: out[0].x - 0.01, y: 0 });
+        if (out[out.length-1].y !== 0) out.push({ x: out[out.length-1].x + 0.01, y: 0 });
+      }
+      return out;
+    }
+
+    function interpY(points, x) {
+      if (!points || points.length < 2 || x == null || !Number.isFinite(x)) return null;
+      if (x <= points[0].x) return points[0].y;
+      const n = points.length;
+      if (x >= points[n - 1].x) return points[n - 1].y;
+      let lo = 0, hi = n - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (points[mid].x <= x) lo = mid; else hi = mid;
+      }
+      const p0 = points[lo], p1 = points[hi];
+      const t = (x - p0.x) / (p1.x - p0.x || 1e-10);
+      const y = p0.y + t * (p1.y - p0.y);
+      return Number.isFinite(y) ? y : null;
+    }
+
+    function boundsFromSeries(series) {
+      let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity,count=0;
+      for (const arr of series) {
+        if (!arr || !arr.length) continue;
+        count++;
+        for (const p of arr) {
+          if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+          xmin = Math.min(xmin,p.x); xmax = Math.max(xmax,p.x);
+          ymin = Math.min(ymin,p.y); ymax = Math.max(ymax,p.y);
+        }
+      }
+      if (!count) return null;
+      if (xmin === xmax) { xmin -= 1; xmax += 1; }
+      if (ymin === ymax) { ymin = 0; ymax = ymax || 1; }
+      const padX = (xmax - xmin) * 0.05;
+      const padY = (ymax - ymin) * 0.15;
+      return { xmin: xmin - padX, xmax: xmax + padX, ymin: Math.max(0, ymin - padY), ymax: ymax + padY };
+    }
+
+    function sliderValues() {
+      return {
+        budgetFlexibility: +document.getElementById('s_budget').value,
+        scheduleFlexibility: +document.getElementById('s_schedule').value,
+        scopeCertainty: +document.getElementById('s_scopeCert').value,
+        scopeReductionAllowance: +document.getElementById('s_scopeRed').value,
+        reworkPercentage: +document.getElementById('s_rework').value,
+        riskTolerance: +document.getElementById('s_risk').value,
+        userConfidence: +document.getElementById('s_userConf').value
+      };
+    }
+    function setSlidersDisabled(disabled) {
+      ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = disabled; });
+    }
+
+    const sliderIdMap = {
+      budgetFlexibility: 's_budget',
+      scheduleFlexibility: 's_schedule',
+      scopeCertainty: 's_scopeCert',
+      scopeReductionAllowance: 's_scopeRed',
+      reworkPercentage: 's_rework',
+      riskTolerance: 's_risk',
+      userConfidence: 's_userConf'
+    };
+
+    function populateSliders(slidersObj) {
+      const noteMissing = document.getElementById('slidersNoteMissing');
+      if (noteMissing) noteMissing.style.display = Object.keys(slidersObj).length ? 'none' : 'block';
+      Object.entries(slidersObj).forEach(([key, val]) => {
+        const id = sliderIdMap[key];
+        const el = document.getElementById(id);
+        if (el) el.value = Number(val) || 0;
+      });
+    }
+
+    function setCompareValues(kind, slidersObj){
+      if (!slidersObj || typeof slidersObj !== 'object') return;
+      let suffix;
+      if (kind === 'base') {
+        suffix = '_base';
+      } else if (kind === 'fixed') {
+        suffix = '_fixed';
+      } else if (kind === 'adaptive' || kind === 'adapt') {
+        suffix = '_adapt';
+      } else {
+        return;
+      }
+      const map = {
+        budgetFlexibility: 's_budget',
+        scheduleFlexibility: 's_schedule',
+        scopeCertainty: 's_scopeCert',
+        scopeReductionAllowance: 's_scopeRed',
+        reworkPercentage: 's_rework',
+        riskTolerance: 's_risk',
+        userConfidence: 's_userConf'
+      };
+      Object.keys(map).forEach(k=>{
+        const el = document.getElementById(map[k] + suffix);
+        if (el) {
+          el.value = Number(slidersObj[k]) || 0;
+          if (k === 'reworkPercentage') el.value = Math.min(50, Math.max(0, el.value));
+        }
+      });
+    }
+
+    function extractSliderVals(src) {
+      let optSliders = {};
+      const sliderKeys = [
+        'budgetFlexibility', 'scheduleFlexibility', 'scopeCertainty',
+        'scopeReductionAllowance', 'reworkPercentage',
+        'riskTolerance', 'userConfidence'
+      ];
+
+      try {
+        for (const key of sliderKeys) {
+          let val = null;
+          let pathHit = 'none';
+
+          if (src.optimize?.scaledSliders?.[key] != null) {
+            val = src.optimize.scaledSliders[key];
+            pathHit = 'optimize.scaledSliders';
+          } else if (src.optimize?.sliders?.[key] != null) {
+            val = src.optimize.sliders[key];
+            pathHit = 'optimize.sliders';
+          } else if (src.scaledSliders?.[key] != null) {
+            val = src.scaledSliders[key];
+            pathHit = 'scaledSliders';
+          } else if (src.sliders01?.[key] != null) {
+            val = src.sliders01[key];
+            pathHit = 'sliders01';
+          } else if (src.sliders?.[key] != null) {
+            val = src.sliders[key];
+            pathHit = 'sliders';
+          } else if (src.explain?.optimized?.winningSliders?.[key] != null) {
+            val = src.explain.optimized.winningSliders[key];
+            pathHit = 'explain.optimized.winningSliders';
+          } else if (src.explain?.adaptive?.winningSliders?.[key] != null) {
+            val = src.explain.adaptive.winningSliders[key];
+            pathHit = 'explain.adaptive.winningSliders';
+          } else if (src.explain?.winningSliders?.[key] != null) {
+            val = src.explain.winningSliders[key];
+            pathHit = 'explain.winningSliders';
+          } else if (src.optimalSliderSettings?.value?.[key] != null) {
+            val = src.optimalSliderSettings.value[key];
+            pathHit = 'optimalSliderSettings.value';
+          }
+
+          val = val ?? 0;
+
+          if (val > 0 && val < 1) {
+            const scaleFactor = (key === 'reworkPercentage') ? 50 : 100;
+            val *= scaleFactor;
+          }
+
+          const maxVal = (key === 'reworkPercentage') ? 50 : 100;
+          optSliders[key] = Math.max(0, Math.min(maxVal, val));
+        }
+
+      } catch (e) {
+        console.error('extractSliderVals failed:', e);
+        optSliders = {};
+      }
+
+      return optSliders;
+    }
+
+    function updateTargetSlider() {
+      const s = window.S || S;
+      const slider = document.getElementById('targetSlider');
+      const display = document.getElementById('targetDisplay');
+      if (!slider || !display || s.O == null || s.P == null) return;
+
+      const pad = (s.P - s.O) * 0.05;
+      s.targetSliderMin = s.O - pad;
+      s.targetSliderMax = s.P + pad;
+      slider.min = s.targetSliderMin;
+      slider.max = s.targetSliderMax;
+      slider.value = s.M || ((s.O + s.P) / 2);
+      s.target = Number(slider.value);
+
+      display.textContent = Number(slider.value).toFixed(2);
+    }
+
+    function ensureCharts() {
+      const pdfCanvas = document.getElementById('pdfCanvas');
+      const cdfCanvas = document.getElementById('cdfCanvas');
+      if (!pdfCanvas || !cdfCanvas) return;
+
+      try {
+        if (window.Chart && Chart.register) {
+          if (window['chartjs-plugin-zoom']) Chart.register(window['chartjs-plugin-zoom']);
+          if (window.ChartZoom) Chart.register(window.ChartZoom);
+        }
+      } catch(_) {}
+
+      if (!window.targetLabelPlugin) {
+        window.targetLabelPlugin = {
+          id: 'targetLabel',
+          afterDatasetsDraw(chart, args, opts){
+            const s = window.S || {};
+            const ctx = chart.ctx;
+            chart.data.datasets.forEach((ds, idx) => {
+              if (ds.type === 'scatter' && ds.data && ds.data.length) {
+                const meta = chart.getDatasetMeta(idx);
+                const el = meta?.data?.[0];
+                if (!el) return;
+                const key = ds._probKey;
+                const p = key==='baseline' ? s.baselineProb :
+                          key==='adjusted' ? s.adjustedProb :
+                          key==='optimized' ? s.optimizedProb :
+                          key==='adaptive' ? s.adaptiveProb : null;
+                if (p == null) return;
+                const pos = el.getProps(['x','y'], true);
+                ctx.save();
+                ctx.font = '11px Inter, sans-serif';
+                ctx.fillStyle = ds.pointBackgroundColor || '#111';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                const val = (p*100).toFixed(2)+'%';
+                ctx.fillText(val, pos.x + 6, pos.y - 6);
+                ctx.restore();
+              }
+            });
+          }
+        };
+      }
+
+      const legendFilter = (legendItem, chartData) => {
+        const ds = chartData?.datasets?.[legendItem.datasetIndex];
+        if (ds && ds.type === 'scatter') return false;
+        const s = window.S || {};
+        const label = legendItem.text || '';
+        if (s.tab === 'overlay') {
+          return /^(Baseline|Manual \(Adjusted\)|Fixed \(Optimized\)|Adaptive \(Optimized\))$/.test(label);
+        }
+        return /^(Triangle|Beta-PERT|Baseline)$/.test(label);
+      };
+
+      if (!S.pdfChart) {
+        S.pdfChart = new Chart(pdfCanvas, {
+          type: 'line',
+          data: { datasets: [] },
+          options: {
+            responsive: true, maintainAspectRatio: false, parsing: false,
+            plugins: {
+              legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 12 }, filter: legendFilter } },
+              tooltip: {
+                enabled: true,
+                callbacks: {
+                  label: (ctx) => {
+                    if (ctx.dataset.type === 'scatter') {
+                      const x = ctx.parsed.x.toFixed(2);
+                      const key = ctx.dataset._probKey;
+                      const s = window.S||{};
+                      const p = key === 'baseline' ? s.baselineProb :
+                                key === 'adjusted' ? s.adjustedProb :
+                                key === 'optimized' ? s.optimizedProb : s.adaptiveProb;
+                      const y = p != null ? (p * 100).toFixed(2) : 'N/A';
+                      return [`Target Value: ${x}`, `Target Probability: ${y}%`];
+                    }
+                    return ctx.dataset.label;
+                  }
+                }
+              },
+              zoom: {
+                limits: { x:{min: 'original', max:'original'}, y:{min: 'original', max:'original'} },
+                pan: { enabled: true, mode: 'xy' },
+                zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'xy' }
+              }
+            },
+            elements: { point: { radius: 0 } },
+            scales: {
+              x: { type: 'linear', title: { display: true, text: 'Value', font: { size: 12 } }, ticks: { font: { size: 11 } } },
+              y: { title: { display: true, text: 'Density', font: { size: 12 } }, ticks: { font: { size: 11 } }, min: 0, max: 0.2 }
+            }
+          },
+          plugins: [window.targetLabelPlugin]
+        });
+      }
+
+      if (!S.cdfChart) {
+        S.cdfChart = new Chart(cdfCanvas, {
+          type: 'line',
+          data: { datasets: [] },
+          options: {
+            responsive: true, maintainAspectRatio: false, parsing: false,
+            plugins: {
+              legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 12 }, filter: legendFilter } },
+              zoom: {
+                limits: { x:{min: 'original', max:'original'}, y:{min: 0, max:1 } },
+                pan: { enabled: true, mode: 'xy' },
+                zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'xy' }
+              }
+            },
+            elements: { point: { radius: 0 } },
+            scales: {
+              x: { type: 'linear', title: { display: true, text: 'Value', font: { size: 12 } }, ticks: { font: { size: 11 } } },
+              y: { title: { display: true, text: 'Cumulative Probability', font: { size: 12 } }, ticks: { font: { size: 11 } }, min: 0, max: 1 }
+            }
+          },
+          plugins: [window.targetLabelPlugin]
+        });
+      }
+    }
+
+    function computeGain(sliders) {
+      const v = {
+        budget:   clamp01(sliders.budgetFlexibility / 100),
+        schedule: clamp01(sliders.scheduleFlexibility / 100),
+        scopeCert: clamp01(sliders.scopeCertainty / 100),
+        scopeRed: clamp01(sliders.scopeReductionAllowance / 100),
+        rework:   clamp01(sliders.reworkPercentage / 50),
+        riskTol:  clamp01(sliders.riskTolerance / 100),
+        userConf: clamp01((sliders.userConfidence ?? 100) / 100)
+      };
+      const w = S.currentWeights;
+      const raw = w.budget*v.budget + w.schedule*v.schedule + w.scopeCert*v.scopeCert + w.scopeRed*v.scopeRed + w.rework*v.rework + w.riskTol*v.riskTol + w.userConf*v.userConf;
+      return Math.max(-0.25, Math.min(0.25, raw)) * 0.25;
+    }
+
+    function pmcEmit(type, detail) {
+      try { window.dispatchEvent(new CustomEvent(type, { detail })); } catch(_) {}
+    }
+
+    function syncProbeUI(){
+      const s = window.S || S;
+      const box = document.getElementById('probeBox');
+      const sel = document.getElementById('probeSelect');
+      const show = (s.tab === 'overlay') && !!(s.overlay?.adaptiveOn);
+      if (box) box.style.display = show ? 'inline-flex' : 'none';
+      if (sel && Number(sel.value) !== Number(s.overlay.probeLevel || 3)) {
+        sel.value = String(s.overlay.probeLevel || 3);
+      }
+    }
+    function initProbeUI(){
+      const sel = document.getElementById('probeSelect');
+      if (!sel || sel.__bound) return;
+      sel.__bound = true;
+      sel.addEventListener('change', () => {
+        const s = window.S || S;
+        const lvl = Number(sel.value) || 3;
+        s.overlay.probeLevel = Math.max(1, Math.min(7, lvl));
+        if (s.tab === 'overlay' && s.overlay.adaptiveOn) {
+          const key = JSON.stringify({ task: s.task?.task, O:s.O, M:s.M, P:s.P, target:s.target, variant:'adaptive', probeLevel:s.overlay.probeLevel });
+          if (s.variantCache) delete s.variantCache[key];
+          if (typeof window.requestVariant === 'function') {
+            window.requestVariant('adaptive');
+          } else {
+            if (typeof window.setStatus === 'function') window.setStatus('Fetching…');
+          }
+        }
+      });
+    }
+
+    window.S = window.S || S;
+    window.ensureCharts = ensureCharts;
+    window.interpY = interpY;
+    window.boundsFromSeries = boundsFromSeries;
+    window.sliderValues = sliderValues;
+    window.updateSlidersDisplay = function(){};
+    window.computeGain = computeGain;
+    window.setStatus = setStatus;
+    window.pmcEmit = pmcEmit;
+    window.syncProbeUI = syncProbeUI;
+    window.initProbeUI = initProbeUI;
+  </script>
+
+  <!-- KPIs, Legend controls, Chart Rendering -->
+  <script>
+    (function(){
+      function WS(){ return window.S || (window.S = {}); }
+      function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || ''; }
+
+      window.renderKPIs = function(){
+        var s = WS();
+        function writeVal(root, v) {
+          if (!root) return;
+          var slot = root.querySelector('.val') || root.querySelector('.kpi-v');
+          if (slot) slot.textContent = (v==null ? '–' : (v*100).toFixed(2)+'%');
+        }
+        var kBase = document.getElementById('kpiBaseline');
+        var kAdj  = document.getElementById('kpiAdjusted');
+        var kOpt  = document.getElementById('kpiOptimized');
+        var kAda  = document.getElementById('kpiAdaptive');
+
+        writeVal(kBase, s.baselineProb);
+        writeVal(kAdj,  s.adjustedProb);
+        writeVal(kOpt,  s.optimizedProb);
+        writeVal(kAda,  s.adaptiveProb);
+
+        if (kBase) kBase.classList.toggle('active', s.tab==='overlay' && !!s.overlay.baselineOn);
+        if (kAdj)  kAdj.classList.toggle('active',  s.tab==='overlay' && !!s.overlay.manualOn);
+        if (kOpt)  kOpt.classList.toggle('active', s.tab==='overlay' && !!s.overlay.fixedOn);
+        if (kAda)  kAda.classList.toggle('active', s.tab==='overlay' && !!s.overlay.adaptiveOn);
+
+        var card = document.getElementById('overlayKpis');
+        if (card) card.style.display = (s.tab==='overlay') ? 'block' : 'none';
+
+        var distTiles = document.getElementById('distTiles');
+        if (distTiles) distTiles.style.display = (s.tab==='progress') ? 'flex' : 'none';
+        var triTile = document.getElementById('kpiTriangle');
+        var betaTile= document.getElementById('kpiBeta');
+        var baseTile= document.getElementById('kpiBaseDist');
+        if (triTile) triTile.classList.toggle('active', !!s.progress.triOn);
+        if (betaTile) betaTile.classList.toggle('active', !!s.progress.betaOn);
+        if (baseTile) baseTile.classList.toggle('active', !!s.progress.baseOn);
+
+        if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
+      };
+
+      window.renderRightLegend = function(){ /* kept hidden via CSS */ };
+
+      function dsLine(opts) {
+        var c = cssVar(opts.colorVar) || '#666';
+        return {
+          label: opts.label,
+          data: opts.data,
+          parsing: false,
+          borderColor: c,
+          backgroundColor: c,
+          borderWidth: 2,
+          pointRadius: 0,
+          cubicInterpolationMode: 'monotone',
+          tension: (typeof opts.tension==='number') ? opts.tension : 0.25,
+          spanGaps: true,
+          hidden: !!opts.hidden,
+          fill: !!opts.fill,
+          order: (typeof opts.z==='number') ? opts.z : 1
+        };
+      }
+      function dsTargetDot(cfg) {
+        if (cfg.x==null || !Array.isArray(cfg.series) || !cfg.series.length) return null;
+        var y = window.interpY(cfg.series, cfg.x);
+        if (y==null || !isFinite(y)) return null;
+        var c = cssVar(cfg.colorVar) || '#333';
+        return {
+          type: 'scatter',
+          label: cfg.key+' target',
+          _probKey: cfg.key,
+          data: [{x: cfg.x, y: y}],
+          pointBackgroundColor: c,
+          pointBorderColor: c,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+          showLine: false,
+          order: 0
+        };
+      }
+      function fitScales(chart, seriesArrays, kind) {
+        if (!chart || !seriesArrays || !seriesArrays.length) return;
+        var b = window.boundsFromSeries(seriesArrays);
+        if (!b) return;
+        chart.options.scales.x.min = b.xmin;
+        chart.options.scales.x.max = b.xmax;
+        if (kind==='pdf') {
+          chart.options.scales.y.min = Math.max(0, b.ymin);
+          chart.options.scales.y.max = Math.max(0.05, b.ymax);
+        } else {
+          chart.options.scales.y.min = 0;
+          chart.options.scales.y.max = 1;
+        }
+      }
+
+      window.updateChart = function(){
+        var s = WS();
+        if (typeof window.ensureCharts === 'function') window.ensureCharts();
+        var msgEl = document.getElementById('plotMsg');
+
+        var haveAny =
+          (s.trianglePdf && s.trianglePdf.length) ||
+          (s.betaPertPdf && s.betaPertPdf.length) ||
+          (s.basePdf && s.basePdf.length);
+
+        if (!haveAny) {
+          if (msgEl) { msgEl.style.display='block'; msgEl.textContent='Select a task to view distributions.'; }
+          return;
+        } else if (msgEl) { msgEl.style.display='none'; }
+
+        var onOverlay = (s.tab === 'overlay');
+
+        function buildDatasets(kind) {
+          var triSeries = (kind==='pdf') ? (s.trianglePdf||[]) : (s.triangleCdf||[]);
+          var betSeries = (kind==='pdf') ? (s.betaPertPdf||[]) : (s.betaPertCdf||[]);
+          var baseSeries= (kind==='pdf') ? (s.basePdf||[]) : (s.baseCdf||[]);
+          var manSeries = (kind==='pdf') ? (s.adjPdf||[]) : (s.adjCdf||[]);
+          var fixSeries = (kind==='pdf') ? (s.optPdfFixed||[]) : (s.optCdfFixed||[]);
+          var adaSeries = (kind==='pdf') ? (s.optPdfAdaptive||[]) : (s.optCdfAdaptive||[]);
+
+          var showTri = (!onOverlay && s.tab==='progress' && s.progress.triOn);
+          var showBet = (!onOverlay && s.tab==='progress' && s.progress.betaOn);
+          var showBase= (!onOverlay && s.tab==='progress' && s.progress.baseOn);
+
+          var base = dsLine({ label: 'Baseline', data: baseSeries, colorVar: '--base', z: 3, hidden: !(onOverlay ? s.overlay.baselineOn : showBase) });
+          var tri  = dsLine({ label: 'Triangle', data: triSeries, colorVar: '--tri',  z: 2, hidden: !showTri });
+          var bet  = dsLine({ label: 'Beta-PERT', data: betSeries, colorVar: '--beta', z: 2, hidden: !showBet });
+
+          var man  = dsLine({ label: 'Manual (Adjusted)', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
+          var fix  = dsLine({ label: 'Fixed (Optimized)', data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
+          var ada  = dsLine({ label: 'Adaptive (Optimized)', data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
+
+          var dotBase = onOverlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
+          var dotAdj  = onOverlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
+          var dotOpt  = onOverlay && s.overlay.fixedOn    ? dsTargetDot({ key:'optimized',x:(s.target), series: fixSeries,  colorVar:'--fixed' }) : null;
+          var dotAda  = onOverlay && s.overlay.adaptiveOn ? dsTargetDot({ key:'adaptive', x:(s.target), series: adaSeries,  colorVar:'--adaptive' }) : null;
+
+          var arr = [base, tri, bet, man, fix, ada, dotBase, dotAdj, dotOpt, dotAda].filter(Boolean);
+          return arr;
+        }
+
+        if (s.pdfChart) {
+          var pdfDs = buildDatasets('pdf');
+          s.pdfChart.data.datasets = pdfDs;
+          var pdfSeriesForBounds = [];
+          for (var i=0;i<pdfDs.length;i++) {
+            var d = pdfDs[i];
+            if (d.type !== 'scatter' && !d.hidden) pdfSeriesForBounds.push(d.data);
+          }
+          fitScales(s.pdfChart, pdfSeriesForBounds, 'pdf');
+          s.pdfChart.update('none');
+        }
+
+        if (s.cdfChart) {
+          var cdfDs = buildDatasets('cdf');
+          s.cdfChart.data.datasets = cdfDs;
+          var cdfSeriesForBounds = [];
+          for (var j=0;j<cdfDs.length;j++) {
+            var d2 = cdfDs[j];
+            if (d2.type !== 'scatter' && !d.hidden) cdfSeriesForBounds.push(d2.data);
+          }
+          fitScales(s.cdfChart, cdfSeriesForBounds, 'cdf');
+          s.cdfChart.update('none');
+        }
+
+        var legOverlay = document.getElementById('legendOverlay');
+        var legDist = document.getElementById('legendDistributions');
+        if (legOverlay && legDist) {
+          legOverlay.style.display = onOverlay ? 'flex' : 'none';
+          legDist.style.display = onOverlay ? 'none' : 'flex';
+        }
+
+        if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
+
+        if (typeof window.visualizeHypercubeOnBaseline === 'function') {
+          window.visualizeHypercubeOnBaseline();
+        }
+      };
+
+      document.addEventListener('DOMContentLoaded', function(){
+        if (typeof window.renderRightLegend === 'function') window.renderRightLegend();
+        if (typeof window.renderKPIs === 'function') window.renderKPIs();
+        if (typeof window.updateChart === 'function') window.updateChart();
+        if (typeof window.initProbeUI === 'function') window.initProbeUI();
+      });
+    })();
+  </script>
+
+  <!-- Combined Visualization: Original Radar + New 3D Rotating Hypercube with VISIBLE LABELS -->
+  <script>
+    function visualizeHypercubeOnBaseline() {
+      const S = window.S || {};
+
+      // 1. Original Radar Chart
+      const radarCanvas = document.getElementById('hypercubeRadar');
+      if (radarCanvas) {
+        let suffix = '';
+        if (S.overlay?.adaptiveOn) suffix = '_adapt';
+        else if (S.overlay?.fixedOn) suffix = '_fixed';
+        else if (S.overlay?.manualOn) suffix = '';
+        else suffix = '_base';
+
+        const sliderIds = ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf'];
+        const labels = ['Budget Flexibility','Schedule Flexibility','Scope Certainty','Scope Reduction Allowance','Rework Percentage','Risk Tolerance','User Confidence'];
+
+        const values = sliderIds.map(id => {
+          const el = document.getElementById(id + suffix);
+          return el ? Number(el.value) : 0;
+        });
+
+        const radarData = values.map((v, i) => i === 4 ? v * 2 : v);
+        const baselineRef = new Array(labels.length).fill(50);
+
+        const data = {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Current Sliders (%)',
+              data: radarData,
+              fill: true,
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              borderColor: 'rgb(59, 130, 246)',
+              pointBackgroundColor: 'rgb(59, 130, 246)',
+              pointBorderColor: '#fff'
+            },
+            {
+              label: 'Baseline Reference (50%)',
+              data: baselineRef,
+              fill: false,
+              borderColor: 'rgba(34, 197, 94, 0.8)',
+              pointBackgroundColor: 'rgb(34, 197, 94)',
+              borderDash: [5, 5]
+            }
+          ]
+        };
+
+        const config = {
+          type: 'radar',
+          data: data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: true,
+                text: '7D Hypercube Projection – Current Slider Configuration',
+                font: { size: 14 }
+              },
+              legend: { position: 'top' },
+              tooltip: { enabled: true }
+            },
+            scales: {
+              r: {
+                min: 0,
+                max: 100,
+                ticks: { stepSize: 20 }
+              }
+            }
+          }
+        };
+
+        if (window.hyperRadarChart) window.hyperRadarChart.destroy();
+        window.hyperRadarChart = new Chart(radarCanvas, config);
+      }
+
+      // 2. 3D Rotating Hypercube with VISIBLE LABELS (minimal fix: transparent: true)
+      const canvas3D = document.getElementById('hypercube3D');
+      if (!canvas3D) return;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xf8f9fa);
+
+      const camera = new THREE.PerspectiveCamera(60, canvas3D.clientWidth / 440, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ canvas: canvas3D, antialias: true });
+      renderer.setSize(canvas3D.clientWidth, 440);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+      scene.add(ambientLight);
+
+      let suffix = '';
+      if (S.overlay?.adaptiveOn) suffix = '_adapt';
+      else if (S.overlay?.fixedOn) suffix = '_fixed';
+      else if (S.overlay?.manualOn) suffix = '';
+      else suffix = '_base';
+
+      const sliderIds = ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf'];
+      const sliderLabels = ['Budget Flex','Schedule Flex','Scope Certainty','Scope Red','Rework %','Risk Tol','User Conf'];
+      const sliderValues = sliderIds.map(id => Number(document.getElementById(id + suffix)?.value || 0) / 100);
+
+      const baselineLabels = ['Baseline Mean','Baseline Variance','Baseline Prob'];
+      const baselineValues = [
+        (S.M || 50) / 100,
+        ((S.P - S.O)/6 || 10) / 100,
+        S.baselineProb || 0.5
+      ];
+
+      const vertices4D = [];
+      for (let i = 0; i < 16; i++) {
+        vertices4D.push([(i & 1 ? 1 : -1), (i & 2 ? 1 : -1), (i & 4 ? 1 : -1), (i & 8 ? 1 : -1)]);
+      }
+
+      const edges = [];
+      for (let i = 0; i < 16; i++) {
+        for (let j = i + 1; j < 16; j++) {
+          if (((i ^ j) & -(i ^ j)) === (i ^ j)) edges.push([i, j]);
+        }
+      }
+
+      let angles = sliderValues.map(v => v * Math.PI * 2);
+
+      const material = new THREE.LineBasicMaterial({ color: 0x0066ff });
+
+      const group = new THREE.Group();
+      scene.add(group);
+
+      function updateHypercube() {
+        group.clear();
+
+        const projected = vertices4D.map(v => {
+          let [x, y, z, w] = v;
+          for (let p = 0; p < 6; p++) {
+            const theta = angles[p];
+            const c = Math.cos(theta), s = Math.sin(theta);
+            switch (p) {
+              case 0: [x, y] = [x*c - y*s, x*s + y*c]; break;
+              case 1: [x, z] = [x*c - z*s, x*s + z*c]; break;
+              case 2: [x, w] = [x*c - w*s, x*s + w*c]; break;
+              case 3: [y, z] = [y*c - z*s, y*s + z*c]; break;
+              case 4: [y, w] = [y*c - w*s, y*s + w*c]; break;
+              case 5: [z, w] = [z*c - w*s, z*s + w*c]; break;
+            }
+          }
+          x *= (1 + baselineValues[0]);
+          y *= (1 + baselineValues[1]);
+          z *= (1 + baselineValues[2]);
+          const dist = 4;
+          const scale = dist / (dist + w);
+          return new THREE.Vector3(x * scale, y * scale, z * scale);
+        });
+
+        edges.forEach(([i, j]) => {
+          const geo = new THREE.BufferGeometry().setFromPoints([projected[i], projected[j]]);
+          const line = new THREE.Line(geo, material);
+          group.add(line);
+        });
+      }
+
+      function addLabel(text, position) {
+        const canvasLabel = document.createElement('canvas');
+        canvasLabel.width = 512;
+        canvasLabel.height = 128;
+        const ctx = canvasLabel.getContext('2d');
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, canvasLabel.width, canvasLabel.height);
+        
+        ctx.font = 'bold 36px Arial';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvasLabel.width / 2, canvasLabel.height / 2);
+        
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 4;
+        ctx.strokeText(text, canvasLabel.width / 2, canvasLabel.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvasLabel);
+        const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true }); // ← Minimal fix for visibility
+        const sprite = new THREE.Sprite(spriteMat);
+        sprite.position.copy(position);
+        sprite.scale.set(5, 1.25, 1);
+        group.add(sprite);
+      }
+
+      const allLabels = baselineLabels.map((l, i) => `${l}: ${(baselineValues[i]*100).toFixed(0)}%`)
+        .concat(sliderLabels.map((l, i) => `${l}: ${(sliderValues[i]*100).toFixed(0)}%`));
+
+      allLabels.forEach((label, i) => {
+        const pos = new THREE.Vector3((i % 3 - 1) * 4.5, (Math.floor(i / 3) % 3 - 1) * 4.5, Math.floor(i / 9) * 4.5 - 2);
+        addLabel(label, pos);
+      });
+
+      const prob = S.adaptiveProb || S.optimizedProb || S.adjustedProb || S.baselineProb || 0;
+      addLabel(`Target Probability: ${(prob * 100).toFixed(1)}%`, new THREE.Vector3(0, -4.5, 0));
+
+      updateHypercube();
+
+      camera.position.z = 10;
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // Add axes helper for labels
+      const axesHelper = new THREE.AxesHelper(5);
+      scene.add(axesHelper);
+
+      // Add axis labels
+      addLabel('X', new THREE.Vector3(5.5, 0, 0));
+      addLabel('Y', new THREE.Vector3(0, 5.5, 0));
+      addLabel('Z', new THREE.Vector3(0, 0, 5.5));
+
+      function animate() {
+        requestAnimationFrame(animate);
+        angles = angles.map((a, i) => a + 0.002 * sliderValues[i % sliderValues.length]);
+        updateHypercube();
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = canvas3D.clientWidth / 440;
+        camera.updateProjectionMatrix();
+        renderer.setSize(canvas3D.clientWidth, 440);
+      });
+
+      // Add subtitles dynamically
+      const target = S.target ? S.target.toFixed(2) : 'N/A';
+      const probability = ((S.adaptiveProb || S.optimizedProb || S.adjustedProb || S.baselineProb || 0) * 100).toFixed(2) + '%';
+      document.getElementById('radarSubtitle').textContent = `Target: ${target}, Probability: ${probability}`;
+      document.getElementById('hypercubeSubtitle').textContent = `Target: ${target}, Probability: ${probability}`;
+    }
+  </script>
+
+  <!-- API Fetch, Variant Requests, UI Bindings & Boot -->
+  <script>
+    (function(){
+      function safe(fn){ try { fn(); } catch(_){ } }
+      function WS(){ return window.S || (window.S = {}); }
+
+      function ensureProbeBox(){
+        if (typeof window.initProbeUI === 'function') window.initProbeUI();
+        if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
+      }
+
+      function setStatusLocal(t) {
+        if (typeof window.setStatus === 'function') { window.setStatus(t); return; }
+        var s = WS();
+        var el = document.getElementById('fetchStatus');
+        if (!el) return;
+        var any = s.fetching || (s.overlay && s.overlay.variants && Object.keys(s.overlay.variants).some(function(k){ return !!s.overlay.variants[k].loading; }));
+        el.textContent = any ? 'Fetching…' : (t || 'Ready');
+        el.classList.toggle('fetching', any);
+        el.classList.toggle('glow', any);
+        var mini = document.getElementById('seriesStatus'); if (mini) mini.textContent = el.textContent;
+        safe(function(){ window.renderKPIs(); });
+        ensureProbeBox();
+      }
+
+      function updateSliderTable(fixedSliders, adaptiveSliders) {
+        const grid = document.getElementById('slidersGrid');
+        if (!grid) return;
+
+        const hasFixed = Object.values(fixedSliders).some(v => v > 0);
+        const hasAdaptive = Object.values(adaptiveSliders).some(v => v > 0);
+        let numCols = 1;
+        if (hasFixed) numCols += 1;
+        if (hasAdaptive) numCols += 1;
+
+        const gridCols = Array(numCols).fill('1fr').join(' ');
+        grid.style.gridTemplateColumns = gridCols;
+
+        const headers = grid.querySelectorAll('.comp-header');
+        headers[0].style.display = 'table-cell';
+        const fixedHeader = grid.querySelector('.comp-header.comp-fixed');
+        if (fixedHeader) fixedHeader.style.display = hasFixed ? 'table-cell' : 'none';
+        const adaptiveHeader = grid.querySelector('.comp-header.comp-adaptive');
+        if (adaptiveHeader) adaptiveHeader.style.display = hasAdaptive ? 'table-cell' : 'none';
+      }
+
+      function handleEmptyResponses(fixedData, adaptiveData) {
+        if (fixedData.explain?.status === 'no-optimize') {
+          console.log('No-optimize mode detected for Fixed, sliders zeroed:', fixedData);
+        }
+        if (adaptiveData.explain?.status === 'no-optimize') {
+          console.log('No-optimize mode detected for Adaptive, sliders zeroed:', adaptiveData);
+        }
+
+        const adaptiveSliders = extractSliderVals(adaptiveData);
+        if (Object.values(adaptiveSliders).every(v => v === 0)) {
+          const status = adaptiveData.explain?.status || adaptiveData.optimize?.status || 'unknown';
+          console.log(`Adaptive sliders zeroed (${status}):`, adaptiveData);
+          if (status === 'no-optimize') {
+            console.log('Intentional: Baseline optimal—no lift possible.');
+          }
+        }
+      }
+
+      function updateServerNote(fixedSliders, adaptiveSliders, fixedData, adaptiveData) {
+        const allZero = Object.values(fixedSliders).every(v => v === 0) && 
+                        Object.values(adaptiveSliders).every(v => v === 0);
+        const noteEl = document.getElementById('slidersNoteMissing');
+        if (!noteEl) return;
+
+        if (allZero) {
+          const fixedStatus = fixedData.explain?.status || fixedData.optimize?.status || 'unknown';
+          const adaptiveStatus = adaptiveData.explain?.status || adaptiveData.optimize?.status || 'unknown';
+          noteEl.textContent = (fixedStatus === 'no-optimize' || adaptiveStatus === 'no-optimize') 
+            ? 'Baseline optimal—no adjustments boost probability.' 
+            : 'Server did not return optimal slider values (both modes zeroed).';
+          noteEl.style.display = 'block';
+        } else {
+          noteEl.style.display = 'none';
+        }
+      }
+
+      function updateSliderComparisons() {
+        var s = WS();
+        if (s.pendingVariants > 0) { console.log(`Guard: Skipping; ${s.pendingVariants} pending`); return; }
+        var grid = document.getElementById('slidersGrid');
+        if (!grid) return;
+
+        const fixedSliders = extractSliderVals(s.explainOpt || {}, 'fixed');
+        const adaptiveSliders = extractSliderVals(s.explainAdaptive || {}, 'adaptive');
+        updateSliderTable(fixedSliders, adaptiveSliders);
+        updateServerNote(fixedSliders, adaptiveSliders, s.explainOpt || {}, s.explainAdaptive || {});
+        handleEmptyResponses(s.explainOpt || {}, s.explainAdaptive || {});
+
+        var showFixed    = (s.tab === 'overlay') && !!s.overlay.fixedOn;
+        var showAdaptive = (s.tab === 'overlay') && !!s.overlay.adaptiveOn;
+
+        var i, nodes;
+        nodes = grid.querySelectorAll('.comp-header.comp-fixed'); for(i=0;i<nodes.length;i++) nodes[i].style.display = showFixed ? 'block' : 'none';
+        nodes = grid.querySelectorAll('.comp-header.comp-adaptive'); for(i=0;i<nodes.length;i++) nodes[i].style.display = showAdaptive ? 'block' : 'none';
+        nodes = grid.querySelectorAll('.comp.comp-fixed'); for(i=0;i<nodes.length;i++) nodes[i].style.display = showFixed ? 'block' : 'none';
+        nodes = grid.querySelectorAll('.comp.comp-adaptive'); for(i=0;i<nodes.length;i++) nodes[i].style.display = showAdaptive ? 'block' : 'none';
+
+        setCompareValues('base', extractSliderVals(s.explainBase || s.lastPayload || {}));
+        if (showFixed) setCompareValues('fixed', fixedSliders);
+        if (showAdaptive) setCompareValues('adaptive', adaptiveSliders);
+
+        var cols = 3 + (showFixed ? 1 : 0) + (showAdaptive ? 1 : 0);
+        grid.style.gridTemplateColumns = '140px repeat('+(cols-1)+', 80px)';
+        console.log('Table updated: full sync');
+      }
+
+      function toggleDecisionSliders() {
+        var s = WS();
+        if (s.tab !== 'overlay') return;
+        var panel = document.getElementById('slidersPanel');
+        var button = document.getElementById('slidersToggle');
+        if (!panel) return;
+
+        const isVisible = panel.classList.contains('active');
+        if (isVisible) {
+          panel.classList.remove('active');
+          if (button) button.textContent = 'Decision Sliders';
+        } else {
+          panel.classList.add('active');
+          if (button) button.textContent = 'Hide Decision Sliders ▲';
+          s.pendingVariants = 0;
+          if (s.overlay.fixedOn) { s.pendingVariants++; requestVariant('fixed'); }
+          if (s.overlay.adaptiveOn) { s.pendingVariants++; requestVariant('adaptive'); }
+        }
+      }
+
+      function fetchData(debounced) {
+        var s = WS();
+        if (debounced === undefined) debounced = true;
+
+        if (!s || !s.task || !s.task.task) {
+          setStatusLocal('No task selected');
+          var msg = document.getElementById('plotMsg');
+          if (msg) { msg.style.display='block'; msg.textContent='No task selected'; }
+          return;
+        }
+
+        if (debounced) { clearTimeout(s.fetchTimer); s.fetchTimer = setTimeout(function(){ fetchData(false); }, 200); return; }
+        if (s.fetching) return;
+
+        s.fetching = true; setStatusLocal('Fetching…');
+
+        var baseKey = JSON.stringify({ task: s.task.task, O:s.O, M:s.M, P:s.P, target:s.target });
+
+        if (s.baselineCache && s.baselineCache[baseKey]) {
+          var c = s.baselineCache[baseKey];
+          s.trianglePdf = c.trianglePdf; s.triangleCdf = c.triangleCdf;
+          s.betaPertPdf = c.betaPertPdf; s.betaPertCdf = c.betaPertCdf;
+          s.basePdf = c.basePdf; s.baseCdf = c.baseCdf;
+          s.baselineProb = c.baselineProb;
+
+          if (typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new CustomEvent('pmc:baseline:ready', { detail: {
+              task: s.task, O: s.O, M: s.M, P: s.P, target: s.target,
+              baselineProb: s.baselineProb,
+              trianglePdf: s.trianglePdf, triangleCdf: s.triangleCdf,
+              betaPertPdf: s.betaPertPdf, betaPertCdf: s.betaPertCdf,
+              basePdf: s.basePdf, baseCdf: s.baseCdf,
+              lastPayload: s.lastPayload || null
+            }}));
+          }
+
+          if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+
+          s.fetching = false; setStatusLocal('Ready');
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.updateChart(); }); safe(function(){ window.renderRightLegend(); });
+          ensureProbeBox();
+          return;
+        }
+
+        var params = {
+          task: s.task.task,
+          optimistic: s.O, mostLikely: s.M, pessimistic: s.P,
+          targetValue: (s.target != null ? s.target : s.M),
+          optimize: false, mode: 'view', adaptive: false,
+          reshapeTriangle: true, reshapeBetaPert: true
+        };
+
+        if (!window.google || !google.script || !google.script.run) {
+          s.fetching = false; setStatusLocal('Ready');
+          var msg2 = document.getElementById('plotMsg');
+          if (msg2) { msg2.style.display='block'; msg2.textContent='Apps Script runtime not available (preview mode).'; }
+          if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(payload){
+            try {
+              if (!payload) throw new Error('Empty payload');
+              var item = Array.isArray(payload.results) ? payload.results[0] : payload;
+              if (!item) throw new Error('No result item');
+
+              function gp(obj, path) {
+                var parts = path.split('.');
+                var cur = obj;
+                for (var i=0;i<parts.length;i++){ var k = parts[i]; if (!cur || !(k in cur)) return null; cur = cur[k]; }
+                return cur;
+              }
+              function pick(obj, paths){
+                for (var i=0;i<paths.length;i++){ var v = gp(obj, paths[i]); if (v!=null) return v; }
+                return null;
+              }
+
+              s.lastPayload = item;
+              s.explainBase = item;
+
+              var triPdfRaw = pick(item, ['trianglePdf.value','triangle.pdf','trianglePdfPoints','triangle.points.pdf']);
+              var triCdfRaw = pick(item, ['triangleCdf.value','triangle.cdf','triangleCdfPoints','triangle.points.cdf']);
+              var betPdfRaw = pick(item, ['betaPertPdf.value','betaPert.pdf','beta.pdf','pert.pdf']);
+              var betCdfRaw = pick(item, ['betaPertCdf.value','betaPert.cdf','beta.cdf','pert.cdf']);
+              var basePdfRaw= pick(item, ['targetProbabilityOriginalPdf.value','baselineReshapedPoints.pdfPoints','baseline.pdf','baseline.points.pdf']);
+              var baseCdfRaw= pick(item, ['targetProbabilityOriginalCdf.value','baselineReshapedPoints.cdfPoints','baseline.cdf','baseline.points.cdf']);
+
+              s.trianglePdf = normalizePoints_(triPdfRaw, true);
+              s.triangleCdf = normalizePoints_(triCdfRaw, false);
+              s.betaPertPdf = normalizePoints_(betPdfRaw, true);
+              s.betaPertCdf = normalizePoints_(betCdfRaw, false);
+              s.basePdf     = normalizePoints_(basePdfRaw, true);
+              s.baseCdf     = normalizePoints_(baseCdfRaw, false);
+
+              var baseProb = pick(item, [
+                'targetProbability.value.original',
+                'targetProbability.value.baseline',
+                'baseline.prob',
+                'baselineProbability',
+                'probabilities.baseline'
+              ]);
+              s.baselineProb= (baseProb!=null) ? Number(baseProb) : ((s.target!=null && s.baseCdf.length) ? interpY(s.baseCdf, s.target) : null);
+
+              const baseSliders = extractSliderVals(s.explainBase);
+              setCompareValues('base', baseSliders);
+
+              if (s.tab==='overlay' && s.overlay && s.overlay.manualOn) {
+                var zero = true;
+                var vals = (typeof window.sliderValues==='function' ? window.sliderValues() : {});
+                var keys = ['budgetFlexibility','scheduleFlexibility','scopeCertainty','scopeReductionAllowance','reworkPercentage','riskTolerance','userConfidence'];
+                for (var z=0;z<keys.length;z++){ if (Number(vals[keys[z]]||0)!==0) { zero=false; break; } }
+                if (zero) { s.adjPdf = s.basePdf.slice(); s.adjCdf = s.baseCdf.slice(); s.adjustedProb = s.baselineProb; }
+              }
+
+              s.baselineCache[baseKey] = {
+                trianglePdf:s.trianglePdf, triangleCdf:s.triangleCdf,
+                betaPertPdf:s.betaPertPdf, betaPertCdf:s.betaPertCdf,
+                basePdf:s.basePdf, baseCdf:s.baseCdf, baselineProb:s.baselineProb
+              };
+
+              if (typeof window.dispatchEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('pmc:baseline:ready', { detail: {
+                  task: s.task, O: s.O, M: s.M, P: s.P, target: s.target,
+                  baselineProb: s.baselineProb,
+                  trianglePdf: s.trianglePdf, triangleCdf: s.triangleCdf,
+                  betaPertPdf: s.betaPertPdf, betaPertCdf: s.betaPertCdf,
+                  basePdf: s.basePdf, baseCdf: s.baseCdf,
+                  lastPayload: s.lastPayload || null
+                }}));
+              }
+
+              if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+
+              safe(function(){ window.renderKPIs(); });
+              safe(function(){ window.updateChart(); });
+              safe(function(){ window.renderRightLegend(); });
+              ensureProbeBox();
+            } catch(e) {
+              var msgEl = document.getElementById('plotMsg');
+              if (msgEl) { msgEl.style.display='block'; msgEl.textContent='Error: '+e.message; }
+            } finally {
+              s.fetching=false; setStatusLocal('Ready');
+            }
+          })
+          .withFailureHandler(function(err){
+            var msgEl = document.getElementById('plotMsg');
+            if (msgEl) { msgEl.style.display='block'; msgEl.textContent='API Error: '+(err && err.message ? err.message : String(err)); }
+            s.fetching=false; setStatusLocal('Ready');
+          })
+          .getTargetProbabilityData(params);
+      }
+
+      window.requestVariant = requestVariant;
+
+      function requestVariant(variant) {
+        var s = WS();
+        if (!s || !s.task || !s.task.task) return;
+        if (s.tab !== 'overlay') return;
+
+        var vState = s.overlay && s.overlay.variants ? s.overlay.variants[variant] : null;
+        if (!vState) return;
+
+        var key = JSON.stringify({
+          task: s.task.task, O: s.O, M: s.M, P: s.P, target: s.target,
+          variant: variant,
+          probeLevel: (variant==='adaptive' ? (s.overlay?.probeLevel || 3) : undefined)
+        });
+        var cached = s.variantCache && s.variantCache[key];
+        if (cached) {
+          applyVariantResult(variant, cached);
+          if (variant==='fixed')   setCompareValues('fixed',   extractSliderVals(cached.explainOpt));
+          if (variant==='adaptive')setCompareValues('adaptive',extractSliderVals(cached.explainAdaptive));
+          window.dispatchEvent(new CustomEvent('pmc:variant:ready', { detail: {
+            variant: variant,
+            prob: variant==='manual' ? s.adjustedProb : (variant==='fixed' ? s.optimizedProb : s.adaptiveProb),
+            pdf: variant==='manual' ? s.adjPdf : (variant==='fixed' ? s.optPdfFixed : s.optPdfAdaptive),
+            cdf: variant==='manual' ? s.adjCdf : (variant==='fixed' ? s.optCdfFixed : s.optCdfAdaptive),
+            explain: variant==='manual' ? s.explainAdj : (variant==='fixed' ? s.explainOpt : s.explainAdaptive)
+          }}));
+          if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.updateChart(); }); safe(function(){ window.renderRightLegend(); });
+          updateSliderComparisons();
+          setStatusLocal();
+          ensureProbeBox();
+          return;
+        }
+
+        vState.loading = true; vState.error = null; setStatusLocal('Fetching…');
+        safe(function(){ window.renderRightLegend(); });
+        ensureProbeBox();
+
+        var token = ++vState.token;
+
+        var isManual   = (variant === 'manual');
+        var isFixed    = (variant === 'fixed');
+        var isAdaptive = (variant === 'adaptive');
+
+        var params = {
+          task: s.task.task,
+          optimistic: s.O, mostLikely: s.M, pessimistic: s.P,
+          targetValue: (s.target != null ? s.target : s.M),
+          optimize: !isManual,
+          mode: isManual ? 'view' : (isAdaptive ? 'adaptive' : 'fixed'),
+          adaptive: isAdaptive,
+          probeLevel: isManual ? 0 : (isAdaptive ? (s.overlay?.probeLevel || 3) : undefined),
+          sliderValues: isManual ? (typeof window.sliderValues==='function' ? window.sliderValues() : undefined) : undefined,
+          reshapeTriangle: true, reshapeBetaPert: true
+        };
+
+        if (!window.google || !google.script || !google.script.run) {
+          vState.loading = false; vState.error = 'Apps Script runtime not available';
+          safe(function(){ window.renderRightLegend(); }); updateSliderComparisons(); setStatusLocal('Ready');
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(payload){
+            if (token !== vState.token) return;
+            try {
+              var item = Array.isArray(payload && payload.results) ? payload.results[0] : payload;
+              if (!item) throw new Error('No result item');
+              s.lastPayload = item;
+
+              function normalizePoints_(arr, isPdf) {
+                if (!Array.isArray(arr)) return [];
+                var out = [];
+                for (var i2=0;i2<arr.length;i2++){
+                  var p = arr[i2] || {};
+                  var x = Number(p.x), y = Number(p.y);
+                  if (isFinite(x) && isFinite(y)) out.push({x:x,y:y});
+                }
+                out.sort(function(a,b){ return a.x-b.x; });
+                if (isPdf && out.length>=2) {
+                  if (out[0].y !== 0) out.unshift({x: out[0].x - 0.01, y: 0});
+                  if (out[out.length-1].y !== 0) out.push({x: out[out.length-1].x + 0.01, y: 0});
+                }
+                return out;
+              }
+
+              function gp(obj, path) {
+                var parts = path.split('.');
+                var cur = obj;
+                for (var i=0;i<parts.length;i++){ var k = parts[i]; if (!cur || !(k in cur)) return null; cur = cur[k]; }
+                return cur;
+              }
+              function pick(obj, paths){
+                for (var i=0;i<paths.length;i++){ var v = gp(obj, paths[i]); if (v!=null) return v; }
+                return null;
+              }
+
+              if (isManual) {
+                var adjPdfRaw = pick(item, ['targetProbabilityAdjustedPdf.value','adjustedReshapedPoints.pdfPoints','adjusted.pdf']);
+                var adjCdfRaw = pick(item, ['targetProbabilityAdjustedCdf.value','adjustedReshapedPoints.cdfPoints','adjusted.cdf']);
+                var adjProbRaw= pick(item, ['targetProbability.value.adjusted','adjustedProbability','probabilities.adjusted']);
+                if (!adjPdfRaw || !adjCdfRaw) throw new Error('Adjusted curve missing');
+                s.adjPdf = normalizePoints_(adjPdfRaw, true);
+                s.adjCdf = normalizePoints_(adjCdfRaw, false);
+                s.adjustedProb = (adjProbRaw!=null) ? Number(adjProbRaw)
+                                : ((s.target!=null && s.adjCdf.length) ? interpY(s.adjCdf, s.target) : null);
+                s.explainAdj = item;
+
+              } else if (isFixed) {
+                var optPdfRaw = pick(item, ['optimizedReshapedPoints.pdfPoints','optimized.pdf','fixed.pdf']);
+                var optCdfRaw = pick(item, ['optimizedReshapedPoints.cdfPoints','optimized.cdf','fixed.cdf']);
+                s.optPdfFixed = normalizePoints_(optPdfRaw, true);
+                s.optCdfFixed = normalizePoints_(optCdfRaw, false);
+                var optProb = pick(item, ['targetProbability.value.adjustedOptimized','optimizedProbability','probabilities.optimized']);
+                s.optimizedProb = (optProb!=null) ? Number(optProb)
+                                  : ((s.target!=null && s.optCdfFixed.length) ? interpY(s.optCdfFixed, s.target) : null);
+                s.explainOpt = item;
+
+                const fixedSliders = extractSliderVals(s.explainOpt);
+                setCompareValues('fixed', fixedSliders);
+                s.pendingVariants--;
+                if (s.pendingVariants === 0) { updateSliderComparisons(); }
+
+              } else if (isAdaptive) {
+                var aPdfRaw = pick(item, ['adaptiveReshapedPoints.pdfPoints','adaptive.pdf','optimizedReshapedPoints.pdfPoints']);
+                var aCdfRaw = pick(item, ['adaptiveReshapedPoints.cdfPoints','adaptive.cdf','optimizedReshapedPoints.cdfPoints']);
+                s.optPdfAdaptive = normalizePoints_(aPdfRaw, true);
+                s.optCdfAdaptive = normalizePoints_(aCdfRaw, false);
+                var aProb = pick(item, ['targetProbability.value.adaptiveOptimized','adaptiveProbability','probabilities.adaptive','targetProbability.value.adjustedOptimized']);
+                s.adaptiveProb = (aProb!=null) ? Number(aProb)
+                                 : ((s.target!=null && s.optCdfAdaptive.length) ? interpY(s.optCdfAdaptive, s.target) : null);
+                s.explainAdaptive = item;
+
+                const adaptiveSliders = extractSliderVals(s.explainAdaptive);
+                setCompareValues('adaptive', adaptiveSliders);
+                s.pendingVariants--;
+                if (s.pendingVariants === 0) { updateSliderComparisons(); }
+              }
+
+              s.variantCache[key] = {
+                adjPdf:s.adjPdf, adjCdf:s.adjCdf, adjustedProb:s.adjustedProb,
+                optPdfFixed:s.optPdfFixed, optCdfFixed:s.optCdfFixed, optimizedProb:s.optimizedProb,
+                optPdfAdaptive:s.optPdfAdaptive, optCdfAdaptive:s.optCdfAdaptive, adaptiveProb:s.adaptiveProb,
+                explainAdj:s.explainAdj, explainOpt:s.explainOpt, explainAdaptive:s.explainAdaptive,
+                lastPayload:item
+              };
+
+              vState.loading = false; vState.error = null;
+              if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+              safe(function(){ window.renderKPIs(); }); safe(function(){ window.updateChart(); }); safe(function(){ window.renderRightLegend(); });
+              updateSliderComparisons();
+              setStatusLocal('Ready');
+              ensureProbeBox();
+            } catch(e) {
+              vState.loading = false; vState.error = e.message || 'Variant error';
+              safe(function(){ window.renderRightLegend(); }); updateSliderComparisons(); setStatusLocal('Ready');
+            }
+          })
+          .withFailureHandler(function(err){
+            if (token !== vState.token) return;
+            vState.loading = false; vState.error = (err && err.message) || String(err);
+            safe(function(){ window.renderRightLegend(); }); updateSliderComparisons(); setStatusLocal('Ready');
+          })
+          .getTargetProbabilityData(params);
+      }
+
+      function applyVariantResult(variant, c) {
+        var s = WS();
+        if (variant === 'manual') {
+          s.adjPdf = c.adjPdf || []; s.adjCdf = c.adjCdf || []; s.adjustedProb = (c.adjustedProb!=null ? c.adjustedProb : s.adjustedProb); s.explainAdj = (c.explainAdj!=null ? c.explainAdj : s.explainAdj);
+        } else if (variant === 'fixed') {
+          s.optPdfFixed = c.optPdfFixed || []; s.optCdfFixed = c.optCdfFixed || []; s.optimizedProb = (c.optimizedProb!=null ? c.optimizedProb : s.optimizedProb); s.explainOpt = (c.explainOpt!=null ? c.explainOpt : s.explainOpt);
+        } else if (variant === 'adaptive') {
+          s.optPdfAdaptive = c.optPdfAdaptive || []; s.optCdfAdaptive = c.optCdfAdaptive || []; s.adaptiveProb = (c.adaptiveProb!=null ? c.adaptiveProb : s.adaptiveProb); s.explainAdaptive = (c.explainAdaptive!=null ? c.explainAdaptive : s.explainAdaptive);
+        }
+        if (c.lastPayload) s.lastPayload = c.lastPayload;
+      }
+
+      function loadTasks() {
+        var s = WS();
+        setStatusLocal('Fetching…');
+
+        if (!window.google || !google.script || !google.script.run) {
+          setStatusLocal('Ready');
+          console.warn('Apps Script runtime not available; tasks cannot be loaded in preview.');
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(list){
+            s.tasks = Array.isArray(list) ? list : [];
+            var sel = document.getElementById('taskSel');
+            if (!sel) { setStatusLocal('UI init failed: taskSel not found'); return; }
+
+            sel.innerHTML = '';
+            if (!s.tasks.length) {
+              var opt = document.createElement('option');
+              opt.value = ''; opt.textContent = 'No tasks returned';
+              sel.appendChild(opt);
+              setStatusLocal('Ready');
+              return;
+            }
+
+            s.tasks.forEach(function(t,i){
+              var opt=document.createElement('option');
+              opt.value=i; opt.textContent=t.task || ('(Task '+(i+1)+')');
+              sel.appendChild(opt);
+            });
+            sel.selectedIndex = 0;
+            onTaskChange();
+          })
+          .withFailureHandler(function(err){
+            setStatusLocal('Failed to load tasks: ' + (err && err.message ? err.message : String(err)));
+            var msg = document.getElementById('plotMsg');
+            if (msg) { msg.style.display='block'; msg.textContent='Failed to load tasks: ' + (err && err.message ? err.message : String(err)); }
+          })
+          .getAllTasks();
+      }
+
+      function onTaskChange() {
+        var s = WS();
+        var sel = document.getElementById('taskSel');
+        if (!sel) { setStatusLocal('UI init failed: taskSel not found'); return; }
+
+        var idx = +sel.value;
+        var t = s.tasks[idx];
+        if (!t) { setStatusLocal('No valid task'); return; }
+
+        s.task = t;
+        s.O = t.optimistic; s.M = t.mostLikely; s.P = t.pessimistic;
+        s.explainBase = null;
+
+        function setText(id,val) {
+          var el = document.getElementById(id);
+          if (el) el.innerHTML = '<span style="color: var(--cdf);">'+(val != null ? Number(val).toFixed(2) : '–')+'</span>';
+        }
+        setText('oVal', s.O);
+        setText('mVal', s.M);
+        setText('pVal', s.P);
+
+        updateTargetSlider();
+
+        s.overlay.baselineOn = true;
+        s.overlay.manualOn = false;
+        s.overlay.fixedOn = true;
+        s.overlay.adaptiveOn = false;
+        s.overlay.variants.manual = { loading:false, error:null, token:0 };
+        s.overlay.variants.fixed = { loading:false, error:null, token:0 };
+        s.overlay.variants.adaptive = { loading:false, error:null, token:0 };
+        s.overlay.probeLevel = Number(document.getElementById('probeSelect')?.value || 3);
+
+        s.progress = { triOn:true, betaOn:true, baseOn:true };
+
+        ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf']
+          .forEach(id => { const el = document.getElementById(id); if (el) el.value = '0'; });
+        if (typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(true);
+
+        ['_base','_fixed','_adapt'].forEach(suf=>{
+          ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf'].forEach(id=>{
+            const el = document.getElementById(id+suf); if (el) el.value='0';
+          });
+        });
+
+        s.variantCache = {};
+
+        fetchData(false);
+        safe(function(){ window.renderRightLegend(); });
+        updateSliderComparisons();
+        syncRowToggles();
+        ensureProbeBox();
+      }
+
+      function onTargetInput() {
+        var s = WS();
+        var slider = document.getElementById('targetSlider');
+        var display = document.getElementById('targetDisplay');
+        if (!slider) return;
+        s.target = Number(slider.value);
+        if (display) display.textContent = Number(s.target).toFixed(2);
+
+        s.variantCache = {};
+        fetchData(true);
+
+        s.pendingVariants = 0;
+        var active = [];
+        if (s.overlay.manualOn) { active.push('manual'); s.pendingVariants++; }
+        if (s.overlay.fixedOn) { active.push('fixed'); s.pendingVariants++; }
+        if (s.overlay.adaptiveOn) { active.push('adaptive'); s.pendingVariants++; }
+        active.forEach(requestVariant);
+      }
+
+      function syncRowToggles(){
+        var s = WS();
+        var row = document.getElementById('seriesToggles');
+        if (row) row.style.display = (s.tab==='overlay') ? 'flex' : 'none';
+
+        var b = document.getElementById('rowTglBase');
+        var m = document.getElementById('rowTglManual');
+        var f = document.getElementById('rowTglFixed');
+        var a = document.getElementById('rowTglAdaptive');
+        if (b) b.setAttribute('aria-pressed', s.overlay.baselineOn ? 'true' : 'false');
+        if (m) m.setAttribute('aria-pressed', s.overlay.manualOn ? 'true' : 'false');
+        if (f) f.setAttribute('aria-pressed', s.overlay.fixedOn ? 'true' : 'false');
+        if (a) a.setAttribute('aria-pressed', s.overlay.adaptiveOn ? 'true' : 'false');
+
+        ensureProbeBox();
+      }
+
+      function bindTabs() {
+        var s = WS();
+        var nodes = document.querySelectorAll('.tab');
+        for (var i=0;i<nodes.length;i++) {
+          (function(tab){
+            tab.addEventListener('click', function(){
+              var all = document.querySelectorAll('.tab');
+              for (var k=0;k<all.length;k++) all[k].classList.remove('active');
+              tab.classList.add('active');
+              s.tab = tab.getAttribute('data-tab');
+
+              (function ensureReportOnOverlay(){
+                var dr = document.getElementById('decisionReport');
+                var om = document.getElementById('overlayMath');
+                if (s.tab === 'overlay') {
+                  if (dr) dr.classList.add('active');
+                  if (om) om.classList.add('active');
+                  if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') {
+                    window.PMCReport.renderAll(false);
+                  }
+                } else {
+                  if (dr) dr.classList.remove('active');
+                  if (om) om.classList.remove('active');
+                }
+              })();
+
+              if (s.tab === 'overlay' && !s.overlay.fixedOn) {
+                s.overlay.fixedOn = true;
+                requestVariant('fixed');
+              }
+
+              if (typeof window.setSlidersDisabled === 'function') {
+                window.setSlidersDisabled(s.tab !== 'overlay' || !s.overlay.manualOn);
+              }
+
+              safe(function(){ window.renderKPIs(); }); safe(function(){ window.updateChart(); }); safe(function(){ window.renderRightLegend(); });
+              updateSliderComparisons();
+              syncRowToggles();
+
+              fetchData(true);
+
+              if (s.tab === 'overlay') {
+                s.pendingVariants = 0;
+                var act = [];
+                if (s.overlay.manualOn) { act.push('manual'); s.pendingVariants++; }
+                if (s.overlay.fixedOn) { act.push('fixed'); s.pendingVariants++; }
+                if (s.overlay.adaptiveOn) { act.push('adaptive'); s.pendingVariants++; }
+                act.forEach(requestVariant);
+              }
+              ensureProbeBox();
+            });
+          })(nodes[i]);
+        }
+
+        var triTile = document.getElementById('kpiTriangle');
+        var betaTile= document.getElementById('kpiBeta');
+        var baseTile= document.getElementById('kpiBaseDist');
+        if (triTile) triTile.addEventListener('click', function(){
+          s.progress.triOn = !s.progress.triOn; safe(function(){ window.renderKPIs(); window.updateChart(); });
+        });
+        if (betaTile) betaTile.addEventListener('click', function(){
+          s.progress.betaOn = !s.progress.betaOn; safe(function(){ window.renderKPIs(); window.updateChart(); });
+        });
+        if (baseTile) baseTile.addEventListener('click', function(){
+          s.progress.baseOn = !s.progress.baseOn; safe(function(){ window.renderKPIs(); window.updateChart(); });
+        });
+
+        syncRowToggles();
+      }
+
+      function bindKpiToggles() {
+        var s = WS();
+        var baseEl    = document.getElementById('kpiBaseline');
+        var adjustedEl= document.getElementById('kpiAdjusted');
+        var fixedEl   = document.getElementById('kpiOptimized');
+        var adaptiveEl= document.getElementById('kpiAdaptive');
+
+        if (baseEl) baseEl.addEventListener('click', function(){
+          if (s.tab !== 'overlay') return;
+          s.overlay.baselineOn = !s.overlay.baselineOn;
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.renderRightLegend(); }); safe(function(){ window.updateChart(); });
+          syncRowToggles();
+        });
+
+        if (adjustedEl) adjustedEl.addEventListener('click', function(){
+          if (s.tab !== 'overlay') return;
+          s.overlay.manualOn = !s.overlay.manualOn;
+          if (typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(!s.overlay.manualOn);
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.renderRightLegend(); }); safe(function(){ window.updateChart(); });
+          if (s.overlay.manualOn) requestVariant('manual');
+          updateSliderComparisons();
+          syncRowToggles();
+          setStatusLocal();
+        });
+
+        if (fixedEl) fixedEl.addEventListener('click', function(){
+          if (s.tab !== 'overlay') return;
+          s.overlay.fixedOn = !s.overlay.fixedOn;
+          if (!s.overlay.manualOn && typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(true);
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.renderRightLegend(); }); safe(function(){ window.updateChart(); });
+          if (s.overlay.fixedOn) {
+            s.pendingVariants++;
+            requestVariant('fixed');
+          } else {
+            updateSliderComparisons();
+          }
+          syncRowToggles();
+          setStatusLocal();
+        });
+
+        if (adaptiveEl) adaptiveEl.addEventListener('click', function(){
+          if (s.tab !== 'overlay') return;
+          s.overlay.adaptiveOn = !s.overlay.adaptiveOn;
+          if (!s.overlay.manualOn && typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(true);
+          safe(function(){ window.renderKPIs(); }); safe(function(){ window.renderRightLegend(); }); safe(function(){ window.updateChart(); });
+          if (s.overlay.adaptiveOn) {
+            s.pendingVariants++;
+            requestVariant('adaptive');
+          } else {
+            updateSliderComparisons();
+          }
+          syncRowToggles();
+          setStatusLocal();
+          ensureProbeBox();
+        });
+
+        var rowMap = [
+          ['rowTglBase','kpiBaseline'],
+          ['rowTglManual','kpiAdjusted'],
+          ['rowTglFixed','kpiOptimized'],
+          ['rowTglAdaptive','kpiAdaptive']
+        ];
+        for (var i=0;i<rowMap.length;i++){
+          (function(pair){
+            var b = document.getElementById(pair[0]);
+            var k = document.getElementById(pair[1]);
+            if (b && k) b.addEventListener('click', function(){ k.click(); });
+          })(rowMap[i]);
+        }
+      }
+
+      function bindSliders() {
+        var s = WS();
+        var ids = ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf'];
+        for (var i=0;i<ids.length;i++) {
+          (function(id){
+            var el = document.getElementById(id);
+            if (!el) return;
+            var handler = function(){
+              if (s.tab !== 'overlay') return;
+              if (!s.overlay.manualOn) {
+                s.overlay.manualOn = true;
+                if (typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(false);
+                syncRowToggles();
+                safe(function(){ window.renderKPIs(); }); safe(function(){ window.renderRightLegend(); });
+              }
+              var key = JSON.stringify({ task: s.task.task, O: s.O, M: s.M, P: s.P, target: s.target, variant: 'manual' });
+              if (s.variantCache) delete s.variantCache[key];
+              requestVariant('manual');
+              safe(function(){ window.updateChart(); });
+              updateSliderComparisons();
+            };
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+          })(ids[i]);
+        }
+      }
+
+      function bindZoomReset(){
+        var btn = document.getElementById('resetZoomBtn');
+        if (!btn) return;
+        btn.addEventListener('click', function(){
+          var s = WS();
+          if (s?.pdfChart?.resetZoom) s.pdfChart.resetZoom();
+          if (s?.cdfChart?.resetZoom) s.cdfChart.resetZoom();
+        });
+      }
+
+      window.addEventListener('DOMContentLoaded', function(){
+        var taskSel = document.getElementById('taskSel');
+        if (taskSel) taskSel.addEventListener('change', onTaskChange);
+
+        var tgtSlider = document.getElementById('targetSlider');
+        if (tgtSlider) {
+          tgtSlider.addEventListener('input', onTargetInput);
+        }
+
+        var refresh = document.getElementById('refreshBtn');
+        if (refresh) refresh.addEventListener('click', function(){
+          fetchData(false);
+          var s = WS();
+          if (s.tab==='overlay') {
+            s.pendingVariants = 0;
+            var act = [];
+            if (s.overlay.manualOn) { act.push('manual'); s.pendingVariants++; }
+            if (s.overlay.fixedOn) { act.push('fixed'); s.pendingVariants++; }
+            if (s.overlay.adaptiveOn) { act.push('adaptive'); s.pendingVariants++; }
+            act.forEach(requestVariant);
+          }
+          ensureProbeBox();
+        });
+
+        var slidersToggle = document.getElementById('slidersToggle');
+        if (slidersToggle) {
+          slidersToggle.addEventListener('click', toggleDecisionSliders);
+        }
+
+        var closeBtn = document.getElementById('slidersClose');
+        if (closeBtn) closeBtn.addEventListener('click', function(){
+          var p = document.getElementById('slidersPanel'); if (p) p.classList.remove('active');
+        });
+
+        bindTabs();
+        bindKpiToggles();
+        bindSliders();
+        bindZoomReset();
+
+        var s = WS();
+        if (typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(true);
+        updateSliderComparisons();
+        loadTasks();
+
+        if (window.PMCReport && typeof window.PMCReport.renderAll === 'function') window.PMCReport.renderAll();
+
+        window.addEventListener('resize', function(){
+          var s2 = WS();
+          if (s2 && s2.pdfChart && typeof s2.pdfChart.resize==='function') s2.pdfChart.resize();
+        }, { passive:true });
+
+        ensureProbeBox();
+      });
+    })();
+  </script>
+
+  <script>
+    (function(){
+      const Report = {
+        state: { baseline: null, variants: {} },
+        fmtPct(v){ return (v==null||isNaN(v)) ? '–' : (v*100).toFixed(2)+'%'; },
+        num(v,d=2){ return (v==null||isNaN(v)) ? '–' : Number(v).toFixed(d); },
+        blueNum(v,d=2){ return v==null||isNaN(v) ? '–' : `<span style="color:var(--cdf);font-weight:600;">${Number(v).toFixed(d)}</span>`; },
+
+        isOverlayActive(){ return window.S?.tab === 'overlay'; },
+
+        mount(){
+          window.addEventListener('pmc:baseline:ready', e => { this.state.baseline = e.detail; this.renderAll(); });
+          window.addEventListener('pmc:variant:ready',  e => { this.state.variants[e.detail.variant] = e.detail; this.renderAll(); });
+          document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => this.renderAll()));
+          const overlayTab = document.querySelector('.tab[data-tab="overlay"]');
+          if (overlayTab) new MutationObserver(() => this.renderAll()).observe(overlayTab, { attributes: true, attributeFilter: ['class'] });
+          this.renderAll(true);
+        },
+
+        renderAll(skeleton = false) {
+          const dr = document.getElementById('decisionReport');
+          if (!dr) return;
+
+          const onOverlay = this.isOverlayActive();
+          dr.classList.toggle('active', onOverlay);
+          if (!onOverlay) { dr.innerHTML = ''; return; }
+
+          const S = window.S || {};
+          const B = this.state.baseline || {};
+          const V = this.state.variants || {};
+
+          const baselineProb = B.baselineProb ?? S.baselineProb;
+          const adaptiveProb = V.adaptive?.prob ?? S.adaptiveProb;
+          const fixedProb = V.fixed?.prob ?? S.optimizedProb;
+          const manualProb = V.manual?.prob ?? S.adjustedProb;
+
+          const candidates = [
+            { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Baseline' },
+            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Manual (Adjusted)' },
+            { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'Fixed (Optimized)' },
+            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Adaptive (Level ${S.overlay?.probeLevel ?? 3})` }
+          ].filter(c => c.prob != null);
+
+          const best = candidates.reduce((a, b) => a.prob > b.prob ? a : b);
+          const finalProb = best.prob;
+
+          const delta = baselineProb != null ? (finalProb - baselineProb) * 100 : null;
+          const deltaStr = delta != null ? (delta >= 0 ? '+' : '') + delta.toFixed(2) + ' pts' : '–';
+
+          const O = S.O, M = S.M, P = S.P, target = S.target;
+
+          const pertMean = (O && M && P) ? (O + 4*M + P)/6 : null;
+          const pertStd  = (O && P) ? (P - O)/6 : null;
+
+          const explain = best.explain || {};
+          const kl = explain.klDivergence ?? explain.kl;
+          const alpha = explain.refit?.alpha ?? null;
+          const beta  = explain.refit?.beta ?? null;
+          const cv = explain.cv ?? (pertStd && pertMean ? pertStd/pertMean : null);
+          const skew = explain.skew ?? (pertStd && pertMean && target ? (pertMean-target)/pertStd : null);
+
+          let suffix = '';
+          if (best.label.includes('Adaptive')) suffix = '_adapt';
+          else if (best.label.includes('Fixed')) suffix = '_fixed';
+          else if (best.label.includes('Manual')) suffix = '';
+          else suffix = '_base';
+
+          const winning = {};
+          const KEYS = ['budgetFlexibility','scheduleFlexibility','scopeCertainty','scopeReductionAllowance','reworkPercentage','riskTolerance','userConfidence'];
+          const ID_MAP = {
+            budgetFlexibility: 's_budget',
+            scheduleFlexibility: 's_schedule',
+            scopeCertainty: 's_scopeCert',
+            scopeReductionAllowance: 's_scopeRed',
+            reworkPercentage: 's_rework',
+            riskTolerance: 's_risk',
+            userConfidence: 's_userConf'
+          };
+          KEYS.forEach(k => {
+            const id = ID_MAP[k] + suffix;
+            const el = document.getElementById(id);
+            if (el) {
+              let val = Number(el.value) / 100;
+              if (k === 'reworkPercentage') val /= 0.5;
+              winning[k] = val;
+            } else winning[k] = 0;
+          });
+
+          const WEIGHTS = [-0.2, 0.1, 0.3, -0.15, -0.08, 0.25, 0.05];
+          const LABELS = ['Budget Flexibility','Schedule Flexibility','Scope Certainty','Scope Reduction Allowance','Rework Percentage','Risk Tolerance','User Confidence'];
+          const impacts = LABELS.map((l,i) => {
+            const v = winning[KEYS[i]] ?? 0;
+            const contrib = v * WEIGHTS[i] * (delta ?? 0);
+            return { label: l, v, contrib, positive: contrib >= 0 };
+          }).sort((a,b) => Math.abs(b.contrib) - Math.abs(a.contrib));
+          const topTwo = impacts.slice(0,2).map(i => `${i.label} ~${i.contrib.toFixed(0)} pts`).join(', ');
+          const liftNote = topTwo ? ` (Top drivers: ${topTwo})` : '';
+
+          const noOpt = explain.status === 'no-optimize'
+            ? `<p class="rep-ci-card rep-warning"><strong>Baseline already optimal — no safe SACO lift possible (CV ≈ ${this.num(cv,2)}, Skew ≈ ${this.num(skew,2)}).</p>`
+            : '';
+
+          dr.innerHTML = `
+<div class="lm-acc open" id="dr-main">
+  <div class="lm-acc-h" style="text-align:center;">
+    <span class="lm-caret">▼</span> Decision Report
+  </div>
+  <div class="lm-acc-b">
+
+    <div class="rep-card">
+      <div class="rep-row" style="font-size:16px;font-weight:700;">
+        Success Chance for Target ${this.num(target)}
+
+        Baseline ${this.fmtPct(baselineProb)} → <strong>${best.label}</strong>: ${this.fmtPct(finalProb)}
+        <span class="rep-badge ${finalProb >= (baselineProb ?? 0) ? 'rep-good' : 'rep-bad'}">
+          Δ ${deltaStr}${liftNote}
+        </span>
+      </div>
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-row"><strong>How SACO Geometry Improved Your Odds</strong></div>
+      <div class="rep-note" style="line-height:1.6;">
+        <p>Starting estimates: O = ${this.num(O)} M = ${this.num(M)} P = ${this.num(P)}</p>
+        <p>Beta-PERT mean μ = ${this.blueNum(pertMean)} σ = ${this.blueNum(pertStd)}</p>
+        <p>Monte Carlo Baseline → ${this.fmtPct(baselineProb)} chance of beating target ${this.num(target)}.</p>
+        <p><strong>SACO Geometry</strong> reshaped the distribution using your seven sliders.</p>
+        <p>New Beta parameters: α ≈ ${this.num(alpha,2)||'–'} β ≈ ${this.num(beta,2)||'–'} KL ≈ ${this.num(kl,4)||'–'}</p>
+        <p>Result: ${this.fmtPct(finalProb)} success chance — gain of <strong>${deltaStr}</strong>.</p>
+
+        ${noOpt}
+      </div>
+    </div>
+
+    <div class="lm-acc" id="tech-acc">
+      <div class="lm-acc-h" style="text-align:center;"><span class="lm-caret"></span> SACO Geometry – Technical Overview</div>
+      <div class="lm-acc-b">
+        <div class="rep-note">
+          <ol style="margin:12px 0; padding-left:24px; line-height:1.7;">
+            <li><strong>Monte-Carlo-Smoothed Beta Baseline</strong>
+
+              $$ \\mu = \\frac{O + 4M + P}{6} $$
+
+              $$ \\sigma = \\frac{P - O}{6} $$</li>
+            <li><strong>7D Unit Hypercube [0,1]⁷</strong>
+
+              Bounded space for all sliders</li>
+            <li><strong>Gaussian Copula + Moments Mapper</strong>
+
+              Maps sliders → m₀ (mean shift) & m₁ (variance compression)</li>
+            <li><strong>Beta Re-fitting Engine</strong>
+
+              $$ \\mu' \\approx \\mu(1-m_0\\cdot0.2) \\quad \\sigma'^2 \\approx \\sigma^2(1-m_1\\cdot0.5) $$
+
+              $$ \\alpha = \\mu_{01}\\left(\\frac{\\mu_{01}(1-\\mu_{01})}{\\sigma_{01}^2}-1\\right) $$
+
+              $$ \\beta = (1-\\mu_{01})\\left(\\frac{\\mu_{01}(1-\\mu_{01})}{\\sigma_{01}^2}-1\\right) $$</li>
+            <li><strong>KL-Divergence Anchor</strong>
+
+              $$ D_{KL}(P||Q) = \\int p(x) \\log \\frac{p(x)}{q(x)} \\, dx $$
+
+              Penalizes drift ≈ ${this.num(kl,4)||'–'}</li>
+            <li><strong>LHS + COBYLA</strong>
+
+              Global then local optimisation
+
+              LHS samples hypercube points, COBYLA refines locally.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-row"><strong>Slider Impact Breakdown</strong></div>
+      <div class="rep-note">Estimated contribution to ${deltaStr} gain</div>
+      ${this.makeTornado(impacts)}
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-row"><strong>Winning Slider Settings (from ${best.label})</strong></div>
+      <table class="rep-tbl">
+        <thead><tr><th>Slider</th><th>Value</th><th>Est. Impact</th><th>Role</th></tr></thead>
+        <tbody>
+          ${LABELS.map((label,i) => {
+            const v = winning[KEYS[i]] ?? 0;
+            const contrib = v * WEIGHTS[i] * (delta ?? 0);
+            const displayVal = label==='Rework Percentage' ? v*50 : v*100;
+            return `
+              <tr>
+                <td>${label}</td>
+                <td class="mono">${displayVal.toFixed(0)}%</td>
+                <td class="mono">${contrib>=0?'+' : ''}${contrib.toFixed(2)} pts</td>
+                <td>${this.sliderWhy(label)}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-row"><strong>Immediate Next Actions</strong></div>
+      <div class="rep-note" style="font-size:13px;">
+        ${delta > 0 ? `
+          <p>To capture the modelled ${deltaStr} gain:</p>
+          <ol style="margin:8px 0;padding-left:20px;">
+            ${impacts.slice(0,3).map((i,idx) => `
+              <li>${i.positive ? 'Increase' : 'Decrease'} <strong>${i.label}</strong> toward ${i.label==='Rework Percentage' ? this.num(i.v*50,0) : this.num(i.v*100,0)}% (adds ~${Math.abs(i.contrib).toFixed(1)} pts)</li>
+            `).join('')}
+            <li>Lock in these settings in your project plan or risk register.</li>
+          </ol>
+        ` : `<p><strong>Baseline already optimal</strong> — focus on execution and monitoring.</p>`}
+        <p style="margin-top:12px;"><em>These actions directly translate the SACO result into real-world execution.</em></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+          `;
+
+          ['#dr-main', '#tech-acc'].forEach(id => {
+            const el = document.querySelector(id);
+            if (el && !el.dataset.bound) {
+              el.dataset.bound = 'true';
+              const h = el.querySelector('.lm-acc-h');
+              if (h) h.onclick = () => {
+                el.classList.toggle('open');
+                const c = h.querySelector('.lm-caret');
+                if (c) c.textContent = el.classList.contains('open') ? '▼' : '';
+              };
+            }
+          });
+
+          if (window.MathJax?.typesetPromise) {
+            window.MathJax.typesetPromise([dr]).catch(()=>{});
+          }
+        },
+
+        makeTornado(impacts) {
+          if (impacts.every(i => Math.abs(i.contrib) < 0.01) ) return '<div class="rep-note">No significant slider impact (baseline optimal or manual zeroed).</div>';
+          const max = Math.max(...impacts.map(i => Math.abs(i.contrib)));
+          return impacts.map(i => `
+            <div class="rep-tornado-bar ${i.positive?'rep-positive':'rep-negative'}">
+              <span>${i.label}</span>
+              <div class="rep-bar"><div class="rep-fill" style="width:${Math.abs(i.contrib)/max*100}%"></div></div>
+              <span>${i.contrib>=0?'+' : ''}${i.contrib.toFixed(2)} pts</span>
+            </div>`).join('');
+        },
+
+        sliderWhy(l) {
+          const map = {
+            'Budget Flexibility':'Adds contingency → reduces variance',
+            'Schedule Flexibility':'Buffers delays → positive mean shift',
+            'Scope Certainty':'Eliminates ambiguity → strongest variance compression',
+            'Scope Reduction Allowance':'Safety valve for extreme overruns',
+            'Rework Percentage':'Lower = better (negative lever)',
+            'Risk Tolerance':'Enables bolder decisions → high lift',
+            'User Confidence':'Behavioral multiplier for execution'
+          };
+          return map[l] || '';
+        }
+      };
+
+      window.PMCReport = Report;
+      Report.mount();
+    })();
+  </script>
+</body>
+</html>
