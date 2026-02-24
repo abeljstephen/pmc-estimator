@@ -345,31 +345,8 @@ function processTask(task) {
       let adaptiveRes = null;
       let seedBest = null;
 
-      if (adaptive) {
-        fixedRes = optimizeSliders({
-          points: { pdfPoints: pdf, cdfPoints: cdf },
-          optimistic,
-          mostLikely,
-          pessimistic,
-          targetValue: Number.isFinite(targetValue) ? targetValue : pertMean,
-          optimizeFor,
-          distributionType: 'monte-carlo-smoothed',
-          randomSeed,
-          adaptive: false,
-          probeLevel: 1
-        });
-
-        if (fixedRes && !fixedRes.error) {
-          seedBest = {
-            sliders01: fixedRes.sliders01 || pickOptimizedSliders(fixedRes),
-            finalProb: fixedRes.finalProb ||
-                       fixedRes.optimizedResult?.probability?.value ||
-                       baseProb
-          };
-        }
-      }
-
-      const optInput = {
+      // Always run fixed optimization first (probe=1, adaptive=false)
+      fixedRes = optimizeSliders({
         points: { pdfPoints: pdf, cdfPoints: cdf },
         optimistic,
         mostLikely,
@@ -378,13 +355,39 @@ function processTask(task) {
         optimizeFor,
         distributionType: 'monte-carlo-smoothed',
         randomSeed,
-        adaptive: true,
-        probeLevel,
-        seedSliders: seedBest ? seedBest.sliders01 : null
-      };
+        adaptive: false,
+        probeLevel: 1
+      });
 
-      adaptiveRes = optimizeSliders(optInput);
-      const optRes = adaptive ? adaptiveRes : (fixedRes || adaptiveRes);
+      if (fixedRes && !fixedRes.error) {
+        seedBest = {
+          sliders01: fixedRes.sliders01 || pickOptimizedSliders(fixedRes),
+          finalProb: fixedRes.finalProb ||
+                     fixedRes.optimizedResult?.probability?.value ||
+                     baseProb
+        };
+      }
+
+      // If adaptive requested, run adaptive optimization seeded from fixed result
+      if (adaptive) {
+        const optInput = {
+          points: { pdfPoints: pdf, cdfPoints: cdf },
+          optimistic,
+          mostLikely,
+          pessimistic,
+          targetValue: Number.isFinite(targetValue) ? targetValue : pertMean,
+          optimizeFor,
+          distributionType: 'monte-carlo-smoothed',
+          randomSeed,
+          adaptive: true,
+          probeLevel,
+          seedSliders: seedBest ? seedBest.sliders01 : null
+        };
+
+        adaptiveRes = optimizeSliders(optInput);
+      }
+
+      const optRes = adaptive ? (adaptiveRes || fixedRes) : fixedRes;
 
       if (!optRes || optRes.error) {
         console.warn('OPT ERROR: Optimizer failed', optRes?.error);

@@ -74,8 +74,8 @@ function clamp01(v) {
 function safeNumber(x, d = 0) {
   return Number.isFinite(x) ? Number(x) : d;
 }
-function pct(n) {
-  return clamp01(safeNumber(n));  // returns number 0–1 - FORCE FIXED
+function pctClamp01(n) {
+  return clamp01(safeNumber(n));  // returns number 0–1 — renamed to avoid collision with outcome-summary.gs pct()
 }
 function lerp(a, b, t) {
   return (1 - t) * a + t * b;
@@ -273,7 +273,7 @@ function sacoObjective(sliders01, o, m, p, tau, basePdf, baseCdf, bBias, adaptiv
     const refit = SACO_GEOMETRY.betaRefit(o, m, p, [m0, m1]);
     if (!refit) return { score: 0, pNew: 0.5, x: sliders01, feasible };
     const newPts = generateBetaPoints({ optimistic: o, mostLikely: m, pessimistic: p, numSamples: basePdf.length || 200, alpha: refit.alpha, beta: refit.beta });
-    const pNew = pct(interpolateCdf(newPts.cdfPoints, tau).value);
+    const pNew = pctClamp01(interpolateCdf(newPts.cdfPoints, tau).value);
     const basePdfN = basePdf.map(pt => ({ x: (pt.x - o) / range, y: pt.y * range }));
     const newPdfN = newPts.pdfPoints.map(pt => ({ x: (pt.x - o) / range, y: pt.y * range }));
     const kl = safeNumber(SACO_GEOMETRY.klDivergence({ distributions: { triangle: { pdfPoints: newPdfN }, monteCarloSmoothed: { pdfPoints: basePdfN } }, task: 'opt' })['triangle-monteCarloSmoothed'], 0);
@@ -372,8 +372,16 @@ function toReportEntry(modeLabel, targetValue, baselineProbability, finalProbabi
 /* ------------------------------ Steps 1–7 (LHS-based) ------------------------------ */
 function step1_baseline(state) {
   const { optimistic: o, mostLikely: m, pessimistic: p, targetValue: tau, randomSeed } = state;
-  const baselineRaw = SACO_GEOMETRY.baseline({ optimistic: o, mostLikely: m, pessimistic: p, numSamples: state.numSamples || 200, samples: null });
-  const base = baselineRaw.pdfPoints && baselineRaw.cdfPoints ? baselineRaw : null;
+  // Use pre-computed baseline points from params.points if available (passed by main.gs)
+  var base = null;
+  if (state.points && Array.isArray(state.points.pdfPoints) && state.points.pdfPoints.length > 0 &&
+      Array.isArray(state.points.cdfPoints) && state.points.cdfPoints.length > 0) {
+    base = state.points;
+    console.log('step1_baseline: Using pre-computed baseline points (PDF=' + base.pdfPoints.length + ', CDF=' + base.cdfPoints.length + ')');
+  } else {
+    const baselineRaw = SACO_GEOMETRY.baseline({ optimistic: o, mostLikely: m, pessimistic: p, numSamples: state.numSamples || 200, samples: null });
+    base = baselineRaw.pdfPoints && baselineRaw.cdfPoints ? baselineRaw : null;
+  }
   if (!base) throw new Error('Baseline generation returned invalid points');
   const p0Raw = interpolateCdf(base.cdfPoints, tau).value || 0;
   const p0 = p0Raw;
@@ -431,7 +439,7 @@ function step3_warmStart(state) {
     if (sc > bestScore) {
       bestScore = sc;
       bestGrid = trials[i];
-      bestP = pct(evals[i].pNew);
+      bestP = pctClamp01(evals[i].pNew);
     }
   }
   stepLog('Step 3 Complete', `bestScore=${bestScore.toFixed(3)}`);
@@ -489,14 +497,14 @@ function step7_output(state) {
   if (state.adaptive) {
     for (let i = 0; i < 7; i++) {
       const div = Math.abs(x[i] - seedBest[i]) / Math.max(seedBest[i] || 0.01, 1e-6);
-      if (div > 0.08) {
-        x[i] = seedBest[i] + 0.02 * (2 * Math.random() - 1);
+      if (div > 0.50) {
+        x[i] = seedBest[i] + 0.10 * (2 * Math.random() - 1);
         x[i] = clamp01(x[i]);
         reverted = true;
       }
     }
     if (reverted) {
-      console.log('ANCHOR DEBUG: Reverted sliders (max deviation exceeded 0.08)');
+      console.log('ANCHOR DEBUG: Reverted sliders (max deviation exceeded 0.50)');
       console.log('Reverted sliders:', x.map(v => v.toFixed(4)));
     }
   }
@@ -560,14 +568,14 @@ function step7_output(state) {
 
   if (finalProbRaw != null) {
     if (typeof finalProbRaw === 'object' && finalProbRaw !== null && Number.isFinite(finalProbRaw.value)) {
-      finalProb = pct(finalProbRaw.value);
+      finalProb = pctClamp01(finalProbRaw.value);
     } else if (Number.isFinite(finalProbRaw)) {
-      finalProb = pct(finalProbRaw);
+      finalProb = pctClamp01(finalProbRaw);
     }
   }
 
   if (!Number.isFinite(finalProb) || finalProb === 0) {
-    finalProb = pct(interpolateCdf(baseline.cdfPoints, tau).value || 0.5);
+    finalProb = pctClamp01(interpolateCdf(baseline.cdfPoints, tau).value || 0.5);
     console.log('Step7: Final prob fallback to baseline: ' + (Number.isFinite(finalProb) ? finalProb.toFixed(4) : 'INVALID'));
   }
 
@@ -577,7 +585,25 @@ function step7_output(state) {
   const finalProbLog = Number.isFinite(finalProb) ? finalProb.toFixed(4) : 'INVALID';
   console.log('Step7: Final prob recalculated after reshape/revert: ' + finalProbLog);
 
-  const lift = finalProb - p0;
+  let lift = finalProb - p0;
+
+  // GUARD: Never return a probability worse than baseline.
+  // If optimization made things worse, fall back to baseline distribution with zero sliders.
+  if (Number.isFinite(lift) && lift < -0.0001 && Number.isFinite(p0)) {
+    console.log('Step7: Optimization degraded probability (' + finalProb.toFixed(4) + ' < baseline ' + p0.toFixed(4) + '). Reverting to baseline.');
+    finalProb = p0;
+    lift = 0;
+    reshapedPdf = baseline.pdfPoints;
+    reshapedCdf = baseline.cdfPoints;
+    for (const k of CANON_SLIDERS) {
+      x[SLIDER_KEYS.indexOf(k)] = 0;
+      sliders[k] = 0;
+      scaledSliders[k] = 0;
+      sliders100[k] = 0;
+    }
+    reverted = true;
+  }
+
   const liftLog = Number.isFinite(lift) ? lift.toFixed(4) : 'N/A';
 
   let kl = 0;
@@ -589,14 +615,17 @@ function step7_output(state) {
 
   const explain = {
     klDivergence: kl,
-    narrative: (lift >= 0 ? 'Lift ' : 'Change ') + (Number.isFinite(lift) ? (lift * 100).toFixed(2) : 'N/A') + ` pts; ${adaptive ? 'adaptive' : 'fixed'}; probe=${probeLevel}${reverted ? ' (reverted to safe sliders)' : ''}`,
+    narrative: (lift > 0.0001 ? 'Lift ' + (Number.isFinite(lift) ? (lift * 100).toFixed(2) : 'N/A') + ' pts'
+               : 'Baseline is already optimal') + `; ${adaptive ? 'adaptive' : 'fixed'}; probe=${probeLevel}${reverted ? ' (reverted to baseline — no improvement found)' : ''}`,
     mode: adaptive ? 'adaptive' : 'fixed',
     probeLevel,
+    baselineProb: p0,
+    finalProb: finalProb,
     winningSliders: { ...scaledSliders },
     chainingDrift: seedBest && adaptive ? (Object.keys(sliders).reduce((s, k) => s + Math.abs(sliders[k] - seedBest[SLIDER_KEYS.indexOf(k)]), 0) / 7 / mean(seedBest) * 100) : null
   };
 
-  const status = (lift >= 0.0001 || lift > -0.001 || stepStatus === 'promote') ? 'ok' : 'no-optimize';
+  const status = (lift >= 0.0001 || stepStatus === 'promote') ? 'ok' : 'no-optimize';
   stepLog('Step 7 Complete', `status=${status} lift=${liftLog}`);
   return { sliders, scaledSliders, reshapedPoints: { pdfPoints: reshapedPdf, cdfPoints: reshapedCdf }, explain, finalProb, status };
 }

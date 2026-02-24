@@ -296,7 +296,8 @@ function buildTaskPayload_(task, options) {
     sliderValues: normalizedSliders,
     profile: options.profile || 'full',
     suppressOtherDistros: false,
-    adaptive: !!options.adaptive
+    adaptive: !!options.adaptive,
+    probeLevel: options.probeLevel != null ? Number(options.probeLevel) : undefined
   };
   if (options.extraFlags && typeof options.extraFlags === 'object') {
     Object.assign(t, options.extraFlags);
@@ -420,6 +421,7 @@ function parseBaseline_(resObj) {
 
   let ciL = num(
     getAnyPath_(resObj, [
+      'baseline.metrics.monteCarloSmoothed.ci.lower',
       'baseline.monteCarloSmoothed.ci.lower',
       'baseline.monteCarloSmoothed.ciLower',
       'baseline.ci.lower',
@@ -433,6 +435,7 @@ function parseBaseline_(resObj) {
 
   let ciU = num(
     getAnyPath_(resObj, [
+      'baseline.metrics.monteCarloSmoothed.ci.upper',
       'baseline.monteCarloSmoothed.ci.upper',
       'baseline.monteCarloSmoothed.ciUpper',
       'baseline.ci.upper',
@@ -783,6 +786,7 @@ function getTargetProbabilityData(params) {
     optimizeFor: (params.mode === 'mean' || params.mode === 'risk') ? params.mode : 'target',
     sliderValues: params.sliderValues || undefined,
     adaptive: !!params.adaptive,
+    probeLevel: params.probeLevel != null ? Number(params.probeLevel) : undefined,
     extraFlags: extra
   });
 
