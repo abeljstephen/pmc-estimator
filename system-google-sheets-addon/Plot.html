@@ -211,21 +211,17 @@
     .dot-base{border-color:var(--base);} .dot-man{border-color:var(--manual);} .dot-fix{border-color:var(--fixed);} .dot-adp{border-color:var(--adaptive);}
     .dot-tri{border-color:var(--tri);} .dot-beta{border-color:var(--beta);}
 
-    /* ── Decision Slider Panel — horizontal bar above charts (overlay tab) ── */
-    /* The panel spans the full width and lays sliders out in columns, one per category. */
+    /* ── Decision Slider Panel — inside #overlayKpis, between tabs and recommendation ── */
     .plot-container { display: flex; flex-direction: column; }
-    .plot-container.sidebar-active { flex-direction: column; } /* was: row — now always column */
     #sliderSidebar {
       display: none;
       width: 100%;
-      padding: 10px 14px 10px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--panel);
-      box-shadow: 0 2px 6px rgba(0,0,0,.06);
-      margin-bottom: 10px;
+      padding: 12px 2px 4px;
+      border-top: 1px solid var(--line);
+      margin-top: 4px;
+      margin-bottom: 14px;
     }
-    .plot-container.sidebar-active #sliderSidebar { display: block; }
+    #overlayKpis.sidebar-active #sliderSidebar { display: block; }
     .plot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
     /* Panel interior: header row + horizontal category columns */
@@ -278,6 +274,35 @@
       box-shadow: 0 0 4px rgba(109,40,217,.4);
     }
     .slider-range:disabled, .slider-num:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Slider label row with help icon */
+    .slider-label-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+    .slider-label-row label { flex: 1; margin-bottom: 0; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slider-help-btn {
+      flex-shrink: 0;
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 1px solid var(--line); background: #fff; color: var(--muted);
+      font-size: 9px; font-weight: 700; line-height: 12px; text-align: center;
+      cursor: pointer; padding: 0;
+      transition: background .15s, color .15s;
+    }
+    .slider-help-btn:hover { background: var(--hover); color: var(--fg); border-color: #94a3b8; }
+
+    /* Global floating slider help tooltip */
+    #sliderHelpTooltip {
+      display: none;
+      position: fixed; z-index: 9999;
+      width: 290px;
+      background: #fff; border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.14);
+      padding: 12px 14px;
+      font-size: 12px; line-height: 1.6; color: var(--fg);
+    }
+    #sliderHelpTooltip.visible { display: block; }
+    #sliderHelpTooltip strong { font-size: 13px; display: block; margin-bottom: 6px; }
+    #sliderHelpTooltip p { margin: 0 0 8px; }
+    #sliderHelpTooltip p:last-child { margin-bottom: 0; }
+    #sliderHelpTooltip em { font-style: italic; color: var(--muted); }
 
     /* Action buttons: right-aligned below the columns */
     .slider-actions { display: flex; gap: 6px; margin-top: 0; justify-content: flex-end; }
@@ -882,28 +907,8 @@
       <div class="val">–</div>
     </div>
   </div>
-  <div id="recBanner" class="rec-banner" style="display:none;">
-    <div id="recActiveBar"></div>
-    <div class="rec-statement" id="recStatement"></div>
-    <div class="rec-context" id="recContext"></div>
-    <div class="rec-details" id="recDetails"></div>
-  </div>
-</div>
 
-<!-- Probability Summary Bar: τ · Baseline P₀ · one chip per active strategy -->
-<div id="probSummaryBar" style="display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 12px; margin-bottom:6px; background:rgba(248,250,255,0.97); border:1px solid rgba(148,163,184,0.30); border-radius:8px; font-size:11px; line-height:1;">
-  <span style="font-size:10px; color:#94a3b8; font-weight:600; white-space:nowrap; margin-right:2px;">AT TARGET:</span>
-  <span id="psbTau"       style="padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#92400E; border:1px solid rgba(245,158,11,0.45); font-weight:700; white-space:nowrap;"></span>
-  <span id="psbBase"      style="padding:2px 8px; border-radius:12px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.40); font-weight:600; white-space:nowrap;"></span>
-  <span id="psbGuided"    style="display:none; padding:2px 8px; border-radius:12px; background:rgba(139,92,246,0.08); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600; white-space:nowrap;"></span>
-  <span id="psbOptimized" style="display:none; padding:2px 8px; border-radius:12px; background:rgba(59,130,246,0.08); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600; white-space:nowrap;"></span>
-  <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
-</div>
-
-<!-- Main plot container with sidebar layout for overlay tab -->
-<div class="plot-container" id="plotContainer">
-
-  <!-- Sidebar: Decision Sliders (visible only in overlay tab) -->
+  <!-- Decision Sliders — between strategy tabs and recommendations -->
   <div id="sliderSidebar" role="complementary" aria-label="Decision Sliders">
     <div id="slidersPanel" class="sliders-panel">
       <!-- Panel header: title · note · impact result -->
@@ -920,7 +925,10 @@
       <div class="slider-category" data-cat="capacity">
         <div class="cat-header" style="color:var(--cat-capacity)">Capacity</div>
         <div class="slider-row" data-key="budgetFlexibility">
-          <label for="s_budget">Budget Flexibility</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="budgetFlexibility" aria-label="Help: Budget Flexibility">?</button>
+            <label for="s_budget">Budget Flexibility</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_budget_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Budget Flexibility slider">
             <input type="number" id="s_budget" min="0" max="100" step="1" value="0" class="slider-num">
@@ -929,7 +937,10 @@
           <div class="slider-optimal-marker" id="s_budget_marker"></div>
         </div>
         <div class="slider-row" data-key="scheduleFlexibility">
-          <label for="s_schedule">Schedule Flexibility</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="scheduleFlexibility" aria-label="Help: Schedule Flexibility">?</button>
+            <label for="s_schedule">Schedule Flexibility</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_schedule_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Schedule Flexibility slider">
             <input type="number" id="s_schedule" min="0" max="100" step="1" value="0" class="slider-num">
@@ -943,7 +954,10 @@
       <div class="slider-category" data-cat="certainty">
         <div class="cat-header" style="color:var(--cat-certainty)">Certainty</div>
         <div class="slider-row" data-key="scopeCertainty">
-          <label for="s_scopeCert">Scope Certainty</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="scopeCertainty" aria-label="Help: Scope Certainty">?</button>
+            <label for="s_scopeCert">Scope Certainty</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_scopeCert_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Scope Certainty slider">
             <input type="number" id="s_scopeCert" min="0" max="100" step="1" value="0" class="slider-num">
@@ -952,7 +966,10 @@
           <div class="slider-optimal-marker" id="s_scopeCert_marker"></div>
         </div>
         <div class="slider-row" data-key="scopeReductionAllowance">
-          <label for="s_scopeRed">Scope Reduction</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="scopeReductionAllowance" aria-label="Help: Scope Reduction">?</button>
+            <label for="s_scopeRed">Scope Reduction</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_scopeRed_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Scope Reduction slider">
             <input type="number" id="s_scopeRed" min="0" max="100" step="1" value="0" class="slider-num">
@@ -966,7 +983,10 @@
       <div class="slider-category" data-cat="process">
         <div class="cat-header" style="color:var(--cat-process)">Process</div>
         <div class="slider-row" data-key="reworkPercentage">
-          <label for="s_rework">Rework Percentage</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="reworkPercentage" aria-label="Help: Rework Percentage">?</button>
+            <label for="s_rework">Rework Percentage</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_rework_range" min="0" max="50" step="1" value="0" class="slider-range" aria-label="Rework Percentage slider">
             <input type="number" id="s_rework" min="0" max="50" step="1" value="0" class="slider-num">
@@ -980,7 +1000,10 @@
       <div class="slider-category" data-cat="behavioral">
         <div class="cat-header" style="color:var(--cat-behavioral)">Behavioral</div>
         <div class="slider-row" data-key="riskTolerance">
-          <label for="s_risk">Risk Tolerance</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="riskTolerance" aria-label="Help: Risk Tolerance">?</button>
+            <label for="s_risk">Risk Tolerance</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_risk_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Risk Tolerance slider">
             <input type="number" id="s_risk" min="0" max="100" step="1" value="0" class="slider-num">
@@ -989,7 +1012,10 @@
           <div class="slider-optimal-marker" id="s_risk_marker"></div>
         </div>
         <div class="slider-row" data-key="userConfidence">
-          <label for="s_userConf">User Confidence</label>
+          <div class="slider-label-row">
+            <button class="slider-help-btn" data-slider-help="userConfidence" aria-label="Help: User Confidence">?</button>
+            <label for="s_userConf">User Confidence</label>
+          </div>
           <div class="slider-pair">
             <input type="range" id="s_userConf_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="User Confidence slider">
             <input type="number" id="s_userConf" min="0" max="100" step="1" value="0" class="slider-num">
@@ -1015,6 +1041,27 @@
       <div id="sensitivityContent"></div>
     </div>
   </div>
+
+  <div id="recBanner" class="rec-banner" style="display:none;">
+    <div id="recActiveBar"></div>
+    <div class="rec-statement" id="recStatement"></div>
+    <div class="rec-context" id="recContext"></div>
+    <div class="rec-details" id="recDetails"></div>
+  </div>
+</div>
+
+<!-- Probability Summary Bar: τ · Baseline P₀ · one chip per active strategy -->
+<div id="probSummaryBar" style="display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 12px; margin-bottom:6px; background:rgba(248,250,255,0.97); border:1px solid rgba(148,163,184,0.30); border-radius:8px; font-size:11px; line-height:1;">
+  <span style="font-size:10px; color:#94a3b8; font-weight:600; white-space:nowrap; margin-right:2px;">AT TARGET:</span>
+  <span id="psbTau"       style="padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#92400E; border:1px solid rgba(245,158,11,0.45); font-weight:700; white-space:nowrap;"></span>
+  <span id="psbBase"      style="padding:2px 8px; border-radius:12px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.40); font-weight:600; white-space:nowrap;"></span>
+  <span id="psbGuided"    style="display:none; padding:2px 8px; border-radius:12px; background:rgba(139,92,246,0.08); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600; white-space:nowrap;"></span>
+  <span id="psbOptimized" style="display:none; padding:2px 8px; border-radius:12px; background:rgba(59,130,246,0.08); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600; white-space:nowrap;"></span>
+  <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
+</div>
+
+<!-- Main plot container -->
+<div class="plot-container" id="plotContainer">
 
   <!-- Main content area -->
   <div class="plot-main">
@@ -1271,7 +1318,71 @@
     });
   </script>
 
-  <!-- Sidebar visibility is now controlled by .sidebar-active class on .plot-container -->
+  <!-- Slider help tooltips -->
+  <div id="sliderHelpTooltip"></div>
+  <script>
+    var SLIDER_HELP = {
+      budgetFlexibility:
+        '<strong>Budget Flexibility</strong>' +
+        '<p>Think of your current budget as 100%. Setting this to 10% means you believe you could realistically access an extra 10% more budget if the project needs it — not guaranteed, but a plausible contingency. The optimizer uses this headroom to find solutions that might cost slightly more to finish on time.</p>' +
+        '<p><em>Example: Budget = $100K, slider = 15% → optimizer can consider up to $115K if needed.</em></p>',
+      scheduleFlexibility:
+        '<strong>Schedule Flexibility</strong>' +
+        '<p>If your deadline is 20 days, setting this to 10% tells the optimizer you could absorb about 2 extra days without serious consequences. Higher flexibility lets the optimizer trade a small schedule slip for a better on-time probability.</p>' +
+        '<p><em>Example: Deadline = 20 days, slider = 10% → optimizer can stretch to ~22 days if it improves success odds.</em></p>',
+      scopeCertainty:
+        '<strong>Scope Certainty</strong>' +
+        '<p>100% means requirements are fully locked and understood. 60% means roughly 40% of scope is still uncertain or may change — which directly widens your distribution. Lower certainty → higher uncertainty → the project takes longer on average.</p>' +
+        '<p><em>Rule of thumb: Early discovery phase → 40–60%. Specification-complete → 80–90%.</em></p>',
+      scopeReductionAllowance:
+        '<strong>Scope Reduction Allowance</strong>' +
+        '<p>If the project runs over, is there any scope that could be cut without losing core value? 20% means you believe you could drop about 20% of deliverables in a crunch. The optimizer uses this as a safety valve — cutting scope can be cheaper than missing the deadline.</p>' +
+        '<p><em>Example: Slider = 20% → optimizer can propose dropping up to 1 in 5 features to stay on target.</em></p>',
+      reworkPercentage:
+        '<strong>Rework Percentage</strong>' +
+        '<p>What fraction of completed work typically needs to be done again due to defects, misunderstandings, or late requirement changes? 15% means roughly 1 in 7 tasks needs a second pass. Rework multiplies your effective effort — the distribution shifts right as this increases.</p>' +
+        '<p><em>Benchmarks: Mature teams 5–10% · Average teams 15–25% · High-change environments 25–40%.</em></p>',
+      riskTolerance:
+        '<strong>Risk Tolerance</strong>' +
+        '<p>How conservative should the optimizer be? At 0% it only recommends changes that strongly reduce downside risk. At 100% it is willing to accept higher variance (wider spread in outcomes) in exchange for a better expected result.</p>' +
+        '<p><em>Guidance: Fixed-price or safety-critical → 20–30%. Internal agile project with flexibility → 60–70%.</em></p>',
+      userConfidence:
+        '<strong>User Confidence</strong>' +
+        '<p>How much do you trust your own three-point estimates (Optimistic / Most Likely / Pessimistic)? At 100% the optimizer treats your values as reliable anchors. At lower values it allows the distribution to stretch to account for estimator bias. If you tend to underestimate, lower this value.</p>' +
+        '<p><em>Tip: If past projects routinely came in 20–30% over your Most Likely estimate, try setting this to 60–70%.</em></p>'
+    };
+
+    (function() {
+      var _activeSliderHelp = null;
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest && e.target.closest('.slider-help-btn');
+        var popup = document.getElementById('sliderHelpTooltip');
+        if (!popup) return;
+        if (btn) {
+          var key = btn.getAttribute('data-slider-help');
+          if (_activeSliderHelp === key) {
+            popup.classList.remove('visible');
+            _activeSliderHelp = null;
+            return;
+          }
+          popup.innerHTML = SLIDER_HELP[key] || '<em>No description available.</em>';
+          var rect = btn.getBoundingClientRect();
+          var left = rect.left + window.scrollX;
+          left = Math.max(8, Math.min(left, window.innerWidth - 298));
+          popup.style.top  = (rect.bottom + 6 + window.scrollY) + 'px';
+          popup.style.left = left + 'px';
+          popup.classList.add('visible');
+          _activeSliderHelp = key;
+          e.stopPropagation();
+          return;
+        }
+        if (!popup.contains(e.target)) {
+          popup.classList.remove('visible');
+          _activeSliderHelp = null;
+        }
+      });
+    })();
+  </script>
 
   <!-- Reporting visibility + skeleton -->
   <script>
@@ -4148,7 +4259,8 @@
         var showSidebar = (s.tab === 'overlay') &&
           (s.overlay.manualOn || s.overlay.fixedOn || s.overlay.adaptiveOn);
 
-        container.classList.toggle('sidebar-active', showSidebar);
+        var overlayKpisEl = document.getElementById('overlayKpis');
+        if (overlayKpisEl) overlayKpisEl.classList.toggle('sidebar-active', showSidebar);
 
         var bannerEl = document.getElementById('sliderImpactBanner');
 
