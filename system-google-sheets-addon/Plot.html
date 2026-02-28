@@ -64,18 +64,55 @@
     .omp-bar .omp-item.pert{background:rgba(59,130,246,.08);}
     .omp-bar .omp-item.pert .omp-val{color:var(--cdf);}
 
-    /* Target mode segmented control */
-    .target-mode-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:12px;font-weight:600;}
-    .target-mode-btn{padding:6px 14px;cursor:pointer;background:var(--chip);color:var(--muted);border:none;transition:all .15s;}
-    .target-mode-btn:hover{background:var(--hover);}
-    .target-mode-btn.active{background:var(--brand);color:#fff;}
-    .target-mode-btn+.target-mode-btn{border-left:1px solid var(--line);}
+    /* ── Intuitive Target Analysis Panel ── */
+    #targetPanel { display:flex; flex-direction:column; gap:7px; padding:4px 0 2px; }
 
-    /* Target result display */
-    .target-result{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-family:'SF Mono',Consolas,monospace;font-weight:600;min-width:140px;}
-    .target-result .tr-val{color:var(--good);}
-    .target-result .tr-arrow{color:var(--muted);font-size:10px;}
-    .target-result .tr-prob{color:var(--cdf);}
+    /* Two question mode cards */
+    #tgtModeCards { display:flex; gap:8px; }
+    .tgt-card {
+      display:flex; align-items:center; gap:9px; flex:1; padding:8px 11px;
+      border:1.5px solid var(--line); border-radius:10px; cursor:pointer;
+      background:#fff; text-align:left; transition:border-color .15s, background .12s;
+      font-family:inherit;
+    }
+    .tgt-card:hover { background:var(--hover); border-color:#93C5FD; }
+    .tgt-card.active { border-color:#3B82F6; background:#EFF6FF; }
+    .tgt-card-ico { font-size:17px; flex-shrink:0; line-height:1; }
+    .tgt-card-body { display:flex; flex-direction:column; gap:1px; min-width:0; }
+    .tgt-card-q { font-size:12px; font-weight:700; color:var(--fg); white-space:nowrap; }
+    .tgt-card-sub { font-size:10px; color:var(--muted); white-space:nowrap; }
+    .tgt-card.active .tgt-card-q { color:#1E40AF; }
+    .tgt-card.active .tgt-card-sub { color:#2563EB; }
+
+    /* Live answer sentence */
+    #tgtAnswerRow {
+      padding:8px 14px; background:#F8FAFF;
+      border:1.5px solid rgba(59,130,246,.22); border-radius:9px;
+      display:flex; align-items:center; min-height:38px; flex-wrap:wrap; gap:5px;
+    }
+    .tgt-sentence { display:none; align-items:center; gap:5px; flex-wrap:wrap; }
+    .tgt-sentence.active { display:flex; }
+    .tgt-s { font-size:12px; color:#4B5563; font-weight:500; white-space:nowrap; }
+    .tgt-chip {
+      display:inline-block; padding:2px 9px; border-radius:6px;
+      font-family:'SF Mono',Consolas,monospace; font-weight:700; font-size:13px;
+      white-space:nowrap;
+    }
+    .tgt-chip.tgt-val { background:rgba(16,185,129,.12); color:#065f46; border:1px solid rgba(16,185,129,.4); }
+    .tgt-chip.tgt-prob { background:rgba(59,130,246,.12); color:#1D4ED8; border:1px solid rgba(59,130,246,.4); }
+    #tgtAnswerLabel { font-size:9px; font-weight:700; color:#94A3B8; letter-spacing:.05em; text-transform:uppercase; margin-right:4px; white-space:nowrap; }
+
+    /* Slider row */
+    #tgtSliderRow { display:flex; align-items:center; gap:8px; margin-top:2px; }
+    .tgt-hint { font-size:10px; color:var(--muted); white-space:nowrap; }
+
+    /* Keep .target-mode-btn class for JS compatibility — visual handled by .tgt-card */
+    .target-mode-btn { background:none; border:none; padding:0; }
+    .target-mode-btn.active { background:none; color:inherit; }
+
+    /* Legacy target result — hidden (replaced by tgt-sentence) */
+    .target-result { display:none !important; }
+    .target-mode-toggle { display:none !important; }
 
     /* Status compact */
     .status-compact{display:flex;align-items:center;gap:6px;margin-left:auto;}
@@ -119,8 +156,9 @@
     .plot-container{display:flex;flex-direction:column;gap:16px;position:relative;}
     .plots{flex:1 1 100%;}
     .plot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);position:relative;}
-    .plot-inner{position:relative;height:min(420px,50vh);display:flex;gap:8px;flex-direction:row;}
-    #pdfCanvas,#cdfCanvas{flex:1 1 0;min-width:0;height:100%!important;background:#FAFAFA;}
+    .plot-inner{position:relative;height:min(420px,50vh);display:flex;gap:8px;flex-direction:row;flex-wrap:nowrap;}
+    /* pdfCanvas & cdfCanvas live inside .plot-pane (column flex); flex:1 fills available height */
+    #pdfCanvas,#cdfCanvas{width:100%!important;flex:1 1 0;min-height:0;background:#FAFAFA;}
 
     /* Hypercube Radar Chart - side-by-side row below distribution plots */
     #hypercubeSection {
@@ -181,30 +219,39 @@
       min-width: 280px;
       max-width: 320px;
       flex-shrink: 0;
+      align-self: flex-start;       /* size to content, not stretched by flex partner */
+      position: sticky;             /* stays visible when body scrolls */
+      top: 12px;
       overflow-y: auto;
-      max-height: calc(100vh - 100px);
-      padding: 12px 12px 24px;
+      max-height: calc(100vh - 30px);
+      padding: 10px 12px 16px;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: var(--panel);
       box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      /* Always show a thin scrollbar so users know content continues */
+      scrollbar-width: thin;
+      scrollbar-color: #CBD5E1 transparent;
     }
+    #sliderSidebar::-webkit-scrollbar { width: 5px; }
+    #sliderSidebar::-webkit-scrollbar-track { background: transparent; }
+    #sliderSidebar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
     .plot-container.sidebar-active #sliderSidebar { display: block; }
     .plot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
     @media (max-width:800px) {
       .plot-container.sidebar-active { flex-direction: column; }
-      #sliderSidebar { width: 100%; max-width: 100%; max-height: none; border-right: none; border-bottom: 1px solid var(--line); }
+      #sliderSidebar { width: 100%; max-width: 100%; max-height: none; align-self: auto; border-right: none; border-bottom: 1px solid var(--line); }
     }
 
     /* Slider panel inside sidebar */
-    .sliders-panel .title { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--fg); }
-    .sliders-panel .note { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .sliders-panel .title { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--fg); }
+    .sliders-panel .note { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 
     /* Slider categories */
-    .slider-category { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+    .slider-category { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
     .slider-category:last-of-type { border-bottom: none; }
-    .cat-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .slider-row { margin-bottom: 8px; }
+    .cat-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .slider-row { margin-bottom: 6px; }
     .slider-row label { font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px; color: var(--fg); }
     .slider-pair { display: flex; align-items: center; gap: 6px; }
     .slider-range {
@@ -341,6 +388,280 @@
     .plot-help-popup .help-section { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
     .plot-help-popup .help-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
     .plot-help-popup .help-stat { display: inline-block; background: #F3F4F6; padding: 2px 7px; border-radius: 4px; font-weight: 600; margin: 1px 2px; }
+
+    /* ============================================================
+       TASK MANAGER — TM Bar, Panels, Modals
+    ============================================================ */
+
+    /* TM top bar */
+    #tmBar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #F8FAFF; border: 1px solid var(--line); border-radius: 10px;
+      padding: 8px 12px; margin-bottom: 10px; font-size: 12px;
+    }
+    #tmBar .tm-mode-toggle {
+      display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    }
+    #tmBar .tm-mode-btn {
+      padding: 5px 14px; cursor: pointer; background: var(--chip); color: var(--muted);
+      border: none; font-size: 12px; font-weight: 600; transition: all .15s;
+    }
+    #tmBar .tm-mode-btn:hover { background: var(--hover); }
+    #tmBar .tm-mode-btn.active { background: #111827; color: #fff; }
+    #tmBar .tm-mode-btn + .tm-mode-btn { border-left: 1px solid var(--line); }
+    #tmTaskInfo { color: var(--muted); font-size: 12px; }
+    #tmDirtyBadge {
+      background: #FEF9C3; border: 1px solid #FDE68A; border-radius: 5px;
+      padding: 2px 8px; font-size: 11px; font-weight: 700; color: #92400E;
+    }
+    #tmBar .tm-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+    #tmBar .tm-btn {
+      padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--panel); font-size: 12px; font-weight: 600; cursor: pointer; min-height: 30px;
+      transition: background .15s;
+    }
+    #tmBar .tm-btn:hover { background: var(--hover); }
+    #tmBar .tm-btn.primary { background: #111827; color: #fff; border-color: #111827; }
+    #tmBar .tm-btn.primary:hover { background: #374151; border-color: #374151; }
+    #tmBar .tm-btn.danger { color: #DC2626; border-color: #FCA5A5; }
+    #tmBar .tm-btn.danger:hover { background: #FEE2E2; }
+
+    /* ── Aggregate summary bar ── */
+    #tmAggBar {
+      display: none; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px;
+      padding: 6px 12px; margin-bottom: 8px; font-size: 12px;
+    }
+    #tmAggBar.visible { display: flex; }
+    .tm-agg-stat { display: flex; flex-direction: column; gap: 1px; min-width: 80px; }
+    .tm-agg-stat .lbl { font-size: 10px; color: #0369A1; font-weight: 600; }
+    .tm-agg-stat .val { font-size: 13px; font-weight: 700; font-family: 'SF Mono', Consolas, monospace; }
+
+    /* ── Generic modal backdrop ── */
+    .tm-modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      z-index: 10000; align-items: center; justify-content: center;
+    }
+    .tm-modal-backdrop.open { display: flex; }
+    .tm-modal {
+      background: #fff; border-radius: 14px; box-shadow: 0 8px 40px rgba(0,0,0,.22);
+      padding: 22px 24px; width: 90vw; max-width: 540px; max-height: 88vh;
+      overflow-y: auto; position: relative; font-size: 13px;
+    }
+    .tm-modal.wide { max-width: 740px; }
+    .tm-modal h2 { font-size: 15px; font-weight: 700; margin: 0 0 14px; }
+    .tm-modal h3 { font-size: 13px; font-weight: 700; margin: 12px 0 6px; color: var(--muted); }
+    .tm-modal-close {
+      position: absolute; top: 14px; right: 16px; background: none; border: none;
+      font-size: 18px; cursor: pointer; color: var(--muted); line-height: 1;
+    }
+    .tm-modal-close:hover { color: var(--fg); }
+    .tm-modal-footer {
+      display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;
+      padding-top: 14px; border-top: 1px solid var(--line);
+    }
+
+    /* ── Buttons inside modals ── */
+    .tm-btn-primary {
+      padding: 7px 16px; background: #111827; color: #fff; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .tm-btn-primary:hover { background: #374151; }
+    .tm-btn-primary:disabled { background: #9CA3AF; cursor: not-allowed; }
+    .tm-btn-secondary {
+      padding: 7px 16px; background: var(--panel); color: var(--fg);
+      border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    .tm-btn-secondary:hover { background: var(--chip); }
+    .tm-btn-danger-outline {
+      padding: 7px 16px; background: #fff; color: #DC2626;
+      border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    .tm-btn-danger-outline:hover { background: #FEE2E2; }
+
+    /* ── Form fields inside modals ── */
+    .tm-field-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tm-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 100px; }
+    .tm-field label { font-size: 11px; font-weight: 600; color: var(--muted); }
+    .tm-field input, .tm-field select, .tm-field textarea {
+      padding: 7px 9px; border: 1.5px solid var(--line); border-radius: 8px;
+      font-size: 13px; width: 100%; background: #fff; transition: border-color .15s;
+      font-family: inherit;
+    }
+    .tm-field input:focus, .tm-field select:focus, .tm-field textarea:focus {
+      outline: none; border-color: #6366F1;
+    }
+    .tm-field.error input, .tm-field.error select { border-color: #DC2626; background: #FEF2F2; }
+    .tm-field .field-error { font-size: 11px; color: #DC2626; margin-top: 2px; }
+    .tm-field.warn input { border-color: #F59E0B; background: #FFFBEB; }
+    .tm-field .field-warn { font-size: 11px; color: #B45309; margin-top: 2px; }
+    .tm-field input.corrected { border-color: #10B981; background: #F0FDF4; }
+    .tm-full-field { margin-bottom: 10px; }
+    .tm-full-field label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+
+    /* ── Live triangle preview canvas ── */
+    #tmTriPreview {
+      width: 100%; height: 90px; border-radius: 8px; background: #F9FAFB;
+      border: 1px solid var(--line); margin-top: 8px; display: block;
+    }
+    .tm-preview-labels {
+      display: flex; justify-content: space-between; font-size: 10px;
+      color: var(--muted); margin-top: 2px; padding: 0 2px;
+    }
+
+    /* ── Task list in manager panel ── */
+    #tmManagerModal .tm-task-list { margin: 10px 0; }
+    .tm-task-row {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px;
+      background: #fff; transition: background .1s; font-size: 12px;
+      cursor: pointer;
+    }
+    .tm-task-row:hover { background: #F0F9FF; }
+    .tm-task-row.selected { border-color: #6366F1; background: #EEF2FF; }
+    .tm-task-row.dirty { border-left: 3px solid #F59E0B; }
+    .tm-task-row .tm-task-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tm-task-row .tm-task-vals { font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .tm-task-row .tm-task-btns { display: flex; gap: 4px; flex-shrink: 0; }
+    .tm-task-row .tm-task-btns button {
+      padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px;
+      background: #fff; font-size: 11px; cursor: pointer;
+    }
+    .tm-task-row .tm-task-btns button:hover { background: var(--chip); }
+    .tm-task-row .tm-task-btns .del-btn { color: #DC2626; border-color: #FCA5A5; }
+    .tm-task-row .tm-task-btns .del-btn:hover { background: #FEE2E2; }
+    .tm-active-toggle { cursor: pointer; width: 16px; height: 16px; accent-color: #111827; }
+    .tm-dirty-star { color: #F59E0B; font-weight: 700; margin-left: 2px; }
+
+    /* ── Plot Selector Bar (How It's Built tab) ── */
+    #plotSelBar {
+      display: none; align-items: center; gap: 10px; padding: 7px 12px 9px;
+      margin-bottom: 6px; flex-wrap: wrap;
+      border: 1px solid var(--line); border-radius: 10px; background: #F8FAFF;
+    }
+    #plotSelBar.visible { display: flex; }
+    #plotSelBar .psel-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .05em; white-space: nowrap; }
+    .psel-chk {
+      display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px;
+      border: 1.5px solid var(--line); border-radius: 8px; cursor: pointer;
+      background: #fff; user-select: none; transition: border-color .12s, background .12s;
+    }
+    .psel-chk:hover { background: var(--hover); border-color: #93C5FD; }
+    .psel-chk input[type=checkbox] { accent-color: #3B82F6; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+    .psel-chk.checked { border-color: #3B82F6; background: #EFF6FF; }
+    .psel-lbl { font-size: 12px; font-weight: 700; color: var(--fg); }
+    .psel-sub { font-size: 10px; color: var(--muted); margin-left: 2px; }
+
+    /* ── Plot panes inside plot-inner ── */
+    .plot-pane {
+      flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column;
+    }
+    .plot-pane-hdr {
+      font-size: 10px; font-weight: 700; color: #64748B; text-align: center;
+      letter-spacing: .04em; text-transform: uppercase;
+      padding: 2px 6px 5px; border-bottom: 1px solid var(--line); margin-bottom: 4px; flex-shrink: 0;
+    }
+    .plot-pane > canvas { flex: 1; min-height: 0; width: 100% !important; background: #FAFAFA; }
+    #triPlotCanvas { background: #F9FAFB !important; border-radius: 6px; }
+
+    /* ── Aggregate quick-select bar in Task Manager ── */
+    .agg-sel-bar {
+      display: flex; align-items: center; gap: 8px; padding: 5px 0 8px;
+      margin-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 11px; flex-wrap: wrap;
+    }
+    .agg-sel-bar .agg-count { font-weight: 700; color: #0369A1; }
+    .agg-sel-btn {
+      font-size: 11px; padding: 3px 10px; border: 1px solid var(--line);
+      border-radius: 6px; background: #fff; cursor: pointer; font-family: inherit;
+    }
+    .agg-sel-btn:hover { background: var(--chip); }
+    .agg-header-row {
+      display: flex; align-items: center; gap: 8px; padding: 3px 10px;
+      font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+
+    /* empty state */
+    .tm-empty-state {
+      text-align: center; padding: 28px 16px; color: var(--muted);
+      font-size: 12px; border: 2px dashed var(--line); border-radius: 10px; margin: 8px 0;
+    }
+    .tm-empty-state .em-icon { font-size: 28px; margin-bottom: 6px; }
+
+    /* ── CSV import preview table ── */
+    .tm-csv-table-wrap { max-height: 260px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; }
+    .tm-csv-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .tm-csv-table th { background: #F3F4F6; padding: 5px 8px; text-align: left; font-weight: 600; position: sticky; top: 0; }
+    .tm-csv-table td { padding: 4px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+    .tm-csv-table tr.csv-ok td { background: #F0FDF4; }
+    .tm-csv-table tr.csv-warn td { background: #FFFBEB; }
+    .tm-csv-table tr.csv-err td { background: #FEF2F2; }
+    .csv-status-icon { font-size: 13px; }
+
+    /* ── Column mapper ── */
+    .tm-col-map-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; align-items: center; margin-top: 8px; }
+    .tm-col-map-grid label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .tm-col-map-grid select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+
+    /* ── First-run modal specifics ── */
+    #tmFirstRunModal .choice-cards { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+    #tmFirstRunModal .choice-card {
+      flex: 1; min-width: 160px; padding: 14px; border: 2px solid var(--line);
+      border-radius: 10px; cursor: pointer; transition: border-color .15s, background .15s;
+      text-align: center;
+    }
+    #tmFirstRunModal .choice-card:hover { border-color: #6366F1; background: #EEF2FF; }
+    #tmFirstRunModal .choice-card.selected { border-color: #6366F1; background: #EEF2FF; }
+    #tmFirstRunModal .choice-card .ch-icon { font-size: 24px; margin-bottom: 6px; }
+    #tmFirstRunModal .choice-card .ch-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    #tmFirstRunModal .choice-card .ch-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    /* ── Settings modal ── */
+    #tmSettingsModal .settings-group { margin-bottom: 14px; }
+    #tmSettingsModal .settings-group label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    #tmSettingsModal .settings-group input, #tmSettingsModal .settings-group select {
+      width: 100%; padding: 7px 9px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 13px;
+    }
+
+    /* ── Inline validation hint ── */
+    .tm-hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Loading overlay inside modal ── */
+    .tm-loading-overlay {
+      display: none; position: absolute; inset: 0; background: rgba(255,255,255,.82);
+      border-radius: 14px; align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; z-index: 5;
+    }
+    .tm-loading-overlay.active { display: flex; }
+    .tm-loading-spinner {
+      width: 30px; height: 30px; border: 3px solid var(--line);
+      border-top-color: #6366F1; border-radius: 50%;
+      animation: tmSpin .8s linear infinite;
+    }
+    @keyframes tmSpin { to { transform: rotate(360deg); } }
+    .tm-loading-msg { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+    /* ── Warnings list ── */
+    .tm-warnings { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 11px; }
+    .tm-warnings .warn-title { font-weight: 700; color: #92400E; margin-bottom: 4px; }
+    .tm-warnings ul { margin: 0; padding-left: 16px; color: #B45309; }
+    .tm-warnings ul li { margin-bottom: 2px; }
+
+    /* ── Info box ── */
+    .tm-info { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 11px; color: #1E40AF; }
+
+    /* ── Tab selector for existing sheet import ── */
+    #tmTabList { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+    .tm-tab-item {
+      padding: 8px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .tm-tab-item:last-child { border-bottom: none; }
+    .tm-tab-item:hover { background: #F0F9FF; }
+    .tm-tab-item.selected { background: #EEF2FF; font-weight: 600; }
+    .tm-tab-item .tab-rows { font-size: 11px; color: var(--muted); }
   </style>
 </head>
 
@@ -355,6 +676,39 @@
   </script>
   <div class="wrap">
     <h1 title="Probability Plots Dashboard">Probability Plots</h1>
+
+<!-- ── TASK MANAGER BAR ── -->
+<div id="tmBar">
+  <div style="display:flex;flex-direction:column;gap:2px;">
+    <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;">Run Mode</div>
+    <div class="tm-mode-toggle" title="Single Task: analyze one task at a time using the dropdown below. Aggregate: combine selected tasks into one distribution.">
+      <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single Task</button>
+      <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Aggregate</button>
+    </div>
+  </div>
+
+  <span id="tmTaskInfo" style="color:var(--muted);font-size:12px;flex:1;">Initializing…</span>
+  <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved changes</span>
+
+  <div class="tm-actions">
+    <button class="tm-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Aggregate mode: check which tasks to include.">Manage Tasks</button>
+    <button class="tm-btn" id="btnImportCSV" onclick="TM.openCSVImport()" title="Import tasks from a CSV file">Import CSV</button>
+    <button class="tm-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task Manager settings">&#9881;</button>
+    <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
+    <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
+  </div>
+</div>
+
+<!-- ── AGGREGATE SUMMARY BAR (shown in aggregate mode after run) ── -->
+<div id="tmAggBar">
+  <span style="font-size:10px;color:#0369A1;font-weight:700;margin-right:4px;">AGGREGATE:</span>
+  <div class="tm-agg-stat"><span class="lbl">TASKS</span><span class="val" id="aggStatTasks">–</span></div>
+  <div class="tm-agg-stat"><span class="lbl">MEAN</span><span class="val" id="aggStatMean">–</span></div>
+  <div class="tm-agg-stat"><span class="lbl">P50</span><span class="val" id="aggStatP50">–</span></div>
+  <div class="tm-agg-stat"><span class="lbl">P80</span><span class="val" id="aggStatP80">–</span></div>
+  <div class="tm-agg-stat"><span class="lbl">P90</span><span class="val" id="aggStatP90">–</span></div>
+  <div class="tm-agg-stat"><span class="lbl">P(≤τ)</span><span class="val" id="aggStatProb">–</span></div>
+</div>
 
 <div class="card">
   <!-- Row 1: Task selector + OMP bar + Status/Refresh -->
@@ -377,18 +731,62 @@
     </div>
   </div>
 
-  <!-- Row 2: Target mode toggle + Slider + Result display -->
-  <div class="toolbar-row">
-    <label style="margin:0;white-space:nowrap;">Target:</label>
-    <div class="target-mode-toggle">
-      <button class="target-mode-btn active" data-mode="value" onclick="onTargetModeSwitch('value')">Value</button>
-      <button class="target-mode-btn" data-mode="probability" onclick="onTargetModeSwitch('probability')">Probability</button>
-    </div>
-    <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50" title="Slide to set target" style="flex:1;min-width:120px;" />
-    <div class="target-result">
-      <span class="tr-val" id="targetValDisplay">–</span>
-      <span class="tr-arrow">&#x2192;</span>
-      <span class="tr-prob" id="targetProbDisplay">–</span>
+  <!-- Row 2: Intuitive target analysis — two question modes with live answer -->
+  <div class="toolbar-row" style="flex-direction:column;align-items:stretch;gap:0;">
+    <div id="targetPanel">
+
+      <!-- Two question mode cards — click to switch what you're setting -->
+      <div id="tgtModeCards">
+        <button class="tgt-card target-mode-btn active" id="tgtCardValue" data-mode="value"
+                onclick="onTargetModeSwitch('value')"
+                title="Slide to set a finish target and see the probability of achieving it">
+          <span class="tgt-card-ico">&#x1F4C5;</span>
+          <span class="tgt-card-body">
+            <span class="tgt-card-q">Set a target value</span>
+            <span class="tgt-card-sub">&#x2192; What's the probability?</span>
+          </span>
+        </button>
+        <button class="tgt-card target-mode-btn" id="tgtCardProb" data-mode="probability"
+                onclick="onTargetModeSwitch('probability')"
+                title="Slide to set a probability target and see what finish value is needed">
+          <span class="tgt-card-ico">&#x1F3AF;</span>
+          <span class="tgt-card-body">
+            <span class="tgt-card-q">Set a target probability</span>
+            <span class="tgt-card-sub">&#x2192; What value is needed?</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Live answer row — updates in real time as slider moves -->
+      <div id="tgtAnswerRow">
+        <span id="tgtAnswerLabel">ANSWER:</span>
+        <!-- Sentence when in VALUE mode: show P(≤ value) = prob -->
+        <div class="tgt-sentence active" id="tgtSentValue">
+          <span class="tgt-s">Probability of finishing within</span>
+          <span class="tgt-chip tgt-val" id="targetValDisplay">–</span>
+          <span class="tgt-s" id="tgtUnitsHint1"></span>
+          <span class="tgt-s">is</span>
+          <span class="tgt-chip tgt-prob" id="targetProbDisplay">–</span>
+        </div>
+        <!-- Sentence when in PROBABILITY mode: show value at prob -->
+        <div class="tgt-sentence" id="tgtSentProb">
+          <span class="tgt-s">To achieve a</span>
+          <span class="tgt-chip tgt-prob" id="tgtProbAlt">–</span>
+          <span class="tgt-s">chance, the target must be within</span>
+          <span class="tgt-chip tgt-val" id="tgtValAlt">–</span>
+          <span class="tgt-s" id="tgtUnitsHint2"></span>
+        </div>
+      </div>
+
+      <!-- Shared slider — controls value or probability depending on active mode -->
+      <div id="tgtSliderRow">
+        <span class="tgt-hint">&#x25C4;</span>
+        <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
+               title="Drag left/right to explore — the answer above updates live"
+               style="flex:1;min-width:100px;" />
+        <span class="tgt-hint">&#x25BA;</span>
+        <span class="tgt-hint" id="tgtSliderContext" style="margin-left:6px;font-size:10px;color:#9CA3AF;"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -485,7 +883,7 @@
       <div class="note" id="optimizeNote">
         Drag sliders or type values to reshape the probability distribution.
       </div>
-      <div id="sliderImpactBanner" style="display:none; margin:6px 0 8px; padding:8px 10px; border-radius:6px; font-size:12px; line-height:1.5; background:#F0FDF4; border:1px solid #86EFAC; color:#166534;">
+      <div id="sliderImpactBanner" style="display:none; margin:4px 0 6px; padding:5px 8px; border-radius:6px; font-size:11px; line-height:1.4; background:#F0FDF4; border:1px solid #86EFAC; color:#166534;">
       </div>
 
       <!-- Capacity -->
@@ -590,15 +988,48 @@
   <div class="plot-main">
     <!-- Main PDF/CDF plots -->
     <div class="plots">
+
+      <!-- ── Plot Selector Bar — visible in "How It's Built" tab only ── -->
+      <div id="plotSelBar">
+        <span class="psel-label">SHOW PLOTS:</span>
+        <label class="psel-chk checked" id="pselChkTriangle" title="Triangle Distribution — the raw triangle shape of your 3-point estimate (O / M / P)">
+          <input type="checkbox" id="pselTriangle" checked onchange="pselUpdate()">
+          <span class="psel-lbl">Triangle</span><span class="psel-sub">3-pt shape</span>
+        </label>
+        <label class="psel-chk" id="pselChkPDF" title="PDF — Probability Density Function. Shows how probability mass is distributed across values.">
+          <input type="checkbox" id="pselPDF" onchange="pselUpdate()">
+          <span class="psel-lbl">PDF</span><span class="psel-sub">Density curve</span>
+        </label>
+        <label class="psel-chk" id="pselChkCDF" title="CDF — Cumulative Distribution Function. Shows P(X ≤ value) — probability at or below any target.">
+          <input type="checkbox" id="pselCDF" onchange="pselUpdate()">
+          <span class="psel-lbl">CDF</span><span class="psel-sub">Cumulative P</span>
+        </label>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;">max 2 side-by-side</span>
+      </div>
+
       <div class="plot" style="position:relative;">
         <div style="display:flex; justify-content:flex-end; padding:0 4px 4px 0; gap:6px; align-items:center;">
           <button class="plot-help-btn" data-help="distributions" title="What do these charts show?" style="position:static;">?</button>
-          <button id="resetZoomBtn" title="Reset zoom/pan on both charts" style="font-size:11px; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:#6B7280;">Reset Zoom</button>
+          <button id="zoomToggleBtn" title="Toggle zoom/pan on charts (scroll wheel to zoom, drag to pan)" onclick="toggleChartZoom()" style="font-size:11px; padding:3px 10px; border:1.5px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:#6B7280;">Enable Zoom</button>
+          <button id="resetZoomBtn" title="Reset zoom/pan on both charts" style="display:none; font-size:11px; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:#6B7280;">Reset</button>
         </div>
         <div id="distributionsHelpPopup" class="plot-help-popup"></div>
-        <div class="plot-inner">
-          <canvas id="pdfCanvas" title="Probability Density Function (PDF)"></canvas>
-          <canvas id="cdfCanvas" title="Cumulative Distribution Function (CDF)"></canvas>
+        <div class="plot-inner" id="plotInner">
+          <!-- Triangle pane — shown when "Triangle" is checked in How It's Built tab -->
+          <div class="plot-pane" id="triWrap" style="display:none;">
+            <div class="plot-pane-hdr">Triangle Distribution</div>
+            <canvas id="triPlotCanvas"></canvas>
+          </div>
+          <!-- PDF pane -->
+          <div class="plot-pane" id="pdfWrap">
+            <div class="plot-pane-hdr">Probability Density (PDF)</div>
+            <canvas id="pdfCanvas" title="Probability Density Function (PDF)"></canvas>
+          </div>
+          <!-- CDF pane -->
+          <div class="plot-pane" id="cdfWrap">
+            <div class="plot-pane-hdr">Cumulative Distribution (CDF)</div>
+            <canvas id="cdfCanvas" title="Cumulative Distribution Function (CDF)"></canvas>
+          </div>
           <div class="right-legend" id="rightLegend" aria-live="polite"></div>
         </div>
 
@@ -1144,24 +1575,45 @@
     /** Updates the target result display showing both value AND probability */
     function updateTargetDisplayText() {
       var s = window.S || S;
-      var valEl = document.getElementById('targetValDisplay');
+      var valEl  = document.getElementById('targetValDisplay');
       var probEl = document.getElementById('targetProbDisplay');
       if (!valEl || !probEl) return;
 
+      var valStr = '–', probStr = '–';
+
       if (s.target != null && Number.isFinite(s.target)) {
-        valEl.textContent = Number(s.target).toFixed(2);
-      } else {
-        valEl.textContent = '–';
+        valStr = Number(s.target).toFixed(2);
       }
+      valEl.textContent = valStr;
 
       // Look up probability from CDF
       var baseCdf = s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf;
       if (baseCdf && baseCdf.length && s.target != null) {
         var prob = interpY(baseCdf, s.target);
-        probEl.textContent = prob != null ? (prob * 100).toFixed(1) + '%' : '–';
+        probStr = prob != null ? (prob * 100).toFixed(1) + '%' : '–';
         s.targetProb = prob;
-      } else {
-        probEl.textContent = '–';
+      }
+      probEl.textContent = probStr;
+
+      // ── Keep the probability-mode sentence in sync ──────────────────────
+      var altProb = document.getElementById('tgtProbAlt');
+      var altVal  = document.getElementById('tgtValAlt');
+      if (altProb) altProb.textContent = probStr;
+      if (altVal)  altVal.textContent  = valStr;
+
+      // ── Units hint in the answer sentences ──────────────────────────────
+      var units = (window.TM && window.TM.settings && window.TM.settings.units) ? window.TM.settings.units : '';
+      var u1 = document.getElementById('tgtUnitsHint1');
+      var u2 = document.getElementById('tgtUnitsHint2');
+      if (u1) u1.textContent = units;
+      if (u2) u2.textContent = units;
+
+      // ── Slider context hint (tells user what they're controlling) ────────
+      var ctx = document.getElementById('tgtSliderContext');
+      if (ctx) {
+        ctx.textContent = (s.targetMode === 'probability')
+          ? 'controlling probability%'
+          : 'controlling target value' + (units ? ' (' + units + ')' : '');
       }
     }
 
@@ -1453,8 +1905,8 @@
               },
               zoom: {
                 limits: { x:{min: 'original', max:'original'}, y:{min: 'original', max:'original'} },
-                pan: { enabled: true, mode: 'xy' },
-                zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'xy' }
+                pan: { enabled: false, mode: 'xy' },
+                zoom: { wheel:{enabled:false}, pinch:{enabled:false}, mode:'xy' }
               }
             },
             elements: { point: { radius: 0 } },
@@ -1477,8 +1929,8 @@
               legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 12 }, filter: legendFilter } },
               zoom: {
                 limits: { x:{min: 'original', max:'original'}, y:{min: 0, max:1 } },
-                pan: { enabled: true, mode: 'xy' },
-                zoom: { wheel:{enabled:true}, pinch:{enabled:true}, mode:'xy' }
+                pan: { enabled: false, mode: 'xy' },
+                zoom: { wheel:{enabled:false}, pinch:{enabled:false}, mode:'xy' }
               }
             },
             elements: { point: { radius: 0 } },
@@ -1729,17 +2181,49 @@
         if (s.tab !== 'progress') return;
 
         var pct = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
-        var tgt = s.target != null ? Number(s.target).toFixed(1) : '?';
-        var triProb = s.triangleCdf && s.triangleCdf.length && s.target != null ? window.interpY(s.triangleCdf, s.target) : null;
+        // Use .toFixed(2) to match the target panel precision exactly
+        var tgt = s.target != null ? Number(s.target).toFixed(2) : '?';
+        var triProb  = s.triangleCdf && s.triangleCdf.length && s.target != null ? window.interpY(s.triangleCdf,  s.target) : null;
         var betaProb = s.betaPertCdf && s.betaPertCdf.length && s.target != null ? window.interpY(s.betaPertCdf, s.target) : null;
-        var baseProb = s.baselineProb;
+        // Use live CDF interpolation for baseline — matches what the target panel above uses
+        var baseProb = (s.baseCdf && s.baseCdf.length && s.target != null)
+          ? window.interpY(s.baseCdf, s.target)
+          : s.baselineProb;
+
+        // PERT vs Triangle means — explains WHY Beta-PERT gives different probability
+        var pertMean = s.O != null ? ((s.O + 4*s.M + s.P) / 6) : null;
+        var triMean  = s.O != null ? ((s.O + s.M + s.P) / 3)  : null;
 
         var stmt = '<strong>How your estimate is built</strong> \u2014 from 3-point inputs to probability';
         var parts = [];
-        parts.push('Your three-point estimate (O=' + (s.O||'?') + ', M=' + (s.M||'?') + ', P=' + (s.P||'?') + ') is transformed through three distributions to arrive at a final probability.');
-        if (triProb != null) parts.push('The <strong>Triangle</strong> distribution gives <strong>' + pct(triProb) + '</strong> at target ' + tgt + '.');
-        if (betaProb != null) parts.push('<strong>Beta-PERT</strong> refines this to <strong>' + pct(betaProb) + '</strong> by weighting the most likely value more heavily.');
-        if (baseProb != null) parts.push('Your final <strong>baseline</strong> (Monte Carlo smoothed) is <strong>' + pct(baseProb) + '</strong> \u2014 this is your starting probability before any optimization.');
+        parts.push(
+          'Your three-point estimate (O=' + (s.O||'?') + ', M=' + (s.M||'?') + ', P=' + (s.P||'?') + ') is modeled by three progressively more sophisticated distributions. ' +
+          'Each gives a <em>different</em> probability at target <strong>' + tgt + '</strong> because they make different assumptions about how uncertainty is shaped — this is expected and mathematically correct.'
+        );
+        if (triProb != null) {
+          parts.push(
+            'The <strong>Triangle</strong> distribution gives <strong>' + pct(triProb) + '</strong> at ' + tgt + ' — ' +
+            'the simplest model: a triangular shape with equal weight to all values between O and P, peaked at M ' +
+            (triMean != null ? '(mean = ' + triMean.toFixed(2) + ')' : '') + '.'
+          );
+        }
+        if (betaProb != null && pertMean != null && triMean != null) {
+          var cmp = betaProb > (triProb||0) ? 'higher' : 'lower';
+          parts.push(
+            '<strong>Beta-PERT</strong> gives <strong>' + pct(betaProb) + '</strong> — it weights Most Likely 4× more heavily than O and P, ' +
+            'shifting the mean from ' + triMean.toFixed(2) + ' (Triangle) to ' + pertMean.toFixed(2) + ' (PERT). ' +
+            'A ' + (pertMean < triMean ? 'lower' : 'higher') + ' mean shifts probability mass ' +
+            (pertMean < triMean ? 'left' : 'right') + ', giving a ' + cmp + ' cumulative probability at this target.'
+          );
+        }
+        if (baseProb != null) {
+          parts.push(
+            'Your <strong>baseline</strong> (Monte Carlo, 10k simulations) gives <strong>' + pct(baseProb) + '</strong> at ' + tgt + '. ' +
+            'This is the distribution the target panel above uses — it runs thousands of random draws from the Triangle distribution and smooths the result, ' +
+            'so small differences from the analytical Triangle probability (' + pct(triProb) + ') are normal sampling variation. ' +
+            'This baseline is your reference for optimization in Compare Strategies.'
+          );
+        }
 
         stmtEl.innerHTML = stmt;
         ctxEl.innerHTML = parts.join(' ');
@@ -2479,6 +2963,172 @@
       }
       window.scheduleUIRefresh = scheduleUIRefresh;
 
+      /* ── Plot Selector (How It's Built tab) ─────────────────────────────
+         Manages visibility of Triangle / PDF / CDF panes.
+         Max 2 panes side-by-side; 3 selected → first 2 side-by-side, third
+         wraps to a second row.                                              */
+      window.pselUpdate = function() {
+        var chkTri = document.getElementById('pselTriangle');
+        var chkPDF = document.getElementById('pselPDF');
+        var chkCDF = document.getElementById('pselCDF');
+        if (!chkTri || !chkPDF || !chkCDF) return;
+
+        var showTri = chkTri.checked;
+        var showPDF = chkPDF.checked;
+        var showCDF = chkCDF.checked;
+
+        // Sync the .checked CSS class on the labels for visual feedback
+        var lTri = document.getElementById('pselChkTriangle');
+        var lPDF = document.getElementById('pselChkPDF');
+        var lCDF = document.getElementById('pselChkCDF');
+        if (lTri) lTri.classList.toggle('checked', showTri);
+        if (lPDF) lPDF.classList.toggle('checked', showPDF);
+        if (lCDF) lCDF.classList.toggle('checked', showCDF);
+
+        // Enforce at least 1
+        var count = [showTri, showPDF, showCDF].filter(Boolean).length;
+        if (count === 0) {
+          if (chkPDF) { chkPDF.checked = true; showPDF = true; if (lPDF) lPDF.classList.add('checked'); }
+          count = 1;
+        }
+
+        var triWrap = document.getElementById('triWrap');
+        var pdfWrap = document.getElementById('pdfWrap');
+        var cdfWrap = document.getElementById('cdfWrap');
+        var inner   = document.getElementById('plotInner');
+
+        if (triWrap) triWrap.style.display = showTri ? 'flex' : 'none';
+        if (pdfWrap) pdfWrap.style.display = showPDF ? 'flex' : 'none';
+        if (cdfWrap) cdfWrap.style.display = showCDF ? 'flex' : 'none';
+
+        if (inner) {
+          if (count > 2) {
+            // 3 visible: wrap at 2 per row
+            inner.style.flexWrap = 'wrap';
+            inner.style.height   = 'auto';
+            [triWrap, pdfWrap, cdfWrap].forEach(function(el) {
+              if (el) { el.style.flex = '1 1 48%'; el.style.minWidth = '260px'; el.style.height = 'min(380px,46vh)'; }
+            });
+          } else {
+            inner.style.flexWrap = 'nowrap';
+            inner.style.height   = 'min(420px,50vh)';
+            [triWrap, pdfWrap, cdfWrap].forEach(function(el) {
+              if (el) { el.style.flex = '1 1 0'; el.style.minWidth = '0'; el.style.height = ''; }
+            });
+          }
+        }
+
+        if (showTri) window._drawTriPlot();
+
+        // Resize Chart.js after layout change
+        setTimeout(function() {
+          var s = window.S || {};
+          if (s.pdfChart && typeof s.pdfChart.resize === 'function') s.pdfChart.resize();
+          if (s.cdfChart && typeof s.cdfChart.resize === 'function') s.cdfChart.resize();
+        }, 60);
+      };
+
+      /* Draw the triangle distribution shape on #triPlotCanvas */
+      window._drawTriPlot = function() {
+        var canvas = document.getElementById('triPlotCanvas');
+        if (!canvas || !canvas.getContext) return;
+        var s = window.S || {};
+        var O = s.O, M = s.M, P = s.P;
+
+        var dpr = window.devicePixelRatio || 1;
+        var W = canvas.offsetWidth  || 320;
+        var H = canvas.offsetHeight || 200;
+        if (W < 10 || H < 10) return;
+        canvas.width  = W * dpr;
+        canvas.height = H * dpr;
+        var ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#F9FAFB';
+        ctx.fillRect(0, 0, W, H);
+
+        if (O == null || M == null || P == null || isNaN(O) || isNaN(M) || isNaN(P) || O >= P) {
+          ctx.fillStyle = '#9CA3AF';
+          ctx.font = '11px system-ui, sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('Select a task to see the triangle', W / 2, H / 2);
+          return;
+        }
+
+        var padL = 36, padR = 16, padT = 28, padB = 46;
+        var cW = W - padL - padR;
+        var cH = H - padT - padB;
+        function xv(v) { return padL + ((v - O) / (P - O)) * cW; }
+        var baseY = padT + cH;
+        var peakY = padT + 6;
+        var pert  = (O + 4 * M + P) / 6;
+
+        // Grid lines (faint)
+        ctx.strokeStyle = '#E5E7EB'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, baseY); ctx.lineTo(W - padR, baseY); ctx.stroke();
+
+        // Triangle fill (blue-tinted)
+        ctx.beginPath();
+        ctx.moveTo(xv(O), baseY); ctx.lineTo(xv(M), peakY); ctx.lineTo(xv(P), baseY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(59,130,246,0.13)'; ctx.fill();
+
+        // Triangle stroke
+        ctx.beginPath();
+        ctx.moveTo(xv(O), baseY); ctx.lineTo(xv(M), peakY); ctx.lineTo(xv(P), baseY);
+        ctx.closePath();
+        ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 2.5; ctx.stroke();
+
+        // Most Likely dashed vertical
+        ctx.beginPath(); ctx.moveTo(xv(M), peakY); ctx.lineTo(xv(M), baseY);
+        ctx.strokeStyle = 'rgba(59,130,246,0.4)'; ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+
+        // PERT mean line (amber)
+        if (pert >= O && pert <= P) {
+          var triHAtPert = (pert <= M)
+            ? (pert - O) / (M - O) * (baseY - peakY)
+            : (P - pert) / (P - M) * (baseY - peakY);
+          var pertTopY = baseY - triHAtPert;
+          ctx.beginPath(); ctx.moveTo(xv(pert), baseY); ctx.lineTo(xv(pert), pertTopY);
+          ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 1.8;
+          ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+        }
+
+        // Dots at O, M, P
+        [[O, '#3B82F6', baseY], [M, '#3B82F6', peakY], [P, '#3B82F6', baseY]].forEach(function(pt) {
+          ctx.beginPath(); ctx.arc(xv(pt[0]), pt[2], 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = pt[1]; ctx.fill();
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+        });
+
+        // Value labels
+        ctx.font = 'bold 10px system-ui, sans-serif'; ctx.textBaseline = 'top'; ctx.fillStyle = '#374151';
+        ctx.textAlign = 'left';   ctx.fillText(Number(O).toFixed(1), xv(O),      baseY + 5);
+        ctx.textAlign = 'center'; ctx.fillText(Number(M).toFixed(1), xv(M),      baseY + 5);
+        ctx.textAlign = 'right';  ctx.fillText(Number(P).toFixed(1), xv(P),      baseY + 5);
+
+        // Name labels (below values)
+        ctx.font = '9px system-ui, sans-serif'; ctx.fillStyle = '#6B7280';
+        ctx.textAlign = 'left';   ctx.fillText('Best',       xv(O), baseY + 18);
+        ctx.textAlign = 'center'; ctx.fillText('Mode',       xv(M), baseY + 18);
+        ctx.textAlign = 'right';  ctx.fillText('Worst',      xv(P), baseY + 18);
+
+        // PERT label (amber, above peak)
+        if (pert >= O && pert <= P) {
+          ctx.font = '10px system-ui, sans-serif'; ctx.fillStyle = '#B45309';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText('PERT \u03BC=' + Number(pert).toFixed(1), xv(pert), peakY - 2);
+        }
+
+        // Title chip
+        var units = (window.TM && window.TM.settings && window.TM.settings.units) ? window.TM.settings.units : '';
+        var titleStr = 'O ' + Number(O).toFixed(1) + '  \u00B7  M ' + Number(M).toFixed(1) + '  \u00B7  P ' + Number(P).toFixed(1) + (units ? '  ' + units : '');
+        ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillStyle = '#1E3A5F';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(titleStr, W / 2, 4);
+      };
+
       function ensureProbeBox(){
         if (typeof window.initProbeUI === 'function') window.initProbeUI();
         if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
@@ -2997,8 +3647,25 @@
         }
 
         google.script.run
-          .withSuccessHandler(function(list){
-            s.tasks = Array.isArray(list) ? list : [];
+          .withSuccessHandler(function(res){
+            // Handle both old array format and new {tasks, sheetTabs} format
+            var taskList, tabList;
+            if (Array.isArray(res)) {
+              taskList = res;
+              tabList  = [];
+            } else if (res && Array.isArray(res.tasks)) {
+              taskList = res.tasks;
+              tabList  = res.sheetTabs || [];
+            } else {
+              taskList = [];
+              tabList  = [];
+            }
+            s.tasks = taskList;
+
+            // Cache sheet tabs for use by Task Manager import
+            if (!window._PMC_SERVER_DATA) window._PMC_SERVER_DATA = {};
+            if (tabList.length) window._PMC_SERVER_DATA.sheetTabs = tabList;
+
             var sel = document.getElementById('taskSel');
             if (!sel) { setStatusLocal('UI init failed: taskSel not found'); return; }
 
@@ -3038,6 +3705,8 @@
 
         s.task = t;
         s.O = t.optimistic; s.M = t.mostLikely; s.P = t.pessimistic;
+        // Refresh triangle plot if visible
+        if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
         // Clear ALL stale data from previous task
         s.explainBase = null; s.explainOpt = null; s.explainAdaptive = null; s.explainAdj = null;
         s.baselineProb = null; s.optimizedProb = null; s.adaptiveProb = null; s.adjustedProb = null;
@@ -3138,7 +3807,19 @@
         var slider = document.getElementById('targetSlider');
         if (!slider) return;
 
-        // Update segmented control visual state
+        // Toggle question card visual state
+        var cardVal  = document.getElementById('tgtCardValue');
+        var cardProb = document.getElementById('tgtCardProb');
+        if (cardVal)  cardVal.classList.toggle('active',  newMode === 'value');
+        if (cardProb) cardProb.classList.toggle('active', newMode === 'probability');
+
+        // Toggle answer sentence visibility
+        var sentVal  = document.getElementById('tgtSentValue');
+        var sentProb = document.getElementById('tgtSentProb');
+        if (sentVal)  sentVal.classList.toggle('active',  newMode === 'value');
+        if (sentProb) sentProb.classList.toggle('active', newMode === 'probability');
+
+        // Also toggle legacy .target-mode-btn.active for any remaining elements
         var btns = document.querySelectorAll('.target-mode-btn');
         for (var i = 0; i < btns.length; i++) {
           btns[i].classList.toggle('active', btns[i].getAttribute('data-mode') === newMode);
@@ -3212,20 +3893,20 @@
           var same = Math.abs(delta) < 0.005;
 
           bannerEl.style.display = 'block';
+          // Single-line banner to save vertical space
           if (improved) {
             bannerEl.style.background = '#F0FDF4'; bannerEl.style.borderColor = '#86EFAC'; bannerEl.style.color = '#166534';
-            bannerEl.innerHTML = '<strong>' + mode + ' improves probability:</strong><br>' +
-              'Baseline <strong>' + basePct + '%</strong> → ' + mode + ' <strong>' + newPct + '%</strong> ' +
-              '<span style="color:#15803D; font-weight:600;">(' + deltaStr + '%)</span>';
+            bannerEl.innerHTML = '<strong>' + mode + ':</strong> ' +
+              basePct + '% → <strong>' + newPct + '%</strong> ' +
+              '<span style="color:#15803D; font-weight:700;">(' + deltaStr + '%)</span>';
           } else if (same) {
             bannerEl.style.background = '#FFFBEB'; bannerEl.style.borderColor = '#FDE68A'; bannerEl.style.color = '#92400E';
-            bannerEl.innerHTML = '<strong>No change:</strong> Baseline and ' + mode + ' both at <strong>' + basePct + '%</strong>. ' +
-              'For symmetric distributions near the mode, optimization has limited room to improve.';
+            bannerEl.innerHTML = '<strong>No change:</strong> both at <strong>' + basePct + '%</strong>.';
           } else {
             bannerEl.style.background = '#FEF2F2'; bannerEl.style.borderColor = '#FECACA'; bannerEl.style.color = '#991B1B';
-            bannerEl.innerHTML = '<strong>' + mode + ' probability shift:</strong><br>' +
-              'Baseline <strong>' + basePct + '%</strong> → ' + mode + ' <strong>' + newPct + '%</strong> ' +
-              '<span style="color:#DC2626; font-weight:600;">(' + deltaStr + '%)</span>';
+            bannerEl.innerHTML = '<strong>' + mode + ':</strong> ' +
+              basePct + '% → <strong>' + newPct + '%</strong> ' +
+              '<span style="color:#DC2626; font-weight:700;">(' + deltaStr + '%)</span>';
           }
         }
 
@@ -3244,22 +3925,22 @@
 
         if (mode === 'manual') {
           setSlidersDisabled(false);
-          if (titleEl) titleEl.textContent = 'Explorer (Unconstrained)';
-          if (noteEl) noteEl.innerHTML = 'Drag sliders or type values freely — <strong>no constraints applied</strong>. Full control to explore how project parameters change the probability. Unlike Guided/Optimized, these values are not bound by best-practice ranges.';
+          if (titleEl) titleEl.textContent = 'Explorer';
+          if (noteEl) noteEl.textContent = 'No constraints — drag freely to explore any parameter combination.';
           showImpactBanner('Explorer', s.baselineProb, s.adjustedProb);
         } else if (mode === 'adaptive') {
           setSlidersDisabled(true);
           var lvl = s.overlay.probeLevel || 3;
-          if (titleEl) titleEl.textContent = 'Guided (Level ' + lvl + ', Best-Practice Constrained)';
-          if (noteEl) noteEl.innerHTML = 'System-guided optimization at level ' + lvl + ', computed within the <strong>tightest best-practice boundaries</strong>. Change level to explore different constraint intensities.';
+          if (titleEl) titleEl.textContent = 'Guided (Level ' + lvl + ')';
+          if (noteEl) noteEl.textContent = 'Read-only — tightest best-practice constraints (level ' + lvl + ').';
           showImpactBanner('Guided', s.baselineProb, s.adaptiveProb);
           var source = s.explainAdaptive;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
         } else if (mode === 'fixed') {
           setSlidersDisabled(true);
-          if (titleEl) titleEl.textContent = 'Optimized (Best-Practice Constrained)';
-          if (noteEl) noteEl.innerHTML = 'System-optimized values that maximize target probability within <strong>standard best-practice boundaries</strong>. Wider range than Guided, yielding higher probability. Switch to Explorer for full manual control.';
+          if (titleEl) titleEl.textContent = 'Optimized';
+          if (noteEl) noteEl.textContent = 'Read-only — standard best-practice boundaries, wider range than Guided.';
           showImpactBanner('Optimized', s.baselineProb, s.optimizedProb);
           var source = s.explainOpt;
           var vals = extractSliderVals(source || {});
@@ -3298,6 +3979,13 @@
               for (var k=0;k<all.length;k++) all[k].classList.remove('active');
               tab.classList.add('active');
               s.tab = tab.getAttribute('data-tab');
+
+              // Show/hide plot selector bar (progress tab only)
+              var _psb = document.getElementById('plotSelBar');
+              if (_psb) _psb.classList.toggle('visible', s.tab === 'progress');
+              // Show/hide pane headers (hidden in overlay tab to save space)
+              var _ph = document.querySelectorAll('.plot-pane-hdr');
+              for (var _pi = 0; _pi < _ph.length; _pi++) _ph[_pi].style.display = (s.tab === 'progress') ? '' : 'none';
 
               // Phase 2: Debounce all expensive work — rapid clicks only run the last one
               if (window._tabSwitchTimer) clearTimeout(window._tabSwitchTimer);
@@ -3354,6 +4042,12 @@
         });
 
         syncRowToggles();
+
+        // Initialize plot selector bar — show on page load (progress tab is default)
+        var _psbInit = document.getElementById('plotSelBar');
+        if (_psbInit) _psbInit.classList.toggle('visible', s.tab === 'progress');
+        // Initial pselUpdate to apply default state (PDF + CDF checked)
+        if (typeof window.pselUpdate === 'function') window.pselUpdate();
       }
 
       function bindKpiToggles() {
@@ -3497,14 +4191,42 @@
       }
 
       function bindZoomReset(){
-        var btn = document.getElementById('resetZoomBtn');
-        if (!btn) return;
-        btn.addEventListener('click', function(){
-          var s = WS();
-          if (s?.pdfChart?.resetZoom) s.pdfChart.resetZoom();
-          if (s?.cdfChart?.resetZoom) s.cdfChart.resetZoom();
-        });
+        var resetBtn = document.getElementById('resetZoomBtn');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', function(){
+            var s = WS();
+            if (s?.pdfChart?.resetZoom) s.pdfChart.resetZoom();
+            if (s?.cdfChart?.resetZoom) s.cdfChart.resetZoom();
+          });
+        }
       }
+
+      window.toggleChartZoom = function() {
+        var s = WS();
+        var enabled = !(s._zoomEnabled || false);
+        s._zoomEnabled = enabled;
+
+        function setZoom(chart) {
+          if (!chart || !chart.options || !chart.options.plugins || !chart.options.plugins.zoom) return;
+          chart.options.plugins.zoom.pan.enabled  = enabled;
+          chart.options.plugins.zoom.zoom.wheel.enabled = enabled;
+          chart.options.plugins.zoom.zoom.pinch.enabled = enabled;
+          if (!enabled && chart.resetZoom) chart.resetZoom();
+          chart.update('none');
+        }
+        setZoom(s.pdfChart);
+        setZoom(s.cdfChart);
+
+        var toggleBtn = document.getElementById('zoomToggleBtn');
+        var resetBtn  = document.getElementById('resetZoomBtn');
+        if (toggleBtn) {
+          toggleBtn.textContent = enabled ? 'Disable Zoom' : 'Enable Zoom';
+          toggleBtn.style.borderColor = enabled ? '#3B82F6' : 'var(--line)';
+          toggleBtn.style.color       = enabled ? '#1D4ED8' : '#6B7280';
+          toggleBtn.style.background  = enabled ? '#EFF6FF' : '#fff';
+        }
+        if (resetBtn) resetBtn.style.display = enabled ? '' : 'none';
+      };
 
       window.addEventListener('DOMContentLoaded', function(){
         // Boot log — visible diagnostic for debugging
@@ -4611,21 +5333,42 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       return { r: 0.90, g: 0.95, b: 0.92 }; // near-white pale-teal at zero
     }
 
-    // Render text to canvas → THREE.Sprite.
+    // Render text to canvas → THREE.Sprite (2× pixel density for crisp labels).
     function makeTextSprite(text, opts) {
       opts = opts || {};
-      var W = opts.w || 192, H = opts.h || 52;
+      var W0 = opts.w || 192, H0 = opts.h || 52;
+      var dpr = 2; // render at 2× resolution, scale back to original size
+      var W = W0 * dpr, H = H0 * dpr;
       var canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       var ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = opts.color || 'rgba(255,176,64,0.95)';
-      ctx.font = (opts.bold ? 'bold ' : '') + (opts.size || 24) + 'px ui-monospace,-apple-system,sans-serif';
+      // Pill background for readability
+      var bgCol = opts.bgColor !== undefined ? opts.bgColor : 'rgba(15,20,35,0.72)';
+      if (bgCol) {
+        ctx.fillStyle = bgCol;
+        var rx = 10 * dpr, pad = 6 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(rx, pad);
+        ctx.lineTo(W - rx, pad);
+        ctx.quadraticCurveTo(W - pad, pad, W - pad, rx);
+        ctx.lineTo(W - pad, H - rx);
+        ctx.quadraticCurveTo(W - pad, H - pad, W - rx, H - pad);
+        ctx.lineTo(rx, H - pad);
+        ctx.quadraticCurveTo(pad, H - pad, pad, H - rx);
+        ctx.lineTo(pad, rx);
+        ctx.quadraticCurveTo(pad, pad, rx, pad);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = opts.color || 'rgba(255,176,64,0.97)';
+      ctx.font = (opts.bold ? 'bold ' : '') + (opts.size || 24) * dpr + 'px ui-monospace,-apple-system,sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, W/2, H/2);
+      ctx.fillText(text, W / 2, H / 2);
       var tex = new THREE.CanvasTexture(canvas);
       var sp  = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-      sp.scale.set(opts.sx || W/38, opts.sy || H/38, 1);
+      // Scale uses original dimensions so visual size is unchanged (2× canvas → same screen size, 2× sharpness)
+      sp.scale.set(opts.sx || W0 / 38, opts.sy || H0 / 38, 1);
       return sp;
     }
 
@@ -4838,10 +5581,10 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         var el = document.createElement('div');
         el.id = d.id;
         el.style.cssText = [
-          'display:none;position:absolute;padding:3px 8px;border-radius:6px;',
-          'font-size:10px;font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap;',
-          'background:' + d.bg + ';color:' + d.col + ';border:1px solid ' + d.brd + ';',
-          'box-shadow:0 1px 6px rgba(0,0,0,0.14);backdrop-filter:blur(4px);'
+          'display:none;position:absolute;padding:4px 10px;border-radius:7px;',
+          'font-size:11px;font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap;',
+          'background:' + d.bg + ';color:' + d.col + ';border:1.5px solid ' + d.brd + ';',
+          'box-shadow:0 2px 8px rgba(0,0,0,0.18);backdrop-filter:blur(6px);line-height:1.4;'
         ].join('');
         ann.appendChild(el);
       });
@@ -4884,9 +5627,15 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       if (svgEl) {
         svgEl.setAttribute('width', w); svgEl.setAttribute('height', h);
         var tx = tauSx.toFixed(1);
+        var units = (S.units || '');
+        var tauLabel = 'τ = ' + (tau != null ? Number(tau).toFixed(1) : '–') + (units ? '\u202f' + units : '');
         svgEl.innerHTML =
           '<line x1="' + tx + '" y1="0" x2="' + tx + '" y2="' + h + '" ' +
-          'stroke="rgba(245,158,11,0.40)" stroke-width="1" stroke-dasharray="4,4"/>';
+          'stroke="rgba(245,158,11,0.55)" stroke-width="1.5" stroke-dasharray="5,4"/>' +
+          '<rect x="' + (parseFloat(tx) + 4) + '" y="4" width="' + (tauLabel.length * 6.5 + 12) + '" height="18" rx="4" ' +
+          'fill="rgba(254,243,199,0.92)" stroke="rgba(245,158,11,0.60)" stroke-width="1"/>' +
+          '<text x="' + (parseFloat(tx) + 10) + '" y="17" ' +
+          'font-family="ui-monospace,monospace" font-size="10" font-weight="700" fill="#92400e">' + tauLabel + '</text>';
       }
 
       // Place annotation cards right of τ (or left if τ is past 60% width)
@@ -4899,24 +5648,26 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         { def: _ANN_DEFS[3], label: 'Explorer',   prob: S.adjustedProb,  show: ov.manualOn     }
       ];
 
-      var topY = Math.max(6, Math.min(tauSy - 52, h - 108));
-      var gap = 10;
+      var topY = Math.max(8, Math.min(tauSy - 60, h - 130));
+      var gap = 12;
       stratDefs.forEach(function(sd) {
         var el = document.getElementById(sd.def.id);
         if (!el) return;
         if (!sd.show || sd.prob == null || !isFinite(sd.prob)) { el.style.display = 'none'; return; }
-        var pPct = (sd.prob * 100).toFixed(1) + '%';
-        var txt = sd.label + ':  P = ' + pPct;
+        var pPct = (sd.prob * 100).toFixed(2) + '%';
+        var line1 = sd.label;
+        var line2 = 'P = ' + pPct;
         if (sd.def.id !== 'saco-ann-base' && P0 != null && isFinite(P0)) {
           var dp = (sd.prob - P0) * 100;
-          txt += '   ΔP ' + (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%';
+          line2 += '   ΔP ' + (dp >= 0 ? '+' : '') + dp.toFixed(2) + '%';
         }
-        el.textContent = txt;
+        el.innerHTML = '<span style="font-size:9px;letter-spacing:.05em;opacity:0.75;display:block;">' + line1 + '</span>' +
+                       '<span style="display:block;">' + line2 + '</span>';
         el.style.top = topY + 'px';
         el.style.display = 'block';
         if (placeRight) { el.style.left = (tauSx + gap) + 'px'; el.style.right = ''; }
         else            { el.style.left = ''; el.style.right = (w - tauSx + gap) + 'px'; }
-        topY += 26;
+        topY += 32;
       });
     }
 
@@ -4987,35 +5738,35 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       var _sGc = ((_sHex >>  8) & 0xff) / 255;
       var _sBc = ( _sHex        & 0xff) / 255;
 
-      // ── Baseline reference mesh (lightest — background anchor) ───────────
+      // ── Baseline reference mesh (very light — recedes behind strategy) ────
       _baseGroup = buildRibbonGroup(
         basePdfN, xScale, xMid, yScale, 0, D,
-        function() { return { r: 0.60, g: 0.72, b: 0.88 }; },
-        { uniformColor: 0x8aaece, opacity: 0.28, roughness: 0.55, metalness: 0.0,
-          clearcoat: 0.10, ccRough: 0.40, edgeColor: 0x4470a8, edgeOpacity: 0.55 }
+        function() { return { r: 0.70, g: 0.80, b: 0.92 }; },
+        { uniformColor: 0xa8c4dc, opacity: 0.16, roughness: 0.60, metalness: 0.0,
+          clearcoat: 0.05, ccRough: 0.50, edgeColor: 0x6090b8, edgeOpacity: 0.45 }
       );
       _scene.add(_baseGroup);
 
-      // ── Primary strategy mesh: flat brand color, overlaid on baseline ─────
+      // ── Primary strategy mesh: flat brand color, translucent ─────────────
       if (curPdfN) {
         _curGroup = buildRibbonGroup(
           curPdfN, xScale, xMid, yScale, 0, D,
           function() { return { r: _sRc, g: _sGc, b: _sBc }; },
-          { opacity: 0.50, roughness: 0.35, metalness: 0.05,
-            clearcoat: 0.40, ccRough: 0.22, edgeColor: _sHex, edgeOpacity: 0.72 }
+          { opacity: 0.38, roughness: 0.35, metalness: 0.05,
+            clearcoat: 0.40, ccRough: 0.22, edgeColor: _sHex, edgeOpacity: 0.80 }
         );
         _scene.add(_curGroup);
       }
 
-      // ── Non-primary strategy meshes: flat brand color, lightest overlay ───
+      // ── Non-primary strategy meshes: same brand color, lighter overlay ────
       if (nonPrimStrats && nonPrimStrats.length > 0) {
         nonPrimStrats.forEach(function(os) {
           var hr = (os.hex >> 16) & 0xff, hg = (os.hex >> 8) & 0xff, hb = os.hex & 0xff;
           var osGrp = buildRibbonGroup(
             os.pdfN, xScale, xMid, yScale, 0, D,
             function() { return { r: hr / 255, g: hg / 255, b: hb / 255 }; },
-            { opacity: 0.34, roughness: 0.45, metalness: 0.0,
-              clearcoat: 0.10, ccRough: 0.35, edgeColor: os.hex, edgeOpacity: 0.58 }
+            { opacity: 0.22, roughness: 0.48, metalness: 0.0,
+              clearcoat: 0.08, ccRough: 0.40, edgeColor: os.hex, edgeOpacity: 0.55 }
           );
           _scene.add(osGrp);
           _otherGroups.push(osGrp);
@@ -5054,7 +5805,9 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
           new THREE.LineBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.55 })));
 
         // "τ" label sprite
-        var sp = makeTextSprite('τ target', { color:'rgba(255,176,64,0.95)', bold:true, size:20, w:180, h:48, sx:2.0, sy:0.50 });
+        var tauUnits = (S.units || '');
+        var tauLblTxt = '\u03c4 = ' + Number(tau).toFixed(1) + (tauUnits ? ' ' + tauUnits : '');
+        var sp = makeTextSprite(tauLblTxt, { color:'rgba(255,200,80,0.98)', bold:true, size:18, w:200, h:48, sx:2.2, sy:0.52, bgColor:'rgba(30,20,5,0.78)' });
         sp.position.set(xTau, panH * 0.98, D / 2);
         _tauGroup.add(sp);
 
@@ -5087,9 +5840,10 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 
           // ΔP label on the band
           var dpSp = makeTextSprite(
-            (dP > 0 ? '+' : '') + (dP*100).toFixed(1) + '%',
-            { color: dP > 0 ? 'rgba(56,224,128,0.96)' : 'rgba(255,68,102,0.96)',
-              bold: true, size: 19, w: 176, h: 46, sx: 1.7, sy: 0.44 });
+            '\u0394P ' + (dP > 0 ? '+' : '') + (dP*100).toFixed(2) + '%',
+            { color: dP > 0 ? 'rgba(56,224,128,0.98)' : 'rgba(255,80,110,0.98)',
+              bold: true, size: 18, w: 192, h: 48, sx: 1.9, sy: 0.48,
+              bgColor: dP > 0 ? 'rgba(5,30,15,0.78)' : 'rgba(30,5,10,0.78)' });
           dpSp.position.set(xTau + 0.40, (yLo + yHi) / 2, D / 2);
           _tauGroup.add(dpSp);
         }
@@ -5121,10 +5875,11 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
           // Text label
           if (label) {
             var sp2 = makeTextSprite(label, {
-              color: hexColToRgba(hexCol, 0.96), bold: true,
-              size: 16, w: 150, h: 40, sx: 1.5, sy: 0.42
+              color: hexColToRgba(hexCol, 0.98), bold: true,
+              size: 15, w: 160, h: 42, sx: 1.6, sy: 0.44,
+              bgColor: 'rgba(10,12,20,0.75)'
             });
-            sp2.position.set(x + offsetX, yTop + 0.32, zPos);
+            sp2.position.set(x + offsetX, yTop + 0.34, zPos);
             _tauGroup.add(sp2);
           }
         }
@@ -5181,9 +5936,10 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
           // Label offset to the side of the τ-plane
           if (labelTxt) {
             var lSp = makeTextSprite(labelTxt, {
-              color: hexColToRgba(col, 0.96), bold: true, size: 14, w: 148, h: 36
+              color: hexColToRgba(col, 0.98), bold: true, size: 13, w: 156, h: 38,
+              bgColor: 'rgba(10,12,20,0.75)'
             });
-            lSp.position.set(xTau + xSide, yPl + 0.09, zPos);
+            lSp.position.set(xTau + xSide, yPl + 0.11, zPos);
             _tauGroup.add(lSp);
           }
         }
@@ -5448,6 +6204,15 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
     var EASE_S = 0.09;
     // Waterline rings follow fill heights — no separate state needed
     var _sRings = [];              // THREE.LineLoop objects [Guided=0, Optimized=1, Explorer=2]
+    var _sAnnDiv = null;           // annotation overlay div
+
+    // Annotation style defs: baseline + 3 strategies
+    var _sAnnDefs = [
+      { id: 'sph-ann-base',  col: '#374151', bg: 'rgba(241,245,249,0.96)', brd: 'rgba(148,163,184,0.65)' },
+      { id: 'sph-ann-g',     col: '#5b21b6', bg: 'rgba(139,92,246,0.13)',  brd: 'rgba(139,92,246,0.65)' },
+      { id: 'sph-ann-o',     col: '#1e40af', bg: 'rgba(59,130,246,0.13)',  brd: 'rgba(59,130,246,0.65)' },
+      { id: 'sph-ann-e',     col: '#065f46', bg: 'rgba(16,185,129,0.13)',  brd: 'rgba(16,185,129,0.65)' }
+    ];
 
     // ── Math: spherical cap h → clip-plane y (sphere centered at origin) ────
     // h ∈ [0, 2R];  y = h - R  maps [0,2R] → [-R, R]
@@ -5468,6 +6233,118 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         if (Vm < Vg) lo = m; else hi = m;
       }
       return (lo + hi) / 2;
+    }
+
+    // ── Sphere annotation overlay ────────────────────────────────────────────
+    function _initSphereAnnotations(container) {
+      var ex = container.querySelector('.sph-ann-ov'); if (ex) ex.remove();
+      var div = document.createElement('div');
+      div.className = 'sph-ann-ov';
+      div.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:hidden;';
+      // τ target chip — fixed top-right
+      var tauEl = document.createElement('div');
+      tauEl.id = 'sph-tau-label';
+      tauEl.style.cssText = [
+        'display:none;position:absolute;top:8px;right:8px;padding:3px 9px;border-radius:6px;',
+        'font-size:10px;font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap;',
+        'background:rgba(255,251,235,0.96);color:#92400e;border:1px solid rgba(245,158,11,0.55);',
+        'box-shadow:0 1px 5px rgba(0,0,0,0.12);backdrop-filter:blur(4px);'
+      ].join('');
+      div.appendChild(tauEl);
+      // Per-strategy label chips
+      _sAnnDefs.forEach(function(d) {
+        var el = document.createElement('div');
+        el.id = d.id;
+        el.style.cssText = [
+          'display:none;position:absolute;padding:3px 9px;border-radius:6px;',
+          'font-size:10px;font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap;',
+          'background:' + d.bg + ';color:' + d.col + ';border:1px solid ' + d.brd + ';',
+          'box-shadow:0 1px 6px rgba(0,0,0,0.13);backdrop-filter:blur(4px);'
+        ].join('');
+        div.appendChild(el);
+      });
+      container.style.position = 'relative';
+      container.appendChild(div);
+      _sAnnDiv = div;
+    }
+
+    function _updateSphereAnnotations() {
+      if (!_sCam || !_sRen || !_sAnnDiv) return;
+      var S = window.S; if (!S) return;
+      var container = document.getElementById('sphereContainer');
+      if (!container) return;
+      var sw = container.clientWidth  || 360;
+      var sh = container.clientHeight || 360;
+      var ov = S.overlay || {};
+      var P0 = S.baselineProb;
+
+      // τ target label
+      var tauEl = document.getElementById('sph-tau-label');
+      if (tauEl) {
+        var tau = (S.target != null) ? Number(S.target) : null;
+        var units = (S.units || '');
+        if (tau != null && isFinite(tau)) {
+          tauEl.textContent = 'τ = ' + tau.toFixed(1) + (units ? '\u202f' + units : '');
+          tauEl.style.display = 'block';
+        } else {
+          tauEl.style.display = 'none';
+        }
+      }
+
+      // Per-strategy annotations: project waterline to 2D screen coords
+      var stratDefs = [
+        { id: 'sph-ann-base', label: 'Baseline',  prob: P0,             active: true,         fillIdx: -1 },
+        { id: 'sph-ann-g',    label: 'Guided',     prob: S.adaptiveProb, active: !!ov.adaptiveOn, fillIdx: 0 },
+        { id: 'sph-ann-o',    label: 'Optimized',  prob: S.optimizedProb,active: !!ov.fixedOn,    fillIdx: 1 },
+        { id: 'sph-ann-e',    label: 'Explorer',   prob: S.adjustedProb, active: !!ov.manualOn,   fillIdx: 2 }
+      ];
+
+      var anyStrat = ov.adaptiveOn || ov.fixedOn || ov.manualOn;
+      var usedY = []; // track used screen-y positions to prevent overlap
+
+      stratDefs.forEach(function(sd) {
+        var el = document.getElementById(sd.id);
+        if (!el) return;
+        // Hide baseline chip when no strategies active (stats already visible below)
+        if (!sd.active || sd.prob == null || !isFinite(sd.prob) ||
+            (sd.fillIdx === -1 && !anyStrat)) {
+          el.style.display = 'none'; return;
+        }
+
+        // Get current animated fill height
+        var fillH = sd.fillIdx === -1 ? _sCurH0 : _sFillCurH[sd.fillIdx];
+        var ringY = hToY(fillH); // y in scene units: -sR (bottom) … +sR (top)
+
+        // Project a front-facing point on the ring to 2D
+        // Using slightly front+right of sphere for stable label placement
+        var pt3 = new THREE.Vector3(_sR * 0.72, ringY, _sR * 0.70);
+        pt3.project(_sCam);
+        var sx = (pt3.x + 1) / 2 * sw;
+        var sy = (-pt3.y + 1) / 2 * sh;
+
+        // Clamp to visible area
+        sx = Math.max(4, Math.min(sw - 150, sx));
+        sy = Math.max(4, Math.min(sh - 24, sy));
+
+        // Nudge to avoid overlap with labels at similar y
+        for (var ui = 0; ui < usedY.length; ui++) {
+          if (Math.abs(sy - usedY[ui]) < 24) sy = usedY[ui] + 25;
+        }
+        usedY.push(sy);
+
+        // Build label text
+        var pPct = (sd.prob * 100).toFixed(1) + '%';
+        var txt = sd.label + '\u2009P=' + pPct;
+        if (sd.fillIdx >= 0 && P0 != null && isFinite(P0)) {
+          var dp = (sd.prob - P0) * 100;
+          txt += '\u2002ΔP ' + (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%';
+        }
+
+        el.textContent = txt;
+        el.style.display = 'block';
+        el.style.left = sx + 'px';
+        el.style.top  = (sy - 10) + 'px';
+      });
     }
 
     // ── Three.js scene init ──────────────────────────────────────────────────
@@ -5601,6 +6478,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         _sCtl.update();
       }
 
+      _initSphereAnnotations(container);
       _sInited = true;
       _startSphereLoop();
     }
@@ -5629,6 +6507,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         }
         if (_sCtl) _sCtl.update();
         if (_sRen && _sScn && _sCam) _sRen.render(_sScn, _sCam);
+        _updateSphereAnnotations();
       }
       loop();
     }
@@ -5720,6 +6599,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
     window.PMCSphere = { render: render };
 
     document.addEventListener('DOMContentLoaded', function() {
+
       function isOverlayActive() {
         var t = document.querySelector('.tab[data-tab="overlay"]');
         return !!(t && t.classList.contains('active'));
@@ -5739,5 +6619,1646 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
     });
   })();
   </script>
+
+<!-- ================================================================
+     TASK MANAGER MODALS
+================================================================ -->
+
+<!-- ── First-Run Setup Modal ── -->
+<div class="tm-modal-backdrop" id="tmFirstRunBackdrop">
+  <div class="tm-modal" id="tmFirstRunModal">
+    <h2>&#128197; Set Up Task Manager</h2>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">
+      PMC Task Manager needs a dedicated sheet tab to store your tasks. How would you like to get started?
+    </p>
+    <div class="choice-cards">
+      <div class="choice-card selected" id="frChoiceCreate" onclick="TM._frSelect('create')">
+        <div class="ch-icon">&#10133;</div>
+        <div class="ch-title">Create New Tab</div>
+        <div class="ch-desc">A new "PMC Tasks" tab will be created in this spreadsheet.</div>
+      </div>
+      <div class="choice-card" id="frChoiceImport" onclick="TM._frSelect('import')">
+        <div class="ch-icon">&#128194;</div>
+        <div class="ch-title">Import Existing Tab</div>
+        <div class="ch-desc">Map columns from an existing sheet tab to import your data.</div>
+      </div>
+    </div>
+
+    <!-- Create tab sub-section -->
+    <div id="frCreateSection">
+      <div class="tm-field">
+        <label>Tab name</label>
+        <input type="text" id="frTabName" value="PMC Tasks" maxlength="50" />
+        <span class="tm-hint">You can rename it later in Settings.</span>
+      </div>
+    </div>
+
+    <!-- Import existing tab sub-section (hidden initially) -->
+    <div id="frImportSection" style="display:none;">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Select the sheet tab that contains your task data:</p>
+      <div id="tmTabList"></div>
+      <div id="frImportStatus" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-primary" id="frProceedBtn" onclick="TM._frProceed()">Continue</button>
+    </div>
+    <div class="tm-loading-overlay" id="frLoading">
+      <div class="tm-loading-spinner"></div>
+      <div class="tm-loading-msg" id="frLoadingMsg">Setting up…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Task Manager Panel Modal ── -->
+<div class="tm-modal-backdrop" id="tmManagerBackdrop" onclick="TM._backdropClose(event,'tmManagerBackdrop')">
+  <div class="tm-modal wide" id="tmManagerModal">
+    <button class="tm-modal-close" onclick="TM.closeManager()" title="Close">&times;</button>
+    <h2>&#9998; Task Manager</h2>
+
+    <!-- Manager toolbar -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <button class="tm-btn-primary" style="font-size:12px;padding:5px 12px;" onclick="TM.openTaskForm(null)">+ Add Task</button>
+      <button class="tm-btn-secondary" style="font-size:12px;padding:5px 12px;" onclick="TM.openCSVImport()">Import CSV</button>
+      <button class="tm-btn-secondary" style="font-size:12px;padding:5px 12px;" onclick="TM.openSheetImport()">From Sheet Tab</button>
+      <span id="mgrDirtyNote" style="display:none;font-size:11px;color:#92400E;background:#FEF9C3;border:1px solid #FDE68A;border-radius:5px;padding:2px 8px;font-weight:700;margin-left:auto;">&#9679; Unsaved changes</span>
+    </div>
+
+    <!-- Task list -->
+    <div class="tm-task-list" id="tmTaskListContainer">
+      <div class="tm-empty-state">
+        <div class="em-icon">&#128203;</div>
+        <div>No tasks yet. Click <strong>+ Add Task</strong> to get started.</div>
+      </div>
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" onclick="TM.closeManager()">Close</button>
+      <button class="tm-btn-danger-outline" id="mgrDiscardBtn" style="display:none;" onclick="TM.discard();TM.closeManager()">Discard Changes</button>
+      <button class="tm-btn-primary" id="mgrSaveRunBtn" onclick="TM.closeManager();TM.saveAndRun()">Save &amp; Run</button>
+    </div>
+    <div class="tm-loading-overlay" id="mgrLoading">
+      <div class="tm-loading-spinner"></div>
+      <div class="tm-loading-msg" id="mgrLoadingMsg">Saving &amp; running simulation…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Task Form Modal ── -->
+<div class="tm-modal-backdrop" id="tmTaskFormBackdrop">
+  <div class="tm-modal" id="tmTaskFormModal">
+    <button class="tm-modal-close" onclick="TM.closeTaskForm()" title="Close">&times;</button>
+    <h2 id="tmTaskFormTitle">Add Task</h2>
+
+    <div class="tm-full-field">
+      <label for="tfName">Task Name <span style="color:#DC2626;">*</span></label>
+      <div class="tm-field" id="tfNameField">
+        <input type="text" id="tfName" placeholder="e.g. Design Phase" maxlength="100" oninput="TM._tfValidateName()" />
+        <span class="field-error" id="tfNameErr" style="display:none;"></span>
+      </div>
+    </div>
+
+    <div class="tm-field-row">
+      <div class="tm-field" id="tfBestField">
+        <label for="tfBest">Best Case <span style="color:#DC2626;">*</span></label>
+        <input type="number" id="tfBest" placeholder="Optimistic" step="any" oninput="TM._tfValidateTriangle()" onblur="TM._tfAutocorrect()" />
+        <span class="field-error" id="tfBestErr" style="display:none;"></span>
+      </div>
+      <div class="tm-field" id="tfMostField">
+        <label for="tfMost">Most Likely <span style="color:#DC2626;">*</span></label>
+        <input type="number" id="tfMost" placeholder="Expected" step="any" oninput="TM._tfValidateTriangle()" onblur="TM._tfAutocorrect()" />
+        <span class="field-error" id="tfMostErr" style="display:none;"></span>
+      </div>
+      <div class="tm-field" id="tfWorstField">
+        <label for="tfWorst">Worst Case <span style="color:#DC2626;">*</span></label>
+        <input type="number" id="tfWorst" placeholder="Pessimistic" step="any" oninput="TM._tfValidateTriangle()" onblur="TM._tfAutocorrect()" />
+        <span class="field-error" id="tfWorstErr" style="display:none;"></span>
+      </div>
+    </div>
+
+    <div id="tfTriangleWrap">
+      <canvas id="tmTriPreview"></canvas>
+      <div class="tm-preview-labels">
+        <span id="triLblBest">Best</span>
+        <span id="triLblMost">Most Likely</span>
+        <span id="triLblWorst">Worst</span>
+      </div>
+    </div>
+
+    <div class="tm-field-row" style="margin-top:10px;">
+      <div class="tm-field" style="max-width:120px;">
+        <label for="tfWeight">Risk Weight</label>
+        <input type="number" id="tfWeight" placeholder="1.0" min="0" max="10" step="0.1" />
+        <span class="tm-hint">0–10, used in Aggregate mode</span>
+      </div>
+      <div class="tm-field" style="max-width:80px;">
+        <label>Active</label>
+        <div style="display:flex;align-items:center;gap:6px;padding-top:8px;">
+          <input type="checkbox" id="tfActive" checked style="width:16px;height:16px;accent-color:#111827;" />
+          <label for="tfActive" style="font-size:12px;color:var(--fg);font-weight:400;">Include</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="tm-full-field" style="margin-top:6px;">
+      <label for="tfNotes">Notes (optional)</label>
+      <textarea id="tfNotes" rows="2" placeholder="Any additional context…" style="width:100%;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+    </div>
+
+    <div id="tfAutocorrectNote" style="display:none;" class="tm-info">
+      &#9998; Values were re-ordered so that Best ≤ Most Likely ≤ Worst.
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" onclick="TM.closeTaskForm()">Cancel</button>
+      <button class="tm-btn-primary" id="tfSaveBtn" onclick="TM._tfSave()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CSV Import Modal ── -->
+<div class="tm-modal-backdrop" id="tmCSVBackdrop" onclick="TM._backdropClose(event,'tmCSVBackdrop')">
+  <div class="tm-modal wide" id="tmCSVModal">
+    <button class="tm-modal-close" onclick="TM.closeCSVImport()" title="Close">&times;</button>
+    <h2>&#128196; Import from CSV</h2>
+
+    <div id="csvStep1">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">
+        Your CSV should have columns: <strong>Task Name, Best Case, Most Likely, Worst Case</strong>.
+        Optional: Risk Weight, Active, Notes.
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <input type="file" id="csvFileInput" accept=".csv,.txt" onchange="TM._csvFileChosen(this)" style="font-size:12px;" />
+      </div>
+      <div id="csvParseStatus" style="font-size:11px;color:var(--muted);"></div>
+    </div>
+
+    <div id="csvStep2" style="display:none;">
+      <div id="csvWarnings"></div>
+      <div id="csvSummary" style="font-size:12px;margin-bottom:8px;"></div>
+      <div class="tm-csv-table-wrap">
+        <table class="tm-csv-table" id="csvPreviewTable">
+          <thead>
+            <tr>
+              <th>Status</th><th>Task Name</th><th>Best</th><th>Most Likely</th><th>Worst</th><th>Weight</th><th>Note</th>
+            </tr>
+          </thead>
+          <tbody id="csvPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" onclick="TM.closeCSVImport()">Cancel</button>
+      <button class="tm-btn-primary" id="csvImportBtn" style="display:none;" onclick="TM._csvCommit()">Import Valid Rows</button>
+    </div>
+    <div class="tm-loading-overlay" id="csvLoading">
+      <div class="tm-loading-spinner"></div>
+      <div class="tm-loading-msg">Parsing…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sheet Tab Import → Column Mapper Modal ── -->
+<div class="tm-modal-backdrop" id="tmColMapBackdrop" onclick="TM._backdropClose(event,'tmColMapBackdrop')">
+  <div class="tm-modal wide" id="tmColMapModal">
+    <button class="tm-modal-close" onclick="TM.closeColMap()" title="Close">&times;</button>
+    <h2>&#128203; Import from Sheet Tab</h2>
+
+    <div id="cmStep1">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">
+        Select a sheet tab to import tasks from:
+      </p>
+      <div id="cmTabList" class="tm-tab-list" style="border:1px solid var(--line);border-radius:8px;max-height:180px;overflow-y:auto;"></div>
+      <div id="cmTabStatus" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
+    <div id="cmStep2" style="display:none;">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">
+        Map the columns from <strong id="cmSelectedTabName"></strong> to PMC fields:
+      </p>
+      <div class="tm-col-map-grid" id="cmMappingGrid"></div>
+      <div id="cmMapStatus" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
+    <div id="cmStep3" style="display:none;">
+      <div id="cmImportWarnings"></div>
+      <div id="cmImportSummary" style="font-size:12px;margin-bottom:8px;"></div>
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" id="cmBackBtn" style="display:none;" onclick="TM._cmBack()">Back</button>
+      <button class="tm-btn-secondary" onclick="TM.closeColMap()">Cancel</button>
+      <button class="tm-btn-primary" id="cmNextBtn" onclick="TM._cmNext()">Next</button>
+    </div>
+    <div class="tm-loading-overlay" id="cmLoading">
+      <div class="tm-loading-spinner"></div>
+      <div class="tm-loading-msg" id="cmLoadingMsg">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Modal ── -->
+<div class="tm-modal-backdrop" id="tmSettingsBackdrop" onclick="TM._backdropClose(event,'tmSettingsBackdrop')">
+  <div class="tm-modal" id="tmSettingsModal">
+    <button class="tm-modal-close" onclick="TM.closeSettings()" title="Close">&times;</button>
+    <h2>&#9881; Task Manager Settings</h2>
+
+    <div class="settings-group">
+      <label>Sheet tab name</label>
+      <input type="text" id="stTabName" value="PMC Tasks" maxlength="50" />
+      <span class="tm-hint">Rename the dedicated PMC Tasks tab.</span>
+    </div>
+
+    <div class="settings-group">
+      <label>Units label</label>
+      <select id="stUnits">
+        <option value="days">Days</option>
+        <option value="hours">Hours</option>
+        <option value="weeks">Weeks</option>
+        <option value="story_points">Story Points</option>
+        <option value="cost_usd">Cost (USD)</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+
+    <div class="settings-group" id="stCustomUnitsGroup" style="display:none;">
+      <label>Custom unit label</label>
+      <input type="text" id="stCustomUnits" placeholder="e.g. Sprints" maxlength="30" />
+    </div>
+
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" onclick="TM.closeSettings()">Cancel</button>
+      <button class="tm-btn-primary" onclick="TM._saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Generic Confirmation Modal ── -->
+<div class="tm-modal-backdrop" id="tmConfirmBackdrop">
+  <div class="tm-modal" style="max-width:380px;" id="tmConfirmModal">
+    <h2 id="confirmTitle">Confirm</h2>
+    <p id="confirmMessage" style="font-size:13px;color:var(--muted);margin:0 0 4px;"></p>
+    <div class="tm-modal-footer">
+      <button class="tm-btn-secondary" id="confirmCancelBtn" onclick="TM._confirmClose(false)">Cancel</button>
+      <button class="tm-btn-danger-outline" id="confirmOkBtn" onclick="TM._confirmClose(true)">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     TASK MANAGER JAVASCRIPT
+================================================================ -->
+<script>
+(function() {
+'use strict';
+
+/* ────────────────────────────────────────────────────────────────
+   TM — Task Manager state and methods
+──────────────────────────────────────────────────────────────── */
+window.TM = {
+  tasks:          [],     // current (possibly unsaved) task list
+  savedTasks:     [],     // last persisted state (for dirty detection)
+  settings:       { tabName: 'PMC Tasks', units: 'days', mode: 'single' },
+  mode:           'single',
+  selectedTaskId: null,
+  initialized:    false,
+  _confirmCb:     null,
+  _frChoice:      'create',
+  _cmStep:        1,
+  _cmSelectedTab: null,
+  _cmDetectedMap: null,
+  _cmImportedTasks: null,
+  _csvParsed:     null,
+  _editingTaskId: null,
+
+  /* ── Init ── */
+  init: function() {
+    var self = this;
+    if (!window.google || !window.google.script || !window.google.script.run) {
+      self._updateBar();
+      return;
+    }
+    try {
+      window.google.script.run
+        .withSuccessHandler(function(res) {
+          if (!res || !res.ok || res.needsSetup) {
+            self._showFirstRun();
+            return;
+          }
+          self.settings = Object.assign(self.settings, res.settings || {});
+          self.tasks = (res.tasks || []).map(function(t, i) {
+            return self._normalizeTask(t, i);
+          });
+          self.savedTasks = JSON.parse(JSON.stringify(self.tasks));
+          self.initialized = true;
+          self._syncToLegacy();
+          self._updateBar();
+        })
+        .withFailureHandler(function(err) {
+          console.warn('TM.init loadPMCTasks failed:', err);
+          self._showFirstRun();
+        })
+        .loadPMCTasks();
+
+      // Also load settings (best-effort)
+      window.google.script.run
+        .withSuccessHandler(function(s) {
+          if (s) {
+            self.settings = Object.assign(self.settings, s);
+            if (s.mode) self.setMode(s.mode, true);
+          }
+        })
+        .withFailureHandler(function(){})
+        .getPMCSettings();
+    } catch(e) {
+      console.warn('TM.init error:', e);
+      self._updateBar();
+    }
+  },
+
+  /* ── Normalize a task object to internal format ── */
+  _normalizeTask: function(t, idx) {
+    return {
+      id:          t.id || ('tid_' + idx + '_' + Date.now()),
+      task_name:   String(t.task_name || t.task || '').trim(),
+      best_case:   Number(t.best_case  || t.optimistic  || 0),
+      most_likely: Number(t.most_likely|| t.mostLikely  || 0),
+      worst_case:  Number(t.worst_case || t.pessimistic || 0),
+      risk_weight: Number(t.risk_weight != null ? t.risk_weight : 1.0),
+      active:      t.active !== false,
+      notes:       String(t.notes || '').trim()
+    };
+  },
+
+  /* ── Sync TM.tasks → legacy s.tasks + taskSel dropdown ── */
+  _syncToLegacy: function() {
+    var s = window.S || (window.S = {});
+    if (!s) return;
+
+    var active = this.mode === 'aggregate'
+      ? this.tasks.filter(function(t) { return t.active; })
+      : this.tasks.filter(function(t) { return t.active; });
+
+    // Convert to legacy format
+    s.tasks = active.map(function(t) {
+      return {
+        task:       t.task_name,
+        optimistic: t.best_case,
+        mostLikely: t.most_likely,
+        pessimistic:t.worst_case,
+        _tmId:      t.id
+      };
+    });
+
+    // Rebuild taskSel dropdown
+    var sel = document.getElementById('taskSel');
+    if (sel) {
+      sel.innerHTML = '';
+      if (s.tasks.length === 0) {
+        var opt = document.createElement('option');
+        opt.value = ''; opt.textContent = 'No active tasks';
+        sel.appendChild(opt);
+      } else {
+        s.tasks.forEach(function(t, i) {
+          var opt = document.createElement('option');
+          opt.value = i;
+          opt.textContent = t.task || ('Task ' + (i + 1));
+          sel.appendChild(opt);
+        });
+        // Select the last-selected task if possible
+        if (this.selectedTaskId) {
+          for (var i = 0; i < s.tasks.length; i++) {
+            if (s.tasks[i]._tmId === this.selectedTaskId) { sel.selectedIndex = i; break; }
+          }
+        }
+        sel.selectedIndex = Math.max(0, sel.selectedIndex);
+        if (typeof window.onTaskChange === 'function') window.onTaskChange();
+      }
+    }
+  },
+
+  /* ── Mode toggle ── */
+  setMode: function(mode, silent) {
+    this.mode = mode;
+    var btnS = document.getElementById('tmModeSingle');
+    var btnA = document.getElementById('tmModeAggregate');
+    if (btnS) btnS.classList.toggle('active', mode === 'single');
+    if (btnA) btnA.classList.toggle('active', mode === 'aggregate');
+
+    var aggBar = document.getElementById('tmAggBar');
+    if (aggBar) aggBar.classList.toggle('visible', mode === 'aggregate');
+
+    this._updateBar();
+    if (!silent) {
+      if (typeof window.onTaskChange === 'function') window.onTaskChange();
+    }
+  },
+
+  /* ── Dirty state ── */
+  _markDirty: function() {
+    this.dirty = true;
+    var b1 = document.getElementById('tmDirtyBadge');
+    var b2 = document.getElementById('mgrDirtyNote');
+    var s1 = document.getElementById('btnSaveRun');
+    var s2 = document.getElementById('btnDiscard');
+    var s3 = document.getElementById('mgrDiscardBtn');
+    if (b1) b1.style.display = 'inline';
+    if (b2) b2.style.display = 'inline';
+    if (s1) s1.style.display = 'inline-flex';
+    if (s2) s2.style.display = 'inline-flex';
+    if (s3) s3.style.display = 'inline-flex';
+  },
+  _clearDirty: function() {
+    this.dirty = false;
+    this.savedTasks = JSON.parse(JSON.stringify(this.tasks));
+    var b1 = document.getElementById('tmDirtyBadge');
+    var b2 = document.getElementById('mgrDirtyNote');
+    var s1 = document.getElementById('btnSaveRun');
+    var s2 = document.getElementById('btnDiscard');
+    var s3 = document.getElementById('mgrDiscardBtn');
+    if (b1) b1.style.display = 'none';
+    if (b2) b2.style.display = 'none';
+    if (s1) s1.style.display = 'none';
+    if (s2) s2.style.display = 'none';
+    if (s3) s3.style.display = 'none';
+  },
+
+  /* ── Update TM bar info text ── */
+  _updateBar: function() {
+    var info = document.getElementById('tmTaskInfo');
+    if (!info) return;
+    var total  = this.tasks.length;
+    var active = this.tasks.filter(function(t) { return t.active; }).length;
+    if (total === 0) {
+      info.textContent = 'No tasks — click Manage Tasks to add some.';
+    } else if (this.mode === 'aggregate') {
+      info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
+        ' included in aggregate run — use Manage Tasks to select which tasks to combine.';
+    } else {
+      info.textContent = total + ' task' + (total !== 1 ? 's' : '') + ' — select one from the dropdown below.';
+    }
+  },
+
+  /* ── Save & Run ── */
+  saveAndRun: function() {
+    var self = this;
+    if (!window.google || !window.google.script || !window.google.script.run) {
+      alert('Google Apps Script runtime not available in preview mode.');
+      return;
+    }
+    var activeTasks = this.tasks.filter(function(t) { return t.active; });
+    if (activeTasks.length === 0) {
+      alert('No active tasks to run. Enable at least one task in Manage Tasks.');
+      return;
+    }
+
+    var s = window.S || (window.S = {});
+    var tau  = s ? (s.currentTarget != null ? s.currentTarget : null) : null;
+    var conf = s ? (s.confidenceLevel || 0.95) : 0.95;
+    var selId = this.selectedTaskId;
+    if (!selId && activeTasks.length > 0) selId = activeTasks[0].id;
+
+    var payload = {
+      tasks:           this.tasks,
+      mode:            this.mode,
+      selectedTaskId:  selId,
+      targetValue:     tau,
+      confidenceLevel: conf,
+      settings:        this.settings
+    };
+
+    // Show loading in bar
+    var info = document.getElementById('tmTaskInfo');
+    var prevInfo = info ? info.textContent : '';
+    if (info) info.textContent = 'Saving & running simulation…';
+    if (typeof window.setStatus === 'function') window.setStatus('Saving & running…');
+
+    try {
+      window.google.script.run
+        .withSuccessHandler(function(res) {
+          if (info) info.textContent = prevInfo;
+          if (!res || !res.ok) {
+            if (typeof window.setStatus === 'function') window.setStatus('Run failed: ' + (res && res.error ? res.error : 'Unknown error'));
+            alert('Simulation failed: ' + (res && res.error ? res.error : 'Unknown error'));
+            return;
+          }
+          self._clearDirty();
+          self._syncToLegacy();
+          self._updateBar();
+
+          if (res.mode === 'aggregate' && res.result) {
+            self._showAggregateResult(res.result);
+          }
+
+          if (typeof window.setStatus === 'function') window.setStatus('Ready');
+          if (res.mode === 'single' && typeof window.onTaskChange === 'function') {
+            window.onTaskChange();
+          }
+        })
+        .withFailureHandler(function(err) {
+          if (info) info.textContent = prevInfo;
+          if (typeof window.setStatus === 'function') window.setStatus('Ready');
+          alert('Save & Run failed: ' + (err && err.message ? err.message : String(err)));
+        })
+        .savePMCTasksAndRun(payload);
+    } catch(e) {
+      if (info) info.textContent = prevInfo;
+      if (typeof window.setStatus === 'function') window.setStatus('Ready');
+      alert('Save & Run error: ' + e);
+    }
+  },
+
+  /* ── Discard changes ── */
+  discard: function() {
+    this.tasks = JSON.parse(JSON.stringify(this.savedTasks));
+    this._clearDirty();
+    this._syncToLegacy();
+    this._updateBar();
+    this._renderTaskList();
+  },
+
+  /* ── Show aggregate result ── */
+  _showAggregateResult: function(agg) {
+    var bar = document.getElementById('tmAggBar');
+    if (!bar) return;
+    bar.classList.add('visible');
+    function fmtN(v) { return v != null && isFinite(v) ? Number(v).toFixed(2) : '–'; }
+    function fmtP(v) { return v != null && isFinite(v) ? (Number(v) * 100).toFixed(1) + '%' : '–'; }
+    function setEl(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+    setEl('aggStatTasks', agg.taskCount || '–');
+    setEl('aggStatMean',  fmtN(agg.mean));
+    setEl('aggStatP50',   fmtN(agg.p50));
+    setEl('aggStatP80',   fmtN(agg.p80));
+    setEl('aggStatP90',   fmtN(agg.p90));
+    setEl('aggStatProb',  agg.probAtTarget != null ? fmtP(agg.probAtTarget) : '–');
+  },
+
+  /* ── Open / Close Manager ── */
+  openManager: function() {
+    this._renderTaskList();
+    var bd = document.getElementById('tmManagerBackdrop');
+    if (bd) bd.classList.add('open');
+  },
+  closeManager: function() {
+    var bd = document.getElementById('tmManagerBackdrop');
+    if (bd) bd.classList.remove('open');
+  },
+
+  /* ── Render task list in manager ── */
+  _renderTaskList: function() {
+    var self = this;
+    var container = document.getElementById('tmTaskListContainer');
+    if (!container) return;
+
+    if (this.tasks.length === 0) {
+      container.innerHTML = '<div class="tm-empty-state"><div class="em-icon">&#128203;</div><div>No tasks yet. Click <strong>+ Add Task</strong> to get started.</div></div>';
+      return;
+    }
+
+    var isAgg = this.mode === 'aggregate';
+    var activeCount = this.tasks.filter(function(t) { return t.active; }).length;
+    var html = '';
+
+    // In aggregate mode: show quick-select bar and column header
+    if (isAgg) {
+      html += '<div class="agg-sel-bar">';
+      html += '<span style="font-size:10px;font-weight:700;color:#0369A1;letter-spacing:.03em;">AGGREGATE MODE</span>';
+      html += '<span class="agg-count">' + activeCount + ' / ' + this.tasks.length + ' included</span>';
+      html += '<button class="agg-sel-btn" onclick="event.stopPropagation();TM._aggSelectAll(true)" title="Include all tasks in aggregate run">All</button>';
+      html += '<button class="agg-sel-btn" onclick="event.stopPropagation();TM._aggSelectAll(false)" title="Exclude all tasks">None</button>';
+      html += '</div>';
+      // Column headers
+      html += '<div class="agg-header-row">';
+      html += '<span style="width:16px;flex-shrink:0;">In Agg</span>';
+      html += '<span style="flex:1;">Task Name</span>';
+      html += '<span style="font-family:monospace;font-size:10px;white-space:nowrap;">Best / Mode / Worst</span>';
+      html += '<span style="font-size:10px;white-space:nowrap;">Weight</span>';
+      html += '<span style="width:60px;text-align:right;">Actions</span>';
+      html += '</div>';
+    }
+
+    this.tasks.forEach(function(t, i) {
+      var isDirty = JSON.stringify(self.savedTasks[i]) !== JSON.stringify(t);
+      var isSelected = t.id === self.selectedTaskId;
+      html += '<div class="tm-task-row' + (isDirty ? ' dirty' : '') + (isSelected ? ' selected' : '') + (isAgg && !t.active ? ' style="opacity:0.55;"' : '') + '" data-tid="' + t.id + '" onclick="TM._selectTask(\'' + t.id + '\')">';
+      var chkTitle = isAgg ? 'Include in aggregate run' : 'Toggle active';
+      var chkColor = isAgg ? 'accent-color:#0369A1;' : '';
+      html += '<input type="checkbox" class="tm-active-toggle" ' + (t.active ? 'checked' : '') + ' title="' + chkTitle + '" style="' + chkColor + '" onclick="event.stopPropagation();TM._toggleActive(\'' + t.id + '\')" />';
+      html += '<span class="tm-task-name">' + _escHtml(t.task_name) + (isDirty ? '<span class="tm-dirty-star">*</span>' : '') + '</span>';
+      html += '<span class="tm-task-vals">' + t.best_case + ' / ' + t.most_likely + ' / ' + t.worst_case + '</span>';
+      if (isAgg) {
+        html += '<span style="font-size:11px;color:var(--muted);white-space:nowrap;">w:' + t.risk_weight + '</span>';
+      }
+      html += '<div class="tm-task-btns">';
+      html += '<button onclick="event.stopPropagation();TM.openTaskForm(\'' + t.id + '\')" title="Edit">&#9998;</button>';
+      html += '<button class="del-btn" onclick="event.stopPropagation();TM._deleteTask(\'' + t.id + '\')" title="Delete">&#128465;</button>';
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
+  },
+
+  /* ── Aggregate select all / none ── */
+  _aggSelectAll: function(onOff) {
+    this.tasks.forEach(function(t) { t.active = onOff; });
+    this._markDirty();
+    this._renderTaskList();
+    this._syncToLegacy();
+    this._updateBar();
+  },
+
+  _selectTask: function(id) {
+    this.selectedTaskId = id;
+    this._renderTaskList();
+    // Sync the taskSel dropdown to match
+    var s = window.S || (window.S = {});
+    if (s && s.tasks) {
+      var sel = document.getElementById('taskSel');
+      if (sel) {
+        for (var i = 0; i < s.tasks.length; i++) {
+          if (s.tasks[i]._tmId === id) { sel.selectedIndex = i; if (typeof window.onTaskChange === 'function') window.onTaskChange(); break; }
+        }
+      }
+    }
+  },
+
+  _toggleActive: function(id) {
+    var t = this._findTask(id);
+    if (!t) return;
+    t.active = !t.active;
+    this._markDirty();
+    this._renderTaskList();
+    this._syncToLegacy();
+    this._updateBar();
+  },
+
+  _deleteTask: function(id) {
+    var self = this;
+    var t = this._findTask(id);
+    if (!t) return;
+    this._confirm('Delete Task', 'Delete "' + t.task_name + '"? This cannot be undone.', 'Delete', function() {
+      self.tasks = self.tasks.filter(function(x) { return x.id !== id; });
+      self._markDirty();
+      self._renderTaskList();
+      self._syncToLegacy();
+      self._updateBar();
+    });
+  },
+
+  _findTask: function(id) {
+    for (var i = 0; i < this.tasks.length; i++) { if (this.tasks[i].id === id) return this.tasks[i]; }
+    return null;
+  },
+
+  /* ── Task Form (Add / Edit) ── */
+  openTaskForm: function(idOrNull) {
+    this._editingTaskId = idOrNull;
+    var title  = document.getElementById('tmTaskFormTitle');
+    var saveBtn = document.getElementById('tfSaveBtn');
+    var noteEl = document.getElementById('tfAutocorrectNote');
+    if (noteEl) noteEl.style.display = 'none';
+
+    if (idOrNull) {
+      var t = this._findTask(idOrNull);
+      if (!t) return;
+      if (title)  title.textContent = 'Edit Task';
+      if (saveBtn) saveBtn.textContent = 'Save Changes';
+      document.getElementById('tfName').value   = t.task_name;
+      document.getElementById('tfBest').value   = t.best_case;
+      document.getElementById('tfMost').value   = t.most_likely;
+      document.getElementById('tfWorst').value  = t.worst_case;
+      document.getElementById('tfWeight').value = t.risk_weight;
+      document.getElementById('tfActive').checked = t.active;
+      document.getElementById('tfNotes').value  = t.notes;
+    } else {
+      if (title)  title.textContent = 'Add Task';
+      if (saveBtn) saveBtn.textContent = 'Add Task';
+      document.getElementById('tfName').value   = '';
+      document.getElementById('tfBest').value   = '';
+      document.getElementById('tfMost').value   = '';
+      document.getElementById('tfWorst').value  = '';
+      document.getElementById('tfWeight').value = '1';
+      document.getElementById('tfActive').checked = true;
+      document.getElementById('tfNotes').value  = '';
+    }
+    // Clear errors
+    ['tfNameField','tfBestField','tfMostField','tfWorstField'].forEach(function(fid) {
+      var f = document.getElementById(fid);
+      if (f) f.classList.remove('error','warn');
+    });
+    ['tfNameErr','tfBestErr','tfMostErr','tfWorstErr'].forEach(function(eid) {
+      var e = document.getElementById(eid);
+      if (e) { e.style.display = 'none'; e.textContent = ''; }
+    });
+    this._tfDrawTriangle();
+    var bd = document.getElementById('tmTaskFormBackdrop');
+    if (bd) bd.classList.add('open');
+  },
+  closeTaskForm: function() {
+    var bd = document.getElementById('tmTaskFormBackdrop');
+    if (bd) bd.classList.remove('open');
+  },
+
+  /* ── Form validation ── */
+  _tfValidateName: function() {
+    var val = (document.getElementById('tfName').value || '').trim();
+    var field = document.getElementById('tfNameField');
+    var err   = document.getElementById('tfNameErr');
+    if (!val) {
+      if (field) field.classList.add('error');
+      if (err) { err.textContent = 'Task name is required.'; err.style.display = 'block'; }
+      return false;
+    }
+    // Duplicate check
+    var id = this._editingTaskId;
+    var dup = this.tasks.filter(function(t) { return t.id !== id && t.task_name.toLowerCase() === val.toLowerCase(); });
+    if (dup.length > 0) {
+      if (field) field.classList.add('error');
+      if (err) { err.textContent = 'A task with this name already exists.'; err.style.display = 'block'; }
+      return false;
+    }
+    if (field) field.classList.remove('error');
+    if (err) err.style.display = 'none';
+    return true;
+  },
+
+  _tfValidateTriangle: function() {
+    var a = parseFloat(document.getElementById('tfBest').value);
+    var c = parseFloat(document.getElementById('tfMost').value);
+    var b = parseFloat(document.getElementById('tfWorst').value);
+    var ok = true;
+
+    function setFieldState(fid, eid, cls, msg) {
+      var field = document.getElementById(fid);
+      var err   = document.getElementById(eid);
+      if (field) { field.classList.remove('error','warn'); if (cls) field.classList.add(cls); }
+      if (err) { err.textContent = msg || ''; err.style.display = msg ? 'block' : 'none'; }
+    }
+
+    if (isNaN(a)) { setFieldState('tfBestField','tfBestErr','error','Required — enter a number.'); ok = false; }
+    else setFieldState('tfBestField','tfBestErr','','');
+
+    if (isNaN(c)) { setFieldState('tfMostField','tfMostErr','error','Required — enter a number.'); ok = false; }
+    else setFieldState('tfMostField','tfMostErr','','');
+
+    if (isNaN(b)) { setFieldState('tfWorstField','tfWorstErr','error','Required — enter a number.'); ok = false; }
+    else setFieldState('tfWorstField','tfWorstErr','','');
+
+    if (!ok) { this._tfDrawTriangle(); return false; }
+
+    if (a > c) { setFieldState('tfBestField','tfBestErr','warn','Best case should be ≤ Most Likely.'); ok = false; }
+    if (c > b) { setFieldState('tfWorstField','tfWorstErr','warn','Worst case should be ≥ Most Likely.'); ok = false; }
+    if (a > b) { setFieldState('tfBestField','tfBestErr','error','Best case cannot be greater than Worst case.'); ok = false; }
+
+    this._tfDrawTriangle();
+    return ok;
+  },
+
+  _tfAutocorrect: function() {
+    var a = parseFloat(document.getElementById('tfBest').value);
+    var c = parseFloat(document.getElementById('tfMost').value);
+    var b = parseFloat(document.getElementById('tfWorst').value);
+    if (isNaN(a) || isNaN(c) || isNaN(b)) return;
+    var sorted = [a, c, b].sort(function(x, y) { return x - y; });
+    if (a !== sorted[0] || c !== sorted[1] || b !== sorted[2]) {
+      document.getElementById('tfBest').value  = sorted[0];
+      document.getElementById('tfMost').value  = sorted[1];
+      document.getElementById('tfWorst').value = sorted[2];
+      // Add corrected class briefly
+      ['tfBest','tfMost','tfWorst'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.classList.add('corrected'); setTimeout(function(){ el.classList.remove('corrected'); }, 1500); }
+      });
+      var note = document.getElementById('tfAutocorrectNote');
+      if (note) note.style.display = 'block';
+      this._tfValidateTriangle();
+    }
+  },
+
+  /* ── Triangle preview canvas ── */
+  _tfDrawTriangle: function() {
+    var canvas = document.getElementById('tmTriPreview');
+    if (!canvas || !canvas.getContext) return;
+    var a = parseFloat(document.getElementById('tfBest').value);
+    var c = parseFloat(document.getElementById('tfMost').value);
+    var b = parseFloat(document.getElementById('tfWorst').value);
+
+    var ctx = canvas.getContext('2d');
+    var W = canvas.offsetWidth || 300;
+    var H = canvas.offsetHeight || 90;
+    canvas.width = W * (window.devicePixelRatio || 1);
+    canvas.height = H * (window.devicePixelRatio || 1);
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#F9FAFB';
+    ctx.fillRect(0, 0, W, H);
+
+    if (isNaN(a) || isNaN(c) || isNaN(b) || a > b) {
+      ctx.fillStyle = '#9CA3AF';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Enter valid values to see distribution', W / 2, H / 2);
+      return;
+    }
+
+    var pad = 20;
+    var xScale = (W - 2 * pad) / (b - a || 1);
+    function xPos(v) { return pad + (v - a) * xScale; }
+    var peak = H - 14;
+
+    // Fill
+    ctx.beginPath();
+    ctx.moveTo(xPos(a), peak);
+    ctx.lineTo(xPos(c), 12);
+    ctx.lineTo(xPos(b), peak);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(99,102,241,0.18)';
+    ctx.fill();
+
+    // Stroke
+    ctx.beginPath();
+    ctx.moveTo(xPos(a), peak);
+    ctx.lineTo(xPos(c), 12);
+    ctx.lineTo(xPos(b), peak);
+    ctx.closePath();
+    ctx.strokeStyle = '#6366F1';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Mode line
+    ctx.beginPath();
+    ctx.moveTo(xPos(c), 12);
+    ctx.lineTo(xPos(c), peak);
+    ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels
+    var units = this.settings.units || 'days';
+    ctx.fillStyle = '#374151';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(Number(a).toFixed(1), xPos(a), H - 2);
+    ctx.textAlign = 'center';
+    ctx.fillText(Number(c).toFixed(1), xPos(c), H - 2);
+    ctx.textAlign = 'right';
+    ctx.fillText(Number(b).toFixed(1), xPos(b), H - 2);
+
+    // Update label els
+    var lbest = document.getElementById('triLblBest');
+    var lmost = document.getElementById('triLblMost');
+    var lworst= document.getElementById('triLblWorst');
+    if (lbest)  lbest.textContent  = 'Best';
+    if (lmost)  lmost.textContent  = 'Most Likely';
+    if (lworst) lworst.textContent = 'Worst';
+  },
+
+  /* ── Save task form ── */
+  _tfSave: function() {
+    var nameOk = this._tfValidateName();
+    var triOk  = this._tfValidateTriangle();
+    if (!nameOk || !triOk) return;
+
+    var newTask = {
+      id:          this._editingTaskId || ('tid_' + Date.now()),
+      task_name:   document.getElementById('tfName').value.trim(),
+      best_case:   parseFloat(document.getElementById('tfBest').value),
+      most_likely: parseFloat(document.getElementById('tfMost').value),
+      worst_case:  parseFloat(document.getElementById('tfWorst').value),
+      risk_weight: parseFloat(document.getElementById('tfWeight').value) || 1.0,
+      active:      document.getElementById('tfActive').checked,
+      notes:       document.getElementById('tfNotes').value.trim()
+    };
+
+    if (this._editingTaskId) {
+      for (var i = 0; i < this.tasks.length; i++) {
+        if (this.tasks[i].id === this._editingTaskId) { this.tasks[i] = newTask; break; }
+      }
+    } else {
+      this.tasks.push(newTask);
+    }
+
+    this._markDirty();
+    this.closeTaskForm();
+    this._renderTaskList();
+    this._syncToLegacy();
+    this._updateBar();
+  },
+
+  /* ── CSV Import ── */
+  openCSVImport: function() {
+    this._csvParsed = null;
+    var step1 = document.getElementById('csvStep1');
+    var step2 = document.getElementById('csvStep2');
+    var importBtn = document.getElementById('csvImportBtn');
+    var fileInput = document.getElementById('csvFileInput');
+    var parseStatus = document.getElementById('csvParseStatus');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
+    if (importBtn) importBtn.style.display = 'none';
+    if (fileInput) fileInput.value = '';
+    if (parseStatus) parseStatus.textContent = '';
+    var bd = document.getElementById('tmCSVBackdrop');
+    if (bd) bd.classList.add('open');
+  },
+  closeCSVImport: function() {
+    var bd = document.getElementById('tmCSVBackdrop');
+    if (bd) bd.classList.remove('open');
+  },
+
+  _csvFileChosen: function(inputEl) {
+    var self = this;
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+    var statusEl = document.getElementById('csvParseStatus');
+    if (statusEl) statusEl.textContent = 'Parsing…';
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var text = e.target.result;
+      var result = self._parseCSV(text);
+      self._csvParsed = result;
+      self._renderCSVPreview(result);
+    };
+    reader.onerror = function() {
+      if (statusEl) statusEl.textContent = 'Error reading file.';
+    };
+    reader.readAsText(file);
+  },
+
+  _parseCSV: function(text) {
+    var lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(function(l){ return l.trim(); });
+    if (lines.length < 2) return { tasks: [], warnings: ['CSV has no data rows.'], errors: [] };
+
+    // Parse header
+    var headers = _csvLine(lines[0]).map(function(h){ return h.toLowerCase().trim().replace(/[\s_\-]+/g,''); });
+
+    // Map header to fields using keywords
+    var KEYWORDS = {
+      task_name:   ['task','name','activity','item','work','feature','title','id'],
+      best_case:   ['best','optimistic','min','minimum','low','opt'],
+      most_likely: ['likely','expected','nominal','typical','modal','mid','ml'],
+      worst_case:  ['worst','pessimistic','max','maximum','high','pess'],
+      risk_weight: ['risk','weight','priority','impact','wt'],
+      active:      ['active','enabled','include','flag'],
+      notes:       ['note','comment','remark','detail','info']
+    };
+    var colMap = {};
+    var usedCols = {};
+    ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'].forEach(function(field) {
+      var kws = KEYWORDS[field];
+      var bestScore = 0, bestCol = -1;
+      headers.forEach(function(h, ci) {
+        if (usedCols[ci]) return;
+        var score = 0;
+        kws.forEach(function(kw) {
+          if (h === kw) score = Math.max(score, 10);
+          else if (h.indexOf(kw) !== -1 || kw.indexOf(h) !== -1) score = Math.max(score, 5);
+        });
+        if (score > bestScore) { bestScore = score; bestCol = ci; }
+      });
+      colMap[field] = bestScore > 0 ? bestCol : -1;
+      if (bestScore > 0) usedCols[bestCol] = true;
+    });
+
+    var tasks = [], warnings = [], errors = [];
+    for (var ri = 1; ri < lines.length; ri++) {
+      var row = _csvLine(lines[ri]);
+      function getCol(field) {
+        var ci = colMap[field];
+        return (ci >= 0 && ci < row.length) ? row[ci].trim() : '';
+      }
+      var name = getCol('task_name');
+      if (!name) continue;
+
+      var a = parseFloat(getCol('best_case'));
+      var c = parseFloat(getCol('most_likely'));
+      var b = parseFloat(getCol('worst_case'));
+      var w = parseFloat(getCol('risk_weight'));
+      var actRaw = getCol('active');
+      var active = actRaw === '' ? true : !(actRaw.toLowerCase() === 'false' || actRaw === '0');
+
+      var rowWarnings = [], rowErrors = [];
+      if (isNaN(a) || isNaN(c) || isNaN(b)) {
+        rowErrors.push('Missing or non-numeric estimate values');
+      } else {
+        var sorted = [a, c, b].sort(function(x,y){ return x-y; });
+        if (a !== sorted[0] || c !== sorted[1] || b !== sorted[2]) {
+          rowWarnings.push('Values re-ordered (best ≤ most likely ≤ worst)');
+          a = sorted[0]; c = sorted[1]; b = sorted[2];
+        }
+        if (a === b) rowWarnings.push('Zero-variance task');
+      }
+
+      tasks.push({
+        _row: ri + 1,
+        _errors: rowErrors,
+        _warnings: rowWarnings,
+        task_name:   name,
+        best_case:   isNaN(a) ? null : a,
+        most_likely: isNaN(c) ? null : c,
+        worst_case:  isNaN(b) ? null : b,
+        risk_weight: isNaN(w) ? 1.0  : Math.max(0, Math.min(10, w)),
+        active:      active,
+        notes:       getCol('notes')
+      });
+      if (rowErrors.length > 0) errors.push('Row ' + (ri + 1) + ': ' + rowErrors.join('; '));
+      if (rowWarnings.length > 0) warnings.push('Row ' + (ri + 1) + ' (' + name + '): ' + rowWarnings.join('; '));
+    }
+
+    return { tasks: tasks, warnings: warnings, errors: errors };
+  },
+
+  _renderCSVPreview: function(result) {
+    var step1 = document.getElementById('csvStep1');
+    var step2 = document.getElementById('csvStep2');
+    var importBtn = document.getElementById('csvImportBtn');
+    var warnEl  = document.getElementById('csvWarnings');
+    var summEl  = document.getElementById('csvSummary');
+    var tbody   = document.getElementById('csvPreviewBody');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'block';
+
+    var validCount = result.tasks.filter(function(t) { return t._errors.length === 0; }).length;
+    if (summEl) summEl.textContent = validCount + ' valid, ' + result.errors.length + ' errors, ' + result.warnings.length + ' warnings.';
+    if (importBtn) importBtn.style.display = validCount > 0 ? 'inline-flex' : 'none';
+
+    // Warnings
+    var warnHtml = '';
+    if (result.warnings.length > 0) {
+      warnHtml = '<div class="tm-warnings"><div class="warn-title">&#9888; Warnings (' + result.warnings.length + ')</div><ul>';
+      result.warnings.forEach(function(w) { warnHtml += '<li>' + _escHtml(w) + '</li>'; });
+      warnHtml += '</ul></div>';
+    }
+    if (warnEl) warnEl.innerHTML = warnHtml;
+
+    // Table
+    var rows = '';
+    result.tasks.forEach(function(t) {
+      var cls = t._errors.length > 0 ? 'csv-err' : (t._warnings.length > 0 ? 'csv-warn' : 'csv-ok');
+      var icon = t._errors.length > 0 ? '&#10060;' : (t._warnings.length > 0 ? '&#9888;' : '&#10003;');
+      rows += '<tr class="' + cls + '">';
+      rows += '<td class="csv-status-icon">' + icon + '</td>';
+      rows += '<td>' + _escHtml(t.task_name) + '</td>';
+      rows += '<td>' + (t.best_case   != null ? t.best_case   : '<em>?</em>') + '</td>';
+      rows += '<td>' + (t.most_likely != null ? t.most_likely : '<em>?</em>') + '</td>';
+      rows += '<td>' + (t.worst_case  != null ? t.worst_case  : '<em>?</em>') + '</td>';
+      rows += '<td>' + t.risk_weight + '</td>';
+      rows += '<td style="color:var(--muted)">' + _escHtml(t.notes || '') + '</td>';
+      rows += '</tr>';
+    });
+    if (tbody) tbody.innerHTML = rows;
+  },
+
+  _csvCommit: function() {
+    var self = this;
+    if (!this._csvParsed) return;
+    var valid = this._csvParsed.tasks.filter(function(t) { return t._errors.length === 0; });
+    if (valid.length === 0) return;
+    valid.forEach(function(t, i) {
+      self.tasks.push({
+        id:          'tid_csv_' + Date.now() + '_' + i,
+        task_name:   t.task_name,
+        best_case:   t.best_case,
+        most_likely: t.most_likely,
+        worst_case:  t.worst_case,
+        risk_weight: t.risk_weight,
+        active:      t.active,
+        notes:       t.notes
+      });
+    });
+    this._markDirty();
+    this.closeCSVImport();
+    this._renderTaskList();
+    this._syncToLegacy();
+    this._updateBar();
+  },
+
+  /* ── Sheet Tab Import (Column Mapper) ── */
+  openSheetImport: function() {
+    var self = this;
+    this._cmStep = 1;
+    this._cmSelectedTab = null;
+    this._cmDetectedMap = null;
+    this._cmImportedTasks = null;
+    this._cmSetStep(1);
+
+    var bd = document.getElementById('tmColMapBackdrop');
+    if (bd) bd.classList.add('open');
+
+    var loadEl = document.getElementById('cmLoading');
+    var msgEl  = document.getElementById('cmLoadingMsg');
+
+    function hideLoad(errMsg) {
+      if (loadEl) loadEl.classList.remove('active');
+      if (errMsg) {
+        var el = document.getElementById('cmTabList');
+        if (el) el.innerHTML = '<div style="padding:12px;color:#DC2626;font-size:12px;">&#10060; ' + _escHtml(errMsg) + '</div>';
+      }
+    }
+
+    // ── Primary path: use tab list cached by loadTasks() on page load ────────
+    var serverData = window._PMC_SERVER_DATA;
+    if (serverData && Array.isArray(serverData.sheetTabs) && serverData.sheetTabs.length > 0) {
+      if (loadEl) loadEl.classList.remove('active');
+      self._cmRenderTabList(serverData.sheetTabs);
+      return;
+    }
+
+    // ── Fallback: route through getAllTasks (already deployed) ───────────────
+    if (!window.google || !window.google.script || !window.google.script.run) {
+      var el = document.getElementById('cmTabList');
+      if (el) el.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">Not available outside of Google Sheets.</div>';
+      return;
+    }
+
+    if (loadEl) loadEl.classList.add('active');
+    if (msgEl)  msgEl.textContent = 'Loading sheet tabs…';
+
+    var timeoutId = setTimeout(function() { hideLoad('Timed out. Try closing and reopening the dialog.'); }, 15000);
+
+    try {
+      // Use getAllTasks({action:'listTabs'}) — getAllTasks is already deployed,
+      // avoiding any dependency on the new undeployed listSheetTabs function.
+      window.google.script.run
+        .withSuccessHandler(function(res) {
+          clearTimeout(timeoutId);
+          if (loadEl) loadEl.classList.remove('active');
+          var tabs = (res && res.sheetTabs) ? res.sheetTabs : (Array.isArray(res) ? [] : []);
+          if (!window._PMC_SERVER_DATA) window._PMC_SERVER_DATA = {};
+          window._PMC_SERVER_DATA.sheetTabs = tabs;
+          try {
+            self._cmRenderTabList(tabs);
+          } catch(renderErr) {
+            var el2 = document.getElementById('cmTabList');
+            if (el2) el2.innerHTML = '<div style="padding:12px;color:#DC2626;font-size:12px;">&#10060; Render error: ' + _escHtml(String(renderErr)) + '</div>';
+          }
+        })
+        .withFailureHandler(function(err) {
+          clearTimeout(timeoutId);
+          hideLoad('Failed to load tabs: ' + String(err && err.message ? err.message : err));
+        })
+        .getAllTasks({ action: 'listTabs' });
+    } catch(callErr) {
+      clearTimeout(timeoutId);
+      hideLoad('Error: ' + String(callErr));
+    }
+  },
+
+  _cmRenderTabList: function(tabs) {
+    var self = this;
+    var pmc = this.settings.tabName || 'PMC Tasks';
+    var container = document.getElementById('cmTabList');
+    if (!container) return;
+
+    var allTabs = tabs || [];
+
+    if (allTabs.length === 0) {
+      container.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">' +
+        'No sheet tabs found. Make sure this dialog was opened from the PMC Estimator menu in Google Sheets. ' +
+        '<br><span style="font-size:10px;color:#9CA3AF;">Debug: tabName filter="' + _escHtml(pmc) + '"</span></div>';
+      return;
+    }
+
+    // Show ALL tabs — mark the PMC storage tab but don't hide it.
+    // Previously, hiding it caused "No other sheet tabs found" when settings were misconfigured.
+    container.innerHTML = '';
+    allTabs.forEach(function(tab) {
+      var isPmcTab = (tab.name === pmc);
+      var div = document.createElement('div');
+      div.className = 'tm-tab-item' + (isPmcTab ? ' tm-tab-pmc' : '');
+      div.setAttribute('data-tabname', tab.name);
+      div.style.cssText = isPmcTab
+        ? 'opacity:0.6;cursor:default;' : '';
+
+      var nameSpan = document.createElement('span');
+      nameSpan.textContent = tab.name;
+      if (isPmcTab) {
+        var badge = document.createElement('span');
+        badge.textContent = ' (TM storage)';
+        badge.style.cssText = 'font-size:10px;color:#0369A1;font-weight:600;margin-left:4px;';
+        nameSpan.appendChild(badge);
+      }
+
+      var rowSpan = document.createElement('span');
+      rowSpan.className = 'tab-rows';
+      rowSpan.textContent = isPmcTab ? 'Task Manager storage — import a different tab' : 'Click to select';
+
+      div.appendChild(nameSpan);
+      div.appendChild(rowSpan);
+
+      if (!isPmcTab) {
+        div.addEventListener('click', function() {
+          self._cmSelectTab(div, tab.name);
+        });
+      }
+
+      container.appendChild(div);
+    });
+
+    // If every tab is the PMC tab (shouldn't happen but guard it)
+    var selectable = allTabs.filter(function(t) { return t.name !== pmc; });
+    if (selectable.length === 0) {
+      var hint = document.createElement('div');
+      hint.style.cssText = 'padding:10px 12px;font-size:11px;color:#92400E;background:#FEF3C7;border-radius:6px;margin-top:6px;';
+      hint.textContent = 'All tabs are the Task Manager\'s own storage tab ("' + pmc + '"). ' +
+        'Add another sheet tab to your spreadsheet with task data (columns: Name, Best, Most Likely, Worst), then reopen this dialog.';
+      container.appendChild(hint);
+    }
+  },
+
+  _cmSelectTab: function(el, name) {
+    this._cmSelectedTab = name;
+    var items = document.querySelectorAll('#cmTabList .tm-tab-item');
+    items.forEach(function(i) { i.classList.remove('selected'); });
+    if (el) el.classList.add('selected');
+    var status = document.getElementById('cmTabStatus');
+    if (status) status.textContent = '\u201c' + name + '\u201d selected \u2014 click Next to map columns.';
+  },
+
+  _cmSetStep: function(n) {
+    this._cmStep = n;
+    var s1 = document.getElementById('cmStep1');
+    var s2 = document.getElementById('cmStep2');
+    var s3 = document.getElementById('cmStep3');
+    var backBtn = document.getElementById('cmBackBtn');
+    var nextBtn = document.getElementById('cmNextBtn');
+    if (s1) s1.style.display = n === 1 ? 'block' : 'none';
+    if (s2) s2.style.display = n === 2 ? 'block' : 'none';
+    if (s3) s3.style.display = n === 3 ? 'block' : 'none';
+    if (backBtn) backBtn.style.display = n > 1 ? 'inline-flex' : 'none';
+    if (nextBtn) nextBtn.textContent = n === 3 ? 'Import Tasks' : 'Next';
+  },
+
+  _cmBack: function() {
+    if (this._cmStep > 1) this._cmSetStep(this._cmStep - 1);
+  },
+
+  _cmNext: function() {
+    var self = this;
+    var loadEl = document.getElementById('cmLoading');
+    var msgEl  = document.getElementById('cmLoadingMsg');
+
+    function showLoad(msg) {
+      if (loadEl) loadEl.classList.add('active');
+      if (msgEl)  msgEl.textContent = msg || 'Loading…';
+    }
+    function hideLoad() {
+      if (loadEl) loadEl.classList.remove('active');
+    }
+
+    if (this._cmStep === 1) {
+      if (!this._cmSelectedTab) { alert('Please select a tab first.'); return; }
+      showLoad('Detecting columns in "' + this._cmSelectedTab + '"…');
+      var tid1 = setTimeout(function(){ hideLoad(); alert('Timed out. Try again.'); }, 15000);
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(res) {
+            clearTimeout(tid1); hideLoad();
+            if (!res || !res.ok) { alert('Column detection failed: ' + (res && res.error ? res.error : 'Unknown')); return; }
+            self._cmDetectedMap = res.mapping;
+            self._cmRenderMappingGrid(res.headers, res.mapping, res.totalRows);
+            self._cmSetStep(2);
+          })
+          .withFailureHandler(function(err) {
+            clearTimeout(tid1); hideLoad();
+            alert('Column detection error: ' + (err && err.message ? err.message : String(err)));
+          })
+          .detectColumnMapping(this._cmSelectedTab);
+      } catch(e) { clearTimeout(tid1); hideLoad(); alert('Error: ' + e); }
+
+    } else if (this._cmStep === 2) {
+      // Read current mapping from UI
+      var mapping = {};
+      ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'].forEach(function(field) {
+        var sel = document.getElementById('cmMap_' + field);
+        mapping[field] = sel ? parseInt(sel.value, 10) : -1;
+      });
+      if (mapping.task_name < 0 || mapping.best_case < 0 || mapping.most_likely < 0 || mapping.worst_case < 0) {
+        alert('Please map at least: Task Name, Best Case, Most Likely, Worst Case.'); return;
+      }
+      showLoad('Importing rows from "' + (this._cmSelectedTab || '') + '"…');
+      var tid2 = setTimeout(function(){ hideLoad(); alert('Timed out. Try again.'); }, 20000);
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(res) {
+            clearTimeout(tid2); hideLoad();
+            if (!res || !res.ok) { alert('Import failed: ' + (res && res.error ? res.error : 'Unknown')); return; }
+            self._cmImportedTasks = res.tasks;
+            self._cmRenderImportSummary(res);
+            self._cmSetStep(3);
+          })
+          .withFailureHandler(function(err) {
+            clearTimeout(tid2); hideLoad();
+            alert('Import error: ' + (err && err.message ? err.message : String(err)));
+          })
+          .importFromExistingTab(this._cmSelectedTab, mapping);
+      } catch(e2) { clearTimeout(tid2); hideLoad(); alert('Error: ' + e2); }
+
+    } else if (this._cmStep === 3) {
+      if (!this._cmImportedTasks || this._cmImportedTasks.length === 0) { alert('No valid tasks to import.'); return; }
+      this._cmImportedTasks.forEach(function(t, i) {
+        self.tasks.push({
+          id:          'tid_import_' + Date.now() + '_' + i,
+          task_name:   t.task_name,
+          best_case:   t.best_case,
+          most_likely: t.most_likely,
+          worst_case:  t.worst_case,
+          risk_weight: t.risk_weight,
+          active:      t.active,
+          notes:       t.notes
+        });
+      });
+      this._markDirty();
+      this.closeColMap();
+      this._renderTaskList();
+      this._syncToLegacy();
+      this._updateBar();
+    }
+  },
+
+  _cmRenderMappingGrid: function(headers, mapping, totalRows) {
+    var selTabName = document.getElementById('cmSelectedTabName');
+    if (selTabName) selTabName.textContent = this._cmSelectedTab;
+    var status = document.getElementById('cmMapStatus');
+    if (status) status.textContent = totalRows + ' data row(s) found. Adjust column mapping if needed.';
+
+    var LABELS = {
+      task_name: 'Task Name *', best_case: 'Best Case *', most_likely: 'Most Likely *',
+      worst_case: 'Worst Case *', risk_weight: 'Risk Weight', active: 'Active', notes: 'Notes'
+    };
+    var options = '<option value="-1">(not mapped)</option>';
+    headers.forEach(function(h, ci) { options += '<option value="' + ci + '">' + _escHtml(String(h)) + '</option>'; });
+
+    var html = '';
+    ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'].forEach(function(field) {
+      var detected = mapping[field] >= 0 ? mapping[field] : -1;
+      html += '<label>' + LABELS[field] + '</label>';
+      html += '<select id="cmMap_' + field + '">' + options.replace('value="' + detected + '"', 'value="' + detected + '" selected') + '</select>';
+    });
+    var grid = document.getElementById('cmMappingGrid');
+    if (grid) grid.innerHTML = html;
+    // Re-apply selected values
+    ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'].forEach(function(field) {
+      var sel = document.getElementById('cmMap_' + field);
+      if (sel && mapping[field] >= 0) sel.value = mapping[field];
+    });
+  },
+
+  _cmRenderImportSummary: function(res) {
+    var warnEl = document.getElementById('cmImportWarnings');
+    var summEl = document.getElementById('cmImportSummary');
+    if (summEl) summEl.textContent = res.tasks.length + ' task(s) imported. ' + (res.warnings && res.warnings.length > 0 ? res.warnings.length + ' warning(s).' : '');
+    var warnHtml = '';
+    if (res.warnings && res.warnings.length > 0) {
+      warnHtml = '<div class="tm-warnings"><div class="warn-title">&#9888; Auto-corrections (' + res.warnings.length + ')</div><ul>';
+      res.warnings.forEach(function(w) { warnHtml += '<li>' + _escHtml(w) + '</li>'; });
+      warnHtml += '</ul></div>';
+    }
+    if (warnEl) warnEl.innerHTML = warnHtml;
+  },
+
+  closeColMap: function() {
+    var bd = document.getElementById('tmColMapBackdrop');
+    if (bd) bd.classList.remove('open');
+  },
+
+  /* ── Settings ── */
+  openSettings: function() {
+    var tabEl = document.getElementById('stTabName');
+    var unitsEl = document.getElementById('stUnits');
+    var custEl = document.getElementById('stCustomUnits');
+    var custGroup = document.getElementById('stCustomUnitsGroup');
+    if (tabEl) tabEl.value = this.settings.tabName || 'PMC Tasks';
+    if (unitsEl) unitsEl.value = this.settings.units || 'days';
+    if (custEl) custEl.value = this.settings.customUnits || '';
+    if (custGroup) custGroup.style.display = (this.settings.units === 'custom') ? 'block' : 'none';
+    if (unitsEl) unitsEl.onchange = function() {
+      if (custGroup) custGroup.style.display = this.value === 'custom' ? 'block' : 'none';
+    };
+    var bd = document.getElementById('tmSettingsBackdrop');
+    if (bd) bd.classList.add('open');
+  },
+  closeSettings: function() {
+    var bd = document.getElementById('tmSettingsBackdrop');
+    if (bd) bd.classList.remove('open');
+  },
+  _saveSettings: function() {
+    var self = this;
+    var tabEl = document.getElementById('stTabName');
+    var unitsEl = document.getElementById('stUnits');
+    var custEl = document.getElementById('stCustomUnits');
+    this.settings.tabName = (tabEl ? tabEl.value.trim() : this.settings.tabName) || 'PMC Tasks';
+    this.settings.units   = unitsEl ? unitsEl.value : 'days';
+    if (this.settings.units === 'custom') this.settings.customUnits = custEl ? custEl.value.trim() : '';
+    this.closeSettings();
+    if (window.google && window.google.script && window.google.script.run) {
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(){})
+          .withFailureHandler(function(){})
+          .savePMCSettings(self.settings);
+      } catch(e) { console.warn('savePMCSettings error:', e); }
+    }
+  },
+
+  /* ── First-run ── */
+  _showFirstRun: function() {
+    var bd = document.getElementById('tmFirstRunBackdrop');
+    if (bd) bd.classList.add('open');
+
+    // Populate tab list — use injected server data first (always available)
+    var self = this;
+    function _populateTabList(tabs) {
+      var list = document.getElementById('tmTabList');
+      if (!list) return;
+      list.innerHTML = '';
+      (tabs || []).forEach(function(tab) {
+        var div = document.createElement('div');
+        div.className = 'tm-tab-item';
+        div.textContent = tab.name;
+        div.addEventListener('click', function() {
+          document.querySelectorAll('#tmTabList .tm-tab-item').forEach(function(i){ i.classList.remove('selected'); });
+          div.classList.add('selected');
+          TM._frSelectedTab = tab.name;
+        });
+        list.appendChild(div);
+      });
+    }
+
+    var serverData = window._PMC_SERVER_DATA;
+    if (serverData && Array.isArray(serverData.sheetTabs) && serverData.sheetTabs.length > 0) {
+      _populateTabList(serverData.sheetTabs);
+    } else if (window.google && window.google.script && window.google.script.run) {
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(res) {
+            var tabs = (res && res.sheetTabs) ? res.sheetTabs : [];
+            if (!window._PMC_SERVER_DATA) window._PMC_SERVER_DATA = {};
+            window._PMC_SERVER_DATA.sheetTabs = tabs;
+            _populateTabList(tabs);
+          })
+          .withFailureHandler(function(){})
+          .getAllTasks({ action: 'listTabs' });
+      } catch(e) { console.warn('_showFirstRun getAllTasks listTabs error:', e); }
+    }
+  },
+  _frSelected: null,
+  _frSelectedTab: null,
+  _frSelect: function(choice) {
+    this._frChoice = choice;
+    var cc = document.getElementById('frChoiceCreate');
+    var ci = document.getElementById('frChoiceImport');
+    var cs = document.getElementById('frCreateSection');
+    var is = document.getElementById('frImportSection');
+    if (cc) cc.classList.toggle('selected', choice === 'create');
+    if (ci) ci.classList.toggle('selected', choice === 'import');
+    if (cs) cs.style.display = choice === 'create' ? 'block' : 'none';
+    if (is) is.style.display = choice === 'import' ? 'block' : 'none';
+  },
+  _frProceed: function() {
+    var self = this;
+    var loadEl = document.getElementById('frLoading');
+    var msgEl  = document.getElementById('frLoadingMsg');
+    if (loadEl) loadEl.classList.add('active');
+
+    if (this._frChoice === 'create') {
+      var tabNameEl = document.getElementById('frTabName');
+      var tabName = tabNameEl ? tabNameEl.value.trim() : 'PMC Tasks';
+      if (!tabName) tabName = 'PMC Tasks';
+      if (msgEl) msgEl.textContent = 'Creating "' + tabName + '" tab…';
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(res) {
+            if (loadEl) loadEl.classList.remove('active');
+            if (!res || !res.ok) { alert('Failed to create tab: ' + (res && res.error ? res.error : '')); return; }
+            self.settings.tabName = res.tabName;
+            self.tasks = [];
+            self.savedTasks = [];
+            self.initialized = true;
+            var bd = document.getElementById('tmFirstRunBackdrop');
+            if (bd) bd.classList.remove('open');
+            self._updateBar();
+            self.openManager(); // Let user add tasks
+          })
+          .withFailureHandler(function(err) {
+            if (loadEl) loadEl.classList.remove('active');
+            alert('Error creating tab: ' + (err && err.message ? err.message : String(err)));
+          })
+          .initPMCTab(tabName);
+      } catch(e) { if (loadEl) loadEl.classList.remove('active'); alert('Error: ' + e); }
+
+    } else {
+      // import from existing tab — chain three calls
+      if (!this._frSelectedTab) { if (loadEl) loadEl.classList.remove('active'); alert('Please select a tab.'); return; }
+      if (msgEl) msgEl.textContent = 'Setting up PMC Tasks tab…';
+      try {
+        window.google.script.run
+          .withSuccessHandler(function(initRes) {
+            if (!initRes || !initRes.ok) {
+              if (loadEl) loadEl.classList.remove('active');
+              alert('Failed to create PMC Tasks tab: ' + (initRes && initRes.error ? initRes.error : ''));
+              return;
+            }
+            self.settings.tabName = initRes.tabName;
+            if (msgEl) msgEl.textContent = 'Detecting columns in "' + self._frSelectedTab + '"…';
+            try {
+              window.google.script.run
+                .withSuccessHandler(function(mapRes) {
+                  if (!mapRes || !mapRes.ok) {
+                    if (loadEl) loadEl.classList.remove('active');
+                    alert('Column detection failed: ' + (mapRes && mapRes.error ? mapRes.error : ''));
+                    return;
+                  }
+                  self._cmDetectedMap = mapRes.mapping;
+                  if (msgEl) msgEl.textContent = 'Importing tasks…';
+                  try {
+                    window.google.script.run
+                      .withSuccessHandler(function(importRes) {
+                        if (loadEl) loadEl.classList.remove('active');
+                        if (!importRes || !importRes.ok) { alert('Import failed.'); return; }
+                        self.tasks = importRes.tasks.map(function(t, i) { return self._normalizeTask(t, i); });
+                        self.savedTasks = JSON.parse(JSON.stringify(self.tasks));
+                        self.initialized = true;
+                        var bd = document.getElementById('tmFirstRunBackdrop');
+                        if (bd) bd.classList.remove('open');
+                        self._syncToLegacy();
+                        self._updateBar();
+                      })
+                      .withFailureHandler(function(err) { if (loadEl) loadEl.classList.remove('active'); alert('Import error: ' + (err && err.message ? err.message : String(err))); })
+                      .importFromExistingTab(self._frSelectedTab, mapRes.mapping);
+                  } catch(e3) { if (loadEl) loadEl.classList.remove('active'); alert('Import call error: ' + e3); }
+                })
+                .withFailureHandler(function(err) { if (loadEl) loadEl.classList.remove('active'); alert('Column detect error: ' + (err && err.message ? err.message : String(err))); })
+                .detectColumnMapping(self._frSelectedTab);
+            } catch(e2) { if (loadEl) loadEl.classList.remove('active'); alert('Detect call error: ' + e2); }
+          })
+          .withFailureHandler(function(err) { if (loadEl) loadEl.classList.remove('active'); alert('Init error: ' + (err && err.message ? err.message : String(err))); })
+          .initPMCTab('PMC Tasks');
+      } catch(e) { if (loadEl) loadEl.classList.remove('active'); alert('Error: ' + e); }
+    }
+  },
+
+  /* ── Generic confirm dialog ── */
+  _confirm: function(title, msg, actionLabel, cb) {
+    this._confirmCb = cb;
+    var tEl = document.getElementById('confirmTitle');
+    var mEl = document.getElementById('confirmMessage');
+    var okEl= document.getElementById('confirmOkBtn');
+    if (tEl) tEl.textContent = title;
+    if (mEl) mEl.textContent = msg;
+    if (okEl) okEl.textContent = actionLabel || 'Confirm';
+    var bd = document.getElementById('tmConfirmBackdrop');
+    if (bd) bd.classList.add('open');
+  },
+  _confirmClose: function(ok) {
+    var bd = document.getElementById('tmConfirmBackdrop');
+    if (bd) bd.classList.remove('open');
+    if (ok && typeof this._confirmCb === 'function') { this._confirmCb(); }
+    this._confirmCb = null;
+  },
+
+  /* ── Backdrop click to close ── */
+  _backdropClose: function(ev, backdropId) {
+    if (ev.target && ev.target.id === backdropId) {
+      var bd = document.getElementById(backdropId);
+      if (bd) bd.classList.remove('open');
+    }
+  }
+};
+
+/* ── Helper: escape HTML ── */
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Helper: parse a single CSV line (handles quoted fields) ── */
+function _csvLine(line) {
+  var result = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
+/* ── Initialize TM on DOMContentLoaded ── */
+document.addEventListener('DOMContentLoaded', function() {
+  // Give existing loadTasks() a chance to run first, then TM.init()
+  // TM overrides the task list after load
+  setTimeout(function() { TM.init(); }, 200);
+});
+
+})();
+</script>
+
 </body>
 </html>

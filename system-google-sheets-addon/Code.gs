@@ -30,39 +30,117 @@ var CFG = {
 /************************************************************
  * 2. HEADERS
  ************************************************************/
+// Column index constants — update here if schema changes
+var COL = {
+  // A. Inputs (1-4) — unchanged
+  NAME:1, BEST:2, MOST:3, WORST:4,
+  // B. PERT + baseline summary (5-8) — unchanged
+  PERT:5, CI_LO:6, CI_HI:7, BASE_PROB:8,
+  // C. Optimization outputs (9-18) — unchanged
+  S_BUDGET:9, S_SCHED:10, S_SCOPE:11, S_SCOPE_RED:12,
+  S_REWORK:13, S_RISK:14, S_CONF:15,
+  OPT_PROB:16, SENS:17, KLD:18,
+  // D. NEW — Classical PERT analytics (19-21)
+  PERT_STD:19, TRI_MEAN:20, RISK_RANGE:21,
+  // E. NEW — Monte Carlo analytics (22-29)
+  MC_MEAN:22, MC_STD:23, MC_CV:24,
+  MC_P50:25, MC_P80:26, MC_P90:27,
+  MC_SKEW:28, PROB_LIFT:29,
+  // F. Raw JSON blobs (30-33) — shifted from old 19-22
+  BASE_PDF:30, BASE_CDF:31, OPT_PDF:32, OPT_CDF:33,
+  STATUS:34
+};
+
 var HEADERS = [
-  'Name','Best Case','Most Likely','Worst Case',
-  'PERT','MC Smoothed 95% CI Lower','MC Smoothed 95% CI Upper','% Confidence of Original PERT Value',
-  'Optimal Budget Flexibility','Optimal Schedule Flexibility','Optimal Scope Certainty','Optimal Scope Reduction Allowance','Optimal Rework Percentage','Optimal Risk Tolerance','Optimal User Confidence',
-  '% Confidence of Original PERT Value After Slider Optimization','MC Smoothed Sensitivity Change','KL Divergence To Triangle',
-  'Baseline MC Smoothed Points (PDF)','Baseline MC Smoothed Points (CDF)',
-  'Optimized MC Smoothed Points (PDF)','Optimized MC Smoothed Points (CDF)',
+  // A. Inputs (cols 1-4)
+  'Name', 'Best Case', 'Most Likely', 'Worst Case',
+
+  // B. PERT + Baseline Summary (cols 5-8)  — positions UNCHANGED
+  'PERT Mean',
+  'MC 95% CI Lower', 'MC 95% CI Upper',
+  'P(finish ≤ PERT Mean)  [Baseline %]',
+
+  // C. Optimization Outputs (cols 9-18)  — positions UNCHANGED
+  'Optimal Budget Flexibility',
+  'Optimal Schedule Flexibility',
+  'Optimal Scope Certainty',
+  'Optimal Scope Reduction Allowance',
+  'Optimal Rework Percentage',
+  'Optimal Risk Tolerance',
+  'Optimal User Confidence',
+  'P(finish ≤ PERT Mean) After Optimization',
+  'MC Sensitivity Change',
+  'KL Divergence (Triangle → MC)',
+
+  // D. Classical PERT Analytics (cols 19-21)  ← NEW
+  'PERT Std Dev [(P-O)/6]',
+  'Triangle Mean [(O+M+P)/3]',
+  'Risk Range (P-O)',
+
+  // E. Monte Carlo Analytics (cols 22-29)  ← NEW
+  'MC Mean (Expected Value)',
+  'MC Std Dev',
+  'Coefficient of Variation (MC Std/Mean)',
+  'MC P50 — Median',
+  'MC P80 — 80th Percentile',
+  'MC P90 — 90th Percentile',
+  'MC Skewness',
+  'Probability Lift (opt − baseline, pp)',
+
+  // F. Raw JSON blobs — technical (cols 30-34)
+  'Baseline MC PDF (JSON)',
+  'Baseline MC CDF (JSON)',
+  'Optimized MC PDF (JSON)',
+  'Optimized MC CDF (JSON)',
   'Status'
 ];
+
 var HEADER_NOTES = [
+  // A
   'Task name or identifier',
-  'Optimistic estimate (best-case)',
-  'Most likely estimate (expected)',
-  'Pessimistic estimate (worst-case)',
-  'PERT mean (local core)',
-  '95% CI lower (MC-smoothed, local core)',
-  '95% CI upper (MC-smoothed, local core)',
-  'Baseline probability at target=PERT (local core)',
-  'Optimized budget flexibility (%)',
-  'Optimized schedule flexibility (%)',
-  'Optimal scope certainty (%)',
-  'Optimized scope reduction allowance (%)',
-  'Optimized rework percentage (%)',
-  'Optimized risk tolerance (%)',
-  'Optimized user confidence (%)',
-  'Optimized probability at PERT (local core)',
-  'Sensitivity change (local core)',
-  'KL divergence Triangle→MC-smoothed baseline (local core)',
-  'Baseline MC-smoothed PDF (JSON from local core)',
-  'Baseline MC-smoothed CDF (local core)',
-  'Optimized MC-smoothed PDF (JSON from local core)',
-  'Optimized MC-smoothed CDF (local core)',
-  'Phase/status with timestamps'
+  'Optimistic / best-case estimate (O)',
+  'Most-likely estimate (M)',
+  'Pessimistic / worst-case estimate (P)',
+
+  // B
+  'PERT mean = (O + 4M + P) / 6  — classical 3-point weighted average',
+  'Lower bound of Monte Carlo smoothed 95% confidence interval',
+  'Upper bound of Monte Carlo smoothed 95% confidence interval',
+  'Probability the outcome falls at or below the PERT mean (baseline, no optimization)',
+
+  // C
+  'Optimal budget flexibility (%) from slider optimization',
+  'Optimal schedule flexibility (%) from slider optimization',
+  'Optimal scope certainty (%) from slider optimization',
+  'Optimal scope reduction allowance (%) from slider optimization',
+  'Optimal rework percentage (%) from slider optimization',
+  'Optimal risk tolerance (%) from slider optimization',
+  'Optimal user confidence (%) from slider optimization',
+  'Probability at PERT mean after applying optimal slider settings',
+  'Sensitivity change metric from Monte Carlo optimization',
+  'KL divergence from Triangle to MC-smoothed baseline — measures model divergence (0 = identical)',
+
+  // D — new
+  'PERT standard deviation = (P-O)/6 — measures spread under the 3-sigma assumption',
+  'Triangle distribution mean = (O+M+P)/3 — simpler than PERT; ignores Most-Likely weighting',
+  'Risk Range = P - O — total span of estimates; larger = more uncertainty',
+
+  // E — new
+  'Monte Carlo expected value (mean) from 10k simulation runs — may differ from PERT mean',
+  'Monte Carlo standard deviation — actual spread from simulation',
+  'Coefficient of Variation = MC Std Dev / MC Mean — unitless risk measure; >0.5 = high variability',
+  '50th percentile (median) from MC CDF — half the simulations finished at or below this value',
+  '80th percentile from MC CDF — industry-standard schedule buffer point (P80 planning)',
+  '90th percentile from MC CDF — conservative buffer; 90% of simulations finish at or below this',
+  'MC distribution skewness — positive = right-skewed (long tail of overruns); negative = left-skewed',
+  'Probability Lift = optimized probability − baseline probability (percentage points) — how much optimization helped',
+
+  // F
+  'Baseline MC-smoothed PDF points (JSON array) — used by Plot UI',
+  'Baseline MC-smoothed CDF points (JSON array) — used by Plot UI',
+  'Optimized MC-smoothed PDF points (JSON array) — used by Plot UI',
+  'Optimized MC-smoothed CDF points (JSON array) — used by Plot UI',
+  'Processing status with timestamps'
 ];
 
 /************************************************************
@@ -105,6 +183,54 @@ function num(v) {
 
 function toFixed6(v) { return isNumber(v) ? Number(v).toFixed(6) : ''; }
 function clipArray(arr, n) { return Array.isArray(arr) ? arr.slice(0, Math.max(0, n|0)) : []; }
+
+/**
+ * Inverse CDF: find x where CDF(x) ≈ prob via linear interpolation.
+ * Used to compute P50/P80/P90 percentiles from MC CDF point arrays.
+ */
+function interpXfromCDF_(cdfPts, prob) {
+  if (!Array.isArray(cdfPts) || cdfPts.length < 2) return null;
+  for (let i = 1; i < cdfPts.length; i++) {
+    const y0 = Number(cdfPts[i-1].y), y1 = Number(cdfPts[i].y);
+    const x0 = Number(cdfPts[i-1].x), x1 = Number(cdfPts[i].x);
+    if (y1 >= prob && y0 <= prob) {
+      const dy = y1 - y0;
+      const t = dy > 1e-12 ? (prob - y0) / dy : 0;
+      return x0 + t * (x1 - x0);
+    }
+  }
+  // prob above last point — return last x
+  return Number(cdfPts[cdfPts.length - 1].x);
+}
+
+/**
+ * Compute MC mean, std dev, and skewness from PDF point array
+ * using trapezoidal numerical integration.
+ * Returns { mean, std, skew } — all null if insufficient data.
+ */
+function computeMCStats_(pdfPts) {
+  const nil = { mean: null, std: null, skew: null };
+  if (!Array.isArray(pdfPts) || pdfPts.length < 2) return nil;
+  let mean = 0;
+  for (let i = 1; i < pdfPts.length; i++) {
+    const dx   = Number(pdfPts[i].x)   - Number(pdfPts[i-1].x);
+    const avgY = (Number(pdfPts[i].y)  + Number(pdfPts[i-1].y)) / 2;
+    const avgX = (Number(pdfPts[i].x)  + Number(pdfPts[i-1].x)) / 2;
+    mean += avgX * avgY * dx;
+  }
+  let variance = 0, m3 = 0;
+  for (let i = 1; i < pdfPts.length; i++) {
+    const dx   = Number(pdfPts[i].x)   - Number(pdfPts[i-1].x);
+    const avgY = (Number(pdfPts[i].y)  + Number(pdfPts[i-1].y)) / 2;
+    const avgX = (Number(pdfPts[i].x)  + Number(pdfPts[i-1].x)) / 2;
+    const d = avgX - mean;
+    variance += d * d * avgY * dx;
+    m3       += d * d * d * avgY * dx;
+  }
+  const std  = Math.sqrt(Math.max(0, variance));
+  const skew = std > 1e-12 ? m3 / (std * std * std) : 0;
+  return { mean, std, skew };
+}
 function scale01To100_(v) {
   const n = num(v);
   if (!isNumber(n)) return null;
@@ -239,7 +365,31 @@ function openPlotUi() {
     .setWidth(1200)
     .setHeight(900)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  SpreadsheetApp.getUi().showModelessDialog(html, 'PLOT');
+
+  // Inject server-side data — inlined so there is no dependency on any new
+  // function being callable via google.script.run.
+  var _tabs = [];
+  try {
+    var _ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (_ss) {
+      _tabs = _ss.getSheets().map(function(sh) {
+        return { name: sh.getName(), id: sh.getSheetId() };
+      });
+    }
+  } catch(_e) {}
+  var _settings = {};
+  try {
+    var _props = PropertiesService.getDocumentProperties();
+    var _raw   = _props.getProperty('pmc_settings_v1');
+    if (_raw) _settings = JSON.parse(_raw);
+  } catch(_e2) {}
+  var inject = '<script>window._PMC_SERVER_DATA=' +
+    JSON.stringify({ sheetTabs: _tabs, pmcSettings: _settings, _v: Date.now() }) +
+    ';</script>';
+  html.setContent(inject + html.getContent());
+
+  // Title includes tab count — if you see "PLOT [N tabs]" the new code is running.
+  SpreadsheetApp.getUi().showModelessDialog(html, 'PLOT [' + _tabs.length + ' tabs]');
 }
 
 /************************************************************
@@ -654,7 +804,20 @@ function getSourceSheet_() {
   return sheets[Math.max(0, Math.min(CFG.SRC_SHEET_INDEX, sheets.length - 1))] || null;
 }
 
-function getAllTasks() {
+function getAllTasks(params) {
+  // Overloaded: pass {action:'listTabs'} to just get sheet tab list.
+  // This lets the client avoid calling new undeployed functions.
+  if (params && params.action === 'listTabs') {
+    var tabs = [];
+    try {
+      var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+      if (ss2) tabs = ss2.getSheets().map(function(sh) {
+        return { name: sh.getName(), id: sh.getSheetId() };
+      });
+    } catch(_e) {}
+    return { action: 'listTabs', sheetTabs: tabs };
+  }
+
   try {
     Logger.log('getAllTasks() started @ ' + new Date().toISOString());
 
@@ -733,10 +896,21 @@ function getAllTasks() {
     }
 
     Logger.log('Found ' + out.length + ' valid tasks');
-    return out;
+
+    // Return enriched object so client can also get sheet tab list without
+    // needing a separately-deployed listSheetTabs() function.
+    var sheetTabs = [];
+    try {
+      var allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+      sheetTabs = allSheets.map(function(sh) {
+        return { name: sh.getName(), id: sh.getSheetId() };
+      });
+    } catch(_e) {}
+    return { tasks: out, sheetTabs: sheetTabs };
+
   } catch (e) {
     Logger.log('ERROR in getAllTasks: ' + e.message + ' (stack: ' + e.stack + ')');
-    return [{ task:`(Error reading source: ${e.message})`, optimistic:null, mostLikely:null, pessimistic:null }];
+    return { tasks: [{ task:`(Error reading source: ${e.message})`, optimistic:null, mostLikely:null, pessimistic:null }], sheetTabs: [] };
   }
 }
 
@@ -924,7 +1098,7 @@ function doMaterialize_(task, pert, sliders, row, out) {
   const clip = CFG.MAX_POINTS;
   const pointsList = [parsedBase.basePDF, parsedBase.baseCDF, parsedOpt.optPDF, parsedOpt.optCDF];
   pointsList.forEach((pts, idx) => {
-    const jsonCol = 19 + idx;
+    const jsonCol = COL.BASE_PDF + idx;
     Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
     const clipped = clipArray(pts || [], clip);
     const jsonStr = JSON.stringify(clipped);
@@ -954,12 +1128,16 @@ function ensureHeadersAndWidths_(sheet) {
     .setHorizontalAlignment('center');
 
   for (let c = 1; c <= HEADERS.length; c++) {
-    sheet.setColumnWidth(c, c <= 4 ? 120 : (c <= 18 ? 150 : 250));
+    // 1-4: input cols (narrow), 5-18: existing analytics, 19-29: new analytics, 30+: JSON blobs
+    const w = c <= 4 ? 120 : c <= 18 ? 150 : c <= 29 ? 140 : 250;
+    sheet.setColumnWidth(c, w);
   }
 }
 
 function pertRunAllRows() {
-  const tasks = getAllTasks();
+  const result = getAllTasks();
+  // getAllTasks() returns { tasks, sheetTabs } — unwrap the array
+  const tasks = Array.isArray(result) ? result : (result && Array.isArray(result.tasks) ? result.tasks : []);
   if (!tasks || !tasks.length) { safeAlert_('No tasks found.'); return; }
   runTasks_(tasks, 'All Rows');
 }
@@ -1012,7 +1190,11 @@ function runTasks_(tasks, mode) {
     out = ss.insertSheet(CFG.OUT_SHEET_NAME);
   }
   if (out.getLastRow() > 1) {
-    out.getRange(2, 1, out.getLastRow() - 1, Math.max(out.getLastColumn(), HEADERS.length)).clearContent();
+    // Clear only up to the sheet's actual column count — avoids "out of bounds" error
+    // when upgrading from an older schema with fewer columns.
+    // ensureHeadersAndWidths_ (below) will then insert any missing columns.
+    const clearCols = Math.max(1, Math.min(out.getLastColumn(), out.getMaxColumns()));
+    out.getRange(2, 1, out.getLastRow() - 1, clearCols).clearContent();
   }
   ensureHeadersAndWidths_(out);
 
@@ -1021,6 +1203,7 @@ function runTasks_(tasks, mode) {
 
   let ok = 0, err = 0, partial = 0;
   const startTime = Date.now();
+  toast_(mode, `Found ${tasks.length} task(s) — starting...`, 4);
   logSheet.appendRow([tsMsg(`${mode}: Starting ${tasks.length} tasks`)]);
 
   for (let i = 0; i < tasks.length; i++) {
@@ -1063,7 +1246,7 @@ function runTasks_(tasks, mode) {
   shadeConfidenceColumns_(out);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  const msg = `Done: ${ok} OK, ${partial} partial, ${err} errors in ${elapsed}s`;
+  const msg = `Done (${tasks.length} tasks): ${ok} OK, ${partial} partial, ${err} errors in ${elapsed}s`;
   toast_(mode, msg, 10);
   logSheet.appendRow([tsMsg(msg)]);
 }
@@ -1103,9 +1286,33 @@ function doSingleTask_(task, row, out, logSheet) {
           SpreadsheetApp.flush();
         }
 
+        // D. Classical PERT analytics (cols 19-21) — computable from inputs alone
+        const pertStd_   = (task.pessimistic - task.optimistic) / 6;
+        const triMean_   = (task.optimistic + task.mostLikely + task.pessimistic) / 3;
+        const riskRange_ = task.pessimistic - task.optimistic;
+        if (isNumber(pertStd_))   { out.getRange(row, COL.PERT_STD).setValue(pertStd_.toFixed(4));     SpreadsheetApp.flush(); }
+        if (isNumber(triMean_))   { out.getRange(row, COL.TRI_MEAN).setValue(triMean_.toFixed(4));     SpreadsheetApp.flush(); }
+        if (isNumber(riskRange_)) { out.getRange(row, COL.RISK_RANGE).setValue(riskRange_.toFixed(4)); SpreadsheetApp.flush(); }
+
+        // E. Monte Carlo analytics (cols 22-28) — derived from PDF/CDF point arrays
+        const mcStats_ = computeMCStats_(baseParsed.basePDF);
+        if (isNumber(mcStats_.mean)) { out.getRange(row, COL.MC_MEAN).setValue(mcStats_.mean.toFixed(4)); SpreadsheetApp.flush(); }
+        if (isNumber(mcStats_.std))  { out.getRange(row, COL.MC_STD).setValue(mcStats_.std.toFixed(4));  SpreadsheetApp.flush(); }
+        if (isNumber(mcStats_.mean) && Math.abs(mcStats_.mean) > 1e-12 && isNumber(mcStats_.std)) {
+          out.getRange(row, COL.MC_CV).setValue((mcStats_.std / Math.abs(mcStats_.mean)).toFixed(4));
+          SpreadsheetApp.flush();
+        }
+        if (isNumber(mcStats_.skew)) { out.getRange(row, COL.MC_SKEW).setValue(mcStats_.skew.toFixed(4)); SpreadsheetApp.flush(); }
+        const p50_ = interpXfromCDF_(baseParsed.baseCDF, 0.50);
+        const p80_ = interpXfromCDF_(baseParsed.baseCDF, 0.80);
+        const p90_ = interpXfromCDF_(baseParsed.baseCDF, 0.90);
+        if (isNumber(p50_)) { out.getRange(row, COL.MC_P50).setValue(p50_.toFixed(4)); SpreadsheetApp.flush(); }
+        if (isNumber(p80_)) { out.getRange(row, COL.MC_P80).setValue(p80_.toFixed(4)); SpreadsheetApp.flush(); }
+        if (isNumber(p90_)) { out.getRange(row, COL.MC_P90).setValue(p90_.toFixed(4)); SpreadsheetApp.flush(); }
+
         const clip = CFG.MAX_POINTS;
         [baseParsed.basePDF, baseParsed.baseCDF].forEach((pts, idx) => {
-          const jsonCol = 19 + idx;
+          const jsonCol = COL.BASE_PDF + idx;
           Logger.log(`Writing baseline points to col ${jsonCol} (length=${pts?.length || '0'})`);
           const jsonStr = JSON.stringify(clipArray(pts || [], clip));
           out.getRange(row, jsonCol).setValue(jsonStr);
@@ -1188,10 +1395,17 @@ function doSingleTask_(task, row, out, logSheet) {
         out.getRange(row, 18).setValue(kl);
         SpreadsheetApp.flush();
 
+        // Probability Lift (col 29) — optimization gain in percentage points
+        if (isNumber(optParsed.optProb) && isNumber(baseParsed.baseProb)) {
+          const lift_ = (optParsed.optProb - baseParsed.baseProb) * 100;
+          out.getRange(row, COL.PROB_LIFT).setValue(lift_.toFixed(4));
+          SpreadsheetApp.flush();
+        }
+
         const clip = CFG.MAX_POINTS;
         const pointsList = [baseParsed.basePDF, baseParsed.baseCDF, optParsed.optPDF, optParsed.optCDF];
         pointsList.forEach((pts, idx) => {
-          const jsonCol = 19 + idx;
+          const jsonCol = COL.BASE_PDF + idx;
           Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
           const clipped = clipArray(pts || [], clip);
           const jsonStr = JSON.stringify(clipped);
@@ -1251,7 +1465,9 @@ function writeLogsToSheet() {
  ************************************************************/
 function shadeConfidenceColumns_(sheet) {
   try {
-    const COLS = [5, 8, 16];
+    // Col 5 = PERT Mean, 8 = Baseline Prob, 16 = Opt Prob,
+    // 25 = MC P50, 26 = MC P80, 27 = MC P90, 29 = Probability Lift
+    const COLS = [5, 8, 16, COL.MC_P50, COL.MC_P80, COL.MC_P90, COL.PROB_LIFT];
     const COLOR = '#d9ead3';
     const headerRow = 1;
 
@@ -1312,4 +1528,379 @@ function testPointNormalization() {
   normalized.forEach((p, i) => {
     Logger.log('Test point #' + (i+1) + ': x=' + p.x + ', y=' + p.y + ' (type: ' + typeof p.y + ')');
   });
+}
+
+/************************************************************
+ * 14. PMC TASK MANAGER — Settings, Tab Management, Simulation
+ ************************************************************/
+
+var PMC_TAB_SCHEMA     = ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'];
+var PMC_TAB_HDR_LABELS = ['Task Name','Best Case','Most Likely','Worst Case','Risk Weight','Active','Notes'];
+var PMC_TAB_DEFAULT_NAME = 'PMC Tasks';
+var PMC_SETTINGS_KEY   = 'pmc_settings_v1';
+var PMC_TAB_ID_KEY     = 'pmc_tab_id_v1';
+
+function getPMCSettings() {
+  try {
+    var props = PropertiesService.getDocumentProperties();
+    var raw   = props.getProperty(PMC_SETTINGS_KEY);
+    var defs  = { tabName: PMC_TAB_DEFAULT_NAME, units: 'days', mode: 'single' };
+    if (!raw) return defs;
+    return Object.assign(defs, JSON.parse(raw));
+  } catch(e) {
+    return { tabName: PMC_TAB_DEFAULT_NAME, units: 'days', mode: 'single' };
+  }
+}
+
+function savePMCSettings(settings) {
+  try {
+    var props   = PropertiesService.getDocumentProperties();
+    var current = getPMCSettings();
+    var merged  = Object.assign(current, settings || {});
+    props.setProperty(PMC_SETTINGS_KEY, JSON.stringify(merged));
+    return { ok: true, settings: merged };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function listSheetTabs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheets().map(function(sh) {
+    return { name: sh.getName(), id: sh.getSheetId() };
+  });
+}
+
+// Internal: find PMC sheet by tracked ID, then name fallback
+function getPMCSheet_() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var props = PropertiesService.getDocumentProperties();
+  var rawId = props.getProperty(PMC_TAB_ID_KEY);
+  var savedId = rawId ? parseInt(rawId, 10) : NaN;
+  if (!isNaN(savedId)) {
+    var sheets = ss.getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      if (sheets[i].getSheetId() === savedId) return sheets[i];
+    }
+  }
+  var settings = getPMCSettings();
+  return ss.getSheetByName(settings.tabName || PMC_TAB_DEFAULT_NAME);
+}
+
+function initPMCTab(tabName) {
+  tabName = tabName || PMC_TAB_DEFAULT_NAME;
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var props = PropertiesService.getDocumentProperties();
+
+  // Already tracked?
+  var existing = getPMCSheet_();
+  if (existing) {
+    props.setProperty(PMC_TAB_ID_KEY, String(existing.getSheetId()));
+    savePMCSettings({ tabName: existing.getName() });
+    return { ok: true, created: false, tabName: existing.getName(), tabId: existing.getSheetId() };
+  }
+
+  // Tab with requested name exists but not tracked?
+  var byName = ss.getSheetByName(tabName);
+  if (byName) {
+    props.setProperty(PMC_TAB_ID_KEY, String(byName.getSheetId()));
+    savePMCSettings({ tabName: tabName });
+    return { ok: true, created: false, tabName: tabName, tabId: byName.getSheetId() };
+  }
+
+  // Create new tab
+  var newSheet = ss.insertSheet(tabName);
+  var hdr = newSheet.getRange(1, 1, 1, PMC_TAB_HDR_LABELS.length);
+  hdr.setValues([PMC_TAB_HDR_LABELS]);
+  hdr.setFontWeight('bold');
+  hdr.setBackground('#e8f0fe');
+  newSheet.setFrozenRows(1);
+  var widths = [200, 100, 110, 110, 100, 70, 250];
+  widths.forEach(function(w, ci) { newSheet.setColumnWidth(ci + 1, w); });
+  props.setProperty(PMC_TAB_ID_KEY, String(newSheet.getSheetId()));
+  savePMCSettings({ tabName: tabName });
+  return { ok: true, created: true, tabName: tabName, tabId: newSheet.getSheetId() };
+}
+
+function detectColumnMapping(tabName) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(tabName);
+  if (!sheet) return { ok: false, error: 'Tab not found: ' + tabName };
+
+  var lastCol = Math.min(sheet.getLastColumn(), 30);
+  if (lastCol < 1) return { ok: false, error: 'Tab appears to be empty' };
+
+  var headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  var KEYWORDS = {
+    task_name:   ['task','name','activity','item','work','feature','story','epic','title','description','id'],
+    best_case:   ['best','optimistic','min','minimum','low','fast','fastest','floor','opt'],
+    most_likely: ['likely','expected','nominal','typical','modal','base','medium','normal','mid','ml'],
+    worst_case:  ['worst','pessimistic','max','maximum','high','slow','slowest','ceiling','pess'],
+    risk_weight: ['risk','weight','priority','impact','severity','criticality','factor','wt'],
+    active:      ['active','enabled','include','selected','on','use','flag'],
+    notes:       ['note','comment','remark','detail','info','memo']
+  };
+
+  var mapping = {}, usedCols = {};
+  PMC_TAB_SCHEMA.forEach(function(field) {
+    var bestScore = 0, bestCol = -1;
+    var keywords  = KEYWORDS[field] || [];
+    headerRow.forEach(function(header, ci) {
+      if (usedCols[ci]) return;
+      var h = String(header || '').toLowerCase().trim().replace(/[\s_\-]+/g, '');
+      if (!h) return;
+      var score = 0;
+      keywords.forEach(function(kw) {
+        var k = kw.replace(/[\s_\-]+/g, '');
+        if (h === k) score = Math.max(score, 10);
+        else if (h.indexOf(k) !== -1 || k.indexOf(h) !== -1) score = Math.max(score, 5);
+      });
+      if (score > bestScore) { bestScore = score; bestCol = ci; }
+    });
+    mapping[field] = bestScore > 0 ? bestCol : -1;
+    if (bestScore > 0) usedCols[bestCol] = true;
+  });
+
+  return {
+    ok: true,
+    mapping: mapping,
+    headers: headerRow,
+    totalRows: Math.max(0, sheet.getLastRow() - 1)
+  };
+}
+
+function importFromExistingTab(tabName, mapping) {
+  var ss       = SpreadsheetApp.getActiveSpreadsheet();
+  var srcSheet = ss.getSheetByName(tabName);
+  if (!srcSheet) return { ok: false, error: 'Source tab not found: ' + tabName };
+
+  var lastRow = srcSheet.getLastRow();
+  if (lastRow < 2) return { ok: true, tasks: [], warnings: ['Tab has no data rows'] };
+
+  var colIndices = PMC_TAB_SCHEMA.map(function(f) { return (mapping[f] >= 0) ? mapping[f] : -1; });
+  var maxCol     = Math.max.apply(null, colIndices.filter(function(c) { return c >= 0; })) + 1;
+  var data       = srcSheet.getRange(2, 1, lastRow - 1, maxCol).getValues();
+  var tasks = [], warnings = [];
+
+  data.forEach(function(row, ri) {
+    function get(field) {
+      var ci = mapping[field];
+      return (ci >= 0 && ci < row.length) ? row[ci] : '';
+    }
+    var name = String(get('task_name') || '').trim();
+    if (!name) return;
+
+    var a = parseFloat(get('best_case'));
+    var c = parseFloat(get('most_likely'));
+    var b = parseFloat(get('worst_case'));
+    var w = parseFloat(get('risk_weight'));
+    var actRaw = get('active');
+    var active = actRaw === ''
+      ? true
+      : !(String(actRaw).toLowerCase() === 'false' || actRaw === '0' || actRaw === false || actRaw === 0);
+
+    if (isNaN(a) || isNaN(c) || isNaN(b)) {
+      warnings.push('Row ' + (ri + 2) + ' (' + name + '): Non-numeric estimates — skipped');
+      return;
+    }
+
+    // Auto-correct ordering
+    var sorted = [a, c, b].sort(function(x, y) { return x - y; });
+    if (a !== sorted[0] || c !== sorted[1] || b !== sorted[2]) {
+      warnings.push('Row ' + (ri + 2) + ' (' + name + '): Values re-sorted (best ≤ most likely ≤ worst)');
+      a = sorted[0]; c = sorted[1]; b = sorted[2];
+    }
+    if (a === b) warnings.push('Row ' + (ri + 2) + ' (' + name + '): Zero-variance task (all values equal)');
+
+    tasks.push({
+      task_name:   name,
+      best_case:   a,
+      most_likely: c,
+      worst_case:  b,
+      risk_weight: isNaN(w) ? 1.0 : Math.max(0, Math.min(10, w)),
+      active:      active,
+      notes:       String(get('notes') || '').trim()
+    });
+  });
+
+  return { ok: true, tasks: tasks, warnings: warnings };
+}
+
+function loadPMCTasks() {
+  var sheet = getPMCSheet_();
+  if (!sheet) return { ok: false, needsSetup: true, error: 'PMC Tasks tab not found' };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: true, tasks: [], tabName: sheet.getName(), tabId: sheet.getSheetId() };
+
+  var data  = sheet.getRange(2, 1, lastRow - 1, PMC_TAB_SCHEMA.length).getValues();
+  var tasks = [];
+  data.forEach(function(row, i) {
+    var name = String(row[0] || '').trim();
+    if (!name) return;
+    var a = parseFloat(row[1]);
+    var c = parseFloat(row[2]);
+    var b = parseFloat(row[3]);
+    if (isNaN(a) || isNaN(c) || isNaN(b)) return;
+    var w   = parseFloat(row[4]);
+    var act = row[5];
+    var active = act === '' ? true
+      : !(String(act).toLowerCase() === 'false' || act === false || act === 0);
+    tasks.push({
+      id:          'tid_' + i,
+      task_name:   name,
+      best_case:   a,
+      most_likely: c,
+      worst_case:  b,
+      risk_weight: isNaN(w) ? 1.0 : w,
+      active:      active,
+      notes:       String(row[6] || '').trim()
+    });
+  });
+
+  return { ok: true, tasks: tasks, tabName: sheet.getName(), tabId: sheet.getSheetId() };
+}
+
+function savePMCTasksAndRun(payload) {
+  if (!payload || !Array.isArray(payload.tasks))
+    return { ok: false, error: 'Invalid payload: tasks array required' };
+
+  var tabName = (payload.settings && payload.settings.tabName) || null;
+  var initRes = initPMCTab(tabName);
+  if (!initRes.ok) return { ok: false, error: 'Could not init PMC tab: ' + (initRes.error || '') };
+
+  if (payload.settings) savePMCSettings(payload.settings);
+
+  var sheet = getPMCSheet_();
+  if (!sheet) return { ok: false, error: 'PMC Tasks tab not found after init' };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, PMC_TAB_SCHEMA.length).clearContent();
+
+  if (payload.tasks.length > 0) {
+    var rows = payload.tasks.map(function(t) {
+      return [
+        String(t.task_name  || '').trim(),
+        Number(t.best_case)   || 0,
+        Number(t.most_likely) || 0,
+        Number(t.worst_case)  || 0,
+        Number(t.risk_weight) || 1.0,
+        t.active === false ? false : true,
+        String(t.notes || '').trim()
+      ];
+    });
+    sheet.getRange(2, 1, rows.length, PMC_TAB_SCHEMA.length).setValues(rows);
+  }
+
+  try {
+    var simResult = runPMCSimulation(payload);
+    return Object.assign({ ok: true, savedCount: payload.tasks.length }, simResult);
+  } catch(e) {
+    return { ok: false, error: 'Save OK but simulation failed: ' + e.message, savedCount: payload.tasks.length };
+  }
+}
+
+function runPMCSimulation(payload) {
+  var activeTasks = (payload.tasks || []).filter(function(t) { return t.active !== false; });
+  if (activeTasks.length === 0) return { ok: false, error: 'No active tasks to simulate' };
+
+  var mode = payload.mode || 'single';
+  var tau  = Number(payload.targetValue);
+  var conf = Number(payload.confidenceLevel) || 0.95;
+
+  if (mode === 'single') {
+    var selId = payload.selectedTaskId;
+    var task  = null;
+    if (selId) task = activeTasks.filter(function(t) { return t.id === selId || t.task_name === selId; })[0] || null;
+    if (!task) task = activeTasks[0];
+    if (isNaN(tau)) tau = (task.best_case + 4 * task.most_likely + task.worst_case) / 6;
+
+    var result = getTargetProbabilityData({
+      task:            task.task_name,
+      optimistic:      task.best_case,
+      mostLikely:      task.most_likely,
+      pessimistic:     task.worst_case,
+      targetValue:     tau,
+      confidenceLevel: conf,
+      isOptimizeMode:  !!(payload.isOptimizeMode),
+      optimize:        !!(payload.optimize),
+      adaptive:        !!(payload.adaptive),
+      sliderValues:    payload.sliderValues,
+      mode:            payload.optimizeFor || 'target'
+    });
+    return { ok: true, mode: 'single', task: task.task_name, result: result };
+
+  } else {
+    // Aggregate: run each task, then convolve PDFs via MC sampling
+    var taskResults = [], errors = [];
+    activeTasks.forEach(function(t) {
+      var taskTau = isNaN(tau) ? (t.best_case + 4 * t.most_likely + t.worst_case) / 6 : tau;
+      try {
+        var res = getTargetProbabilityData({
+          task: t.task_name, optimistic: t.best_case,
+          mostLikely: t.most_likely, pessimistic: t.worst_case,
+          targetValue: taskTau, confidenceLevel: conf
+        });
+        taskResults.push({ task: t, simResult: res, weight: t.risk_weight || 1.0 });
+      } catch(e2) {
+        errors.push({ task: t.task_name, error: e2.message });
+      }
+    });
+    if (taskResults.length === 0) return { ok: false, error: 'All tasks failed simulation', errors: errors };
+
+    var aggResult = computeAggregatePDF(taskResults, isNaN(tau) ? null : tau);
+    return {
+      ok: true, mode: 'aggregate', taskCount: taskResults.length, errors: errors, result: aggResult,
+      taskResults: taskResults.map(function(tr) { return { task: tr.task.task_name, result: tr.simResult }; })
+    };
+  }
+}
+
+function computeAggregatePDF(taskResults, targetValue) {
+  var N = 5000, BINS = 100;
+  var sums = [];
+  for (var i = 0; i < N; i++) sums.push(0);
+  taskResults.forEach(function(tr) {
+    var t = tr.task;
+    var w = tr.weight || 1.0;
+    for (var i = 0; i < N; i++) sums[i] += samplePERT_(t.best_case, t.most_likely, t.worst_case) * w;
+  });
+  sums.sort(function(a, b) { return a - b; });
+  var minV = sums[0], maxV = sums[N - 1];
+  var range = (maxV - minV) || 1;
+  var bw    = range / BINS;
+  var bins  = [];
+  for (var j = 0; j < BINS; j++) bins.push(0);
+  sums.forEach(function(v) { bins[Math.min(BINS - 1, Math.floor((v - minV) / bw))]++; });
+
+  var pdfPts = [], cdfPts = [], cum = 0;
+  bins.forEach(function(cnt, bi) {
+    var x = minV + (bi + 0.5) * bw;
+    cum += cnt / N;
+    pdfPts.push({ x: x, y: cnt / (N * bw) });
+    cdfPts.push({ x: x, y: Math.min(1, cum) });
+  });
+
+  var mean = sums.reduce(function(a, b) { return a + b; }, 0) / N;
+  var probAtTgt = (targetValue != null && isFinite(targetValue))
+    ? sums.filter(function(v) { return v <= targetValue; }).length / N
+    : null;
+
+  return {
+    ok: true, pdfPoints: pdfPts, cdfPoints: cdfPts, mean: mean,
+    p50: sums[Math.floor(N * 0.50)], p80: sums[Math.floor(N * 0.80)],
+    p90: sums[Math.floor(N * 0.90)], p95: sums[Math.floor(N * 0.95)],
+    min: minV, max: maxV, probAtTarget: probAtTgt, targetValue: targetValue,
+    taskCount: taskResults.length, nSamples: N
+  };
+}
+
+// Triangle distribution inverse-CDF sampler (PERT approximation)
+function samplePERT_(a, c, b) {
+  if (a >= b) return a;
+  var u = Math.random(), fc = (c - a) / (b - a);
+  return u < fc
+    ? a + Math.sqrt(u * (b - a) * (c - a))
+    : b - Math.sqrt((1 - u) * (b - a) * (b - c));
 }
