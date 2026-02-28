@@ -3086,6 +3086,10 @@
           if (fallback) { fallback.checked = true; showCDF = true; var lf = document.getElementById('oselChkCDF'); if (lf) lf.classList.add('checked'); }
         }
 
+        // Triangle pane belongs to "How It's Built" only — always hide in overlay tab
+        var triWrap = document.getElementById('triWrap');
+        if (triWrap) triWrap.style.display = 'none';
+
         // PDF / CDF panes
         var pdfWrap = document.getElementById('pdfWrap');
         var cdfWrap = document.getElementById('cdfWrap');
