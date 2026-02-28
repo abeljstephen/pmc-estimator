@@ -535,14 +535,14 @@
     .tm-active-toggle { cursor: pointer; width: 16px; height: 16px; accent-color: #111827; }
     .tm-dirty-star { color: #F59E0B; font-weight: 700; margin-left: 2px; }
 
-    /* ── Plot Selector Bar (How It's Built tab) ── */
-    #plotSelBar {
+    /* ── Plot Selector Bars (How It's Built + Compare Strategies tabs) ── */
+    #plotSelBar, #overlaySelBar {
       display: none; align-items: center; gap: 10px; padding: 7px 12px 9px;
       margin-bottom: 6px; flex-wrap: wrap;
       border: 1px solid var(--line); border-radius: 10px; background: #F8FAFF;
     }
-    #plotSelBar.visible { display: flex; }
-    #plotSelBar .psel-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .05em; white-space: nowrap; }
+    #plotSelBar.visible, #overlaySelBar.visible { display: flex; }
+    #plotSelBar .psel-label, #overlaySelBar .psel-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .05em; white-space: nowrap; }
     .psel-chk {
       display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px;
       border: 1.5px solid var(--line); border-radius: 8px; cursor: pointer;
@@ -1007,6 +1007,32 @@
         <span style="font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;">max 2 side-by-side</span>
       </div>
 
+      <!-- ── Plot Selector Bar — visible in "Compare Strategies" tab only ── -->
+      <!-- Default: CDF only — shows P(finish ≤ target) per strategy at a glance. -->
+      <div id="overlaySelBar">
+        <span class="psel-label">SHOW PLOTS:</span>
+        <label class="psel-chk checked" id="oselChkCDF" title="CDF — Cumulative P(finish ≤ target) for all active strategies. Best default for strategy comparison.">
+          <input type="checkbox" id="oselCDF" checked onchange="overlayPselUpdate()">
+          <span class="psel-lbl">CDF</span><span class="psel-sub">Cumulative P</span>
+        </label>
+        <label class="psel-chk" id="oselChkPDF" title="PDF — Probability Density showing how estimate mass shifts per strategy.">
+          <input type="checkbox" id="oselPDF" onchange="overlayPselUpdate()">
+          <span class="psel-lbl">PDF</span><span class="psel-sub">Density curve</span>
+        </label>
+        <label class="psel-chk" id="oselChkRadar" title="Radar — 7-axis spider chart comparing slider profiles across strategies.">
+          <input type="checkbox" id="oselRadar" onchange="overlayPselUpdate()">
+          <span class="psel-lbl">Radar</span><span class="psel-sub">Slider profile</span>
+        </label>
+        <label class="psel-chk" id="oselChkSaco" title="SACO 3D — 3D probability surface showing baseline vs strategy distribution lift. Requires a strategy to be active.">
+          <input type="checkbox" id="oselSaco" onchange="overlayPselUpdate()">
+          <span class="psel-lbl">SACO 3D</span><span class="psel-sub">Surface lift</span>
+        </label>
+        <label class="psel-chk" id="oselChkSphere" title="Sphere — spherical cap fill visualization mapping probability to fill height.">
+          <input type="checkbox" id="oselSphere" onchange="overlayPselUpdate()">
+          <span class="psel-lbl">Sphere</span><span class="psel-sub">Fill viz</span>
+        </label>
+      </div>
+
       <div class="plot" style="position:relative;">
         <div style="display:flex; justify-content:flex-end; padding:0 4px 4px 0; gap:6px; align-items:center;">
           <button class="plot-help-btn" data-help="distributions" title="What do these charts show?" style="position:static;">?</button>
@@ -1075,7 +1101,7 @@
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
 
         <!-- Left: SACO 3D Probability Surface (Three.js) -->
-        <div style="flex:3;min-width:0;">
+        <div id="saco3dOuterWrap" style="flex:3;min-width:0;">
           <div class="card" style="padding:12px 14px;">
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
               <div style="font-size:13px;font-weight:700;">SACO 3D Probability Surface</div>
@@ -1116,7 +1142,7 @@
         </div>
 
         <!-- Right: Probability Sphere -->
-        <div style="flex:0 0 400px;max-width:400px;">
+        <div id="sphereOuterWrap" style="flex:0 0 400px;max-width:400px;">
           <div class="card" style="padding:12px 14px;">
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
               <div style="font-size:13px;font-weight:700;">Probability Sphere</div>
@@ -1176,14 +1202,22 @@
       const sacoVizSection = document.getElementById('sacoVizSection');
       const isOverlay = overlayTab && overlayTab.classList.contains('active');
 
-      if (hypercubeSection)
-        hypercubeSection.classList.toggle('visible', isOverlay);
-      if (sacoVizSection)
-        sacoVizSection.style.display = isOverlay ? '' : 'none';
-
+      // Radar section: respect oselRadar checkbox (hidden by default in overlay tab)
+      if (hypercubeSection) {
+        var _cRadar = document.getElementById('oselRadar');
+        hypercubeSection.classList.toggle('visible', isOverlay && !!(_cRadar && _cRadar.checked));
+      }
+      // SACO viz section: respect oselSaco / oselSphere checkboxes (hidden by default)
+      if (sacoVizSection) {
+        var _cSaco   = document.getElementById('oselSaco');
+        var _cSphere = document.getElementById('oselSphere');
+        sacoVizSection.style.display = (isOverlay && ((_cSaco && _cSaco.checked) || (_cSphere && _cSphere.checked))) ? '' : 'none';
+      }
       if (isOverlay) {
-        if (window.PMCSaco3D) setTimeout(function() { window.PMCSaco3D.render(); }, 120);
-        if (window.PMCSphere) setTimeout(function() { window.PMCSphere.render(); }, 120);
+        var _cSaco2   = document.getElementById('oselSaco');
+        var _cSphere2 = document.getElementById('oselSphere');
+        if (window.PMCSaco3D && _cSaco2 && _cSaco2.checked)    setTimeout(function() { window.PMCSaco3D.render(); }, 120);
+        if (window.PMCSphere && _cSphere2 && _cSphere2.checked) setTimeout(function() { window.PMCSphere.render(); }, 120);
       }
     }
     function updateHypercubeVisibility() { updateTabSections(); }
@@ -3028,6 +3062,67 @@
         }, 60);
       };
 
+      /* ── Overlay Plot Selector (Compare Strategies tab) ───────────────────────
+         Controls visibility of PDF, CDF, Radar, SACO 3D, Sphere.
+         Default: CDF only — shows cumulative probability per strategy immediately.  */
+      window.overlayPselUpdate = function() {
+        var showPDF    = !!(document.getElementById('oselPDF')    && document.getElementById('oselPDF').checked);
+        var showCDF    = !!(document.getElementById('oselCDF')    && document.getElementById('oselCDF').checked);
+        var showRadar  = !!(document.getElementById('oselRadar')  && document.getElementById('oselRadar').checked);
+        var showSaco   = !!(document.getElementById('oselSaco')   && document.getElementById('oselSaco').checked);
+        var showSphere = !!(document.getElementById('oselSphere') && document.getElementById('oselSphere').checked);
+
+        // Sync .checked CSS class on labels
+        [['PDF','oselPDF'],['CDF','oselCDF'],['Radar','oselRadar'],['Saco','oselSaco'],['Sphere','oselSphere']].forEach(function(pair) {
+          var lbl = document.getElementById('oselChk' + pair[0]);
+          var inp = document.getElementById(pair[1]);
+          if (lbl && inp) lbl.classList.toggle('checked', inp.checked);
+        });
+
+        // Enforce at least 1 visible
+        var total = [showPDF, showCDF, showRadar, showSaco, showSphere].filter(Boolean).length;
+        if (total === 0) {
+          var fallback = document.getElementById('oselCDF');
+          if (fallback) { fallback.checked = true; showCDF = true; var lf = document.getElementById('oselChkCDF'); if (lf) lf.classList.add('checked'); }
+        }
+
+        // PDF / CDF panes
+        var pdfWrap = document.getElementById('pdfWrap');
+        var cdfWrap = document.getElementById('cdfWrap');
+        var inner   = document.getElementById('plotInner');
+        if (pdfWrap) pdfWrap.style.display = showPDF ? 'flex' : 'none';
+        if (cdfWrap) cdfWrap.style.display = showCDF ? 'flex' : 'none';
+        if (inner) {
+          var chartCount = [showPDF, showCDF].filter(Boolean).length;
+          inner.style.display    = chartCount > 0 ? 'flex' : 'none';
+          inner.style.flexWrap   = 'nowrap';
+          inner.style.height     = 'min(420px,50vh)';
+        }
+
+        // Radar section (hypercubeSection)
+        var hcSection = document.getElementById('hypercubeSection');
+        if (hcSection) hcSection.classList.toggle('visible', showRadar);
+
+        // SACO 3D and Sphere — individually controlled inside sacoVizSection
+        var saco3dWrap  = document.getElementById('saco3dOuterWrap');
+        var sphereWrap  = document.getElementById('sphereOuterWrap');
+        var sacoSection = document.getElementById('sacoVizSection');
+        if (saco3dWrap)  saco3dWrap.style.display  = showSaco   ? '' : 'none';
+        if (sphereWrap)  sphereWrap.style.display  = showSphere ? '' : 'none';
+        if (sacoSection) sacoSection.style.display  = (showSaco || showSphere) ? '' : 'none';
+
+        // Trigger 3D renders when newly checked
+        if (showSaco   && window.PMCSaco3D)  setTimeout(function() { window.PMCSaco3D.render();  }, 80);
+        if (showSphere && window.PMCSphere)  setTimeout(function() { window.PMCSphere.render();  }, 80);
+
+        // Resize Chart.js after layout change
+        setTimeout(function() {
+          var s = window.S || {};
+          if (s.pdfChart && typeof s.pdfChart.resize === 'function') s.pdfChart.resize();
+          if (s.cdfChart && typeof s.cdfChart.resize === 'function') s.cdfChart.resize();
+        }, 80);
+      };
+
       /* Draw the triangle distribution shape on #triPlotCanvas */
       window._drawTriPlot = function() {
         var canvas = document.getElementById('triPlotCanvas');
@@ -3980,9 +4075,14 @@
               tab.classList.add('active');
               s.tab = tab.getAttribute('data-tab');
 
-              // Show/hide plot selector bar (progress tab only)
+              // Show/hide plot selector bars (progress/overlay tabs)
               var _psb = document.getElementById('plotSelBar');
               if (_psb) _psb.classList.toggle('visible', s.tab === 'progress');
+              var _osb = document.getElementById('overlaySelBar');
+              if (_osb) _osb.classList.toggle('visible', s.tab === 'overlay');
+              // Apply tab-specific plot layout immediately on switch
+              if (s.tab === 'progress' && typeof window.pselUpdate === 'function') window.pselUpdate();
+              if (s.tab === 'overlay'  && typeof window.overlayPselUpdate === 'function') window.overlayPselUpdate();
               // Show/hide pane headers (hidden in overlay tab to save space)
               var _ph = document.querySelectorAll('.plot-pane-hdr');
               for (var _pi = 0; _pi < _ph.length; _pi++) _ph[_pi].style.display = (s.tab === 'progress') ? '' : 'none';
@@ -4043,11 +4143,14 @@
 
         syncRowToggles();
 
-        // Initialize plot selector bar — show on page load (progress tab is default)
+        // Initialize plot selector bars — progress is default tab
         var _psbInit = document.getElementById('plotSelBar');
         if (_psbInit) _psbInit.classList.toggle('visible', s.tab === 'progress');
-        // Initial pselUpdate to apply default state (PDF + CDF checked)
+        var _osbInit = document.getElementById('overlaySelBar');
+        if (_osbInit) _osbInit.classList.toggle('visible', s.tab === 'overlay');
+        // Apply initial layout defaults
         if (typeof window.pselUpdate === 'function') window.pselUpdate();
+        if (s.tab === 'overlay' && typeof window.overlayPselUpdate === 'function') window.overlayPselUpdate();
       }
 
       function bindKpiToggles() {
