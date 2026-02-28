@@ -305,11 +305,27 @@
     .rec-banner.rec-green{border-left-color:var(--good);background:#F0FDF4;}
     .rec-banner.rec-amber{border-left-color:#F59E0B;background:#FFFBEB;}
     .rec-banner.rec-red{border-left-color:#EF4444;background:#FEF2F2;}
+    /* Active strategy chips row */
+    #recActiveBar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:9px;}
+    #recActiveBar .rec-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;white-space:nowrap;margin-right:2px;}
+    .rec-chip{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;font-size:11px;white-space:nowrap;line-height:1.4;}
+    .rec-chip.best{font-weight:700;}
+    .rec-chip-gain{opacity:.8;font-size:10px;}
+    /* Statement */
     .rec-statement{font-size:13px;font-weight:600;line-height:1.5;color:var(--fg);}
-    .rec-context{font-size:12px;color:var(--fg);margin-top:6px;line-height:1.55;font-weight:400;}
-    .rec-details{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+    /* Section headers inside banner */
+    .rec-section-hdr{font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin:9px 0 4px;}
+    /* Context / interpretation */
+    .rec-context{font-size:12px;color:var(--fg);margin-top:2px;line-height:1.6;font-weight:400;}
+    /* Next steps list */
+    .rec-details{margin-top:2px;}
+    .rec-next-row{display:flex;flex-direction:column;gap:1px;margin:5px 0;padding-left:14px;position:relative;}
+    .rec-next-row::before{content:'\2192';position:absolute;left:0;top:0;font-weight:700;color:var(--cdf);font-size:12px;}
+    .rec-next-action{font-size:12px;font-weight:600;color:var(--fg);line-height:1.4;}
+    .rec-next-why{font-size:11px;color:var(--muted);line-height:1.45;}
     .rec-warn{color:#B45309;font-weight:600;}
     .rec-banner.rec-red .rec-warn{color:#DC2626;}
+    /* Legacy compatibility */
     .rec-step{display:inline;}
     .rec-step::before{content:'\2192 ';font-weight:600;color:var(--cdf);}
 
@@ -857,6 +873,7 @@
     </div>
   </div>
   <div id="recBanner" class="rec-banner" style="display:none;">
+    <div id="recActiveBar"></div>
     <div class="rec-statement" id="recStatement"></div>
     <div class="rec-context" id="recContext"></div>
     <div class="rec-details" id="recDetails"></div>
@@ -2275,161 +2292,246 @@
       }
 
       function updateRecommendation(s) {
-        var banner = document.getElementById('recBanner');
+        var banner   = document.getElementById('recBanner');
         if (!banner) return;
-        var stmtEl = document.getElementById('recStatement');
-        var ctxEl = document.getElementById('recContext');
-        var detEl = document.getElementById('recDetails');
+        var activeEl = document.getElementById('recActiveBar');
+        var stmtEl   = document.getElementById('recStatement');
+        var ctxEl    = document.getElementById('recContext');
+        var detEl    = document.getElementById('recDetails');
 
         if (s.tab !== 'overlay') { banner.style.display = 'none'; updatePlotDescriptions(s, null, []); return; }
 
         var bp = s.baselineProb;
         if (bp == null || isNaN(bp)) { banner.style.display = 'none'; updatePlotDescriptions(s, null, []); return; }
 
-        var tgt = s.target != null ? Number(s.target).toFixed(1) : '?';
-        var bpPct = (bp * 100).toFixed(1);
-        var pct = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
+        var tgt  = s.target != null ? Number(s.target).toFixed(1) : '?';
+        var pct  = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
+        var pp   = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) : '0'; };
         var plvl = s.overlay.probeLevel || 3;
 
-        // --- Collect active strategies with data ---
+        // Strategy colour palette (matches the button UI)
+        var COLOURS = {
+          baseline: { bg: '#E8F5E9', text: '#1B5E20', border: '#A5D6A7', bestBg: '#2e7d32', bestText: '#fff' },
+          adaptive: { bg: '#FFF8E1', text: '#4E342E', border: '#FFD54F', bestBg: '#f59e0b', bestText: '#fff' },
+          fixed:    { bg: '#E3F2FD', text: '#0D47A1', border: '#90CAF9', bestBg: '#1d4ed8', bestText: '#fff' },
+          manual:   { bg: '#E8F5E9', text: '#1B5E20', border: '#80CBC4', bestBg: '#059669', bestText: '#fff' }
+        };
+
+        // Build candidates from ONLY currently active strategies
         var candidates = [];
         candidates.push({ name: 'Your Estimate', prob: bp, key: 'baseline' });
-        if (s.overlay.adaptiveOn && s.adaptiveProb != null && !isNaN(s.adaptiveProb))
-          candidates.push({ name: 'Guided (Level ' + plvl + ')', prob: s.adaptiveProb, key: 'adaptive' });
-        if (s.overlay.fixedOn && s.optimizedProb != null && !isNaN(s.optimizedProb))
-          candidates.push({ name: 'Optimized', prob: s.optimizedProb, key: 'fixed' });
-        if (s.overlay.manualOn && s.adjustedProb != null && !isNaN(s.adjustedProb))
-          candidates.push({ name: 'Explorer', prob: s.adjustedProb, key: 'manual' });
+        if (s.overlay.adaptiveOn && s.adaptiveProb  != null && !isNaN(s.adaptiveProb))
+          candidates.push({ name: 'Guided (L' + plvl + ')', prob: s.adaptiveProb,  key: 'adaptive' });
+        if (s.overlay.fixedOn    && s.optimizedProb != null && !isNaN(s.optimizedProb))
+          candidates.push({ name: 'Optimized',              prob: s.optimizedProb, key: 'fixed' });
+        if (s.overlay.manualOn   && s.adjustedProb  != null && !isNaN(s.adjustedProb))
+          candidates.push({ name: 'Explorer',               prob: s.adjustedProb,  key: 'manual' });
 
         candidates.sort(function(a, b) { return b.prob - a.prob; });
         var hasVariants = candidates.length > 1;
-        var best = candidates[0];
-        var guided = candidates.find(function(c) { return c.key === 'adaptive'; });
+        var best      = candidates[0];
+        var guided    = candidates.find(function(c) { return c.key === 'adaptive'; });
         var optimized = candidates.find(function(c) { return c.key === 'fixed'; });
-        var explorer = candidates.find(function(c) { return c.key === 'manual'; });
+        var explorer  = candidates.find(function(c) { return c.key === 'manual'; });
+        var noGuided    = !guided;
+        var noOptimized = !optimized;
+        var noExplorer  = !explorer;
 
-        // Comparison line
-        var compParts = [];
+        // ── Part 1: Active chips bar ──────────────────────────────────────
+        var chips = '<span class="rec-label">COMPARING:</span>';
         candidates.forEach(function(c) {
-          compParts.push((c === best ? '<strong>' : '') + c.name + ': ' + pct(c.prob) + (c === best ? '</strong>' : ''));
+          var isBest = hasVariants && c === best;
+          var col    = COLOURS[c.key] || COLOURS.baseline;
+          var gain   = (c.key !== 'baseline') ? ((c.prob - bp) * 100) : null;
+          var gainStr = (gain != null && gain > 0) ? '<span class="rec-chip-gain">(+' + gain.toFixed(1) + ' pp)</span>' : '';
+          var style = isBest
+            ? 'background:' + col.bestBg + ';color:' + col.bestText + ';border:1px solid ' + col.bestBg + ';'
+            : 'background:' + col.bg + ';color:' + col.text + ';border:1px solid ' + col.border + ';';
+          chips += '<span class="rec-chip' + (isBest ? ' best' : '') + '" style="' + style + '">';
+          if (isBest) chips += '\u2605 '; // ★
+          chips += c.name + '&nbsp;<strong>' + pct(c.prob) + '</strong>&nbsp;' + gainStr;
+          chips += '</span>';
         });
-        var compLine = compParts.length > 1 ? compParts.join(' &nbsp;\u00B7&nbsp; ') : '';
+        if (activeEl) activeEl.innerHTML = chips;
 
-        var stmt = '', ctx = '', details = '', level;
-
-        // === BASELINE ONLY (no strategies active) ===
+        // ── Part 2: Key observation statement ────────────────────────────
+        var stmt = '', level;
         if (!hasVariants) {
           level = bp >= 0.8 ? 'green' : (bp >= 0.5 ? 'amber' : 'red');
-          stmt = 'Your starting probability is <strong>' + bpPct + '%</strong> at target ' + tgt + '.';
-          ctx = 'This is your unoptimized baseline from the 3-point estimate. The strategies above adjust project decision levers (budget flexibility, schedule flexibility, scope, etc.) to reshape the distribution and increase this probability.';
-          details = '<span class="rec-step">Click <strong>Guided</strong> to see the most realistic improvement, <strong>Optimized</strong> for the best within standard limits, or <strong>Explorer</strong> to see the theoretical maximum.</span>';
-
-        // === HIGH BASELINE (already ≥ 80% before optimization) ===
-        } else if (bp >= 0.8) {
-          level = 'green';
-          stmt = 'Your estimate already has <strong>' + bpPct + '%</strong> confidence at target ' + tgt + ' \u2014 no optimization needed.';
-          ctx = compLine + '<br>You start above the 80% threshold before any slider adjustments. The strategies show what further tuning could achieve, but the baseline is already strong.';
-          details = '<span class="rec-step">Try lowering the target value (or switching to Probability mode) to stress-test where your confidence drops below 80%.</span>';
-
-        // === STRATEGIES ACTIVE — build contextual recommendation ===
+          stmt = 'Your baseline probability is <strong>' + pct(bp) + '</strong> at target ' + tgt + '. No strategies are active yet.';
+        } else if (best.key === 'baseline') {
+          level = 'amber';
+          stmt = 'None of the active strategies improved over your baseline <strong>' + pct(bp) + '</strong> — the optimizer could not find better settings within its constraints.';
         } else {
-          // Determine gain from best strategy
           var gain = ((best.prob - bp) * 100).toFixed(1);
-          var gainGood = Number(gain) > 0;
           level = best.prob >= 0.8 ? 'green' : (best.prob >= 0.5 ? 'amber' : 'red');
-
-          // --- HEADLINE: what's the best achievable result? ---
-          if (best.key === 'baseline') {
-            // Optimization strategies are active but none improved over baseline
-            stmt = 'The active strategies did not improve beyond your baseline <strong>' + bpPct + '%</strong>.';
-          } else if (gainGood) {
-            stmt = '<strong>' + best.name + '</strong> increases your probability from ' + bpPct + '% to <strong>' + pct(best.prob) + '</strong> (+' + gain + ' points).';
+          if (Number(gain) > 0) {
+            stmt = '<strong>' + best.name + '</strong> is your best result: <strong>' + pct(best.prob) + '</strong> at target ' + tgt + ' \u2014 a <strong>+' + gain + ' pp</strong> improvement over your estimate.';
           } else {
             stmt = '<strong>' + best.name + '</strong> achieves <strong>' + pct(best.prob) + '</strong> at target ' + tgt + '.';
           }
+        }
 
-          // --- CONTEXT: explain each active strategy's role and limitations ---
-          ctx = compLine + '<br>';
-          var explanations = [];
+        // ── Part 3: What This Means (ONLY describes active strategies) ───
+        // RULE: Never mention an inactive strategy by name in this section.
+        var ctx = '<div class="rec-section-hdr">WHAT THIS MEANS</div>';
+        if (!hasVariants) {
+          ctx += 'This is your unoptimized 3-point estimate baseline. The distribution is shaped by your Best Case, Most Likely, and Worst Case values. '
+               + 'Activating strategies below will reshape the distribution by adjusting 7 project decision levers '
+               + '(budget flexibility, schedule flexibility, scope certainty, etc.) to find a higher probability.';
+        } else {
+          var parts = [];
+          // Baseline context
+          var bLine = 'Your Estimate (' + pct(bp) + ') is the unoptimized baseline — the starting point for all comparisons.';
+          if (bp >= 0.7) bLine += ' Your baseline is already strong; optimization delivers incremental gains.';
+          else if (bp < 0.4) bLine += ' The baseline is low, which means there is more room to gain from optimization.';
+          parts.push(bLine);
 
           if (guided) {
-            var gGain = ((guided.prob - bp) * 100).toFixed(1);
-            if (Number(gGain) > 0) {
-              explanations.push('<strong>Guided</strong> (+' + gGain + ' pts) applies the tightest, most realistic constraints \u2014 based on industry best practices at level ' + plvl + '. This is the most defensible improvement because every slider stays within validated boundaries. ');
+            var gGain = ((guided.prob - bp) * 100);
+            if (gGain > 0) {
+              parts.push('<strong>Guided</strong> (' + pct(guided.prob) + ', +' + gGain.toFixed(1) + ' pp): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
+                + 'All 7 decision levers stay within validated project management boundaries. '
+                + 'This is the most defensible improvement — every assumption can be justified in a stakeholder review.');
             } else {
-              explanations.push('<strong>Guided</strong> (' + pct(guided.prob) + ') could not improve over baseline at level ' + plvl + ' because its constraints are very tight. <em>Try increasing the probe level</em> (currently ' + plvl + ' of 7) to allow slightly wider adjustments. ');
+              parts.push('<strong>Guided</strong> (' + pct(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
+                + 'The estimate range may require a looser constraint set — try increasing the probe level.');
             }
           }
 
           if (optimized) {
-            var oGain = ((optimized.prob - bp) * 100).toFixed(1);
-            if (Number(oGain) > 0) {
-              explanations.push('<strong>Optimized</strong> (+' + oGain + ' pts) uses wider boundaries than Guided, finding the best probability within standard limits. It pushes sliders further, which means more improvement but also more assumptions about what your project can absorb. ');
+            var oGain = ((optimized.prob - bp) * 100);
+            var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Guided' : '';
+            if (oGain > 0) {
+              parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + ', +' + oGain.toFixed(1) + ' pp' + oRef + '): '
+                + 'Searches the full standard parameter space without the tightest constraints, finding the highest probability within normal project limits. '
+                + 'It uses a wider slider range than Guided, so verify each setting is feasible for your project before presenting it.');
             } else {
-              explanations.push('<strong>Optimized</strong> (' + pct(optimized.prob) + ') could not improve further within standard boundaries. ');
+              parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + '): Could not beat the baseline within standard bounds. '
+                + 'The target may be too ambitious for this estimate range.');
             }
           }
 
           if (explorer) {
-            var eGain = ((explorer.prob - bp) * 100).toFixed(1);
-            if (Number(eGain) > 0) {
-              explanations.push('<strong>Explorer</strong> (+' + eGain + ' pts) removes all guardrails \u2014 it shows the theoretical ceiling if every slider were set to its most favorable value. This is useful for understanding the upper bound, but <em>the slider positions it suggests may not be achievable in practice</em>. Use it for comparison, not as a plan. ');
+            var eGain = ((explorer.prob - bp) * 100);
+            var ePeer = (guided || optimized) ? ' — ' + ((explorer.prob - best.prob) * 100).toFixed(1) + ' pp above ' + best.name : '';
+            if (best.key === 'manual') ePeer = ''; // Don't compare Explorer to itself
+            if (eGain > 0) {
+              parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + ', +' + eGain.toFixed(1) + ' pp' + ePeer + '): '
+                + 'Sets all sliders to their most favorable positions with no guardrails. '
+                + 'This is the theoretical ceiling — it answers "how much improvement is possible in the best case?" '
+                + 'Explorer values are rarely achievable in practice; use them to understand headroom, not as a project plan.');
             } else {
-              explanations.push('<strong>Explorer</strong> (' + pct(explorer.prob) + ') \u2014 even with no constraints, probability didn\'t improve. This means the target is very aggressive for this estimate range. ');
+              parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
+                + 'The target is very aggressive for this estimate range. Consider lowering the target or revisiting the 3-point estimate.');
             }
           }
+          ctx += parts.join('<br><br>');
+        }
 
-          ctx += explanations.join('');
+        // ── Part 4: What To Try Next (structured steps with "why") ───────
+        // RULE: Inactive strategies may only appear here as suggestions,
+        //       never as if they were already active.
+        var steps = [];
 
-          // --- NEXT STEPS: actionable, specific to what's active ---
-          details = '';
-
-          if (best.prob >= 0.8) {
-            // Great result — tell them what to do with it
-            if (best.key === 'adaptive') {
-              details = '<span class="rec-step">Guided achieves 80%+ \u2014 open the sidebar to see exactly which sliders to adjust and by how much. These settings are realistic and auditable.</span>';
-            } else if (best.key === 'fixed') {
-              details = '<span class="rec-step">Open the sidebar to review the slider settings Optimized recommends. ';
-              if (guided && guided.prob < 0.8) details += 'Guided couldn\'t reach 80% at level ' + plvl + ' \u2014 try a higher probe level to see if a more constrained path can get closer.';
-              details += '</span>';
-            } else if (best.key === 'manual') {
-              details = '<span class="rec-warn">\u26A0 Explorer reaches 80%+ but uses unconstrained settings.</span> <span class="rec-step">Check the sidebar to see which sliders were pushed to extreme values. ';
-              if (guided) details += 'Compare against Guided (' + pct(guided.prob) + ') for a realistic alternative. ';
-              if (!guided) details += 'Activate <strong>Guided</strong> to see the most realistic path. ';
-              details += '</span>';
+        if (!hasVariants) {
+          // No strategies on yet — guide them through the logical sequence
+          steps.push({ action: 'Click <strong>Guided</strong>', why: 'The safest starting point. Uses industry-standard constraint bounds at level ' + plvl + '/7 — every slider stays within validated project management limits, making the result easy to defend.' });
+          steps.push({ action: 'Click <strong>Optimized</strong>', why: 'Searches a wider parameter space for the best achievable probability within standard limits. Gives you the most improvement possible while staying within reasonable assumptions.' });
+          steps.push({ action: 'Click <strong>Explorer</strong>', why: 'Reveals the theoretical upper bound with no constraints. If even Explorer can\'t move the needle, the target needs to change — not the sliders.' });
+        } else if (best.key === 'baseline') {
+          // Strategies active but none helped — diagnostics
+          if (!noGuided && guided) {
+            steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'Higher levels explore slightly looser constraint sets. Level 5–7 may find a feasible improvement path that level ' + plvl + ' missed.' });
+          }
+          if (noOptimized) {
+            steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Uses a wider search space than Guided. May find an improvement path that tighter constraints missed.' });
+          }
+          if (noExplorer) {
+            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'If even Explorer (no constraints) can\'t improve over baseline, the target is likely unachievable for this estimate range.' });
+          }
+          if (!noExplorer && explorer && explorer.prob <= bp) {
+            steps.push({ action: 'Reduce the target value using the slider', why: 'The theoretical ceiling with no constraints is still at or below baseline. The target is not achievable for this estimate — find a target where probability is acceptable, then decide whether to revise the estimate.' });
+          }
+        } else if (best.prob >= 0.8) {
+          // Great — 80%+ is achievable. Focus on validating and deciding which path to use.
+          if (best.key === 'adaptive') {
+            steps.push({ action: 'Review Guided\'s slider positions in the sidebar', why: 'These settings are industry-validated. Each slider value represents a specific project management lever — check that these assumptions are realistic for your project.' });
+            if (noOptimized) {
+              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'See if a wider search can improve further beyond Guided\'s ' + pct(guided.prob) + '. If Optimized also hits 80%+, you have two independent validation paths.' });
             }
-          } else if (best.prob >= 0.5) {
-            // Moderate result — push them to try more
-            if (!guided) {
-              details = '<span class="rec-step">Activate <strong>Guided</strong> to see the most realistic improvement path with industry-standard constraints.</span>';
-            } else if (!optimized) {
-              details = '<span class="rec-step">Activate <strong>Optimized</strong> to see if wider slider boundaries can push probability higher.</span>';
-            } else if (!explorer) {
-              details = '<span class="rec-step">Activate <strong>Explorer</strong> to see the theoretical maximum \u2014 if even Explorer can\'t reach 80%, the target may need adjusting.</span>';
-            } else {
-              // All active, none hit 80%
-              if (guided && Number(((guided.prob - bp) * 100).toFixed(1)) > 0 && plvl < 7) {
-                details = '<span class="rec-step">Try increasing Guided\'s probe level (currently ' + plvl + ' of 7) to explore tighter constraint sets that may yield better results.</span>';
-              } else {
-                details = '<span class="rec-step">All strategies have been explored. To increase probability further, try moving the target slider to a more achievable value, or use Probability mode to set a target confidence level directly.</span>';
-              }
+          } else if (best.key === 'fixed') {
+            steps.push({ action: 'Review Optimized\'s slider positions in the sidebar', why: 'Optimized uses wider bounds — check each slider setting for feasibility. Some values may be more aggressive than your project can realistically absorb.' });
+            if (noGuided) {
+              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Check whether a more constrained path can also reach 80%+. If Guided gets close, that\'s a more defensible result for stakeholders.' });
+            } else if (guided && guided.prob < 0.8) {
+              steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'Guided reached ' + pct(guided.prob) + ' — close but not 80%. A higher probe level searches a slightly broader constraint set and may close the gap.' });
             }
+          } else if (best.key === 'manual') {
+            steps.push({ action: 'Check Explorer\'s slider positions in the sidebar', why: 'Explorer has no guardrails — identify which specific sliders are pushed to extreme values. These are the levers driving the improvement.' });
+            if (noGuided) {
+              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Explorer shows 80%+ is achievable — now find the most constrained, defensible path to that result.' });
+            }
+            if (noOptimized) {
+              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Get the best probability with standard constraints — the realistic middle ground between Guided and Explorer.' });
+            }
+            if (guided || optimized) {
+              steps.push({ action: 'Compare sidebar sliders between Explorer and your best constrained strategy', why: 'The gap between Explorer (' + pct(explorer.prob) + ') and ' + best.name + ' (' + pct(best.prob) + ') shows the cost of staying within realistic bounds.' });
+            }
+          }
+        } else if (best.prob >= 0.5) {
+          // Moderate — improvement but not at 80% yet
+          if (noGuided) {
+            steps.push({ action: 'Activate <strong>Guided</strong>', why: 'The most constrained optimizer. If it can improve over your current best (' + pct(best.prob) + '), you have a defensible path. If it can\'t, that tells you something important about the estimate constraints.' });
+          }
+          if (noOptimized) {
+            steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Searches a wider parameter space than Guided. May find a path to 80%+ that tighter constraints missed.' });
+          }
+          if (noExplorer) {
+            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'See the theoretical maximum. If Explorer can reach 80%, you know improvement to that level is possible — the question becomes which constraints to relax. If Explorer can\'t, the target is too ambitious.' });
+          }
+          // All active, none hit 80%
+          if (!noGuided && !noOptimized && !noExplorer) {
+            if (guided && ((guided.prob - bp) * 100) > 0 && plvl < 7) {
+              steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'All three strategies are active and none reached 80%. Higher probe levels search slightly broader constraint sets — try level ' + Math.min(plvl + 2, 7) + ' as a next step.' });
+            }
+            steps.push({ action: 'Adjust the target slider left to a more achievable value', why: 'All strategies have been explored and the ceiling is ' + pct(best.prob) + '. Find a target where at least Guided can reach 80%, then use that as your defensible commitment.' });
+          }
+        } else {
+          // Low probability — significant challenge
+          if (noExplorer) {
+            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'First, establish whether improvement is theoretically possible at all. Explorer has no constraints — if it can\'t reach 50%, the target fundamentally needs to change.' });
+          } else if (explorer && explorer.prob < 0.5) {
+            steps.push({ action: 'Move the target slider significantly left', why: 'Even with every slider at its most favorable value (Explorer), probability stays below 50%. The target is not achievable for this estimate. Find a target where confidence is acceptable (e.g., 70%) and use that as your planning baseline.' });
           } else {
-            // Low result — all strategies struggling
-            if (!explorer) {
-              details = '<span class="rec-step">Activate <strong>Explorer</strong> to see the theoretical ceiling. If even Explorer stays below 50%, the target is very aggressive for this estimate.</span>';
-            } else if (explorer && explorer.prob < 0.5) {
-              details = '<span class="rec-step">Even Explorer (no constraints) can\'t reach 50%. Use the target slider or switch to Probability mode to find a target value where confidence is acceptable, then work backwards.</span>';
-            } else {
-              details = '<span class="rec-step">Explorer can reach ' + pct(explorer.prob) + ' but it uses unrealistic assumptions. Activate <strong>Guided</strong> or <strong>Optimized</strong> to find the realistic ceiling, then adjust the target to a level these strategies can achieve.</span>';
+            // Explorer can do it but constrained strategies can't
+            steps.push({ action: 'Check Explorer\'s slider positions in the sidebar', why: 'Explorer reaches ' + pct(explorer.prob) + ' — improvement is theoretically possible. Identify which sliders are doing the most work. These are the levers your project would need to move.' });
+            if (noGuided) {
+              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Find the most constrained, realistic path toward the target. It may not reach 80%, but it shows what is achievable within industry-standard limits.' });
+            }
+            if (noOptimized) {
+              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Find the best probability with standard (not unconstrained) bounds — the realistic ceiling short of Explorer.' });
             }
           }
         }
 
+        // Render next steps
+        var detHtml = '<div class="rec-section-hdr">WHAT TO TRY NEXT</div>';
+        if (steps.length === 0) {
+          detHtml += '<div style="font-size:11px;color:var(--muted);">You\'ve explored all available strategies. Adjust the target or review slider positions in the sidebar.</div>';
+        } else {
+          detHtml += steps.map(function(step) {
+            return '<div class="rec-next-row">'
+              + '<div class="rec-next-action">' + step.action + '</div>'
+              + '<div class="rec-next-why">' + step.why + '</div>'
+              + '</div>';
+          }).join('');
+        }
+
         banner.className = 'rec-banner rec-' + level;
-        stmtEl.innerHTML = stmt;
-        ctxEl.innerHTML = ctx;
-        detEl.innerHTML = details;
+        if (stmtEl) stmtEl.innerHTML = stmt;
+        if (ctxEl)  ctxEl.innerHTML  = ctx;
+        if (detEl)  detEl.innerHTML  = detHtml;
         banner.style.display = '';
         updatePlotDescriptions(s, best, candidates);
       }
