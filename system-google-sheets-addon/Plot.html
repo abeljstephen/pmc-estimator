@@ -211,81 +211,91 @@
     .dot-base{border-color:var(--base);} .dot-man{border-color:var(--manual);} .dot-fix{border-color:var(--fixed);} .dot-adp{border-color:var(--adaptive);}
     .dot-tri{border-color:var(--tri);} .dot-beta{border-color:var(--beta);}
 
-    /* Sidebar layout (overlay tab) */
-    .plot-container.sidebar-active { flex-direction: row; }
+    /* ── Decision Slider Panel — horizontal bar above charts (overlay tab) ── */
+    /* The panel spans the full width and lays sliders out in columns, one per category. */
+    .plot-container { display: flex; flex-direction: column; }
+    .plot-container.sidebar-active { flex-direction: column; } /* was: row — now always column */
     #sliderSidebar {
       display: none;
-      width: 300px;
-      min-width: 280px;
-      max-width: 320px;
-      flex-shrink: 0;
-      align-self: flex-start;       /* size to content, not stretched by flex partner */
-      position: sticky;             /* stays visible when body scrolls */
-      top: 12px;
-      overflow-y: auto;
-      max-height: calc(100vh - 30px);
-      padding: 10px 12px 16px;
+      width: 100%;
+      padding: 10px 14px 10px;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: var(--panel);
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
-      /* Always show a thin scrollbar so users know content continues */
-      scrollbar-width: thin;
-      scrollbar-color: #CBD5E1 transparent;
+      box-shadow: 0 2px 6px rgba(0,0,0,.06);
+      margin-bottom: 10px;
     }
-    #sliderSidebar::-webkit-scrollbar { width: 5px; }
-    #sliderSidebar::-webkit-scrollbar-track { background: transparent; }
-    #sliderSidebar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
     .plot-container.sidebar-active #sliderSidebar { display: block; }
     .plot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
-    @media (max-width:800px) {
-      .plot-container.sidebar-active { flex-direction: column; }
-      #sliderSidebar { width: 100%; max-width: 100%; max-height: none; align-self: auto; border-right: none; border-bottom: 1px solid var(--line); }
+
+    /* Panel interior: header row + horizontal category columns */
+    .sliders-panel { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Header: title · note · impact banner */
+    .slider-panel-hdr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; }
+    .sliders-panel .title { font-size: 11px; font-weight: 700; color: var(--fg); white-space: nowrap; flex-shrink: 0; }
+    .sliders-panel .note  { font-size: 11px; color: var(--muted); flex: 1; }
+    #sliderImpactBanner   { font-size: 11px; line-height: 1.4; padding: 4px 8px;
+                            border-radius: 6px; background: #F0FDF4;
+                            border: 1px solid #86EFAC; color: #166534; }
+
+    /* Category columns laid out horizontally */
+    .slider-cats { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 0; }
+    .slider-category {
+      flex: 1 1 130px;
+      min-width: 120px;
+      padding: 0 14px 0 0;
+      margin: 0 14px 0 0;
+      border-bottom: none;
+      border-right: 1px solid var(--line);
     }
-
-    /* Slider panel inside sidebar */
-    .sliders-panel .title { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--fg); }
-    .sliders-panel .note { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-
-    /* Slider categories */
-    .slider-category { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-    .slider-category:last-of-type { border-bottom: none; }
-    .cat-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .slider-category:last-of-type { border-right: none; padding-right: 0; margin-right: 0; }
+    .cat-header { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
     .slider-row { margin-bottom: 6px; }
-    .slider-row label { font-size: 12px; font-weight: 500; display: block; margin-bottom: 2px; color: var(--fg); }
-    .slider-pair { display: flex; align-items: center; gap: 6px; }
+    .slider-row label { font-size: 11px; font-weight: 600; display: block; margin-bottom: 2px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slider-pair { display: flex; align-items: center; gap: 4px; }
     .slider-range {
-      flex: 1; height: 6px; -webkit-appearance: none; appearance: none;
+      flex: 1; min-width: 50px; height: 6px; -webkit-appearance: none; appearance: none;
       background: var(--line); border-radius: 3px; outline: none; cursor: pointer;
     }
     .slider-range::-webkit-slider-thumb {
-      -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+      -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
       background: var(--brand); cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
     }
     .slider-range::-moz-range-thumb {
-      width: 16px; height: 16px; border-radius: 50%; background: var(--brand);
+      width: 15px; height: 15px; border-radius: 50%; background: var(--brand);
       cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
     }
     .slider-num {
-      width: 52px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
-      font-size: 12px; text-align: center; font-weight: 500;
+      width: 42px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 6px;
+      font-size: 11px; text-align: center; font-weight: 600;
     }
-    .slider-unit { font-size: 11px; color: var(--muted); min-width: 12px; }
-    .slider-optimal-marker { height: 4px; position: relative; margin: -2px 0 0 0; }
+    .slider-unit { font-size: 10px; color: var(--muted); min-width: 10px; }
+    .slider-optimal-marker { height: 4px; position: relative; margin: -1px 0 0 0; }
     .slider-optimal-marker .marker-dot {
-      position: absolute; width: 8px; height: 8px; background: var(--fixed);
+      position: absolute; width: 7px; height: 7px; background: var(--fixed);
       border-radius: 50%; top: -2px; transform: translateX(-50%);
       box-shadow: 0 0 4px rgba(109,40,217,.4);
     }
     .slider-range:disabled, .slider-num:disabled { opacity: 0.45; cursor: not-allowed; }
-    .slider-actions { display: flex; gap: 6px; margin-top: 12px; }
+
+    /* Action buttons: right-aligned below the columns */
+    .slider-actions { display: flex; gap: 6px; margin-top: 0; justify-content: flex-end; }
     .slider-btn {
-      flex: 1; padding: 8px 8px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px;
       font-size: 11px; font-weight: 600; cursor: pointer; background: var(--panel);
     }
     .slider-btn:hover { background: var(--hover); border-color: var(--hover); }
     .slider-btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
     .slider-btn.primary:hover { background: #0f172a; }
+
+    /* Responsive: stack on narrow screens */
+    @media (max-width:700px) {
+      .slider-cats { flex-direction: column; }
+      .slider-category { border-right: none; border-bottom: 1px solid var(--line);
+                         padding: 0 0 8px 0; margin: 0 0 8px 0; }
+      .slider-category:last-of-type { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+    }
 
     /* Sensitivity bars */
     .sensitivity-panel { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -896,12 +906,15 @@
   <!-- Sidebar: Decision Sliders (visible only in overlay tab) -->
   <div id="sliderSidebar" role="complementary" aria-label="Decision Sliders">
     <div id="slidersPanel" class="sliders-panel">
-      <div class="title" id="sliderTitle">Decision Sliders</div>
-      <div class="note" id="optimizeNote">
-        Drag sliders or type values to reshape the probability distribution.
+      <!-- Panel header: title · note · impact result -->
+      <div class="slider-panel-hdr">
+        <div class="title" id="sliderTitle">Decision Sliders</div>
+        <div class="note" id="optimizeNote">Adjust levers to reshape the distribution (Explorer), or read optimal values for active strategies.</div>
+        <div id="sliderImpactBanner" style="display:none;"></div>
       </div>
-      <div id="sliderImpactBanner" style="display:none; margin:4px 0 6px; padding:5px 8px; border-radius:6px; font-size:11px; line-height:1.4; background:#F0FDF4; border:1px solid #86EFAC; color:#166534;">
-      </div>
+
+      <!-- Horizontal category columns — Capacity | Certainty | Process | Behavioral -->
+      <div class="slider-cats">
 
       <!-- Capacity -->
       <div class="slider-category" data-cat="capacity">
@@ -985,6 +998,8 @@
           <div class="slider-optimal-marker" id="s_userConf_marker"></div>
         </div>
       </div>
+
+      </div><!-- /.slider-cats -->
 
       <div class="slider-actions">
         <button id="resetBaseline" class="slider-btn">Reset to Baseline</button>
