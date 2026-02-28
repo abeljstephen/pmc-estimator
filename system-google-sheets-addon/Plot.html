@@ -2337,6 +2337,39 @@
         var noOptimized = !optimized;
         var noExplorer  = !explorer;
 
+        // ── Slider highlight helper ───────────────────────────────────────
+        // Returns a formatted mini-list of the strategy's top lever settings.
+        // Only shows sliders with meaningful values (> 5%).
+        // Sorted by value descending so the most-pushed levers appear first.
+        function sliderHighlights(stratKey) {
+          try {
+            var src = stratKey === 'adaptive' ? (s.explainAdaptive || {})
+                    : stratKey === 'fixed'    ? (s.explainOpt      || {})
+                    : {};
+            var sv = extractSliderVals(src);
+            var LABELS = {
+              budgetFlexibility:      'Budget Flex',
+              scheduleFlexibility:    'Schedule Flex',
+              scopeCertainty:         'Scope Certainty',
+              scopeReductionAllowance:'Scope Reduction',
+              reworkPercentage:       'Rework %',
+              riskTolerance:          'Risk Tolerance',
+              userConfidence:         'User Confidence'
+            };
+            var entries = Object.keys(sv)
+              .map(function(k) { return { k: k, v: sv[k], label: LABELS[k] || k }; })
+              .filter(function(e) { return e.v > 5; })
+              .sort(function(a, b) { return b.v - a.v; })
+              .slice(0, 4);
+            if (!entries.length) return '';
+            return '<br><span style="font-size:11px;color:var(--muted);">'
+              + 'Optimizer set \u2192 '
+              + entries.map(function(e) {
+                  return '<strong>' + e.label + '</strong>\u00a0' + e.v.toFixed(0) + '%';
+                }).join(' \u00b7 ') + '</span>';
+          } catch(err) { return ''; }
+        }
+
         // ── Part 1: Active chips bar ──────────────────────────────────────
         var chips = '<span class="rec-label">COMPARING:</span>';
         candidates.forEach(function(c) {
@@ -2391,11 +2424,13 @@
             var gGain = ((guided.prob - bp) * 100);
             if (gGain > 0) {
               parts.push('<strong>Guided</strong> (' + pct(guided.prob) + ', +' + gGain.toFixed(1) + ' pp): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
-                + 'All 7 decision levers stay within validated project management boundaries. '
-                + 'This is the most defensible improvement — every assumption can be justified in a stakeholder review.');
+                + 'All 7 decision levers stay within validated project management boundaries — '
+                + 'the most defensible improvement because every assumption can be justified in a stakeholder review.'
+                + sliderHighlights('adaptive'));
             } else {
               parts.push('<strong>Guided</strong> (' + pct(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
-                + 'The estimate range may require a looser constraint set — try increasing the probe level.');
+                + 'The estimate range may require a looser constraint set — try increasing the probe level.'
+                + sliderHighlights('adaptive'));
             }
           }
 
@@ -2404,11 +2439,13 @@
             var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Guided' : '';
             if (oGain > 0) {
               parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + ', +' + oGain.toFixed(1) + ' pp' + oRef + '): '
-                + 'Searches the full standard parameter space without the tightest constraints, finding the highest probability within normal project limits. '
-                + 'It uses a wider slider range than Guided, so verify each setting is feasible for your project before presenting it.');
+                + 'Searches the full standard parameter space, finding the highest probability within normal project limits. '
+                + 'Uses a wider slider range than the most constrained approach — verify each setting is feasible before presenting it.'
+                + sliderHighlights('fixed'));
             } else {
               parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + '): Could not beat the baseline within standard bounds. '
-                + 'The target may be too ambitious for this estimate range.');
+                + 'The target may be too ambitious for this estimate range.'
+                + sliderHighlights('fixed'));
             }
           }
 
@@ -2418,9 +2455,10 @@
             if (best.key === 'manual') ePeer = ''; // Don't compare Explorer to itself
             if (eGain > 0) {
               parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + ', +' + eGain.toFixed(1) + ' pp' + ePeer + '): '
-                + 'Sets all sliders to their most favorable positions with no guardrails. '
-                + 'This is the theoretical ceiling — it answers "how much improvement is possible in the best case?" '
-                + 'Explorer values are rarely achievable in practice; use them to understand headroom, not as a project plan.');
+                + 'Sets all sliders to their most favorable positions with no guardrails — the theoretical ceiling. '
+                + 'Answers "how much improvement is possible in the best case?" '
+                + 'Explorer values are rarely achievable in practice; use them to understand headroom, not as a plan. '
+                + 'Open the sidebar to see exactly which levers are pushed and by how much.');
             } else {
               parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
                 + 'The target is very aggressive for this estimate range. Consider lowering the target or revisiting the 3-point estimate.');
@@ -7281,7 +7319,16 @@ window.TM = {
     if (btnA) btnA.classList.toggle('active', mode === 'aggregate');
 
     var aggBar = document.getElementById('tmAggBar');
-    if (aggBar) aggBar.classList.toggle('visible', mode === 'aggregate');
+    if (aggBar) {
+      // Only show aggregate bar when we have actual run results.
+      // Switching to aggregate mode alone does NOT populate the bar.
+      if (mode === 'single') {
+        aggBar.classList.remove('visible');
+      } else if (this._lastAggResult) {
+        aggBar.classList.add('visible'); // restore cached results on re-entry
+      }
+      // else: aggregate mode but no run yet — bar stays hidden
+    }
 
     this._updateBar();
     if (!silent) {
@@ -7327,8 +7374,13 @@ window.TM = {
     if (total === 0) {
       info.textContent = 'No tasks — click Manage Tasks to add some.';
     } else if (this.mode === 'aggregate') {
-      info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
-        ' included in aggregate run — use Manage Tasks to select which tasks to combine.';
+      if (this._lastAggResult) {
+        info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
+          ' included in aggregate run — use Manage Tasks to select which tasks to combine.';
+      } else {
+        info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
+          ' selected — click Save & Run \u25b6 to compute the combined distribution.';
+      }
     } else {
       info.textContent = total + ' task' + (total !== 1 ? 's' : '') + ' — select one from the dropdown below.';
     }
@@ -7414,6 +7466,7 @@ window.TM = {
 
   /* ── Show aggregate result ── */
   _showAggregateResult: function(agg) {
+    this._lastAggResult = agg; // cache so bar can be restored on mode re-entry
     var bar = document.getElementById('tmAggBar');
     if (!bar) return;
     bar.classList.add('visible');
