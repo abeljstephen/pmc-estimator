@@ -1023,6 +1023,10 @@
           <input type="checkbox" id="oselRadar" onchange="overlayPselUpdate()">
           <span class="psel-lbl">Radar</span><span class="psel-sub">Slider profile</span>
         </label>
+        <label class="psel-chk" id="oselChkHypercube" title="Hypercube — rotating 3D projection of the 7-dimensional parameter space. Each vertex is a slider combination.">
+          <input type="checkbox" id="oselHypercube" onchange="overlayPselUpdate()">
+          <span class="psel-lbl">Hypercube</span><span class="psel-sub">3D space</span>
+        </label>
         <label class="psel-chk" id="oselChkSaco" title="SACO 3D — 3D probability surface showing baseline vs strategy distribution lift. Requires a strategy to be active.">
           <input type="checkbox" id="oselSaco" onchange="overlayPselUpdate()">
           <span class="psel-lbl">SACO 3D</span><span class="psel-sub">Surface lift</span>
@@ -1202,10 +1206,17 @@
       const sacoVizSection = document.getElementById('sacoVizSection');
       const isOverlay = overlayTab && overlayTab.classList.contains('active');
 
-      // Radar section: respect oselRadar checkbox (hidden by default in overlay tab)
+      // Radar / Hypercube cards: each has its own checkbox; section is visible when either is checked
       if (hypercubeSection) {
-        var _cRadar = document.getElementById('oselRadar');
-        hypercubeSection.classList.toggle('visible', isOverlay && !!(_cRadar && _cRadar.checked));
+        var _cRadar     = document.getElementById('oselRadar');
+        var _cHypercube = document.getElementById('oselHypercube');
+        var _showRadar  = isOverlay && !!(_cRadar     && _cRadar.checked);
+        var _showHyper  = isOverlay && !!(_cHypercube && _cHypercube.checked);
+        hypercubeSection.classList.toggle('visible', _showRadar || _showHyper);
+        var _radarCard    = document.getElementById('radarCard');
+        var _hypercube3D  = document.getElementById('hypercube3DCard');
+        if (_radarCard)   _radarCard.style.display   = _showRadar ? '' : 'none';
+        if (_hypercube3D) _hypercube3D.style.display = _showHyper ? '' : 'none';
       }
       // SACO viz section: respect oselSaco / oselSphere checkboxes (hidden by default)
       if (sacoVizSection) {
@@ -3066,21 +3077,22 @@
          Controls visibility of PDF, CDF, Radar, SACO 3D, Sphere.
          Default: CDF only — shows cumulative probability per strategy immediately.  */
       window.overlayPselUpdate = function() {
-        var showPDF    = !!(document.getElementById('oselPDF')    && document.getElementById('oselPDF').checked);
-        var showCDF    = !!(document.getElementById('oselCDF')    && document.getElementById('oselCDF').checked);
-        var showRadar  = !!(document.getElementById('oselRadar')  && document.getElementById('oselRadar').checked);
-        var showSaco   = !!(document.getElementById('oselSaco')   && document.getElementById('oselSaco').checked);
-        var showSphere = !!(document.getElementById('oselSphere') && document.getElementById('oselSphere').checked);
+        var showPDF       = !!(document.getElementById('oselPDF')       && document.getElementById('oselPDF').checked);
+        var showCDF       = !!(document.getElementById('oselCDF')       && document.getElementById('oselCDF').checked);
+        var showRadar     = !!(document.getElementById('oselRadar')     && document.getElementById('oselRadar').checked);
+        var showHypercube = !!(document.getElementById('oselHypercube') && document.getElementById('oselHypercube').checked);
+        var showSaco      = !!(document.getElementById('oselSaco')      && document.getElementById('oselSaco').checked);
+        var showSphere    = !!(document.getElementById('oselSphere')    && document.getElementById('oselSphere').checked);
 
         // Sync .checked CSS class on labels
-        [['PDF','oselPDF'],['CDF','oselCDF'],['Radar','oselRadar'],['Saco','oselSaco'],['Sphere','oselSphere']].forEach(function(pair) {
+        [['PDF','oselPDF'],['CDF','oselCDF'],['Radar','oselRadar'],['Hypercube','oselHypercube'],['Saco','oselSaco'],['Sphere','oselSphere']].forEach(function(pair) {
           var lbl = document.getElementById('oselChk' + pair[0]);
           var inp = document.getElementById(pair[1]);
           if (lbl && inp) lbl.classList.toggle('checked', inp.checked);
         });
 
         // Enforce at least 1 visible
-        var total = [showPDF, showCDF, showRadar, showSaco, showSphere].filter(Boolean).length;
+        var total = [showPDF, showCDF, showRadar, showHypercube, showSaco, showSphere].filter(Boolean).length;
         if (total === 0) {
           var fallback = document.getElementById('oselCDF');
           if (fallback) { fallback.checked = true; showCDF = true; var lf = document.getElementById('oselChkCDF'); if (lf) lf.classList.add('checked'); }
@@ -3103,9 +3115,22 @@
           inner.style.height     = 'min(420px,50vh)';
         }
 
-        // Radar section (hypercubeSection)
-        var hcSection = document.getElementById('hypercubeSection');
-        if (hcSection) hcSection.classList.toggle('visible', showRadar);
+        // Radar/Hypercube — each card is individually controlled inside #hypercubeSection.
+        // The section itself is visible only when at least one of the two cards is shown.
+        var hcSection    = document.getElementById('hypercubeSection');
+        var radarCard    = document.getElementById('radarCard');
+        var hypercube3DCard = document.getElementById('hypercube3DCard');
+        var needHcSection = showRadar || showHypercube;
+        if (hcSection)       hcSection.classList.toggle('visible', needHcSection);
+        if (radarCard)       radarCard.style.display       = showRadar     ? '' : 'none';
+        if (hypercube3DCard) hypercube3DCard.style.display = showHypercube ? '' : 'none';
+        // Trigger renders when newly enabled
+        if (showHypercube && typeof window.visualizeHypercubeOnBaseline === 'function') {
+          setTimeout(function() {
+            var hc = document.getElementById('hypercubeSection');
+            if (hc && hc.offsetParent !== null) window.visualizeHypercubeOnBaseline();
+          }, 120);
+        }
 
         // SACO 3D and Sphere — individually controlled inside sacoVizSection
         var saco3dWrap  = document.getElementById('saco3dOuterWrap');
