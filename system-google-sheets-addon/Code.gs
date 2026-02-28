@@ -343,6 +343,47 @@ function computePertMean_(O, M, P) {
   return null;
 }
 
+/**
+ * Validate a three-point estimate task.
+ * Returns null if valid, or an array of human-readable error strings if invalid.
+ *
+ * Rules:
+ *  - All three values must be valid numbers
+ *  - All values must be ≥ 0
+ *  - Best Case (O) ≤ Most Likely (M) ≤ Worst Case (P)
+ *  - Best Case < Worst Case (non-zero range required for distribution)
+ */
+function validateTask_(task) {
+  const O = num(task.optimistic);
+  const M = num(task.mostLikely);
+  const P = num(task.pessimistic);
+  const errors = [];
+
+  if (!isNumber(O) || !isNumber(M) || !isNumber(P)) {
+    errors.push('One or more estimate values are not valid numbers (got O=' +
+      task.optimistic + ', M=' + task.mostLikely + ', P=' + task.pessimistic + ').' +
+      ' All three columns (Best Case, Most Likely, Worst Case) must contain numeric values.');
+    return errors; // no point checking ordering if values aren't numbers
+  }
+  if (O < 0 || M < 0 || P < 0) {
+    errors.push('All values must be ≥ 0 (got O=' + O + ', M=' + M + ', P=' + P +
+      '). Negative estimates are not supported — use 0 as the minimum.');
+  }
+  if (O > M) {
+    errors.push('Best Case (' + O + ') must be ≤ Most Likely (' + M +
+      '). Fix: ensure Best Case ≤ Most Likely ≤ Worst Case.');
+  }
+  if (M > P) {
+    errors.push('Most Likely (' + M + ') must be ≤ Worst Case (' + P +
+      '). Fix: ensure Best Case ≤ Most Likely ≤ Worst Case.');
+  }
+  if (O >= P) {
+    errors.push('Best Case (' + O + ') must be strictly less than Worst Case (' + P +
+      '). A non-zero range is required to build a distribution — set Worst Case > Best Case.');
+  }
+  return errors.length > 0 ? errors : null;
+}
+
 /************************************************************
  * 4. MENUS
  ************************************************************/
@@ -1213,6 +1254,18 @@ function runTasks_(tasks, mode) {
     try {
       out.getRange(row, 1, 1, 4).setValues([[task.task, task.optimistic || '', task.mostLikely || '', task.pessimistic || '']]);
       SpreadsheetApp.flush();
+
+      // Validate inputs before making any API calls
+      const validationErrors = validateTask_(task);
+      if (validationErrors) {
+        const errMsg = 'INVALID INPUT: ' + validationErrors.join(' | ');
+        out.getRange(row, statusCol).setValue(tsMsg(errMsg));
+        SpreadsheetApp.flush();
+        logSheet.appendRow([tsMsg(`Task "${task.task}": ${errMsg}`)]);
+        err++;
+        continue;
+      }
+
       out.getRange(row, statusCol).setValue('Running...');
       SpreadsheetApp.flush();
 
@@ -1363,6 +1416,17 @@ function doSingleTask_(task, row, out, logSheet) {
             SpreadsheetApp.flush();
             col++;
           });
+
+          // Warn if every slider came back as exactly 0 — may indicate API returned defaults
+          // rather than a meaningful optimization result. This is flagged, not treated as an error,
+          // because some flat distributions can legitimately yield zero adjustments.
+          const sliderVals = SLIDER_KEYS.map(k => num(optParsed.sliders[k]));
+          const allZero = sliderVals.every(v => isNumber(v) && v === 0);
+          if (allZero) {
+            Logger.log(`⚠ Task "${task.task}": all optimal slider values are 0 — API may have returned defaults. Check API logs for details.`);
+            logSheet.appendRow([tsMsg(`⚠ Task "${task.task}": all optimal sliders are 0 — optimizer returned no adjustments. Probability still changed (baseline→opt), so baseline distribution is being used as-is.`)]);
+          }
+
           hasOpt = true;
         } else {
           Logger.log('No valid sliders object in parsedOpt - writing defaults/empty');
