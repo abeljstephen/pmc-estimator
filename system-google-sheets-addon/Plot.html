@@ -292,7 +292,7 @@
     #sliderHelpTooltip {
       display: none;
       position: fixed; z-index: 9999;
-      width: 290px;
+      width: 290px; max-height: 320px; overflow-y: auto;
       background: #fff; border: 1px solid var(--line); border-radius: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,.14);
       padding: 12px 14px;
@@ -1369,7 +1369,18 @@
           var rect = btn.getBoundingClientRect();
           var left = rect.left + window.scrollX;
           left = Math.max(8, Math.min(left, window.innerWidth - 298));
-          popup.style.top  = (rect.bottom + 6 + window.scrollY) + 'px';
+          // Measure real height, then decide above vs below
+          popup.style.visibility = 'hidden';
+          popup.classList.add('visible');
+          var popH = popup.offsetHeight;
+          popup.classList.remove('visible');
+          popup.style.visibility = '';
+          var spaceBelow = window.innerHeight - rect.bottom;
+          var topPos = (spaceBelow >= popH + 10)
+            ? (rect.bottom + 6 + window.scrollY)
+            : (rect.top - popH - 6 + window.scrollY);
+          topPos = Math.max(window.scrollY + 6, topPos);
+          popup.style.top  = topPos + 'px';
           popup.style.left = left + 'px';
           popup.classList.add('visible');
           _activeSliderHelp = key;
@@ -1507,6 +1518,19 @@
     const pct    = v => (v == null || isNaN(v)) ? '–' : (100 * v).toFixed(2) + '%';
     const num    = (v, d=4) => (v == null || isNaN(v)) ? '–' : Number(v).toFixed(d);
     const blueNum = (v, d=4) => `<span style="color: var(--cdf);">${num(v, d)}</span>`;
+
+    // ── Shared display formatters — single source of truth for all probability displays ──
+    window.FMT = {
+      // Probabilities: always 2 decimal places → "51.17%"
+      prob: function(v) {
+        return (v == null || !isFinite(v)) ? '\u2013' : (v * 100).toFixed(2) + '%';
+      },
+      // Lift / delta in percentage-points: 1 decimal + sign → "+5.0 pp"
+      lift: function(v) {
+        if (v == null || !isFinite(v)) return '\u2013';
+        return (v >= 0 ? '+' : '') + v.toFixed(1) + '\u00a0pp';
+      }
+    };
 
     function isAnyFetching() {
       return S.fetching || Object.values(S.overlay.variants).some(v => v.loading);
@@ -2202,8 +2226,6 @@
           generate: function() {
             var s = window.S || {};
             var tab = s.tab || 'progress';
-            var pct = function(v) { return v != null ? (v * 100).toFixed(1) + '%' : 'N/A'; };
-
             if (tab === 'progress') {
               return '<h4>Distribution Curves</h4>' +
                 '<div class="help-section">' +
@@ -2219,16 +2241,16 @@
                 '<li><strong>Beta-PERT</strong> \u2014 industry-standard refinement that weights Most Likely more heavily</li>' +
                 '<li><strong>Your Estimate</strong> \u2014 final calibrated distribution used as your baseline</li>' +
                 '</ul></div>' +
-                (s.target != null ? '<div class="help-section"><p><strong>Your target:</strong> <span class="help-stat">' + Number(s.target).toFixed(2) + '</span> \u2014 probability of meeting it: <span class="help-stat">' + pct(s.baselineProb) + '</span></p></div>' : '');
+                (s.target != null ? '<div class="help-section"><p><strong>Your target:</strong> <span class="help-stat">' + Number(s.target).toFixed(2) + '</span> \u2014 probability of meeting it: <span class="help-stat">' + FMT.prob(s.baselineProb) + '</span></p></div>' : '');
             } else {
               var html = '<h4>Strategy Comparison</h4>' +
                 '<div class="help-section">' +
                 '<p><strong>What you see:</strong> Your baseline overlaid with optimization strategies. Each curve shows a different approach to improving your probability of success.</p></div>';
               html += '<div class="help-section"><p><strong>Active strategies:</strong></p><ul>';
-              if (s.overlay && s.overlay.baselineOn) html += '<li><strong>Your Estimate:</strong> <span class="help-stat">' + pct(s.baselineProb) + '</span> \u2014 starting point</li>';
-              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Guided:</strong> <span class="help-stat">' + pct(s.adaptiveProb) + '</span> \u2014 conservative, tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
-              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>Optimized:</strong> <span class="help-stat">' + pct(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
-              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Explorer:</strong> <span class="help-stat">' + pct(s.adjustedProb) + '</span> \u2014 your custom settings</li>';
+              if (s.overlay && s.overlay.baselineOn) html += '<li><strong>Your Estimate:</strong> <span class="help-stat">' + FMT.prob(s.baselineProb) + '</span> \u2014 starting point</li>';
+              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Guided:</strong> <span class="help-stat">' + FMT.prob(s.adaptiveProb) + '</span> \u2014 conservative, tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
+              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>Optimized:</strong> <span class="help-stat">' + FMT.prob(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
+              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Explorer:</strong> <span class="help-stat">' + FMT.prob(s.adjustedProb) + '</span> \u2014 your custom settings</li>';
               html += '</ul></div>';
               html += '<div class="help-section"><p><strong>How to read:</strong> On the CDF (right), a higher curve at your target = better probability. The gap between curves shows how much each strategy improves your chances.</p></div>';
               return html;
@@ -2320,7 +2342,7 @@
           } else if (v == null || isNaN(v)) {
             slot.innerHTML = '&ndash;';
           } else {
-            var pctStr = (v * 100).toFixed(2) + '%';
+            var pctStr = FMT.prob(v);
             var natural = Math.round(v * 100) + '% chance at or below target';
             slot.innerHTML = pctStr + '<div class="kpi-natural">' + natural + '</div>';
           }
@@ -2368,7 +2390,6 @@
         if (!stmtEl || !ctxEl) return;
         if (s.tab !== 'progress') return;
 
-        var pct = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
         // Use .toFixed(2) to match the target panel precision exactly
         var tgt = s.target != null ? Number(s.target).toFixed(2) : '?';
         var triProb  = s.triangleCdf && s.triangleCdf.length && s.target != null ? window.interpY(s.triangleCdf,  s.target) : null;
@@ -2390,7 +2411,7 @@
         );
         if (triProb != null) {
           parts.push(
-            'The <strong>Triangle</strong> distribution gives <strong>' + pct(triProb) + '</strong> at ' + tgt + ' — ' +
+            'The <strong>Triangle</strong> distribution gives <strong>' + FMT.prob(triProb) + '</strong> at ' + tgt + ' — ' +
             'the simplest model: a triangular shape with equal weight to all values between O and P, peaked at M ' +
             (triMean != null ? '(mean = ' + triMean.toFixed(2) + ')' : '') + '.'
           );
@@ -2398,7 +2419,7 @@
         if (betaProb != null && pertMean != null && triMean != null) {
           var cmp = betaProb > (triProb||0) ? 'higher' : 'lower';
           parts.push(
-            '<strong>Beta-PERT</strong> gives <strong>' + pct(betaProb) + '</strong> — it weights Most Likely 4× more heavily than O and P, ' +
+            '<strong>Beta-PERT</strong> gives <strong>' + FMT.prob(betaProb) + '</strong> — it weights Most Likely 4× more heavily than O and P, ' +
             'shifting the mean from ' + triMean.toFixed(2) + ' (Triangle) to ' + pertMean.toFixed(2) + ' (PERT). ' +
             'A ' + (pertMean < triMean ? 'lower' : 'higher') + ' mean shifts probability mass ' +
             (pertMean < triMean ? 'left' : 'right') + ', giving a ' + cmp + ' cumulative probability at this target.'
@@ -2406,9 +2427,9 @@
         }
         if (baseProb != null) {
           parts.push(
-            'Your <strong>baseline</strong> (Monte Carlo, 10k simulations) gives <strong>' + pct(baseProb) + '</strong> at ' + tgt + '. ' +
+            'Your <strong>baseline</strong> (Monte Carlo, 10k simulations) gives <strong>' + FMT.prob(baseProb) + '</strong> at ' + tgt + '. ' +
             'This is the distribution the target panel above uses — it runs thousands of random draws from the Triangle distribution and smooths the result, ' +
-            'so small differences from the analytical Triangle probability (' + pct(triProb) + ') are normal sampling variation. ' +
+            'so small differences from the analytical Triangle probability (' + FMT.prob(triProb) + ') are normal sampling variation. ' +
             'This baseline is your reference for optimization in Compare Strategies.'
           );
         }
@@ -2431,8 +2452,6 @@
         if (bp == null || isNaN(bp)) { banner.style.display = 'none'; updatePlotDescriptions(s, null, []); return; }
 
         var tgt  = s.target != null ? Number(s.target).toFixed(1) : '?';
-        var pct  = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
-        var pp   = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) : '0'; };
         var plvl = s.overlay.probeLevel || 3;
 
         // Strategy colour palette (matches the button UI)
@@ -2502,13 +2521,13 @@
           var isBest = hasVariants && c === best;
           var col    = COLOURS[c.key] || COLOURS.baseline;
           var gain   = (c.key !== 'baseline') ? ((c.prob - bp) * 100) : null;
-          var gainStr = (gain != null && gain > 0) ? '<span class="rec-chip-gain">(+' + gain.toFixed(1) + ' pp)</span>' : '';
+          var gainStr = (gain != null && gain > 0) ? '<span class="rec-chip-gain">(' + FMT.lift(gain) + ')</span>' : '';
           var style = isBest
             ? 'background:' + col.bestBg + ';color:' + col.bestText + ';border:1px solid ' + col.bestBg + ';'
             : 'background:' + col.bg + ';color:' + col.text + ';border:1px solid ' + col.border + ';';
           chips += '<span class="rec-chip' + (isBest ? ' best' : '') + '" style="' + style + '">';
           if (isBest) chips += '\u2605 '; // ★
-          chips += c.name + '&nbsp;<strong>' + pct(c.prob) + '</strong>&nbsp;' + gainStr;
+          chips += c.name + '&nbsp;<strong>' + FMT.prob(c.prob) + '</strong>&nbsp;' + gainStr;
           chips += '</span>';
         });
         if (activeEl) activeEl.innerHTML = chips;
@@ -2517,17 +2536,17 @@
         var stmt = '', level;
         if (!hasVariants) {
           level = bp >= 0.8 ? 'green' : (bp >= 0.5 ? 'amber' : 'red');
-          stmt = 'Your baseline probability is <strong>' + pct(bp) + '</strong> at target ' + tgt + '. No strategies are active yet.';
+          stmt = 'Your baseline probability is <strong>' + FMT.prob(bp) + '</strong> at target ' + tgt + '. No strategies are active yet.';
         } else if (best.key === 'baseline') {
           level = 'amber';
-          stmt = 'None of the active strategies improved over your baseline <strong>' + pct(bp) + '</strong> — the optimizer could not find better settings within its constraints.';
+          stmt = 'None of the active strategies improved over your baseline <strong>' + FMT.prob(bp) + '</strong> — the optimizer could not find better settings within its constraints.';
         } else {
-          var gain = ((best.prob - bp) * 100).toFixed(1);
+          var bestLift = (best.prob - bp) * 100;
           level = best.prob >= 0.8 ? 'green' : (best.prob >= 0.5 ? 'amber' : 'red');
-          if (Number(gain) > 0) {
-            stmt = '<strong>' + best.name + '</strong> is your best result: <strong>' + pct(best.prob) + '</strong> at target ' + tgt + ' \u2014 a <strong>+' + gain + ' pp</strong> improvement over your estimate.';
+          if (bestLift > 0) {
+            stmt = '<strong>' + best.name + '</strong> is your best result: <strong>' + FMT.prob(best.prob) + '</strong> at target ' + tgt + ' \u2014 a <strong>' + FMT.lift(bestLift) + '</strong> improvement over your estimate.';
           } else {
-            stmt = '<strong>' + best.name + '</strong> achieves <strong>' + pct(best.prob) + '</strong> at target ' + tgt + '.';
+            stmt = '<strong>' + best.name + '</strong> achieves <strong>' + FMT.prob(best.prob) + '</strong> at target ' + tgt + '.';
           }
         }
 
@@ -2541,7 +2560,7 @@
         } else {
           var parts = [];
           // Baseline context
-          var bLine = 'Your Estimate (' + pct(bp) + ') is the unoptimized baseline — the starting point for all comparisons.';
+          var bLine = 'Your Estimate (' + FMT.prob(bp) + ') is the unoptimized baseline — the starting point for all comparisons.';
           if (bp >= 0.7) bLine += ' Your baseline is already strong; optimization delivers incremental gains.';
           else if (bp < 0.4) bLine += ' The baseline is low, which means there is more room to gain from optimization.';
           parts.push(bLine);
@@ -2549,12 +2568,12 @@
           if (guided) {
             var gGain = ((guided.prob - bp) * 100);
             if (gGain > 0) {
-              parts.push('<strong>Guided</strong> (' + pct(guided.prob) + ', +' + gGain.toFixed(1) + ' pp): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
+              parts.push('<strong>Guided</strong> (' + FMT.prob(guided.prob) + ', ' + FMT.lift(gGain) + '): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
                 + 'All 7 decision levers stay within validated project management boundaries — '
                 + 'the most defensible improvement because every assumption can be justified in a stakeholder review.'
                 + sliderHighlights('adaptive'));
             } else {
-              parts.push('<strong>Guided</strong> (' + pct(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
+              parts.push('<strong>Guided</strong> (' + FMT.prob(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
                 + 'The estimate range may require a looser constraint set — try increasing the probe level.'
                 + sliderHighlights('adaptive'));
             }
@@ -2564,12 +2583,12 @@
             var oGain = ((optimized.prob - bp) * 100);
             var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Guided' : '';
             if (oGain > 0) {
-              parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + ', +' + oGain.toFixed(1) + ' pp' + oRef + '): '
+              parts.push('<strong>Optimized</strong> (' + FMT.prob(optimized.prob) + ', ' + FMT.lift(oGain) + oRef + '): '
                 + 'Searches the full standard parameter space, finding the highest probability within normal project limits. '
                 + 'Uses a wider slider range than the most constrained approach — verify each setting is feasible before presenting it.'
                 + sliderHighlights('fixed'));
             } else {
-              parts.push('<strong>Optimized</strong> (' + pct(optimized.prob) + '): Could not beat the baseline within standard bounds. '
+              parts.push('<strong>Optimized</strong> (' + FMT.prob(optimized.prob) + '): Could not beat the baseline within standard bounds. '
                 + 'The target may be too ambitious for this estimate range.'
                 + sliderHighlights('fixed'));
             }
@@ -2580,13 +2599,13 @@
             var ePeer = (guided || optimized) ? ' — ' + ((explorer.prob - best.prob) * 100).toFixed(1) + ' pp above ' + best.name : '';
             if (best.key === 'manual') ePeer = ''; // Don't compare Explorer to itself
             if (eGain > 0) {
-              parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + ', +' + eGain.toFixed(1) + ' pp' + ePeer + '): '
+              parts.push('<strong>Explorer</strong> (' + FMT.prob(explorer.prob) + ', ' + FMT.lift(eGain) + ePeer + '): '
                 + 'Sets all sliders to their most favorable positions with no guardrails — the theoretical ceiling. '
                 + 'Answers "how much improvement is possible in the best case?" '
                 + 'Explorer values are rarely achievable in practice; use them to understand headroom, not as a plan. '
                 + 'Open the sidebar to see exactly which levers are pushed and by how much.');
             } else {
-              parts.push('<strong>Explorer</strong> (' + pct(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
+              parts.push('<strong>Explorer</strong> (' + FMT.prob(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
                 + 'The target is very aggressive for this estimate range. Consider lowering the target or revisiting the 3-point estimate.');
             }
           }
@@ -2704,7 +2723,6 @@
         var chartDesc = document.getElementById('chartDesc');
         var radarDesc = document.getElementById('radarDesc');
         var hcDesc = document.getElementById('hypercubeDesc');
-        var pct = function(v) { return v != null && !isNaN(v) ? (v * 100).toFixed(1) + '%' : '\u2013'; };
         var tgt = s.target != null ? Number(s.target).toFixed(1) : '?';
         var onOverlay = (s.tab === 'overlay');
         var hasVariants = candidates && candidates.length > 1;
@@ -2720,7 +2738,7 @@
             lines.push('The PDF (left) shows the shape of each strategy\'s probability distribution \u2014 taller/narrower peaks mean more certainty. ');
             lines.push('The CDF (right) shows cumulative probability \u2014 the annotated circles mark where each strategy falls at the target. ');
             if (best && best.key !== 'baseline') {
-              lines.push('<strong>' + best.name + '</strong> achieves ' + pct(best.prob));
+              lines.push('<strong>' + best.name + '</strong> achieves ' + FMT.prob(best.prob));
               if (best.key === 'manual') lines.push(' (unconstrained \u2014 treat as theoretical ceiling)');
               else if (best.key === 'adaptive') lines.push(' (within strict best-practice constraints)');
               else if (best.key === 'fixed') lines.push(' (within standard optimization boundaries)');
@@ -2729,7 +2747,7 @@
             chartDesc.innerHTML = lines.join('');
           } else if (onOverlay) {
             chartDesc.style.display = '';
-            chartDesc.innerHTML = '<strong>Your baseline distribution at target ' + tgt + ':</strong> Probability of meeting target is <strong>' + pct(s.baselineProb) + '</strong>. Activate strategies above to compare.';
+            chartDesc.innerHTML = '<strong>Your baseline distribution at target ' + tgt + ':</strong> Probability of meeting target is <strong>' + FMT.prob(s.baselineProb) + '</strong>. Activate strategies above to compare.';
           } else {
             chartDesc.style.display = 'none';
           }
@@ -3232,25 +3250,25 @@
         var optEl  = document.getElementById('psbOptimized');
         var expEl  = document.getElementById('psbExplorer');
         if (tauEl)  tauEl.textContent  = '\u03c4\u202f=\u202f' + tau.toFixed(2);
-        if (baseEl) baseEl.textContent = 'Baseline P\u2080\u202f=\u202f' + (P0 * 100).toFixed(1) + '%';
+        if (baseEl) baseEl.textContent = 'Baseline P\u2080\u202f=\u202f' + FMT.prob(P0);
         if (guidEl) {
           if (ov.adaptiveOn && s.adaptiveProb != null && isFinite(s.adaptiveProb)) {
             var dPg = (s.adaptiveProb - P0) * 100;
-            guidEl.textContent = 'Guided\u202f' + (s.adaptiveProb * 100).toFixed(1) + '%\u202f(\u0394P\u202f' + (dPg >= 0 ? '+' : '') + dPg.toFixed(1) + '%)';
+            guidEl.textContent = 'Guided\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
             guidEl.style.display = 'inline-block';
           } else { guidEl.style.display = 'none'; }
         }
         if (optEl) {
           if (ov.fixedOn && s.optimizedProb != null && isFinite(s.optimizedProb)) {
             var dPo = (s.optimizedProb - P0) * 100;
-            optEl.textContent = 'Optimized\u202f' + (s.optimizedProb * 100).toFixed(1) + '%\u202f(\u0394P\u202f' + (dPo >= 0 ? '+' : '') + dPo.toFixed(1) + '%)';
+            optEl.textContent = 'Optimized\u202f' + FMT.prob(s.optimizedProb) + '\u202f(' + FMT.lift(dPo) + ')';
             optEl.style.display = 'inline-block';
           } else { optEl.style.display = 'none'; }
         }
         if (expEl) {
           if (ov.manualOn && s.adjustedProb != null && isFinite(s.adjustedProb)) {
             var dPe = (s.adjustedProb - P0) * 100;
-            expEl.textContent = 'Explorer\u202f' + (s.adjustedProb * 100).toFixed(1) + '%\u202f(\u0394P\u202f' + (dPe >= 0 ? '+' : '') + dPe.toFixed(1) + '%)';
+            expEl.textContent = 'Explorer\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
             expEl.style.display = 'inline-block';
           } else { expEl.style.display = 'none'; }
         }
@@ -4910,28 +4928,28 @@
     <div class="rep-row" style="font-size:15px;font-weight:700;margin-bottom:8px;">Analysis & Recommendation</div>
     <div class="rep-note" style="font-size:13px;line-height:1.8;">
       ${(() => {
-        const bp = baselineProb != null ? (baselineProb*100).toFixed(2) : '–';
-        const fp = fixedProb != null ? (fixedProb*100).toFixed(2) : '–';
-        const ap = adaptiveProb != null ? (adaptiveProb*100).toFixed(2) : '–';
-        const mp = manualProb != null ? (manualProb*100).toFixed(2) : '–';
+        const bp = FMT.prob(baselineProb);
+        const fp = FMT.prob(fixedProb);
+        const ap = FMT.prob(adaptiveProb);
+        const mp = FMT.prob(manualProb);
         const fixedLift = fixedProb!=null && baselineProb!=null ? ((fixedProb-baselineProb)*100) : 0;
         const adaptiveLift = adaptiveProb!=null && baselineProb!=null ? ((adaptiveProb-baselineProb)*100) : 0;
         const manualLift = manualProb!=null && baselineProb!=null ? ((manualProb-baselineProb)*100) : 0;
-        let html = '<p style="margin-bottom:8px;"><strong>Baseline</strong> gives a <strong>' + bp + '%</strong> probability of achieving the target. ';
+        let html = '<p style="margin-bottom:8px;"><strong>Baseline</strong> gives a <strong>' + bp + '</strong> probability of achieving the target. ';
         if (fixedLift > 0.01 || adaptiveLift > 0.01 || manualLift > 0.01) {
           html += 'Optimization finds lever settings that improve this probability. Results ordered from most conservative (tightest constraints) to least conservative:</p>';
           html += '<ol style="margin:6px 0 10px;padding-left:18px;">';
           // Always ordered: Adaptive (most constrained) → Fixed → Manual (least)
-          if (adaptiveProb != null) html += '<li><strong>Guided (Level ' + probeLvl + ')</strong> achieves <strong>' + ap + '%</strong> (' + (adaptiveLift>=0?'+':'') + adaptiveLift.toFixed(2) + ' pts) — tightest best-practice boundaries. Level ' + probeLvl + ' narrows each slider\'s feasible range, so the optimizer has less room to move. This is the <em>most defensible</em> result.</li>';
-          if (fixedProb != null) html += '<li><strong>Optimized</strong> achieves <strong>' + fp + '%</strong> (' + (fixedLift>=0?'+':'') + fixedLift.toFixed(2) + ' pts) — standard boundaries (level 1). Wider slider ranges give the optimizer more freedom, which is why Optimized typically achieves a higher probability than Guided.</li>';
-          if (manualProb != null) html += '<li><strong>Explorer</strong> achieves <strong>' + mp + '%</strong> (' + (manualLift>=0?'+':'') + manualLift.toFixed(2) + ' pts) — <strong>no constraints</strong>. User-defined values with no best-practice validation. Highest potential but least defensible.</li>';
+          if (adaptiveProb != null) html += '<li><strong>Guided (Level ' + probeLvl + ')</strong> achieves <strong>' + ap + '</strong> (' + FMT.lift(adaptiveLift) + ') — tightest best-practice boundaries. Level ' + probeLvl + ' narrows each slider\'s feasible range, so the optimizer has less room to move. This is the <em>most defensible</em> result.</li>';
+          if (fixedProb != null) html += '<li><strong>Optimized</strong> achieves <strong>' + fp + '</strong> (' + FMT.lift(fixedLift) + ') — standard boundaries (level 1). Wider slider ranges give the optimizer more freedom, which is why Optimized typically achieves a higher probability than Guided.</li>';
+          if (manualProb != null) html += '<li><strong>Explorer</strong> achieves <strong>' + mp + '</strong> (' + FMT.lift(manualLift) + ') — <strong>no constraints</strong>. User-defined values with no best-practice validation. Highest potential but least defensible.</li>';
           html += '</ol>';
         } else {
           html += 'The distribution is already well-positioned and optimization has limited room to improve.</p>';
           html += '<ul style="margin:6px 0 10px;padding-left:18px;">';
-          if (adaptiveProb != null) html += '<li><strong>Adaptive:</strong> ' + ap + '%</li>';
-          if (fixedProb != null) html += '<li><strong>Fixed Optimal:</strong> ' + fp + '%</li>';
-          if (manualProb != null) html += '<li><strong>Manual:</strong> ' + mp + '%</li>';
+          if (adaptiveProb != null) html += '<li><strong>Guided:</strong> ' + ap + '</li>';
+          if (fixedProb != null) html += '<li><strong>Optimized:</strong> ' + fp + '</li>';
+          if (manualProb != null) html += '<li><strong>Explorer:</strong> ' + mp + '</li>';
           html += '</ul>';
         }
         // Why Fixed > Adaptive explanation
@@ -4975,7 +4993,7 @@
       <tbody>
         ${variants.map(function(v) {
           var d = v.prob != null && baselineProb != null ? ((v.prob - baselineProb)*100) : null;
-          var dStr = d != null ? (d >= 0 ? '+' : '') + d.toFixed(2) + '%' : '–';
+          var dStr = d != null ? FMT.lift(d) : '–';
           var dColor = d > 0.005 ? '#16A34A' : d < -0.005 ? '#DC2626' : '#6B7280';
           var isBest = bestVariant.key === v.key;
           var rowBg = isBest ? 'background:#F0FDF4;' : '';
