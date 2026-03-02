@@ -1,0 +1,94 @@
+{
+  "api": {
+    "primary_provider": "claude",
+    "interactive_mode": false,
+    "timeout_seconds": 60,
+    "max_retries": 3,
+    "retry_backoff_base": 2
+  },
+  "providers": {
+    "claude": {
+      "enabled": true,
+      "name": "Claude (Anthropic)",
+      "api_key_env_var": "ANTHROPIC_API_KEY",
+      "model": "claude-opus-4-5-20251101",
+      "max_tokens": 4096,
+      "temperature": 0,
+      "billing": {
+        "currency": "USD",
+        "input_per_mtok": 0.003,
+        "output_per_mtok": 0.015,
+        "monthly_limit": 100
+      }
+    },
+    "chatgpt": {
+      "enabled": false,
+      "name": "ChatGPT (OpenAI)",
+      "api_key_env_var": "OPENAI_API_KEY",
+      "model": "gpt-4-turbo",
+      "max_tokens": 4096,
+      "temperature": 0,
+      "billing": {
+        "currency": "USD",
+        "input_per_mtok": 0.01,
+        "output_per_mtok": 0.03,
+        "monthly_limit": 100
+      }
+    },
+    "grok": {
+      "enabled": false,
+      "name": "Grok (xAI)",
+      "api_key_env_var": "GROK_API_KEY",
+      "model": "grok-3",
+      "max_tokens": 4096,
+      "temperature": 0,
+      "billing": {
+        "currency": "USD",
+        "input_per_mtok": 0.002,
+        "output_per_mtok": 0.01,
+        "monthly_limit": 100
+      }
+    }
+  },
+  "agents": {
+    "math-agent": {
+      "enabled": true,
+      "provider": "claude",
+      "fallback_providers": [],
+      "max_tokens": 4096,
+      "temperature": 0,
+      "rate_limit": {
+        "requests_per_day": 100,
+        "tokens_per_day": 50000
+      },
+      "metadata_tags": [
+        "mathematical-qa",
+        "code-audit",
+        "probability-analysis"
+      ]
+    }
+  },
+  "usage_control": {
+    "track_per_provider": true,
+    "track_per_agent": true,
+    "track_file": "config/logs/api-usage.json",
+    "cost_tracking": {
+      "enable": true,
+      "monthly_limit": 100,
+      "warn_threshold_dollars": 50,
+      "hard_limit_dollars": 100,
+      "billing_period": "monthly"
+    },
+    "rate_limiting": {
+      "enable": true,
+      "global_requests_per_minute": 20,
+      "global_tokens_per_day": 100000
+    }
+  },
+  "monitoring": {
+    "log_all_requests": true,
+    "log_file": "config/logs/api-requests.log",
+    "alert_on_failure": true,
+    "alert_file": "config/logs/alerts.log"
+  }
+}

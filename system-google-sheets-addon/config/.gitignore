@@ -1,0 +1,20 @@
+# Credentials and logs - never commit
+.env
+.env.local
+.env.*.local
+
+# API usage logs (auto-generated)
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
