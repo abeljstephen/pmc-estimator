@@ -197,17 +197,17 @@ function phase1_staticAnalysis() {
     errors += credentialsFound;
   }
 
-  // 1e. Check HEADERS length matches expected columns (23)
+  // 1e. Check HEADERS length matches expected columns (28)
   const codeGsPath = path.join(PROJECT_ROOT, 'Code.gs');
   if (fs.existsSync(codeGsPath)) {
     const codeContent = fs.readFileSync(codeGsPath, 'utf8');
     const headersMatch = codeContent.match(/(?:var|const|let)\s+HEADERS\s*=\s*\[([\s\S]*?)\];/);
     if (headersMatch) {
       const headerEntries = headersMatch[1].split(',').filter(e => e.trim().length > 0 && e.trim().startsWith("'"));
-      if (headerEntries.length === 23) {
-        pass(`HEADERS array has 23 entries`);
+      if (headerEntries.length === 28) {
+        pass(`HEADERS array has 28 entries`);
       } else {
-        fail(`HEADERS array has ${headerEntries.length} entries (expected 23)`);
+        fail(`HEADERS array has ${headerEntries.length} entries (expected 28)`);
         errors++;
       }
     } else {

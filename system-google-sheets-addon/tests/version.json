@@ -1,4 +1,7 @@
 {
-  "version": 1,
-  "lastPublished": null
+  "version": 2,
+  "lastPublished": "2026-03-02T17:59:16.980Z",
+  "deploymentId": "AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL",
+  "appsScriptVersion": 51,
+  "description": "v3.2 — Report tabs, pipeline view, slider fixes"
 }
