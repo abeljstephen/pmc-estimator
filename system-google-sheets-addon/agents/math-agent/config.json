@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "name": "Math QA Auditor",
+    "version": "1.0.0",
+    "description": "Specialized mathematical QA agent for PMC Estimator codebase"
+  },
+  "audit_config": {
+    "severity_levels": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+    "check_mathematical_correctness": true,
+    "check_integration_points": true,
+    "check_numerical_stability": true,
+    "check_improvements": true,
+    "check_edge_cases": true
+  },
+  "thresholds": {
+    "kl_divergence_max": 0.08,
+    "cdf_monotone_tolerance": 1e-6,
+    "pdf_integration_tolerance": 0.01,
+    "moment_variance_max_ratio": 0.0833,
+    "numerical_underflow_threshold": 1e-300,
+    "numerical_overflow_threshold": 1e300
+  },
+  "components_to_audit": {
+    "baseline_generation": {
+      "files": [
+        "core/baseline/coordinator.gs",
+        "core/baseline/beta-points.gs",
+        "core/baseline/pert-points.gs",
+        "core/baseline/triangle-points.gs",
+        "core/baseline/monte-carlo-raw.gs",
+        "core/baseline/monte-carlo-smoothed.gs"
+      ],
+      "focus": ["Beta parameter validity", "KDE bandwidth", "CDF monotonicity"]
+    },
+    "reshaping": {
+      "files": [
+        "core/reshaping/copula-utils.gs",
+        "core/reshaping/slider-adjustments.gs",
+        "core/reshaping/slider-normalization.gs",
+        "core/reshaping/outcome-summary.gs"
+      ],
+      "focus": ["Copula PSD", "Moment preservation", "Beta refit accuracy"]
+    },
+    "optimization": {
+      "files": [
+        "core/optimization/optimizer.gs",
+        "core/optimization/kl-divergence.gs",
+        "core/optimization/matrix-utils.gs",
+        "core/optimization/sensitivity-analysis.gs"
+      ],
+      "focus": ["Latin Hypercube validity", "KL divergence correctness", "Reversion logic"]
+    },
+    "helpers": {
+      "files": [
+        "core/helpers/metrics.gs",
+        "core/helpers/validation.gs"
+      ],
+      "focus": ["Trapezoidal integration", "CDF/PDF validation", "Numerical stability"]
+    }
+  },
+  "copula_base_r_matrix": {
+    "description": "7x7 PMBOK-based correlation matrix for slider dependencies",
+    "source": "Project Management Body of Knowledge (PMBOK)",
+    "last_validated": "2025-12-01",
+    "needs_validation": false
+  },
+  "pert_formula": {
+    "mean": "(O + 4*M + P) / 6",
+    "variance": "((P - O) / 6) ^ 2"
+  },
+  "improvement_check": {
+    "check_distribution_alternatives": true,
+    "check_copula_advances": true,
+    "check_optimization_algorithms": true,
+    "check_divergence_measures": true,
+    "check_moment_improvements": true,
+    "check_numerical_methods": true,
+    "suggest_academic_references": true
+  },
+  "output_format": {
+    "include_severity": true,
+    "include_file_locations": true,
+    "include_suggestions": true,
+    "include_academic_references": true,
+    "format": "markdown"
+  }
+}

@@ -1,0 +1,6 @@
+# Core dependencies
+anthropic>=0.28.0
+
+# Optional: Add these when you have credentials for other providers
+# openai>=1.0.0        # For ChatGPT support
+# xai-grok>=1.0.0      # For Grok support (when available)

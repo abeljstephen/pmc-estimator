@@ -1,0 +1,81 @@
+{
+  "agent": {
+    "name": "Codebase Research Agent",
+    "version": "1.0.0",
+    "description": "Specialized codebase research agent for the PMC Estimator — traces call chains, maps data flow, and produces structured architectural analyses"
+  },
+  "research_config": {
+    "trace_call_chains": true,
+    "trace_data_flow": true,
+    "compare_code_paths": true,
+    "identify_side_effects": true,
+    "document_assumptions": true,
+    "cross_reference_files": true
+  },
+  "output_format": {
+    "include_file_locations": true,
+    "include_line_numbers": true,
+    "include_call_chains": true,
+    "include_data_flow_diagrams": true,
+    "include_summary_table": true,
+    "format": "markdown"
+  },
+  "components": {
+    "baseline": {
+      "files": [
+        "core/baseline/coordinator.gs",
+        "core/baseline/beta-points.gs",
+        "core/baseline/pert-points.gs",
+        "core/baseline/triangle-points.gs",
+        "core/baseline/monte-carlo-raw.gs",
+        "core/baseline/monte-carlo-smoothed.gs"
+      ],
+      "description": "Distribution generation from O/M/P inputs"
+    },
+    "reshaping": {
+      "files": [
+        "core/reshaping/copula-utils.gs",
+        "core/reshaping/slider-adjustments.gs",
+        "core/reshaping/slider-normalization.gs",
+        "core/reshaping/outcome-summary.gs"
+      ],
+      "description": "Copula-based distribution reshaping driven by slider values"
+    },
+    "optimization": {
+      "files": [
+        "core/optimization/optimizer.gs",
+        "core/optimization/kl-divergence.gs",
+        "core/optimization/matrix-utils.gs",
+        "core/optimization/sensitivity-analysis.gs"
+      ],
+      "description": "SACO optimizer — general (fixed) and conservative (adaptive) modes"
+    },
+    "helpers": {
+      "files": [
+        "core/helpers/metrics.gs",
+        "core/helpers/validation.gs"
+      ],
+      "description": "Shared numerical utilities and validation"
+    },
+    "main": {
+      "files": [
+        "core/main/main.gs"
+      ],
+      "description": "Top-level orchestration — calls baseline, reshape, optimize"
+    },
+    "ui": {
+      "files": [
+        "Plot.html",
+        "Code.gs"
+      ],
+      "description": "Sidebar UI — Chart.js plots, slider panel, task manager"
+    }
+  },
+  "research_templates": {
+    "pipeline_trace": "Trace the full execution path from entry point to final output, listing every function call with file and line number.",
+    "compare_modes": "Compare two code paths (e.g., general vs. conservative optimization) side-by-side: inputs, logic differences, outputs, and edge cases.",
+    "data_flow": "Map how a specific variable (e.g., scaledSliders) is created, transformed, and consumed across multiple files.",
+    "bug_investigation": "Given a symptom (e.g., sliders showing 0), trace backwards from the output to identify the root cause.",
+    "architecture_overview": "Produce a high-level map of all components, their responsibilities, and how they connect."
+  }
+}
