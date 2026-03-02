@@ -446,6 +446,25 @@
     .rep-tornado-bar .rep-fill { height: 100%; border-radius:  10px; }
     .rep-tornado-bar.rep-positive .rep-fill { background: var(--accent); }
     .rep-tornado-bar.rep-negative .rep-fill { background: var(--warn); }
+    /* ── Methodology Pipeline ── */
+    .pipe-node{border-radius:10px;margin-bottom:0;overflow:hidden;}
+    .pipe-node-hdr{padding:7px 12px;font-size:12px;font-weight:700;letter-spacing:.03em;}
+    .pipe-node-body{padding:10px 12px;}
+    .pipe-arrow{text-align:center;font-size:18px;color:#9CA3AF;line-height:1.4;margin:2px 0;}
+    .pipe-chip{display:inline-block;padding:1px 6px;border-radius:4px;background:#EEF2FF;color:#4338CA;
+               font-size:11px;font-weight:600;cursor:pointer;border:1px solid #C7D2FE;white-space:nowrap;}
+    .pipe-chip:hover{background:#E0E7FF;border-color:#818CF8;}
+    /* ── Report tab buttons ── */
+    .rep-btn-bar{display:flex;gap:6px;margin-bottom:10px;}
+    .rep-tab-btn{
+      flex:1;padding:9px 5px;border:2px solid var(--line);border-radius:10px;
+      background:var(--panel);color:#374151;font-size:10.5px;font-weight:700;
+      cursor:pointer;text-align:center;line-height:1.3;letter-spacing:.01em;
+      word-break:break-word;white-space:normal;
+      transition:border-color .15s,background .15s,color .15s;
+    }
+    .rep-tab-btn:hover{border-color:var(--accent);background:#EFF6FF;color:var(--accent);}
+    .rep-tab-btn.active{border-color:var(--accent);background:var(--accent);color:#fff;}
 
     @media (max-width:640px){
       .wrap{padding:6px;}
@@ -635,9 +654,10 @@
     .tgt-slider-inline input[type=range] { flex: 1; min-width: 30px; }
     .ctrl-query .tgt-hint { font-size: 8px; }
 
-    /* Live value display: right of slider, inline */
-    .tgt-live-val { display: none; align-items: center; gap: 2px; flex-shrink: 0; white-space: nowrap; }
+    /* Live value display: right of slider, stacked (chip above units) */
+    .tgt-live-val { display: none; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0; }
     .tgt-live-val.active { display: flex; }
+    .tgt-flow-units { font-size: 9px; color: var(--muted); line-height: 1; white-space: nowrap; }
 
     /* ── Inline Group task picker ── */
     #tmGroupPicker { flex-direction: column; gap: 3px; }
@@ -5589,6 +5609,12 @@
         try {
           var matchBtn = document.getElementById('matchOptimized');
           if (matchBtn) matchBtn.addEventListener('click', function() {
+            // Enable manual mode FIRST so inputs are not disabled when we set values
+            if (s.overlay && !s.overlay.manualOn) {
+              s.overlay.manualOn = true;
+              if (typeof setSlidersDisabled === 'function') setSlidersDisabled(false);
+              syncRowToggles();
+            }
             var fixedSliders = {};
             ['s_budget','s_schedule','s_scopeCert','s_scopeRed','s_rework','s_risk','s_userConf'].forEach(function(id) {
               var fixedEl = document.getElementById(id + '_fixed');
@@ -5596,11 +5622,6 @@
               var numEl = document.getElementById(id); if (numEl) numEl.value = val;
               var rangeEl = document.getElementById(id + '_range'); if (rangeEl) rangeEl.value = val;
             });
-            if (s.overlay && !s.overlay.manualOn) {
-              s.overlay.manualOn = true;
-              if (typeof setSlidersDisabled === 'function') setSlidersDisabled(false);
-              syncRowToggles();
-            }
             var key = JSON.stringify({ task: s.task && s.task.task, O: s.O, M: s.M, P: s.P, target: s.target, variant: 'manual' });
             if (s.variantCache) delete s.variantCache[key];
             requestVariant('manual');
@@ -5774,16 +5795,15 @@
           const riskColor = riskLevel === 'High' ? '#DC2626' : riskLevel === 'Medium' ? '#D97706' : '#16A34A';
 
           dr.innerHTML = `
-<div style="margin-bottom:10px;">
-  <button id="repMenuTrigger" style="width:100%;padding:10px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:13px;letter-spacing:.07em;cursor:pointer;text-align:center;">REPORTS &#9660;</button>
-  <div id="repMenuDropdown" style="display:none;border:1px solid var(--line);border-radius:0 0 8px 8px;overflow:hidden;margin-top:-2px;background:#fff;">
-    <button class="rep-menu-item" data-reptab="pm" style="display:block;width:100%;padding:12px 16px;text-align:left;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--line);">&#128203; Project Report</button>
-  </div>
+<div class="rep-btn-bar">
+  <button class="rep-tab-btn" data-reptab="pm">Project Report</button>
+  <button class="rep-tab-btn" data-reptab="stat">Statistical Report</button>
+  <button class="rep-tab-btn" data-reptab="pipe">Methodology Pipeline</button>
 </div>
 <div id="rep-pm" class="rep-panel" style="display:none;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;border-bottom:2px solid var(--line);margin-bottom:14px;">
     <span style="font-size:13px;font-weight:800;color:#1E3A5F;">&#128203; Project Report</span>
-    <button id="repCloseBtn" style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;" title="Close report">&#x2715; Close</button>
+    <button id="repCloseBtn" class="rep-close-btn" style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;" title="Close report">&#x2715; Close</button>
   </div>
   <!-- 1. Project Context -->
   <div class="rep-card" style="background:linear-gradient(135deg,#EFF6FF,#F0FDF4);border:2px solid #93C5FD;">
@@ -5947,56 +5967,52 @@
   </div>` : ''}
 </div>
 ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb, adaptiveProb, fixedProb, manualProb, adaptiveSliders, fixedSliders, manualSliders, kl, alpha, beta, cv, skew, explain, KEYS, LABELS)}
+${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, adaptiveProb, fixedProb, manualProb, adaptiveSliders, fixedSliders, manualSliders, kl, alpha, beta, cv, skew, explain, KEYS, LABELS)}
           `;
 
-          // REPORTS — inline dropdown (no absolute positioning) + scroll-to-report + close button
-          const repTrigger  = dr.querySelector('#repMenuTrigger');
-          const repDropdown = dr.querySelector('#repMenuDropdown');
-          const repCloseBtn = dr.querySelector('#repCloseBtn');
-
+          // REPORTS — three named tab buttons (toggle open/close)
           function closeAllPanels() {
             dr.querySelectorAll('.rep-panel').forEach(function(p) { p.style.display = 'none'; });
           }
-          function resetTrigger() {
-            if (repTrigger) repTrigger.innerHTML = 'REPORTS &#9660;';
-            if (repDropdown) repDropdown.style.display = 'none';
+          function clearTabActive() {
+            dr.querySelectorAll('.rep-tab-btn').forEach(function(b) { b.classList.remove('active'); });
           }
 
-          if (repTrigger && repDropdown) {
-            repTrigger.addEventListener('click', function() {
-              const open = repDropdown.style.display !== 'none';
-              // If a panel is open, close it first rather than toggling the list
-              const anyOpen = dr.querySelectorAll('.rep-panel[style*="block"]').length > 0;
-              if (anyOpen) { closeAllPanels(); resetTrigger(); return; }
-              repDropdown.style.display = open ? 'none' : 'block';
-              repTrigger.innerHTML = open ? 'REPORTS &#9660;' : 'REPORTS &#9650;';
-            });
-
-            dr.querySelectorAll('.rep-menu-item').forEach(function(btn) {
-              btn.addEventListener('click', function() {
-                resetTrigger();
-                const key = this.getAttribute('data-reptab');
-                closeAllPanels();
-                const panel = dr.querySelector('#rep-' + key);
-                if (panel) {
-                  panel.style.display = 'block';
-                  // Scroll the report panel into view smoothly
-                  setTimeout(function() {
-                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 60);
-                }
-              });
-            });
-          }
-
-          if (repCloseBtn) {
-            repCloseBtn.addEventListener('click', function() {
+          dr.querySelectorAll('.rep-tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const key = this.getAttribute('data-reptab');
+              const panel = dr.querySelector('#rep-' + key);
+              const isActive = this.classList.contains('active');
               closeAllPanels();
-              resetTrigger();
-              // Scroll back up to REPORTS button
-              if (repTrigger) repTrigger.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              clearTabActive();
+              if (!isActive && panel) {
+                panel.style.display = 'block';
+                this.classList.add('active');
+                setTimeout(function() {
+                  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 60);
+              }
             });
-          }
+          });
+
+          dr.querySelectorAll('.rep-close-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              closeAllPanels();
+              clearTabActive();
+              var bar = dr.querySelector('.rep-btn-bar');
+              if (bar) bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          });
+
+          // Pipe-chip glossary popups — call the central showHelp modal
+          dr.querySelectorAll('.pipe-chip[data-title]').forEach(function(chip) {
+            chip.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var t = this.getAttribute('data-title');
+              var b = this.getAttribute('data-body');
+              if (typeof window.showHelp === 'function') window.showHelp(t, b);
+            });
+          });
 
 
           // Render KaTeX math formulas in the report
@@ -6110,6 +6126,11 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 
           // Build the full view
           let html = '<div id="rep-stat" class="rep-panel" style="display:none;">';
+
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;border-bottom:2px solid var(--line);margin-bottom:14px;">'
+            + '<span style="font-size:13px;font-weight:800;color:#1E3A5F;">&#128202; Statistical Report</span>'
+            + '<button class="rep-close-btn" style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;" title="Close report">&#x2715; Close</button>'
+            + '</div>';
 
           // --- Step 1: User Inputs ---
           html += '<div class="rep-card" style="border:2px solid #C4B5FD;background:#F5F3FF;">';
@@ -6309,6 +6330,356 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 
           html += '</div>'; // close rep-stat
           return html;
+        },
+
+        buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, adaptiveProb, fixedProb, manualProb, adaptiveSliders, fixedSliders, manualSliders, kl, alpha, beta, cv, skew, explain, KEYS, LABELS) {
+          const self = this;
+          const range   = (O != null && P != null) ? P - O : null;
+          const pertVar = pertStd != null ? pertStd * pertStd : null;
+          const h       = range != null ? (range / 63.3) : null;
+          const probeLvl = S.overlay?.probeLevel ?? 3;
+          const nSamples = Math.max(100, 50 * probeLvl);
+
+          // Normalize slider display values → [0,1] for formula use
+          function norm01(sliders) {
+            if (!sliders) return Array(7).fill(0);
+            return KEYS.map(k => {
+              const maxV = k === 'reworkPercentage' ? 50 : 100;
+              return Math.min(1, Math.max(0, (sliders[k] || 0) / maxV));
+            });
+          }
+
+          // adjO/adjM/adjP from normalized [0,1] slider array (mirrors optimizer.gs lines 279-281)
+          function adjOMP(s01) {
+            if (O == null || M == null || P == null) return null;
+            const oA = O * (1 - s01[0]*0.25) * (1 - s01[3]*0.12);
+            const mA = M * (1 - s01[1]*0.12) * (1 - s01[6]*0.08) * (1 + s01[4]*0.10);
+            const pA = P * (1 - s01[2]*0.20) * (1 - s01[3]*0.10) * (1 + s01[4]*0.08);
+            return { O: oA, M: Math.max(oA*1.001, mA), P: Math.max(Math.max(oA*1.001,mA)*1.001, pA) };
+          }
+
+          const fixN   = norm01(fixedSliders);
+          const adaN   = norm01(adaptiveSliders);
+          const manN   = norm01(manualSliders);
+          const fixAdj = fixedProb  != null ? adjOMP(fixN)  : null;
+          const adaAdj = adaptiveProb != null ? adjOMP(adaN) : null;
+          const manAdj = manualProb  != null ? adjOMP(manN)  : null;
+
+          // Glossary: term → { title, body }
+          const GLOSSARY = {
+            PERT:        { title:'PERT Formula', body:'Program Evaluation and Review Technique. Converts three-point estimates into a weighted mean and variance: μ=(O+4M+P)/6 gives 4× weight to the most likely value. σ=(P−O)/6 captures spread. Developed by the US Navy in 1958.' },
+            Beta:        { title:'Beta Distribution', body:'A flexible probability distribution bounded on [O,P]. Parameterized by shape parameters α and β derived from the PERT mean and variance via method of moments. When α>β the distribution skews left (optimistic bias); when α<β it skews right (pessimistic bias).' },
+            MonteCarlo:  { title:'Monte Carlo Simulation', body:'Generates N random samples from the Beta distribution. Each sample represents one possible project outcome. The histogram of outcomes builds the empirical probability distribution without solving integrals analytically.' },
+            KDE:         { title:'Kernel Density Estimation (KDE)', body:'Smooths the raw Monte Carlo histogram into a continuous curve using a Gaussian kernel. Bandwidth h=range/63.3 controls smoothness: too small → spiky, too large → over-smoothed. Removes sampling noise while preserving the distribution shape.' },
+            LHS:         { title:'Latin Hypercube Sampling', body:'A stratified sampling strategy. Divides each of the 7 slider dimensions into N equal-probability buckets and places exactly one sample per bucket. Guarantees even coverage of the 7D slider space with far fewer points than pure random sampling.' },
+            COBYLA:      { title:'COBYLA', body:'Constrained Optimization BY Linear Approximations (Powell, 1994). A derivative-free local optimizer: builds a linear approximation of the objective around the current point, steps within a trust-region radius ρ, then shrinks ρ until convergence. Chosen here because sacoObjective has no analytical gradient — it runs a full KDE+Beta refit per evaluation.' },
+            Copula:      { title:'Gaussian Copula', body:'A mathematical model for correlating the 7 sliders. The 7×7 BASE_R correlation matrix (sourced from PMBOK) is Cholesky-decomposed to generate correlated samples. Prevents the optimizer from treating sliders as independent — e.g., budget flexibility and scope reduction are positively correlated in real projects.' },
+            KL:          { title:'KL Divergence', body:'Kullback-Leibler Divergence: measures how far the reshaped distribution has drifted from the baseline. KL(Q‖P)=∫Q(x)log(Q(x)/P(x))dx. Always ≥ 0; equals 0 only when distributions are identical. Acts as a safety valve: if KL exceeds the threshold the optimizer reverts.' },
+            Leash:       { title:'Leash Penalty', body:'An exponential penalty added to the Conservative optimizer\'s objective for any slider that drifts more than 8% from the General seed: penalty=λ·exp(dev/0.1) where λ=0.05(1−p₀). Keeps Conservative close to the known-good General solution while allowing local refinement.' },
+            ProbeLevel:  { title:'Probe Level (1–7)', body:'Controls how deeply Conservative optimization explores around the General seed. Level 1: 1 sample (seed only, 5 COBYLA steps — degenerate confirmation). Levels 2–7: max(100, 50×L) LHS samples, 100 COBYLA steps, ρ decays at 0.7/iter. Higher = more samples, slower COBYLA convergence, more permissive reshaping (tameFactor closer to 1).' },
+            adjOMP:      { title:'adjO / adjM / adjP', body:'Slider-adjusted versions of the three-point estimates. Each slider multiplies O, M, or P by a factor: adjO=O×(1−budget×0.25)×(1−scopeRed×0.12). Positive sliders decrease O and P (distribution narrows, shifts left → higher P(X≤τ)). reworkPercentage slightly increases M and P to reflect realistic rework costs.' },
+            Lift:        { title:'Lift', body:'The gain in probability from reshaping: lift = P₁ − p₀. If lift < −0.0001 the "never-worse" guard reverts all sliders to zero and returns the baseline distribution. This guarantees optimization can never make things worse for the user.' },
+            WMean:       { title:'W_MEAN Weights', body:'Per-slider direction weights: W=[-0.2,0.1,0.3,-0.15,-0.08,0.25,0.05]. Negative W means the slider should be actively set high (minimum bound 0.15). Positive W means use carefully (maximum bound 0.7). These define the feasible search box for LHS and COBYLA.' },
+            BENCH:       { title:'BENCH Caps', body:'Industry-typical maximum achievable values per slider: [75,75,60,50,25,50,50]%. These cap the LHS search upper bound — e.g., scope certainty max is 60% because perfect scope definition is not achievable in practice. Prevents the optimizer from finding unrealistic slider combinations.' },
+            Seed:        { title:'Seed / seedBest', body:'The General optimizer\'s best-found slider vector [s₁…s₇]. Conservative optimization starts here instead of from scratch. At probe level 1, Conservative evaluates only this seed point. At levels 2–7, LHS explores around it within the leash radius.' },
+            Anchor:      { title:'Anchor (8% Rule)', body:'A hard constraint in applyReshapeRules: if any slider deviates more than 8% from seedBest during COBYLA refinement, it is lerped 80% back toward the seed. Enforces that Conservative stays near the General solution even as COBYLA makes local moves. Not applied at probe level 1.' }
+          };
+
+          // Render a glossary chip: clickable term with pop-up definition
+          function chip(termKey, label) {
+            const g = GLOSSARY[termKey] || { title: label, body: '' };
+            const esc = s => s.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            return '<span class="pipe-chip" '
+              + 'data-title="' + esc(g.title) + '" '
+              + 'data-body="' + esc(g.body) + '" '
+              + 'title="Click for definition">'
+              + label
+              + ' <span style="font-size:8px;opacity:.6;">?</span>'
+              + '</span>';
+          }
+
+          // Node renderer
+          function node(color, icon, title, content, isSource) {
+            const border = isSource ? '3px solid ' + color : '1px solid ' + color + '44';
+            const bg     = isSource ? color + '12' : '#fff';
+            const hdrBg  = color + (isSource ? '' : '22');
+            const hdrFg  = isSource ? '#fff' : color;
+            return '<div class="pipe-node" style="border:' + border + ';background:' + bg + ';">'
+              + '<div class="pipe-node-hdr" style="background:' + hdrBg + ';color:' + hdrFg + ';display:flex;align-items:center;gap:7px;">'
+              + '<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:transparent;border:1.5px solid rgba(255,255,255,.6);font-size:18px;font-weight:900;flex-shrink:0;line-height:1;">' + icon + '</span>'
+              + '<span style="flex:1;min-width:0;">' + title + '</span>'
+              + (isSource ? '<span style="font-size:9px;opacity:.85;border:1px solid rgba(255,255,255,.5);border-radius:4px;padding:1px 5px;white-space:nowrap;flex-shrink:0;">THE SOURCE</span>' : '')
+              + '</div>'
+              + '<div class="pipe-node-body">' + content + '</div>'
+              + '</div>';
+          }
+
+          // Connector arrow
+          const arrow = '<div class="pipe-arrow">&#8595;</div>';
+
+          // Slider row for a strategy section inside a node
+          function sliderRows(s01raw, compareS01raw, prob, color) {
+            const sliderMeta = [
+              { label:'Budget Flexibility',      term:'adjOMP', affects:'O ↓',  coeff:'×(1−s·0.25)' },
+              { label:'Schedule Flexibility',    term:'adjOMP', affects:'M ↓',  coeff:'×(1−s·0.12)' },
+              { label:'Scope Certainty',         term:'adjOMP', affects:'P ↓',  coeff:'×(1−s·0.20)' },
+              { label:'Scope Reduction Allow.',  term:'adjOMP', affects:'O,P ↓',coeff:'×(1−s·0.12/0.10)' },
+              { label:'Rework %',                term:'adjOMP', affects:'M,P ↑',coeff:'×(1+s·0.10/0.08)' },
+              { label:'Risk Tolerance',          term:'adjOMP', affects:'score',coeff:'→ bias only' },
+              { label:'User Confidence',         term:'adjOMP', affects:'M ↓',  coeff:'×(1−s·0.08)' },
+            ];
+            let rows = '';
+            KEYS.forEach((k, i) => {
+              const maxV = k === 'reworkPercentage' ? 50 : 100;
+              const val  = (s01raw[i] * maxV);
+              const delta = compareS01raw ? (val - compareS01raw[i] * maxV) : null;
+              const deltaStr = delta != null
+                ? '<span style="font-size:10px;margin-left:4px;color:' + (Math.abs(delta)<0.5 ? '#9CA3AF' : delta > 0 ? '#16A34A' : '#EF4444') + ';">'
+                  + (delta >= 0 ? '+' : '') + delta.toFixed(0) + '% vs General'
+                  + '</span>'
+                : '';
+              const barW = Math.round(val);
+              const affect = sliderMeta[i].affects;
+              rows += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;">'
+                + '<div style="width:130px;flex-shrink:0;font-weight:600;color:#374151;">'
+                + chip('adjOMP', LABELS[i])
+                + '</div>'
+                + '<div style="flex:1;background:#F3F4F6;border-radius:4px;height:14px;position:relative;overflow:hidden;">'
+                + '<div style="width:' + barW + '%;height:100%;background:' + color + ';opacity:.7;border-radius:4px;"></div>'
+                + '</div>'
+                + '<div style="width:38px;text-align:right;font-weight:700;color:' + color + ';">' + val.toFixed(0) + '%</div>'
+                + '<div style="width:48px;text-align:right;font-size:9px;color:#9CA3AF;">' + affect + '</div>'
+                + deltaStr
+                + '</div>';
+            });
+            return rows;
+          }
+
+          // adjOMP summary for a set of sliders
+          function adjSummary(a, color) {
+            if (!a) return '<span style="color:#9CA3AF;">—</span>';
+            return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">'
+              + ['O\'','M\'','P\''].map((lbl, i) => {
+                  const orig = [O, M, P][i];
+                  const val  = [a.O, a.M, a.P][i];
+                  const pct  = orig ? ((val - orig)/orig*100) : 0;
+                  return '<div style="flex:1;min-width:70px;padding:5px 8px;border-radius:6px;border:1px solid ' + color + '44;text-align:center;">'
+                    + '<div style="font-size:9px;color:#6B7280;">' + lbl + ' (was ' + self.num(orig,1) + ')</div>'
+                    + '<div style="font-size:14px;font-weight:800;color:' + color + ';">' + self.num(val,2) + '</div>'
+                    + '<div style="font-size:9px;color:' + (pct<0?'#16A34A':'#EF4444') + ';">' + (pct<=0?'':'+') + pct.toFixed(1) + '%</div>'
+                    + '</div>';
+                }).join('')
+              + '</div>';
+          }
+
+          // Probability result chip
+          function probResult(prob, base, color, label) {
+            if (prob == null) return '';
+            const lift = base != null ? ((prob - base)*100) : null;
+            return '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;'
+              + 'background:' + color + '10;border-radius:8px;border:1px solid ' + color + '44;">'
+              + '<div><div style="font-size:9px;color:#6B7280;">P(X ≤ τ)</div>'
+              + '<div style="font-size:20px;font-weight:900;color:' + color + ';">' + self.fmtPct(prob) + '</div></div>'
+              + (lift != null ? '<div><div style="font-size:9px;color:#6B7280;">lift vs baseline</div>'
+                + '<div style="font-size:16px;font-weight:800;color:' + (lift>0?'#16A34A':lift<0?'#EF4444':'#6B7280') + ';">'
+                + (lift>=0?'+':'') + lift.toFixed(2) + ' pts</div></div>' : '')
+              + '</div>';
+          }
+
+          // ─── BUILD HTML ───
+          let h2 = '<div id="rep-pipe" class="rep-panel" style="display:none;">';
+
+          // Header
+          h2 += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;border-bottom:2px solid var(--line);margin-bottom:14px;">'
+            + '<span style="font-size:13px;font-weight:800;color:#1E3A5F;">&#128301; Methodology Pipeline</span>'
+            + '<button class="rep-close-btn" '
+            + 'style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;">&#x2715; Close</button>'
+            + '</div>';
+
+          // Intro note
+          h2 += '<div class="rep-card" style="background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:2px solid #C4B5FD;margin-bottom:4px;">'
+            + '<div style="font-size:13px;font-weight:800;color:#5B21B6;margin-bottom:4px;">&#128301; How Your Numbers Flow</div>'
+            + '<div style="font-size:11px;color:#374151;line-height:1.7;">A live trace from your three-point estimate through every calculation stage. '
+            + 'The <span style="font-weight:700;color:#7C3AED;">General (Unconstrained)</span> optimizer runs first and its slider values '
+            + 'become <strong>the source</strong> that seeds all other strategies. Click any <span class="pipe-chip" style="font-size:10px;">highlighted term ?</span> for a definition.</div>'
+            + '</div>';
+
+          // ── NODE 1: User Inputs ──
+          const inputContent = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+            + [['O','Optimistic',O,'#3B82F6'],['M','Most Likely',M,'#8B5CF6'],['P','Pessimistic',P,'#EF4444'],['τ','Target',target,'#10B981']].map(([k,lbl,v,c]) =>
+                '<div style="flex:1;min-width:55px;padding:7px 8px;border-radius:8px;border:1px solid '+c+'44;text-align:center;">'
+                +'<div style="font-size:9px;color:#6B7280;">'+k+' ('+lbl+')</div>'
+                +'<div style="font-size:17px;font-weight:800;color:'+c+';">'+(v!=null?self.num(v,1):'–')+'</div>'
+                +'</div>'
+              ).join('')
+            + '</div>'
+            + '<div style="font-size:11px;color:#6B7280;">These three values drive <em>every</em> calculation below. '
+            + 'τ is your planning target — all probabilities are P(X ≤ τ).</div>';
+          h2 += node('#6366F1', '①', 'User Inputs', inputContent, false) + arrow;
+
+          // ── NODE 2: PERT ──
+          const pertContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + chip('PERT','PERT') + ' weights Most Likely 4× more than the extremes.</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">μ = (O+4M+P)/6</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertMean!=null?self.num(pertMean,3):'–')+'</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">σ = (P−O)/6</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertStd!=null?self.num(pertStd,3):'–')+'</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">σ² (variance)</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertVar!=null?self.num(pertVar,3):'–')+'</div></div>'
+            + '</div>';
+          h2 += node('#7C3AED', '②', chip('PERT','PERT Distribution'), pertContent, false) + arrow;
+
+          // ── NODE 3: Beta Fit ──
+          const betaContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + chip('Beta','Beta Distribution') + ' fit via method of moments on scaled [0,1] interval, then rescaled to [O, P].</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + ['α','β'].map((p,i) => '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#FFF7ED;border:1px solid #FDBA74;text-align:center;">'
+                +'<div style="font-size:9px;color:#6B7280;">'+p+' (shape)</div>'
+                +'<div style="font-size:16px;font-weight:800;color:#EA580C;">'+(i===0?(alpha!=null?self.num(alpha,3):'–'):(beta!=null?self.num(beta,3):'–'))+'</div>'
+                +'</div>').join('')
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#FFF7ED;border:1px solid #FDBA74;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">CV (spread)</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#EA580C;">'+(cv!=null?self.num(cv,3):'–')+'</div></div>'
+            + '</div>'
+            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">α>β → left-skewed (optimistic). α&lt;β → right-skewed (pessimistic).</div>';
+          h2 += node('#EA580C', '③', chip('Beta','Beta Distribution Fit'), betaContent, false) + arrow;
+
+          // ── NODE 4: Monte Carlo + KDE ──
+          const mcContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + '200 samples drawn from Beta(α,β), scaled to [O,P]. '
+            + chip('KDE','KDE') + ' smooths the histogram into continuous curves.</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">KDE bandwidth h</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#16A34A;">'+(h!=null?self.num(h,4):'–')+'</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">range/63.3</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">Grid points</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#16A34A;">200</div></div>'
+            + '</div>';
+          h2 += node('#16A34A', '④', chip('MonteCarlo','Monte Carlo') + ' + ' + chip('KDE','KDE Smoothing'), mcContent, false) + arrow;
+
+          // ── NODE 5: Baseline ──
+          const baseContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + 'The unmodified distribution from your estimate. This is <strong>p₀</strong> — the probability every strategy tries to beat.</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + '<div style="flex:2;padding:8px 10px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">p₀ = P(X ≤ τ) baseline</div>'
+            + '<div style="font-size:22px;font-weight:900;color:#0369A1;">'+(baselineProb!=null?self.fmtPct(baselineProb):'–')+'</div></div>'
+            + '<div style="flex:1;padding:8px 10px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">skew index</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#0369A1;">'+(skew!=null?self.num(skew,3):'–')+'</div></div>'
+            + '</div>'
+            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">Negative skew = target is above PERT mean (ambitious goal). Positive = target below mean (conservative).</div>';
+          h2 += node('#0369A1', '⑤', 'Baseline Distribution', baseContent, false) + arrow;
+
+          // ── NODE 6: GENERAL — THE SOURCE ──
+          let genContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
+            + chip('LHS','Latin Hypercube') + ': 250 samples · '
+            + chip('COBYLA','COBYLA') + ': 60 iters · No seed · No ' + chip('Leash','leash penalty') + '<br>'
+            + '<span style="font-size:10px;color:#6B7280;">Runs first, always. Its slider values become <strong>seedBest</strong> for Conservative.</span></div>';
+
+          if (fixedProb != null) {
+            genContent += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">Slider Values '
+              + chip('WMean','(W_MEAN bounds)') + ' ' + chip('BENCH','(BENCH caps)') + '</div>';
+            genContent += sliderRows(fixN, null, fixedProb, '#7C3AED');
+            genContent += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin:8px 0 4px;">'
+              + chip('adjOMP','adjO / adjM / adjP') + ' — how sliders shift the distribution</div>';
+            genContent += adjSummary(fixAdj, '#7C3AED');
+            genContent += probResult(fixedProb, baselineProb, '#7C3AED', 'General');
+          } else {
+            genContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "General Optimization" in the Compare Strategies tab to populate this node.</div>';
+          }
+          h2 += node('#7C3AED', '⑥', 'General (Unconstrained) Optimization', genContent, true) + arrow;
+
+          // ── NODE 7: CONSERVATIVE (derived from General) ──
+          let conContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
+            + chip('Seed','Seed') + ' = General\'s sliders above · '
+            + chip('ProbeLevel','Probe Level ' + probeLvl) + ' → ' + nSamples + ' ' + chip('LHS','LHS') + ' samples · '
+            + chip('COBYLA','COBYLA') + ': 100 iters (ρ decay 0.7) · '
+            + chip('Leash','Leash') + ' λ=' + (baselineProb!=null?(0.05*(1-baselineProb)).toFixed(3):'?') + ' · '
+            + chip('Anchor','Anchor') + ' at 8%</div>';
+
+          if (adaptiveProb != null) {
+            conContent += '<div style="font-size:11px;font-weight:700;color:#0EA5E9;margin-bottom:6px;">'
+              + 'Slider Values <span style="font-size:9px;font-weight:400;color:#9CA3AF;">(Δ vs General shows leash effect)</span></div>';
+            conContent += sliderRows(adaN, fixN, adaptiveProb, '#0EA5E9');
+            conContent += '<div style="font-size:11px;font-weight:700;color:#0EA5E9;margin:8px 0 4px;">'
+              + chip('adjOMP','adjO / adjM / adjP') + '</div>';
+            conContent += adjSummary(adaAdj, '#0EA5E9');
+            conContent += probResult(adaptiveProb, baselineProb, '#0EA5E9', 'Conservative');
+          } else {
+            conContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Conservative Optimization" in the Compare Strategies tab to populate this node.</div>';
+          }
+          h2 += node('#0EA5E9', '⑦', 'Conservative Optimization (Probe ' + probeLvl + ')', conContent, false) + arrow;
+
+          // ── NODE 8: EXPLORER / MANUAL ──
+          let expContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
+            + 'User-set slider values — completely independent of General or Conservative. '
+            + 'No ' + chip('LHS','LHS') + ', no ' + chip('COBYLA','COBYLA') + ', no ' + chip('Leash','leash') + '. '
+            + 'Shows the theoretical ceiling of any manual combination.</div>';
+
+          if (manualProb != null) {
+            expContent += '<div style="font-size:11px;font-weight:700;color:#F59E0B;margin-bottom:6px;">Slider Values (user-defined)</div>';
+            expContent += sliderRows(manN, fixN, manualProb, '#F59E0B');
+            expContent += '<div style="font-size:11px;font-weight:700;color:#F59E0B;margin:8px 0 4px;">' + chip('adjOMP','adjO / adjM / adjP') + '</div>';
+            expContent += adjSummary(manAdj, '#F59E0B');
+            expContent += probResult(manualProb, baselineProb, '#F59E0B', 'Explorer');
+          } else {
+            expContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Set sliders manually in the Compare Strategies tab Explorer panel to populate this node.</div>';
+          }
+          h2 += node('#F59E0B', '⑧', 'Explorer (Manual / Unconstrained)', expContent, false) + arrow;
+
+          // ── NODE 9: Guards ──
+          const guardContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
+            + 'Three safeguards run on every strategy output before results are returned.</div>'
+            + '<table style="width:100%;font-size:11px;border-collapse:collapse;">'
+            + '<thead><tr style="border-bottom:1px solid var(--line);">'
+            + '<th style="text-align:left;padding:4px 6px;">Guard</th>'
+            + '<th style="text-align:left;padding:4px 6px;">Trigger</th>'
+            + '<th style="text-align:left;padding:4px 6px;">Action</th>'
+            + '<th style="padding:4px 6px;">General</th>'
+            + '<th style="padding:4px 6px;">Conservative</th>'
+            + '<th style="padding:4px 6px;">Explorer</th>'
+            + '</tr></thead><tbody>'
+            + [
+                [chip('Lift','Never-worse'), chip('Lift','lift') + ' < −0.0001', 'Sliders → 0, return baseline',
+                  fixedProb, adaptiveProb, manualProb],
+                [chip('KL','KL Divergence'), 'KL > 0.50', 'Log warning (soft)',
+                  fixedProb!=null?(S.explainOpt?.explain?.klDivergence??0):null,
+                  adaptiveProb!=null?(S.explainAdaptive?.explain?.klDivergence??0):null,
+                  manualProb!=null?(S.explainAdj?.explain?.klDivergence??0):null],
+                [chip('Anchor','50% Anchor'), 'Any slider drifts >50% from seed', 'Snap to seed ±10%', '—','Active','—'],
+              ].map(([g, trig, act, fv, av, mv]) => {
+                function statusCell(v, isKL) {
+                  if (v === '—') return '<td style="text-align:center;font-size:10px;color:#9CA3AF;">—</td>';
+                  if (v == null) return '<td style="text-align:center;font-size:10px;color:#9CA3AF;">–</td>';
+                  if (isKL) {
+                    const ok = v < 0.5;
+                    return '<td style="text-align:center;font-size:10px;font-weight:700;color:'+(ok?'#16A34A':'#D97706')+';">'+(ok?'✓ '+self.num(v,3):'⚠ '+self.num(v,3))+'</td>';
+                  }
+                  const lifted = baselineProb != null && v > baselineProb - 0.0001;
+                  return '<td style="text-align:center;font-size:10px;font-weight:700;color:'+(lifted?'#16A34A':'#EF4444')+';">'+(lifted?'✓ Pass':'⚠ Reverted')+'</td>';
+                }
+                const isKL = String(g).includes('KL');
+                return '<tr style="border-bottom:1px solid var(--line)44;">'
+                  +'<td style="padding:5px 6px;font-weight:600;">' + g + '</td>'
+                  +'<td style="padding:5px 6px;font-size:10px;color:#6B7280;">' + trig + '</td>'
+                  +'<td style="padding:5px 6px;font-size:10px;color:#6B7280;">' + act + '</td>'
+                  + statusCell(fv, isKL)
+                  + statusCell(av, isKL)
+                  + statusCell(mv, isKL)
+                  + '</tr>';
+              }).join('')
+            + '</tbody></table>';
+          h2 += node('#DC2626', '⑨', 'Guard Checks', guardContent, false);
+
+          h2 += '</div>'; // close rep-pipe
+          return h2;
         },
 
         makeTornado(impacts) {
