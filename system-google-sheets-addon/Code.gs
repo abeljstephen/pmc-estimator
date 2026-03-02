@@ -394,10 +394,9 @@ function onOpen() {
     .addItem('PERT Selected Rows', 'pertRunSelectedRows')
     .addSeparator()
     .addItem('Export Run Log', 'writeLogsToSheet');
-  const plot = ui.createMenu('PLOT').addItem('Open', 'openPlotUi');
   ui.createMenu('PMC')
     .addSubMenu(pert)
-    .addSubMenu(plot)
+    .addItem('PLOT', 'openPlotUi')
     .addToUi();
 }
 function openPlotUi() {
@@ -429,8 +428,7 @@ function openPlotUi() {
     ';</script>';
   html.setContent(inject + html.getContent());
 
-  // Title includes tab count — if you see "PLOT [N tabs]" the new code is running.
-  SpreadsheetApp.getUi().showModelessDialog(html, 'PLOT [' + _tabs.length + ' tabs]');
+  SpreadsheetApp.getUi().showModelessDialog(html, 'PMC Estimator');
 }
 
 /************************************************************
@@ -1913,9 +1911,22 @@ function runPMCSimulation(payload) {
     });
     if (taskResults.length === 0) return { ok: false, error: 'All tasks failed simulation', errors: errors };
 
+    // PERT aggregation: for sequential independent tasks, the group 3-point estimate
+    // is the SUM of each task's O, M, and P values (not the average).
+    // This is mathematically sound: E[Sum] = Sum of E[tasks], and the summed O/M/P
+    // yields the correct PERT mean = (groupO + 4·groupM + groupP)/6.
+    var groupO = 0, groupM = 0, groupP = 0;
+    activeTasks.forEach(function(t) {
+      groupO += (Number(t.best_case)   || 0);
+      groupM += (Number(t.most_likely) || 0);
+      groupP += (Number(t.worst_case)  || 0);
+    });
+
     var aggResult = computeAggregatePDF(taskResults, isNaN(tau) ? null : tau);
     return {
       ok: true, mode: 'aggregate', taskCount: taskResults.length, errors: errors, result: aggResult,
+      groupO: groupO, groupM: groupM, groupP: groupP,
+      groupPert: (groupO + 4 * groupM + groupP) / 6,
       taskResults: taskResults.map(function(tr) { return { task: tr.task.task_name, result: tr.simResult }; })
     };
   }

@@ -285,13 +285,16 @@ function processTask(task) {
     // -----------------------------------------------------------------------
     let adjRes = null;
     try {
+      // Pass raw UI-unit sliders (0–100 for most, 0–50 for rework) — computeSliderProbability
+      // normalizes internally via to01(). Passing slidersUi (0–1 domain) caused double-division
+      // (to01(0.7) = 0.007) making all computed moments near-zero → no probability change.
       adjRes = reshapeDistribution({
         points: { pdfPoints: pdf, cdfPoints: cdf },
         optimistic,
         mostLikely,
         pessimistic,
         targetValue,
-        sliderValues: slidersUi,
+        sliderValues: inputSliders,
         probeLevel: 1
       });
     } catch (err) {

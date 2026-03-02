@@ -270,9 +270,19 @@ function sacoObjective(sliders01, o, m, p, tau, basePdf, baseCdf, bBias, adaptiv
       }
       leashPenalty = Math.max(0, leashPenalty - 1);
     }
-    const refit = SACO_GEOMETRY.betaRefit(o, m, p, [m0, m1]);
+    // Slider-adjusted OMP — each dimension must shift in the direction that IMPROVES probability.
+    // For a fixed target τ, P(X≤τ) increases when the distribution shifts LEFT (lower O, M) and
+    // NARROWS (lower P). Positive sliders should move O and M down and P down.
+    // PREVIOUS BUG: adjP used (1 + scope*0.3) → P INCREASED → distribution widened →
+    //   pNew < p0 → lift<0 → revert guard zeroed all sliders every time.
+    // FIX: scope certainty and scope reduction DECREASE P (tighter worst-case). Rework INCREASES P.
+    const _oA = o * (1 - sliders01[0] * 0.25) * (1 - sliders01[3] * 0.12);       // budget/scopeRed reduce O
+    const _mA = m * (1 - sliders01[1] * 0.12) * (1 - sliders01[6] * 0.08) * (1 + sliders01[4] * 0.10); // sched/conf reduce M, rework adds
+    const _pA = p * (1 - sliders01[2] * 0.20) * (1 - sliders01[3] * 0.10) * (1 + sliders01[4] * 0.08); // scope/scopeRed reduce P, rework adds
+    const _oS = _oA, _mS = Math.max(_oS * 1.001, _mA), _pS = Math.max(_mS * 1.001, _pA);
+    const refit = SACO_GEOMETRY.betaRefit(_oS, _mS, _pS, [m0, m1]);
     if (!refit) return { score: 0, pNew: 0.5, x: sliders01, feasible };
-    const newPts = generateBetaPoints({ optimistic: o, mostLikely: m, pessimistic: p, numSamples: basePdf.length || 200, alpha: refit.alpha, beta: refit.beta });
+    const newPts = generateBetaPoints({ optimistic: _oS, mostLikely: _mS, pessimistic: _pS, numSamples: basePdf.length || 200, alpha: refit.alpha, beta: refit.beta });
     const pNew = pctClamp01(interpolateCdf(newPts.cdfPoints, tau).value);
     const basePdfN = basePdf.map(pt => ({ x: (pt.x - o) / range, y: pt.y * range }));
     const newPdfN = newPts.pdfPoints.map(pt => ({ x: (pt.x - o) / range, y: pt.y * range }));
@@ -531,7 +541,14 @@ function step7_output(state) {
 
   const cv = (p - o) / ((o + 4 * m + p) / 6);
   const momentsObj = SACO_GEOMETRY.computeMoments(sliders100, 1, cv);
-  const refit = SACO_GEOMETRY.betaRefit(o, m, p, momentsObj.moments || [0, 0]);
+  // Slider-adjusted OMP for final distribution — MUST use same sign convention as sacoObjective.
+  // adjO and adjM decrease with positive sliders (distribution shifts left → higher P at τ).
+  // adjP also DECREASES (tighter worst-case). Previous (1+scope*0.3) expanded P → lift<0 → zeros.
+  const _oA7 = o * (1 - (sliders.budgetFlexibility || 0) * 0.25) * (1 - (sliders.scopeReductionAllowance || 0) * 0.12);
+  const _mA7 = m * (1 - (sliders.scheduleFlexibility || 0) * 0.12) * (1 - (sliders.userConfidence || 0) * 0.08) * (1 + (sliders.reworkPercentage || 0) * 0.10);
+  const _pA7 = p * (1 - (sliders.scopeCertainty || 0) * 0.20) * (1 - (sliders.scopeReductionAllowance || 0) * 0.10) * (1 + (sliders.reworkPercentage || 0) * 0.08);
+  const _oS7 = _oA7, _mS7 = Math.max(_oS7 * 1.001, _mA7), _pS7 = Math.max(_mS7 * 1.001, _pA7);
+  const refit = SACO_GEOMETRY.betaRefit(_oS7, _mS7, _pS7, momentsObj.moments || [0, 0]);
 
   let reshapedPdf = baseline.pdfPoints;
   let reshapedCdf = baseline.cdfPoints;
@@ -539,9 +556,9 @@ function step7_output(state) {
   if (refit) {
     try {
       const betaPts = generateBetaPoints({
-        optimistic: o,
-        mostLikely: m,
-        pessimistic: p,
+        optimistic: _oS7,
+        mostLikely: _mS7,
+        pessimistic: _pS7,
         numSamples: baseline.pdfPoints.length || 200,
         alpha: refit.alpha,
         beta: refit.beta

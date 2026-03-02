@@ -28,9 +28,9 @@
 
       /* Series color constants */
       --base:#10B981;        /* Your Estimate (Baseline) */
-      --manual:#059669;      /* Explorer (Manual) */
-      --fixed:#6D28D9;       /* Optimized (Fixed) */
-      --adaptive:#F59E0B;    /* Guided (Adaptive) */
+      --manual:#059669;      /* Unconstrained Optimization */
+      --fixed:#6D28D9;       /* General Optimization (Fixed) */
+      --adaptive:#F59E0B;    /* Conservative Optimization (Adaptive) */
       --tri:#3B82F6;         /* Triangle */
       --beta:#7C3AED;        /* Beta-PERT */
 
@@ -64,35 +64,55 @@
     .omp-bar .omp-item.pert{background:rgba(59,130,246,.08);}
     .omp-bar .omp-item.pert .omp-val{color:var(--cdf);}
 
-    /* ── Intuitive Target Analysis Panel ── */
-    #targetPanel { display:flex; flex-direction:column; gap:7px; padding:4px 0 2px; }
+    /* ── Target Analysis Panel — causal flow layout ── */
+    #targetPanel { display:flex; flex-direction:column; gap:8px; padding:4px 0 2px; }
 
-    /* Two question mode cards */
-    #tgtModeCards { display:flex; gap:8px; }
-    .tgt-card {
-      display:flex; align-items:center; gap:9px; flex:1; padding:8px 11px;
-      border:1.5px solid var(--line); border-radius:10px; cursor:pointer;
-      background:#fff; text-align:left; transition:border-color .15s, background .12s;
-      font-family:inherit;
+    /* Mode toggle: compact pill pair (no large cards, no emojis) */
+    #tgtModeCards { display:flex; gap:0; border:1px solid var(--line); border-radius:20px; overflow:hidden; align-self:flex-start; }
+    .tgt-mode-pill {
+      padding:5px 13px; cursor:pointer; background:var(--chip); color:var(--muted);
+      border:none; font-size:11px; font-weight:600; transition:all .15s;
+      white-space:nowrap; font-family:inherit; line-height:1.4;
     }
-    .tgt-card:hover { background:var(--hover); border-color:#93C5FD; }
-    .tgt-card.active { border-color:#3B82F6; background:#EFF6FF; }
-    .tgt-card-ico { font-size:17px; flex-shrink:0; line-height:1; }
-    .tgt-card-body { display:flex; flex-direction:column; gap:1px; min-width:0; }
-    .tgt-card-q { font-size:12px; font-weight:700; color:var(--fg); white-space:nowrap; }
-    .tgt-card-sub { font-size:10px; color:var(--muted); white-space:nowrap; }
-    .tgt-card.active .tgt-card-q { color:#1E40AF; }
-    .tgt-card.active .tgt-card-sub { color:#2563EB; }
+    .tgt-mode-pill:hover { background:var(--hover); }
+    .tgt-mode-pill.active { background:#111827; color:#fff; }
+    .tgt-mode-pill + .tgt-mode-pill { border-left:1px solid var(--line); }
+    /* JS compatibility: target-mode-btn resets are handled by mode-pill styles */
+    .target-mode-btn { background:none; border:none; padding:0; }
+    .target-mode-btn.active { background:none; color:inherit; }
 
-    /* Live answer sentence */
-    #tgtAnswerRow {
-      padding:8px 14px; background:#F8FAFF;
-      border:1.5px solid rgba(59,130,246,.22); border-radius:9px;
-      display:flex; align-items:center; min-height:38px; flex-wrap:wrap; gap:5px;
+    /* INPUT area: shows what the slider controls (above slider) */
+    .tgt-flow-input {
+      display:none; align-items:center; gap:8px; flex-wrap:wrap;
+      padding:7px 11px; background:var(--chip);
+      border:1px solid var(--line); border-radius:10px;
     }
-    .tgt-sentence { display:none; align-items:center; gap:5px; flex-wrap:wrap; }
-    .tgt-sentence.active { display:flex; }
-    .tgt-s { font-size:12px; color:#4B5563; font-weight:500; white-space:nowrap; }
+    .tgt-flow-input.active { display:flex; }
+    .tgt-flow-label { font-size:9px; font-weight:700; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+    .tgt-flow-units { font-size:11px; color:var(--muted); }
+    .tgt-input-chip { font-size:16px !important; padding:2px 10px !important; }
+
+    /* Slider row (between input and result) */
+    #tgtSliderRow { display:flex; align-items:center; gap:8px; }
+    .tgt-hint { font-size:10px; color:var(--muted); white-space:nowrap; }
+
+    /* RESULT area: large prominent derived answer (below slider) */
+    .tgt-flow-result {
+      display:none; align-items:center; gap:8px; flex-wrap:wrap;
+      padding:8px 12px; background:#EFF6FF;
+      border:1.5px solid #BFDBFE; border-radius:10px;
+    }
+    .tgt-flow-result.active { display:flex; }
+    .tgt-result-chip { font-size:22px !important; padding:3px 12px !important; font-weight:800 !important; }
+    .tgt-flow-result-text { font-size:12px; color:#1E40AF; font-weight:600; }
+
+    /* Context band: PERT mean + distance (replaces #tgtAnswerRow box) */
+    .tgt-context-band {
+      padding:4px 2px 0; font-size:10px; color:var(--muted);
+      border-top:1px solid var(--line); line-height:1.4;
+    }
+
+    /* Keep .tgt-chip base styles (shared by input + result chips) */
     .tgt-chip {
       display:inline-block; padding:2px 9px; border-radius:6px;
       font-family:'SF Mono',Consolas,monospace; font-weight:700; font-size:13px;
@@ -100,17 +120,11 @@
     }
     .tgt-chip.tgt-val { background:rgba(16,185,129,.12); color:#065f46; border:1px solid rgba(16,185,129,.4); }
     .tgt-chip.tgt-prob { background:rgba(59,130,246,.12); color:#1D4ED8; border:1px solid rgba(59,130,246,.4); }
-    #tgtAnswerLabel { font-size:9px; font-weight:700; color:#94A3B8; letter-spacing:.05em; text-transform:uppercase; margin-right:4px; white-space:nowrap; }
 
-    /* Slider row */
-    #tgtSliderRow { display:flex; align-items:center; gap:8px; margin-top:2px; }
-    .tgt-hint { font-size:10px; color:var(--muted); white-space:nowrap; }
-
-    /* Keep .target-mode-btn class for JS compatibility — visual handled by .tgt-card */
-    .target-mode-btn { background:none; border:none; padding:0; }
-    .target-mode-btn.active { background:none; color:inherit; }
-
-    /* Legacy target result — hidden (replaced by tgt-sentence) */
+    /* Legacy classes — kept for backward compat, not used in new layout */
+    .tgt-card { display:none !important; }
+    .tgt-sentence { display:none; }
+    .tgt-s { font-size:12px; color:#4B5563; font-weight:500; white-space:nowrap; }
     .target-result { display:none !important; }
     .target-mode-toggle { display:none !important; }
 
@@ -146,7 +160,7 @@
 
     /* Series toggles (overlay) */
     .series-toggles{display:none;align-items:center;gap:10px;margin-left:auto;}
-    .series-toggles .tg{border:1px solid var(--line);border-radius:8px;background:#fff;padding:6px 10px;font-size:12px;cursor:pointer;min-height:36px;}
+    .series-toggles .tg{border:1px solid var(--line);border-radius:8px;background:#fff;padding:5px 10px;font-size:12px;cursor:pointer;min-height:36px;line-height:1.3;text-align:center;}
     .series-toggles .tg[aria-pressed="true"]{background:#111827;color:#fff;border-color:#111827;}
     .series-toggles .mini-status{font-size:12px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:8px;min-height:36px;}
     .series-toggles .toggle-group { display: inline-flex; gap: 4px; }
@@ -329,6 +343,14 @@
     #sliderHelpModal .shm-body em { font-style: normal; color: var(--muted); font-size: 11px; display: block; margin-top: 6px; padding: 6px 8px; background: #f8fafc; border-radius: 6px; border-left: 3px solid var(--line); }
 
     /* Action buttons: right-aligned below the columns */
+    .slider-preset-row {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 0 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 10px;
+    }
+    .slider-preset-label {
+      font-size: 9px; font-weight: 700; color: var(--muted);
+      letter-spacing: .05em; text-transform: uppercase;
+    }
     .slider-actions { display: flex; gap: 6px; margin-top: 0; justify-content: flex-end; }
     .slider-btn {
       padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px;
@@ -500,6 +522,171 @@
     #tmBar .tm-btn.primary:hover { background: #374151; border-color: #374151; }
     #tmBar .tm-btn.danger { color: #DC2626; border-color: #FCA5A5; }
     #tmBar .tm-btn.danger:hover { background: #FEE2E2; }
+
+    /* ── Three-column control card (40 / 25 / 35) ── */
+    .ctrl-card { padding: 0; overflow: hidden; }
+    .ctrl-3col { display: flex; align-items: stretch; }
+
+    /* Column base */
+    .ctrl-col {
+      display: flex; flex-direction: column; gap: 5px;
+      padding: 8px 9px 10px; min-width: 0;
+    }
+    .ctrl-col + .ctrl-col { border-left: 1px solid var(--line); }
+
+    /* Column width ratios: 8 : 5 : 7 → ~40% : ~25% : ~35% */
+    .ctrl-left      { flex: 8; background: #F8FAFF; }
+    .ctrl-estimates { flex: 5; background: var(--panel); }
+    .ctrl-query     { flex: 7; background: #F0FDF4; border-left: 2px solid #22C55E !important; }
+
+    /* Column section title */
+    .ctrl-col-label {
+      display: block; font-size: 12px; font-weight: 700; color: #111827;
+      letter-spacing: 0; text-transform: none;
+      margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
+    }
+    /* Center the Set Targets label and tint its bottom border green */
+    .ctrl-query .ctrl-col-label {
+      text-align: center;
+      border-bottom-color: #86EFAC;
+      color: #166534;
+    }
+
+    /* Override #tmBar standalone-bar styles when inside ctrl-col */
+    .ctrl-card #tmBar {
+      display: flex; flex-direction: column; gap: 5px;
+      background: transparent; border: none;
+      border-radius: 0; padding: 8px 9px 10px; margin-bottom: 0;
+      flex: 8;
+    }
+
+    /* Run mode toggle: full width in narrow left col */
+    .ctrl-left .tm-mode-toggle { width: 100%; }
+    .ctrl-left .tm-mode-btn { flex: 1; font-size: 10px; padding: 3px 4px; text-align: center; }
+
+    /* Task selector */
+    .ctrl-left select {
+      width: 100%; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px;
+      font-size: 10px; font-weight: 500; min-height: 24px;
+    }
+
+    /* Action buttons row */
+    .ctrl-left .tm-actions { margin-left: 0; gap: 3px; flex-wrap: wrap; }
+    .ctrl-left .tm-btn { padding: 3px 5px; font-size: 10px; min-height: 22px; }
+
+    /* Status + refresh */
+    .ctrl-left .status-compact { margin-left: 0; }
+    .ctrl-left .status { padding: 3px 6px; font-size: 9px; min-height: 22px; flex: 1; }
+    .ctrl-left #refreshBtn { min-height: 22px; padding: 3px 6px; font-size: 10px; }
+
+    /* Task info + dirty badge */
+    .ctrl-info-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .ctrl-info-row #tmTaskInfo {
+      color: var(--muted); font-size: 9px; flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Estimates column ── */
+    .ctrl-estimates { text-align: center; }
+    .est-subtitle {
+      font-size: 9px; font-style: italic; color: var(--muted);
+      margin-bottom: 4px; text-align: center; letter-spacing: .01em;
+    }
+    .est-stack { display: flex; flex-direction: column; gap: 0; flex: 1; }
+    .est-item {
+      display: flex; flex-direction: column; align-items: center; padding: 5px 2px;
+      border-bottom: 1px solid var(--line);
+    }
+    .est-item:last-child { border-bottom: none; }
+    .est-item.pert { background: rgba(59,130,246,.05); border-radius: 4px; }
+    /* Label row: help icon left of label text */
+    .est-label-row {
+      display: flex; align-items: center; justify-content: center; gap: 3px;
+    }
+    .est-label {
+      font-size: 8px; font-weight: 700; color: var(--muted);
+      letter-spacing: .03em; text-transform: uppercase; line-height: 1.2;
+    }
+    .est-val {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 12px; font-weight: 700; color: #111827; margin-top: 2px;
+    }
+    .est-item.pert .est-val { color: var(--cdf); }
+    /* Pending placeholder in group mode before first run */
+    .est-pending {
+      font-size: 10px; color: var(--muted); text-align: center;
+      padding: 10px 4px; line-height: 1.5; border: 1.5px dashed var(--line);
+      border-radius: 8px; margin-top: 4px;
+    }
+
+    /* ── Query column (right, narrow) ── */
+    .ctrl-query #targetPanel { gap: 5px; padding: 0; flex: 1; }
+
+    /* Dropdown + slider + live value — one row */
+    .tgt-top-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+    .tgt-mode-select {
+      flex-shrink: 0; padding: 3px 4px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 10px; font-weight: 600; background: var(--chip); color: #111827;
+      cursor: pointer; font-family: inherit; max-width: 40%;
+    }
+    .tgt-slider-inline {
+      display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0;
+    }
+    .tgt-slider-inline input[type=range] { flex: 1; min-width: 30px; }
+    .ctrl-query .tgt-hint { font-size: 8px; }
+
+    /* Live value display: right of slider, inline */
+    .tgt-live-val { display: none; align-items: center; gap: 2px; flex-shrink: 0; white-space: nowrap; }
+    .tgt-live-val.active { display: flex; }
+
+    /* ── Inline Group task picker ── */
+    #tmGroupPicker { flex-direction: column; gap: 3px; }
+    .grp-header { display: flex; align-items: center; gap: 4px; }
+    .grp-count { font-size: 9px; color: #0369A1; font-weight: 700; flex: 1; }
+    .grp-quick-btn {
+      font-size: 9px; padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px;
+      background: var(--chip); cursor: pointer; font-family: inherit; color: #374151;
+    }
+    .grp-quick-btn:hover { background: var(--hover); }
+    .grp-list {
+      max-height: 90px; overflow-y: auto;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+    }
+    .grp-task-row {
+      display: flex; align-items: center; gap: 5px; padding: 4px 6px;
+      border-bottom: 1px solid var(--line); font-size: 10px; cursor: pointer;
+    }
+    .grp-task-row:last-child { border-bottom: none; }
+    .grp-task-row:hover { background: var(--hover); }
+    .grp-task-row.grp-active { background: #EFF6FF; }
+    .grp-task-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #111827; font-weight: 500; }
+    .grp-task-omp { font-size: 9px; color: var(--muted); font-family: monospace; white-space: nowrap; flex-shrink: 0; }
+    /* Collapse task list when toggle is clicked */
+    .grp-list.grp-collapsed { display: none; }
+
+    /* Narrow input chip */
+    .ctrl-query .tgt-flow-input { padding: 4px 7px; gap: 4px; border-radius: 6px; }
+    .ctrl-query .tgt-input-chip { font-size: 13px !important; padding: 1px 7px !important; }
+
+    /* Narrow result chip + extended text */
+    .ctrl-query .tgt-flow-result { padding: 5px 8px; gap: 5px; border-radius: 6px; flex-wrap: wrap; }
+    .ctrl-query .tgt-result-chip { font-size: 17px !important; padding: 2px 8px !important; }
+    .ctrl-query .tgt-flow-result-text { font-size: 10px; }
+    .tgt-result-note {
+      width: 100%; font-size: 9px; color: #6B7280; font-style: italic;
+      line-height: 1.3; margin-top: 2px;
+    }
+
+    /* Context band */
+    .ctrl-query .tgt-context-band { font-size: 9px; }
+
+    /* tmAggBar: footer strip inside ctrl-card */
+    .ctrl-card #tmAggBar {
+      margin: 0; border-radius: 0 0 12px 12px;
+      border-top: 1px solid #BAE6FD;
+      border-left: none; border-right: none; border-bottom: none;
+    }
+    .ctrl-card #tmAggBar.visible { display: flex; padding: 6px 12px; }
 
     /* ── Aggregate summary bar ── */
     #tmAggBar {
@@ -737,10 +924,59 @@
     .tm-tab-item:hover { background: #F0F9FF; }
     .tm-tab-item.selected { background: #EEF2FF; font-weight: 600; }
     .tm-tab-item .tab-rows { font-size: 11px; color: var(--muted); }
+
+    /* ── Help icons with hover tooltips ── */
+    .help-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 1.5px solid var(--muted); font-size: 8px; font-weight: 800;
+      cursor: help; color: var(--muted); opacity: 0.65; flex-shrink: 0;
+      position: relative; vertical-align: middle; margin-left: 4px;
+      font-family: inherit; line-height: 1; user-select: none;
+    }
+    .help-icon:hover { opacity: 1; border-color: #6366F1; color: #6366F1; }
+    .help-icon .help-tip {
+      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%); z-index: 9999;
+      background: #1F2937; color: #F9FAFB; border-radius: 10px;
+      padding: 9px 12px; font-size: 11px; line-height: 1.55; font-weight: 400;
+      width: 220px; min-width: 180px; text-align: left;
+      box-shadow: 0 6px 20px rgba(0,0,0,.35); white-space: normal;
+      pointer-events: none;
+    }
+    .help-icon .help-tip::after {
+      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 6px solid transparent; border-top-color: #1F2937;
+    }
+    /* Flip below when tooltip would overflow above the viewport */
+    .help-icon.below .help-tip {
+      bottom: auto; top: calc(100% + 8px);
+    }
+    .help-icon.below .help-tip::after {
+      top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #1F2937;
+    }
+    .help-icon:hover .help-tip { display: block; }
+
+    /* Tooltip right-anchored when icon is near left edge */
+    .help-icon.tip-right .help-tip { left: 0; transform: none; }
+    .help-icon.tip-right .help-tip::after { left: 12px; transform: none; }
+    /* Tooltip left-anchored when icon is near right edge */
+    .help-icon.tip-left .help-tip { left: auto; right: 0; transform: none; }
+    .help-icon.tip-left .help-tip::after { left: auto; right: 12px; transform: none; }
+
+    /* KPI tile title row: flex so help icon sits right of label */
+    .kpi .ttl { display: flex; align-items: center; gap: 0; }
   </style>
 </head>
 
 <body>
+  <!-- Page loader: shows during initial workspace load, hides once tasks arrive -->
+  <div id="pageLoader" style="position:fixed;inset:0;background:rgba(255,255,255,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:800;">
+    <div style="width:38px;height:38px;border:4px solid #E5E7EB;border-top-color:#6366F1;border-radius:50%;animation:loaderSpin .8s linear infinite;"></div>
+    <div style="font-size:13px;color:#6B7280;font-weight:600;letter-spacing:.01em;">Loading workspace…</div>
+  </div>
+  <style>@keyframes loaderSpin{to{transform:rotate(360deg);}}</style>
+
   <div id="errorBanner" style="display:none;background:#FEE2E2;color:#991B1B;padding:8px 12px;font-size:12px;font-family:monospace;position:fixed;top:0;left:0;right:0;z-index:9999;max-height:200px;overflow-y:auto;border-bottom:2px solid #DC2626;"></div>
   <script>
   window.onerror = function(msg, url, line, col) {
@@ -752,132 +988,209 @@
   <div class="wrap">
     <h1 title="Probability Plots Dashboard">Probability Plots</h1>
 
-<!-- ── TASK MANAGER BAR ── -->
-<div id="tmBar">
-  <div style="display:flex;flex-direction:column;gap:2px;">
-    <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;">Run Mode</div>
-    <div class="tm-mode-toggle" title="Single Task: analyze one task at a time using the dropdown below. Aggregate: combine selected tasks into one distribution.">
-      <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single Task</button>
-      <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Aggregate</button>
-    </div>
-  </div>
+<!-- ── CONTROL CARD: 3 columns (40 / 25 / 35) ── -->
+<div class="card ctrl-card">
+  <div class="ctrl-3col">
 
-  <span id="tmTaskInfo" style="color:var(--muted);font-size:12px;flex:1;">Initializing…</span>
-  <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved changes</span>
+    <!-- LEFT (40%): Task controls -->
+    <div class="ctrl-col ctrl-left" id="tmBar">
+      <span class="ctrl-col-label">Select Task <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Select Task" data-body="Choose a task from your data source to analyze. Single mode: analyze one task at a time using its 3-point estimate. Group mode: select multiple tasks to combine via Monte Carlo simulation into one aggregate distribution.">?</span></span>
 
-  <div class="tm-actions">
-    <button class="tm-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Aggregate mode: check which tasks to include.">Manage Tasks</button>
-    <button class="tm-btn" id="btnImportCSV" onclick="TM.openCSVImport()" title="Import tasks from a CSV file">Import CSV</button>
-    <button class="tm-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task Manager settings">&#9881;</button>
-    <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
-    <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
-  </div>
-</div>
+      <div class="tm-mode-toggle" title="Single: analyze one task at a time. Group: combine selected tasks into one distribution.">
+        <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single</button>
+        <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Group</button>
+      </div>
 
-<!-- ── AGGREGATE SUMMARY BAR (shown in aggregate mode after run) ── -->
-<div id="tmAggBar">
-  <span style="font-size:10px;color:#0369A1;font-weight:700;margin-right:4px;">AGGREGATE:</span>
-  <div class="tm-agg-stat"><span class="lbl">TASKS</span><span class="val" id="aggStatTasks">–</span></div>
-  <div class="tm-agg-stat"><span class="lbl">MEAN</span><span class="val" id="aggStatMean">–</span></div>
-  <div class="tm-agg-stat"><span class="lbl">P50</span><span class="val" id="aggStatP50">–</span></div>
-  <div class="tm-agg-stat"><span class="lbl">P80</span><span class="val" id="aggStatP80">–</span></div>
-  <div class="tm-agg-stat"><span class="lbl">P90</span><span class="val" id="aggStatP90">–</span></div>
-  <div class="tm-agg-stat"><span class="lbl">P(≤τ)</span><span class="val" id="aggStatProb">–</span></div>
-</div>
-
-<div class="card">
-  <!-- Row 1: Task selector + OMP bar + Status/Refresh -->
-  <div class="toolbar-row">
-    <div class="input-group" style="flex-direction:row;align-items:center;gap:6px;">
-      <label style="margin:0;">Task:</label>
+      <!-- Single mode: one-task dropdown -->
       <select id="taskSel" title="Select a task"></select>
-    </div>
 
-    <div class="omp-bar" title="Optimistic / Most Likely / Pessimistic / PERT Mean">
-      <span class="omp-item"><span class="omp-label">O:</span><span class="omp-val" id="oVal">–</span></span>
-      <span class="omp-item"><span class="omp-label">M:</span><span class="omp-val" id="mVal">–</span></span>
-      <span class="omp-item"><span class="omp-label">P:</span><span class="omp-val" id="pVal">–</span></span>
-      <span class="omp-item pert"><span class="omp-label">PERT:</span><span class="omp-val" id="pertVal">–</span></span>
-    </div>
-
-    <div class="status-compact">
-      <span id="fetchStatus" class="status" style="min-height:32px;padding:4px 10px;font-size:11px;">Ready</span>
-      <button id="refreshBtn" class="primary" style="min-height:32px;padding:4px 10px;font-size:11px;">&#x21bb;</button>
-    </div>
-  </div>
-
-  <!-- Row 2: Intuitive target analysis — two question modes with live answer -->
-  <div class="toolbar-row" style="flex-direction:column;align-items:stretch;gap:0;">
-    <div id="targetPanel">
-
-      <!-- Two question mode cards — click to switch what you're setting -->
-      <div id="tgtModeCards">
-        <button class="tgt-card target-mode-btn active" id="tgtCardValue" data-mode="value"
-                onclick="onTargetModeSwitch('value')"
-                title="Slide to set a finish target and see the probability of achieving it">
-          <span class="tgt-card-ico">&#x1F4C5;</span>
-          <span class="tgt-card-body">
-            <span class="tgt-card-q">Set a target value</span>
-            <span class="tgt-card-sub">&#x2192; What's the probability?</span>
-          </span>
-        </button>
-        <button class="tgt-card target-mode-btn" id="tgtCardProb" data-mode="probability"
-                onclick="onTargetModeSwitch('probability')"
-                title="Slide to set a probability target and see what finish value is needed">
-          <span class="tgt-card-ico">&#x1F3AF;</span>
-          <span class="tgt-card-body">
-            <span class="tgt-card-q">Set a target probability</span>
-            <span class="tgt-card-sub">&#x2192; What value is needed?</span>
-          </span>
-        </button>
-      </div>
-
-      <!-- Live answer row — updates in real time as slider moves -->
-      <div id="tgtAnswerRow">
-        <span id="tgtAnswerLabel">ANSWER:</span>
-        <!-- Sentence when in VALUE mode: show P(≤ value) = prob -->
-        <div class="tgt-sentence active" id="tgtSentValue">
-          <span class="tgt-s">Probability of finishing within</span>
-          <span class="tgt-chip tgt-val" id="targetValDisplay">–</span>
-          <span class="tgt-s" id="tgtUnitsHint1"></span>
-          <span class="tgt-s">is</span>
-          <span class="tgt-chip tgt-prob" id="targetProbDisplay">–</span>
+      <!-- Group mode: inline multi-select checklist (shown when mode = aggregate) -->
+      <div id="tmGroupPicker" style="display:none;">
+        <div class="grp-header">
+          <span class="grp-count" id="grpCount">0 selected</span>
+          <button class="grp-quick-btn" onclick="TM._aggSelectAll(true)" title="Select all tasks">All</button>
+          <button class="grp-quick-btn" onclick="TM._aggSelectAll(false)" title="Deselect all tasks">None</button>
+          <button class="grp-quick-btn" id="grpToggleBtn" onclick="TM._toggleGroupList()" title="Expand/collapse task list">Collapse</button>
         </div>
-        <!-- Sentence when in PROBABILITY mode: show value at prob -->
-        <div class="tgt-sentence" id="tgtSentProb">
-          <span class="tgt-s">To achieve a</span>
-          <span class="tgt-chip tgt-prob" id="tgtProbAlt">–</span>
-          <span class="tgt-s">chance, the target must be within</span>
-          <span class="tgt-chip tgt-val" id="tgtValAlt">–</span>
-          <span class="tgt-s" id="tgtUnitsHint2"></span>
+        <div class="grp-list" id="grpList"></div>
+      </div>
+
+      <div class="tm-actions">
+        <button class="tm-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Data Source</button>
+        <button class="tm-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task Manager settings">&#9881;</button>
+        <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
+        <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
+      </div>
+
+      <div class="status-compact">
+        <span id="fetchStatus" class="status">Ready</span>
+        <button id="refreshBtn" class="primary">&#x21bb;</button>
+      </div>
+
+      <div class="ctrl-info-row">
+        <span id="tmTaskInfo">Initializing…</span>
+        <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved</span>
+      </div>
+    </div>
+
+    <!-- MIDDLE (25%): Estimates — single OMP or aggregate stats, dynamic -->
+    <div class="ctrl-col ctrl-estimates">
+      <span class="ctrl-col-label">Estimates</span>
+      <div class="est-subtitle" id="estSubtitle">Single task</div>
+
+      <!-- SINGLE MODE: O / M / P / PERT Mean -->
+      <div class="est-stack" id="estSingleStack">
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="Optimistic Estimate" data-body="Best-case scenario — minimum reasonable estimate if everything goes well. Represents the fastest or cheapest plausible outcome.">?</span>
+            <span class="est-label">Optimistic</span>
+          </div>
+          <span class="est-val" id="oVal">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="Most Likely Estimate" data-body="Most realistic scenario — what you'd expect under normal conditions. This value receives 4× the weight in the PERT formula.">?</span>
+            <span class="est-label">Most Likely</span>
+          </div>
+          <span class="est-val" id="mVal">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="Pessimistic Estimate" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly. Represents the slowest or most expensive plausible outcome.">?</span>
+            <span class="est-label">Pessimistic</span>
+          </div>
+          <span class="est-val" id="pVal">–</span>
+        </div>
+        <div class="est-item pert">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Extra weight on Most Likely produces a realistic expected mean. More accurate than a simple average of the three points.">?</span>
+            <span class="est-label">PERT Mean</span>
+          </div>
+          <span class="est-val" id="pertVal">–</span>
         </div>
       </div>
 
-      <!-- Shared slider — controls value or probability depending on active mode -->
-      <div id="tgtSliderRow">
-        <span class="tgt-hint">&#x25C4;</span>
-        <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
-               title="Drag left/right to explore — the answer above updates live"
-               style="flex:1;min-width:100px;" />
-        <span class="tgt-hint">&#x25BA;</span>
-        <span class="tgt-hint" id="tgtSliderContext" style="margin-left:6px;font-size:10px;color:#9CA3AF;"></span>
+      <!-- GROUP MODE (after run): combined distribution stats -->
+      <div class="est-stack" id="estAggStack" style="display:none;">
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="Task Count" data-body="Number of tasks combined in this Group simulation. Each task's 3-point estimate is simulated independently and their results are summed to form the aggregate distribution.">?</span>
+            <span class="est-label">Tasks</span>
+          </div>
+          <span class="est-val" id="aggStatTasks">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="Aggregate Mean" data-body="Average outcome across all 5,000 Monte Carlo simulations of the combined tasks. This is the expected total if all selected tasks run simultaneously.">?</span>
+            <span class="est-label">Mean</span>
+          </div>
+          <span class="est-val" id="aggStatMean">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="P50 — Median" data-body="50th percentile: there is a 50% probability of finishing at or below this value. This is the median outcome of the combined simulation. A balanced, unbiased reference point.">?</span>
+            <span class="est-label">P50</span>
+          </div>
+          <span class="est-val" id="aggStatP50">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="P80 — Risk-Adjusted" data-body="80th percentile: 80% probability of finishing at or below this value. Industry standard for risk-adjusted planning commitments. Use this when presenting to sponsors or stakeholders who expect realistic accountability.">?</span>
+            <span class="est-label">P80</span>
+          </div>
+          <span class="est-val" id="aggStatP80">–</span>
+        </div>
+        <div class="est-item">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="P90 — High Confidence" data-body="90th percentile: 90% probability of finishing at or below this value. Used for high-confidence external commitments and contractual guarantees where the cost of overrun is significant.">?</span>
+            <span class="est-label">P90</span>
+          </div>
+          <span class="est-val" id="aggStatP90">–</span>
+        </div>
+        <div class="est-item pert">
+          <div class="est-label-row">
+            <span class="help-icon" data-title="P(≤τ) — Target Probability" data-body="Probability of finishing at or below your target value (τ) based on the combined group distribution. Set your target value or probability in the Set Targets column on the left.">?</span>
+            <span class="est-label">P(≤τ)</span>
+          </div>
+          <span class="est-val" id="aggStatProb">–</span>
+        </div>
+      </div>
+
+      <!-- Awaiting first group run -->
+      <div class="est-pending" id="estAggPending" style="display:none;">
+        Check tasks above,<br>then Save &amp; Run ▶
       </div>
     </div>
-  </div>
+
+    <!-- RIGHT (35%): Query — causal flow, narrow column -->
+    <div class="ctrl-col ctrl-query">
+      <span class="ctrl-col-label">Set Targets <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Set Targets" data-body="Interactively explore your probability distribution. Value mode: drag the slider to a target value — see the probability of finishing within it. Probability mode: set a desired probability — see what value achieves it. Results reflect your original estimate (baseline). For other strategies, see the Compare Strategies tab.">?</span></span>
+      <div id="targetPanel">
+
+        <!-- Mode dropdown + slider + live value — all on one row -->
+        <div class="tgt-top-row" id="tgtModeCards">
+          <select class="tgt-mode-select" id="tgtModeSelect"
+                  onchange="onTargetModeSwitch(this.value)"
+                  title="Switch between setting a target value or a target probability">
+            <option value="value" id="tgtCardValue" class="target-mode-btn" data-mode="value">Target value</option>
+            <option value="probability" id="tgtCardProb" class="target-mode-btn" data-mode="probability">Target probability</option>
+          </select>
+          <div class="tgt-slider-inline" id="tgtSliderRow">
+            <span class="tgt-hint">&#x25C4;</span>
+            <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
+                   title="Drag to explore — target and result update live" />
+            <span class="tgt-hint">&#x25BA;</span>
+            <span id="tgtSliderContext" style="display:none;"></span>
+          </div>
+          <!-- Live value display: right of slider -->
+          <div class="tgt-live-val active" id="tgtInputValue">
+            <span class="tgt-chip tgt-val tgt-input-chip" id="targetValDisplay">–</span>
+            <span class="tgt-flow-units" id="tgtUnitsHint1"></span>
+          </div>
+          <div class="tgt-live-val" id="tgtInputProb">
+            <span class="tgt-chip tgt-prob tgt-input-chip" id="tgtProbAlt">–</span>
+          </div>
+        </div>
+
+        <!-- RESULT: the derived answer -->
+        <div class="tgt-flow-result active" id="tgtSentValue">
+          <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
+          <span class="tgt-flow-result-text">chance of completion based on your original values.</span>
+          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
+        </div>
+        <div class="tgt-flow-result" id="tgtSentProb">
+          <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
+          <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
+          <span class="tgt-flow-result-text">required to hit this probability based on your original values.</span>
+          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
+        </div>
+
+        <!-- Context band: PERT mean + distance from mean -->
+        <div id="tgtAnswerRow" class="tgt-context-band">
+          <span id="tgtAnswerLabel" style="display:none;"></span>
+          <span id="tgtMeanCtx"></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.ctrl-3col -->
+
+  <!-- Aggregate stats bar retired — stats now shown in Estimates column -->
+  <div id="tmAggBar" style="display:none!important;"></div>
 </div>
 
 <!-- TABS + KPI GROUP -->
 <div class="tabs" id="tabs">
   <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution, step by step.">How It's Built</div>
-  <div class="tab" data-tab="overlay" title="Compare your estimate against Guided, Optimized, and Explorer scenarios to find the best strategy.">Compare Strategies</div>
+  <div class="tab" data-tab="overlay" title="Compare your estimate against Conservative Optimization, General Optimization, and Unconstrained Optimization scenarios to find the best strategy.">Compare Strategies</div>
   <div class="series-toggles" id="seriesToggles">
     <div class="toggle-group baseline-group">
       <button class="tg" id="rowTglBase" role="switch" aria-pressed="true" title="Toggle Your Estimate curve">Your Estimate</button>
-      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Guided — conservative optimization with tightest constraints">Guided</button>
+      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Conservative Optimization — tightest SACO constraints, most defensible">Conservative<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
     </div>
     <div class="toggle-group manual-group">
-      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="false" title="Optimized — best within standard boundaries">Optimized</button>
-      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Explorer — unconstrained what-if analysis">Explorer</button>
+      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="false" title="General Optimization — standard SACO constraints, wider search space">General<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Unconstrained Optimization — no bounds, drag sliders freely for what-if analysis">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
     </div>
 
   </div>
@@ -907,27 +1220,40 @@
 <!-- KPI tiles for overlay — ordered: Baseline → Adaptive (strictest) → Fixed (standard) → Manual (unconstrained) -->
 <div class="card" id="overlayKpis" style="display:none;">
   <div class="kpi-group">
-    <div class="kpi baseline inactive" id="kpiBaseline" title="Your Estimate — your original 3-point estimate probability with no optimization applied. This is your starting point.">
-      <div class="ttl">Your Estimate</div>
+    <div class="kpi baseline inactive" id="kpiBaseline">
+      <div class="ttl">
+        Your Estimate
+        <span class="help-icon" data-title="Your Estimate (Baseline)" data-body="Your original 3-point estimate (Optimistic / Most Likely / Pessimistic) with no optimization applied. This is your starting point — all other strategies are compared against it. The probability shown reflects this estimate only.">?</span>
+      </div>
       <div class="val">–</div>
     </div>
-    <div class="kpi adaptive inactive" id="kpiAdaptive" title="Guided — conservative optimization within the tightest industry best-practice constraints at your chosen level. Most defensible and standards-aligned.">
-      <div class="ttl">Guided</div>
+    <div class="kpi adaptive inactive" id="kpiAdaptive">
+      <div class="ttl">
+        Conservative Opt.
+        <span class="help-icon" data-title="Conservative Optimization" data-body="Finds the best probability improvement while staying within tight, industry best-practice constraints at your chosen Level (1–7). Both Conservative and General Optimization use the same SACO engine — the difference is constraint tightness. Conservative is the most defensible and standards-aligned strategy. Best for regulated projects or risk-averse stakeholders.">?</span>
+      </div>
       <div class="val">–</div>
     </div>
     <div id="probeBox" class="chip" style="display:none; align-items:center; gap:6px; min-height:36px; padding:6px 10px;">
       <span style="font-weight:600;">Level:</span>
-      <select id="probeSelect" title="Guided optimization level (1–7). Higher levels apply tighter best-practice constraints." style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:8px; height:28px;">
+      <span class="help-icon" data-title="Optimization Level (1–7)" data-body="Conservative Optimization constraint tightness. Level 1 = minimal constraints (wider exploration, more probability uplift). Level 7 = tightest best-practice constraints (most defensible, less uplift). Start at Level 3; increase for high-risk or regulated environments.">?</span>
+      <select id="probeSelect" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:8px; height:28px;">
         <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
         <option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
       </select>
     </div>
-    <div class="kpi optimized inactive" id="kpiOptimized" title="Optimized — system finds the best probability improvement within standard boundaries. Wider than Guided, yielding higher probability.">
-      <div class="ttl">Optimized</div>
+    <div class="kpi optimized inactive" id="kpiOptimized">
+      <div class="ttl">
+        General Opt.
+        <span class="help-icon" data-title="General Optimization" data-body="Uses the same SACO engine as Conservative Optimization but with wider, standard-boundary constraints to find the maximum probability improvement. Typically shows higher probability than Conservative — but less defensible for external reporting. Best for internal planning and feasibility analysis.">?</span>
+      </div>
       <div class="val">–</div>
     </div>
-    <div class="kpi adjusted inactive" id="kpiAdjusted" title="Explorer — set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.">
-      <div class="ttl">Explorer</div>
+    <div class="kpi adjusted inactive" id="kpiAdjusted">
+      <div class="ttl">
+        Unconstrained
+        <span class="help-icon" data-title="Unconstrained Optimization" data-body="No slider bounds — you control all 7 Decision Sliders freely to explore any combination beyond best-practice limits. Ideal for sensitivity analysis, stress-testing, and best-case planning. Not intended for external reporting.">?</span>
+      </div>
       <div class="val">–</div>
     </div>
   </div>
@@ -938,8 +1264,17 @@
       <!-- Panel header: title · note · impact result -->
       <div class="slider-panel-hdr">
         <div class="title" id="sliderTitle">Decision Sliders</div>
-        <div class="note" id="optimizeNote">Adjust levers to reshape the distribution (Explorer), or read optimal values for active strategies.</div>
+        <div class="note" id="optimizeNote">Adjust levers to reshape the distribution (Unconstrained), or read optimal values for active strategies.</div>
         <div id="sliderImpactBanner" style="display:none;"></div>
+      </div>
+
+      <!-- Quick preset row: visible at top so users find it before scrolling -->
+      <div class="slider-preset-row">
+        <span class="slider-preset-label">Unconstrained starting point:</span>
+        <div class="slider-actions" style="margin-top:0;">
+          <button id="resetBaseline" class="slider-btn" title="Reset all 7 Decision Sliders to zero — removes any manual adjustments">Reset Sliders To Zero</button>
+          <button id="matchOptimized" class="slider-btn primary" title="Copy the General Optimization slider values into your Unconstrained starting point">Reset Sliders To General Optimization</button>
+        </div>
       </div>
 
       <!-- Horizontal category columns — Capacity | Certainty | Process | Behavioral -->
@@ -1051,11 +1386,6 @@
 
       </div><!-- /.slider-cats -->
 
-      <div class="slider-actions">
-        <button id="resetBaseline" class="slider-btn">Reset to Baseline</button>
-        <button id="matchOptimized" class="slider-btn primary">Match Optimized</button>
-      </div>
-
       <div id="slidersNoteMissing" class="note" style="display:none;">Server did not return optimal slider values.</div>
     </div>
 
@@ -1107,7 +1437,7 @@
           <input type="checkbox" id="pselCDF" onchange="pselUpdate()">
           <span class="psel-lbl">CDF</span><span class="psel-sub">Cumulative P</span>
         </label>
-        <span style="font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;">max 2 side-by-side</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;">1 plot = full width · 2+ = side-by-side</span>
       </div>
 
       <!-- ── Plot Selector Bar — visible in "Compare Strategies" tab only ── -->
@@ -1141,10 +1471,13 @@
       </div>
 
       <div class="plot" style="position:relative;">
+        <!-- Mode context strip — shows which task or group is active -->
+        <div id="modeContextStrip" style="display:none; align-items:center; gap:6px; padding:2px 8px 4px; font-size:10px; color:#64748B; font-weight:600; letter-spacing:.03em; text-transform:uppercase; border-bottom:1px solid var(--line); margin-bottom:2px;">
+          <span id="modeContextBadge" style="padding:2px 7px; border-radius:10px; font-size:10px; font-weight:700;"></span>
+          <span id="modeContextLabel"></span>
+        </div>
         <div style="display:flex; justify-content:flex-end; padding:0 4px 4px 0; gap:6px; align-items:center;">
           <button class="plot-help-btn" data-help="distributions" title="What do these charts show?" style="position:static;">?</button>
-          <button id="zoomToggleBtn" title="Toggle zoom/pan on charts (scroll wheel to zoom, drag to pan)" onclick="toggleChartZoom()" style="font-size:11px; padding:3px 10px; border:1.5px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:#6B7280;">Enable Zoom</button>
-          <button id="resetZoomBtn" title="Reset zoom/pan on both charts" style="display:none; font-size:11px; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; color:#6B7280;">Reset</button>
         </div>
         <div id="distributionsHelpPopup" class="plot-help-popup"></div>
         <div class="plot-inner" id="plotInner">
@@ -1155,12 +1488,18 @@
           </div>
           <!-- PDF pane -->
           <div class="plot-pane" id="pdfWrap">
-            <div class="plot-pane-hdr">Probability Density (PDF)</div>
+            <div class="plot-pane-hdr" id="pdfPaneHdr" style="display:flex;align-items:center;gap:6px;">
+              <span style="flex:1;">Probability Density (PDF)</span>
+              <button id="zoomBtn_pdf" onclick="togglePlotZoom('pdf')" title="Toggle scroll-to-zoom / drag-to-pan on PDF chart" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+            </div>
             <canvas id="pdfCanvas" title="Probability Density Function (PDF)"></canvas>
           </div>
           <!-- CDF pane -->
           <div class="plot-pane" id="cdfWrap">
-            <div class="plot-pane-hdr">Cumulative Distribution (CDF)</div>
+            <div class="plot-pane-hdr" id="cdfPaneHdr" style="display:flex;align-items:center;gap:6px;">
+              <span style="flex:1;">Cumulative Distribution (CDF)</span>
+              <button id="zoomBtn_cdf" onclick="togglePlotZoom('cdf')" title="Toggle scroll-to-zoom / drag-to-pan on CDF chart" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+            </div>
             <canvas id="cdfCanvas" title="Cumulative Distribution Function (CDF)"></canvas>
           </div>
           <div class="right-legend" id="rightLegend" aria-live="polite"></div>
@@ -1168,9 +1507,9 @@
 
         <div class="legend" id="legendOverlay">
           <span><span class="legend-dot dot-base"></span>Your Estimate</span>
-          <span><span class="legend-dot dot-man"></span>Explorer</span>
-          <span><span class="legend-dot dot-fix"></span>Optimized</span>
-          <span><span class="legend-dot dot-adp"></span>Guided</span>
+          <span><span class="legend-dot dot-man"></span>Unconstrained</span>
+          <span><span class="legend-dot dot-fix"></span>General Opt.</span>
+          <span><span class="legend-dot dot-adp"></span>Conservative</span>
         </div>
         <div class="legend" id="legendDistributions" style="display:flex;">
           <span><span class="legend-dot dot-tri"></span>Triangle</span>
@@ -1187,6 +1526,7 @@
     <div id="hypercubeSection">
       <div id="radarCard" class="card" style="position:relative;">
         <button class="plot-help-btn" data-help="radar" title="What does this chart show?">?</button>
+        <button id="zoomBtn_radar" onclick="togglePlotZoom('radar')" title="Toggle scroll-to-zoom / drag-to-pan on Slider Profile chart" style="position:absolute;top:8px;right:42px;font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;z-index:2;">Zoom</button>
         <div id="radarHelpPopup" class="plot-help-popup"></div>
         <div class="plot-title">Slider Profile</div>
         <canvas id="hypercubeRadar"></canvas>
@@ -1195,6 +1535,7 @@
       </div>
       <div id="hypercube3DCard" class="card" style="position:relative;">
         <button class="plot-help-btn" data-help="hypercube" title="What does this chart show?">?</button>
+        <button id="zoomBtn_hypercube3d" onclick="togglePlotZoom('hypercube3d')" title="Toggle orbit controls on Parameter Space 3D" style="position:absolute;top:8px;right:42px;font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;z-index:2;">Zoom</button>
         <div id="hypercubeHelpPopup" class="plot-help-popup"></div>
         <div class="plot-title">Parameter Space (3D)</div>
         <canvas id="hypercube3D"></canvas>
@@ -1213,6 +1554,7 @@
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
               <div style="font-size:13px;font-weight:700;">SACO 3D Probability Surface</div>
               <div id="saco3dStratLabel" style="font-size:11px;color:var(--muted);margin-left:auto;"></div>
+              <button id="zoomBtn_saco3d" onclick="togglePlotZoom('saco3d')" title="Toggle orbit controls — scroll to zoom, drag to rotate" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
             </div>
             <!-- HUD metrics -->
             <div id="saco3dHud" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;font-size:11px;font-family:ui-monospace,monospace;">
@@ -1254,6 +1596,7 @@
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
               <div style="font-size:13px;font-weight:700;">Probability Sphere</div>
               <div id="sphereStratLabel" style="font-size:11px;color:var(--muted);margin-left:auto;"></div>
+              <button id="zoomBtn_sphere" onclick="togglePlotZoom('sphere')" title="Toggle orbit controls — scroll to zoom, drag to rotate" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
             </div>
             <!-- Full-width sphere, same height as SACO 3D canvas -->
             <div id="sphereContainer" style="width:100%;height:360px;border-radius:12px;overflow:hidden;background:#F0F4FA;border:1px solid rgba(140,170,220,0.35);margin-bottom:8px;"></div>
@@ -1417,10 +1760,31 @@
         if (modal)    modal.classList.remove('visible');
         if (backdrop) backdrop.classList.remove('visible');
       }
+      // Generic help popup — reuses sliderHelpModal for any data-title help icon
+      window.showHelp = function(title, bodyHtml) {
+        var modal    = document.getElementById('sliderHelpModal');
+        var backdrop = document.getElementById('sliderHelpBackdrop');
+        var titleEl  = document.getElementById('sliderHelpModalTitle');
+        var bodyEl   = document.getElementById('sliderHelpModalBody');
+        if (!modal || !backdrop) return;
+        titleEl.textContent = title;
+        bodyEl.innerHTML    = '<p>' + bodyHtml + '</p>';
+        modal.classList.add('visible');
+        backdrop.classList.add('visible');
+      };
+
       document.addEventListener('click', function(e) {
-        // Open on ? button
+        // Open slider-specific help button
         var btn = e.target.closest && e.target.closest('.slider-help-btn');
         if (btn) { openSliderHelp(btn.getAttribute('data-slider-help')); return; }
+        // Open generic help icon (data-title/data-body attributes)
+        var icon = e.target.closest && e.target.closest('.help-icon[data-title]');
+        if (icon) {
+          var title = icon.getAttribute('data-title') || 'Help';
+          var body  = icon.getAttribute('data-body')  || '';
+          if (typeof window.showHelp === 'function') window.showHelp(title, body);
+          return;
+        }
         // Close on backdrop or × button
         var tgt = e.target;
         if (tgt.id === 'sliderHelpBackdrop' || tgt.id === 'sliderHelpClose') { closeSliderHelp(); return; }
@@ -1801,8 +2165,12 @@
         var currentProb = s.targetProb != null ? (s.targetProb * 100) : 50;
         slider.value = currentProb;
         s.targetProb = currentProb / 100;
-        // Compute value from probability using baseline CDF
-        var baseCdf = s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf;
+        // Compute value from probability using baseline CDF.
+        // Group mode: use aggregate MC CDF; single-task: use baseCdf/triangleCdf.
+        var isGrpMode = window.TM && window.TM.mode === 'aggregate';
+        var baseCdf = isGrpMode
+          ? (s.aggCdf && s.aggCdf.length ? s.aggCdf : s.triangleCdf)
+          : (s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf);
         if (baseCdf && baseCdf.length) {
           s.target = interpX(baseCdf, s.targetProb);
         }
@@ -1835,12 +2203,20 @@
       }
       valEl.textContent = valStr;
 
-      // Look up probability from CDF
-      var baseCdf = s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf;
-      if (baseCdf && baseCdf.length && s.target != null) {
-        var prob = interpY(baseCdf, s.target);
+      // Look up probability from CDF — use aggregate CDF in group mode
+      var isAgg = window.TM && window.TM.mode === 'aggregate';
+      var cdf = (isAgg && s.aggCdf && s.aggCdf.length)
+        ? s.aggCdf
+        : (s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf);
+      if (cdf && cdf.length && s.target != null) {
+        var prob = interpY(cdf, s.target);
         probStr = prob != null ? (prob * 100).toFixed(1) + '%' : '–';
         s.targetProb = prob;
+        // Keep Project Report overview in sync without full re-render
+        var repTV = document.getElementById('repTargetVal');
+        if (repTV && s.target != null) repTV.textContent = Number(s.target).toFixed(2);
+        var repTP = document.getElementById('repTargetProb');
+        if (repTP) repTP.textContent = prob != null ? (prob * 100).toFixed(1) + '%' : '–';
       }
       probEl.textContent = probStr;
 
@@ -1857,12 +2233,39 @@
       if (u1) u1.textContent = units;
       if (u2) u2.textContent = units;
 
-      // ── Slider context hint (tells user what they're controlling) ────────
-      var ctx = document.getElementById('tgtSliderContext');
-      if (ctx) {
-        ctx.textContent = (s.targetMode === 'probability')
-          ? 'controlling probability%'
-          : 'controlling target value' + (units ? ' (' + units + ')' : '');
+      // ── Dynamic pill label: "Target <units>" or "Target value" ──────────
+      var cardVal = document.getElementById('tgtCardValue');
+      if (cardVal) cardVal.textContent = units ? 'Target ' + units : 'Target value';
+
+      // ── Context band: group mean (aggregate mode) or PERT mean (single mode) ──
+      var meanCtx = document.getElementById('tgtMeanCtx');
+      if (meanCtx) {
+        var u = units ? '\u00a0' + units : '';
+        if (isAgg && s.aggMean != null && isFinite(s.aggMean)) {
+          var gMean = s.aggMean;
+          if (s.target != null && isFinite(s.target)) {
+            var diff = s.target - gMean;
+            var sign = diff >= 0 ? '+' : '';
+            meanCtx.textContent = 'Group Mean: ' + gMean.toFixed(1) + u +
+              '\u2002|\u2002' + sign + diff.toFixed(1) + u + ' from mean';
+          } else {
+            meanCtx.textContent = 'Group Mean: ' + gMean.toFixed(1) + u;
+          }
+        } else {
+          var oVal = s.O, mVal = s.M, pVal = s.P;
+          if (oVal != null && mVal != null && pVal != null &&
+              isFinite(oVal) && isFinite(mVal) && isFinite(pVal)) {
+            var pertMean = (oVal + 4 * mVal + pVal) / 6;
+            if (s.target != null && isFinite(s.target)) {
+              var diff = s.target - pertMean;
+              var sign = diff >= 0 ? '+' : '';
+              meanCtx.textContent = 'PERT Mean: ' + pertMean.toFixed(1) + u +
+                '\u2002|\u2002' + sign + diff.toFixed(1) + u + ' from mean';
+            } else {
+              meanCtx.textContent = 'PERT Mean: ' + pertMean.toFixed(1) + u;
+            }
+          }
+        }
       }
     }
 
@@ -1893,21 +2296,103 @@
       afterDraw: function(chart) {
         if (this._hoveredX == null) return;
         var xScale = chart.scales.x;
+        var yScale = chart.scales.y;
+        var area   = chart.chartArea;
         var xPixel = xScale.getPixelForValue(this._hoveredX);
-        if (xPixel < chart.chartArea.left || xPixel > chart.chartArea.right) return;
+        if (xPixel < area.left || xPixel > area.right) return;
         var ctx = chart.ctx;
+        var isCdf = !!(chart.canvas && chart.canvas.id === 'cdfCanvas');
+
+        // Interpolate y-value from the first visible dataset at hovered x
+        var yVal = null;
+        for (var di = 0; di < chart.data.datasets.length; di++) {
+          var ds = chart.data.datasets[di];
+          if (ds.hidden) continue;
+          var pts = ds.data;
+          if (!pts || pts.length < 2) continue;
+          for (var pi = 1; pi < pts.length; pi++) {
+            if (pts[pi-1].x <= this._hoveredX && this._hoveredX <= pts[pi].x) {
+              var frac = (this._hoveredX - pts[pi-1].x) / (pts[pi].x - pts[pi-1].x);
+              yVal = pts[pi-1].y + frac * (pts[pi].y - pts[pi-1].y);
+              break;
+            }
+          }
+          if (yVal != null) break;
+        }
+
         ctx.save();
+
+        // ── Vertical dashed line ──────────────────────────────────────────────
         ctx.beginPath();
-        ctx.moveTo(xPixel, chart.chartArea.top);
-        ctx.lineTo(xPixel, chart.chartArea.bottom);
+        ctx.moveTo(xPixel, area.top);
+        ctx.lineTo(xPixel, area.bottom);
         ctx.strokeStyle = 'rgba(107, 114, 128, 0.5)';
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.stroke();
-        ctx.font = '10px -apple-system, BlinkMacSystemFont, Inter, sans-serif';
+
+        // ── Horizontal dashed line at y-intercept ─────────────────────────────
+        var yPixel = null;
+        if (yVal != null && yScale) {
+          yPixel = yScale.getPixelForValue(yVal);
+          if (yPixel >= area.top && yPixel <= area.bottom) {
+            ctx.beginPath();
+            ctx.moveTo(area.left, yPixel);
+            ctx.lineTo(xPixel, yPixel);
+            ctx.strokeStyle = 'rgba(107, 114, 128, 0.35)';
+            ctx.setLineDash([3, 3]);
+            ctx.stroke();
+            // y-axis value label
+            ctx.setLineDash([]);
+            ctx.font = '10px -apple-system,BlinkMacSystemFont,Inter,sans-serif';
+            ctx.fillStyle = '#6B7280';
+            ctx.textAlign = 'right';
+            var yLabel = isCdf ? (yVal * 100).toFixed(1) + '%' : yVal.toFixed(4);
+            ctx.fillText(yLabel, area.left - 3, yPixel + 3.5);
+          }
+        }
+
+        // ── x-axis value label ────────────────────────────────────────────────
+        ctx.setLineDash([]);
+        ctx.font = '10px -apple-system,BlinkMacSystemFont,Inter,sans-serif';
         ctx.fillStyle = '#6B7280';
         ctx.textAlign = 'center';
-        ctx.fillText(this._hoveredX.toFixed(1), xPixel, chart.chartArea.bottom + 14);
+        ctx.fillText(this._hoveredX.toFixed(1), xPixel, area.bottom + 14);
+
+        // ── Floating tooltip bubble ───────────────────────────────────────────
+        if (yVal != null) {
+          var tipLabel = isCdf
+            ? '\u03c4 = ' + this._hoveredX.toFixed(1) + '  \u2192  P = ' + (yVal * 100).toFixed(1) + '%'
+            : '\u03c4 = ' + this._hoveredX.toFixed(1) + '  density = ' + yVal.toFixed(4);
+          ctx.font = 'bold 11px -apple-system,BlinkMacSystemFont,Inter,sans-serif';
+          var tw = ctx.measureText(tipLabel).width;
+          var th = 14, pad = 5;
+          var tipX = xPixel + 8;
+          var tipY = area.top + 10;
+          if (tipX + tw + pad * 2 > area.right) tipX = xPixel - tw - pad * 2 - 8;
+          // Background pill
+          ctx.fillStyle = 'rgba(255,255,255,0.93)';
+          ctx.strokeStyle = 'rgba(107,114,128,0.28)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          var rx = tipX - pad, ry = tipY - pad, rw = tw + pad * 2, rh = th + pad * 2, r = 4;
+          ctx.moveTo(rx + r, ry); ctx.lineTo(rx + rw - r, ry);
+          ctx.arcTo(rx + rw, ry, rx + rw, ry + r, r);
+          ctx.lineTo(rx + rw, ry + rh - r);
+          ctx.arcTo(rx + rw, ry + rh, rx + rw - r, ry + rh, r);
+          ctx.lineTo(rx + r, ry + rh);
+          ctx.arcTo(rx, ry + rh, rx, ry + rh - r, r);
+          ctx.lineTo(rx, ry + r);
+          ctx.arcTo(rx, ry, rx + r, ry, r);
+          ctx.closePath();
+          ctx.fill(); ctx.stroke();
+          // Text
+          ctx.fillStyle = '#374151';
+          ctx.textAlign = 'left';
+          ctx.fillText(tipLabel, tipX, tipY + th - 2);
+        }
+
         ctx.restore();
       }
     };
@@ -1935,8 +2420,12 @@
 
       try {
         if (window.Chart && Chart.register) {
-          if (window['chartjs-plugin-zoom']) Chart.register(window['chartjs-plugin-zoom']);
-          if (window.ChartZoom) Chart.register(window.ChartZoom);
+          // chartjs-plugin-zoom exports under various global names depending on CDN build
+          var _zp = window.ChartZoom
+            || window['chartjs-plugin-zoom']
+            || (window['chartjs-plugin-zoom'] && window['chartjs-plugin-zoom']['default']);
+          if (_zp && _zp.id) Chart.register(_zp);
+          else if (_zp) Chart.register(_zp);
         }
       } catch(_) {}
 
@@ -2009,9 +2498,9 @@
                     }
                     // One line per active strategy
                     var stratAnnotations = [
-                      { on: ov.adaptiveOn,  prob: s.adaptiveProb,  name: 'Guided',    col: 'rgba(139,92,246,0.90)' },
-                      { on: ov.fixedOn,     prob: s.optimizedProb, name: 'Optimized', col: 'rgba(59,130,246,0.90)'  },
-                      { on: ov.manualOn,    prob: s.adjustedProb,  name: 'Explorer',  col: 'rgba(16,185,129,0.90)'  }
+                      { on: ov.adaptiveOn,  prob: s.adaptiveProb,  name: 'Conservative', col: 'rgba(139,92,246,0.90)' },
+                      { on: ov.fixedOn,     prob: s.optimizedProb, name: 'General',      col: 'rgba(59,130,246,0.90)'  },
+                      { on: ov.manualOn,    prob: s.adjustedProb,  name: 'Unconstrained', col: 'rgba(16,185,129,0.90)'  }
                     ];
                     // Track y positions to avoid label collisions
                     var usedYPx = [];
@@ -2069,7 +2558,7 @@
               }
             }
             ctx.save();
-            var _keyToName = { baseline: 'Baseline', optimized: 'Optimized', adjusted: 'Explorer', adaptive: 'Guided' };
+            var _keyToName = { baseline: 'Baseline', optimized: 'General Opt.', adjusted: 'Unconstrained', adaptive: 'Conservative' };
             var _P0dot = (window.S || {}).baselineProb;
             labels.forEach(function(lb) {
               var isCdf = (chart.canvas.id === 'cdfCanvas');
@@ -2126,7 +2615,7 @@
         const s = window.S || {};
         const label = legendItem.text || '';
         if (s.tab === 'overlay') {
-          return /^(Baseline|Manual \(Adjusted\)|Fixed \(Optimized\)|Adaptive \(Optimized\))$/.test(label);
+          return /^(Baseline|Unconstrained|General Opt\.|Conservative)$/.test(label);
         }
         return /^(Triangle|Beta-PERT|Baseline)$/.test(label);
       };
@@ -2164,7 +2653,7 @@
               y: { title: { display: true, text: 'Density', font: { size: 12 } }, ticks: { font: { size: 11 } }, min: 0, max: 0.2 }
             }
           },
-          plugins: [window.targetLabelPlugin]
+          plugins: [window.targetLabelPlugin, linkedCrosshairPlugin]
         });
       }
 
@@ -2246,6 +2735,8 @@
     window.ensureCharts = ensureCharts;
     window.interpY = interpY;
     window.interpX = interpX;
+    window.updateTargetDisplayText = updateTargetDisplayText;
+    window.updateTargetSlider = updateTargetSlider;
     window.boundsFromSeries = boundsFromSeries;
     window.sliderValues = sliderValues;
     window.updateSlidersDisplay = function(){};
@@ -2285,9 +2776,9 @@
                 '<p><strong>What you see:</strong> Your baseline overlaid with optimization strategies. Each curve shows a different approach to improving your probability of success.</p></div>';
               html += '<div class="help-section"><p><strong>Active strategies:</strong></p><ul>';
               if (s.overlay && s.overlay.baselineOn) html += '<li><strong>Your Estimate:</strong> <span class="help-stat">' + FMT.prob(s.baselineProb) + '</span> \u2014 starting point</li>';
-              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Guided:</strong> <span class="help-stat">' + FMT.prob(s.adaptiveProb) + '</span> \u2014 conservative, tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
-              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>Optimized:</strong> <span class="help-stat">' + FMT.prob(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
-              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Explorer:</strong> <span class="help-stat">' + FMT.prob(s.adjustedProb) + '</span> \u2014 your custom settings</li>';
+              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Conservative Optimization:</strong> <span class="help-stat">' + FMT.prob(s.adaptiveProb) + '</span> \u2014 tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
+              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>General Optimization:</strong> <span class="help-stat">' + FMT.prob(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
+              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Unconstrained Optimization:</strong> <span class="help-stat">' + FMT.prob(s.adjustedProb) + '</span> \u2014 your custom settings</li>';
               html += '</ul></div>';
               html += '<div class="help-section"><p><strong>How to read:</strong> On the CDF (right), a higher curve at your target = better probability. The gap between curves shows how much each strategy improves your chances.</p></div>';
               return html;
@@ -2409,12 +2900,19 @@
 
         var distTiles = document.getElementById('distTiles');
         if (distTiles) distTiles.style.display = (s.tab==='progress') ? 'flex' : 'none';
-        var triTile = document.getElementById('kpiTriangle');
-        var betaTile= document.getElementById('kpiBeta');
-        var baseTile= document.getElementById('kpiBaseDist');
-        if (triTile) triTile.classList.toggle('active', !!s.progress.triOn);
-        if (betaTile) betaTile.classList.toggle('active', !!s.progress.betaOn);
-        if (baseTile) baseTile.classList.toggle('active', !!s.progress.baseOn);
+        var triTile  = document.getElementById('kpiTriangle');
+        var betaTile = document.getElementById('kpiBeta');
+        var baseTile = document.getElementById('kpiBaseDist');
+        var isGrpTile = window.TM && window.TM.mode === 'aggregate';
+        if (triTile)  { triTile.style.display  = ''; triTile.classList.toggle('active',  !!s.progress.triOn); }
+        if (betaTile) { betaTile.style.display = ''; betaTile.classList.toggle('active', !!s.progress.betaOn); }
+        if (baseTile) {
+          baseTile.style.display = '';
+          baseTile.classList.toggle('active', !!s.progress.baseOn);
+          // In Group mode the "Baseline" is the MC aggregate — label accordingly
+          var bTtl = baseTile.querySelector('.ttl');
+          if (bTtl) bTtl.textContent = isGrpTile ? 'Group MC' : 'Baseline';
+        }
 
         if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
         updateProgressDescription(s);
@@ -2426,6 +2924,42 @@
         var ctxEl = document.getElementById('progressDescContext');
         if (!stmtEl || !ctxEl) return;
         if (s.tab !== 'progress') return;
+
+        var isGroupMode = window.TM && window.TM.mode === 'aggregate';
+        if (isGroupMode) {
+          var nActive = window.TM && window.TM.tasks
+            ? window.TM.tasks.filter(function(t) { return t.active; }).length : 0;
+          var tgtG = s.target != null ? Number(s.target).toFixed(2) : '?';
+          var bp   = s.baselineProb;
+          var gO   = s.O != null ? Number(s.O).toFixed(1) : '?';
+          var gM   = s.M != null ? Number(s.M).toFixed(1) : '?';
+          var gP   = s.P != null ? Number(s.P).toFixed(1) : '?';
+          var gPert = (s.O != null && s.M != null && s.P != null)
+            ? ((s.O + 4 * s.M + s.P) / 6).toFixed(2) : '?';
+          stmtEl.innerHTML = '<strong>Group distribution</strong> \u2014 ' + nActive + ' task' + (nActive !== 1 ? 's' : '')
+            + ' modelled as combined 3-point estimate (O=' + gO + ', M=' + gM + ', P=' + gP + ')';
+          var parts = [];
+          parts.push(
+            'The group is modelled as a single aggregated 3-point estimate using the <strong>sum</strong> of each task\'s individual values: '
+            + '<strong>O=' + gO + '</strong> (sum of best cases), '
+            + '<strong>M=' + gM + '</strong> (sum of most likely), '
+            + '<strong>P=' + gP + '</strong> (sum of worst cases). '
+            + 'This is the standard PERT programme-level aggregation for sequential independent tasks, giving a combined PERT mean of <strong>' + gPert + '</strong>.'
+          );
+          if (s.aggMean != null) {
+            parts.push(
+              'The Monte Carlo baseline samples all tasks together for a more accurate combined distribution (mean = <strong>' + Number(s.aggMean).toFixed(2) + '</strong>). '
+              + 'Small differences between the PERT mean (' + gPert + ') and Monte Carlo mean (' + Number(s.aggMean).toFixed(2) + ') are due to the shape of individual distributions. '
+              + 'Check the Estimates panel for P50, P80, and P90 percentiles.'
+            );
+          }
+          if (bp != null) {
+            parts.push('At your current target of <strong>' + tgtG + '</strong>, there is a <strong>' + FMT.prob(bp) + '</strong> chance the group completes within that value.');
+          }
+          parts.push('Strategy optimization (Conservative, General, Unconstrained) applies the same 7 project-level decision levers to the combined group estimate — switch to the <strong>Compare Strategies</strong> tab to activate them.');
+          ctxEl.innerHTML = parts.join(' ');
+          return;
+        }
 
         // Use .toFixed(2) to match the target panel precision exactly
         var tgt = s.target != null ? Number(s.target).toFixed(2) : '?';
@@ -2490,6 +3024,7 @@
 
         var tgt  = s.target != null ? Number(s.target).toFixed(1) : '?';
         var plvl = s.overlay.probeLevel || 3;
+        var isGroupMode = window.TM && window.TM.mode === 'aggregate';
 
         // Strategy colour palette (matches the button UI)
         var COLOURS = {
@@ -2501,13 +3036,18 @@
 
         // Build candidates from ONLY currently active strategies
         var candidates = [];
-        candidates.push({ name: 'Your Estimate', prob: bp, key: 'baseline' });
+        var baselineName = isGroupMode
+          ? ('Group Baseline (' + ((window.TM && window.TM.tasks ? window.TM.tasks.filter(function(t){return t.active;}).length : 0)) + ' tasks)')
+          : 'Your Estimate';
+        candidates.push({ name: baselineName, prob: bp, key: 'baseline' });
+        // Strategies work in BOTH single and group modes.
+        // In group mode, SACO optimises the summed O/M/P (= combined group estimate).
         if (s.overlay.adaptiveOn && s.adaptiveProb  != null && !isNaN(s.adaptiveProb))
-          candidates.push({ name: 'Guided (L' + plvl + ')', prob: s.adaptiveProb,  key: 'adaptive' });
+          candidates.push({ name: 'Conservative Opt. (L' + plvl + ')', prob: s.adaptiveProb,  key: 'adaptive' });
         if (s.overlay.fixedOn    && s.optimizedProb != null && !isNaN(s.optimizedProb))
-          candidates.push({ name: 'Optimized',              prob: s.optimizedProb, key: 'fixed' });
+          candidates.push({ name: 'General Opt.',                       prob: s.optimizedProb, key: 'fixed' });
         if (s.overlay.manualOn   && s.adjustedProb  != null && !isNaN(s.adjustedProb))
-          candidates.push({ name: 'Explorer',               prob: s.adjustedProb,  key: 'manual' });
+          candidates.push({ name: 'Unconstrained',                      prob: s.adjustedProb,  key: 'manual' });
 
         candidates.sort(function(a, b) { return b.prob - a.prob; });
         var hasVariants = candidates.length > 1;
@@ -2573,7 +3113,11 @@
         var stmt = '', level;
         if (!hasVariants) {
           level = bp >= 0.8 ? 'green' : (bp >= 0.5 ? 'amber' : 'red');
-          stmt = 'Your baseline probability is <strong>' + FMT.prob(bp) + '</strong> at target ' + tgt + '. No strategies are active yet.';
+          stmt = (isGroupMode
+            ? '<strong>Group Baseline</strong> probability is'
+            : 'Your baseline probability is')
+            + ' <strong>' + FMT.prob(bp) + '</strong> at target ' + tgt
+            + (isGroupMode ? '.' : '. No strategies are active yet.');
         } else if (best.key === 'baseline') {
           level = 'amber';
           stmt = 'None of the active strategies improved over your baseline <strong>' + FMT.prob(bp) + '</strong> — the optimizer could not find better settings within its constraints.';
@@ -2591,13 +3135,25 @@
         // RULE: Never mention an inactive strategy by name in this section.
         var ctx = '<div class="rec-section-hdr">WHAT THIS MEANS</div>';
         if (!hasVariants) {
-          ctx += 'This is your unoptimized 3-point estimate baseline. The distribution is shaped by your Best Case, Most Likely, and Worst Case values. '
-               + 'Activating strategies below will reshape the distribution by adjusting 7 project decision levers '
-               + '(budget flexibility, schedule flexibility, scope certainty, etc.) to find a higher probability.';
+          if (isGroupMode) {
+            var nActive = window.TM && window.TM.tasks ? window.TM.tasks.filter(function(t) { return t.active; }).length : 0;
+            var gO = s.O != null ? Number(s.O).toFixed(1) : '?';
+            var gM = s.M != null ? Number(s.M).toFixed(1) : '?';
+            var gP = s.P != null ? Number(s.P).toFixed(1) : '?';
+            ctx += 'This is the combined baseline for <strong>' + nActive + ' task' + (nActive !== 1 ? 's' : '') + '</strong>, '
+                 + 'modelled as a single 3-point estimate <strong>O=' + gO + ', M=' + gM + ', P=' + gP + '</strong> '
+                 + '(the <em>sum</em> of each task\'s individual O, M, P values — standard PERT aggregation for sequential tasks). '
+                 + 'The Monte Carlo baseline samples all tasks together to give an accurate combined distribution. '
+                 + 'Activate strategies below to reshape the group distribution using project-level decision levers.';
+          } else {
+            ctx += 'This is your unoptimized 3-point estimate baseline. The distribution is shaped by your Best Case, Most Likely, and Worst Case values. '
+                 + 'Activating strategies below will reshape the distribution by adjusting 7 project decision levers '
+                 + '(budget flexibility, schedule flexibility, scope certainty, etc.) to find a higher probability.';
+          }
         } else {
           var parts = [];
           // Baseline context
-          var bLine = 'Your Estimate (' + FMT.prob(bp) + ') is the unoptimized baseline — the starting point for all comparisons.';
+          var bLine = baselineName + ' (' + FMT.prob(bp) + ') is the unoptimized baseline — the starting point for all comparisons.';
           if (bp >= 0.7) bLine += ' Your baseline is already strong; optimization delivers incremental gains.';
           else if (bp < 0.4) bLine += ' The baseline is low, which means there is more room to gain from optimization.';
           parts.push(bLine);
@@ -2605,12 +3161,12 @@
           if (guided) {
             var gGain = ((guided.prob - bp) * 100);
             if (gGain > 0) {
-              parts.push('<strong>Guided</strong> (' + FMT.prob(guided.prob) + ', ' + FMT.lift(gGain) + '): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
+              parts.push('<strong>Conservative Optimization</strong> (' + FMT.prob(guided.prob) + ', ' + FMT.lift(gGain) + '): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
                 + 'All 7 decision levers stay within validated project management boundaries — '
                 + 'the most defensible improvement because every assumption can be justified in a stakeholder review.'
                 + sliderHighlights('adaptive'));
             } else {
-              parts.push('<strong>Guided</strong> (' + FMT.prob(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
+              parts.push('<strong>Conservative Optimization</strong> (' + FMT.prob(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
                 + 'The estimate range may require a looser constraint set — try increasing the probe level.'
                 + sliderHighlights('adaptive'));
             }
@@ -2618,14 +3174,14 @@
 
           if (optimized) {
             var oGain = ((optimized.prob - bp) * 100);
-            var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Guided' : '';
+            var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Conservative Optimization' : '';
             if (oGain > 0) {
-              parts.push('<strong>Optimized</strong> (' + FMT.prob(optimized.prob) + ', ' + FMT.lift(oGain) + oRef + '): '
+              parts.push('<strong>General Optimization</strong> (' + FMT.prob(optimized.prob) + ', ' + FMT.lift(oGain) + oRef + '): '
                 + 'Searches the full standard parameter space, finding the highest probability within normal project limits. '
                 + 'Uses a wider slider range than the most constrained approach — verify each setting is feasible before presenting it.'
                 + sliderHighlights('fixed'));
             } else {
-              parts.push('<strong>Optimized</strong> (' + FMT.prob(optimized.prob) + '): Could not beat the baseline within standard bounds. '
+              parts.push('<strong>General Optimization</strong> (' + FMT.prob(optimized.prob) + '): Could not beat the baseline within standard bounds. '
                 + 'The target may be too ambitious for this estimate range.'
                 + sliderHighlights('fixed'));
             }
@@ -2634,15 +3190,15 @@
           if (explorer) {
             var eGain = ((explorer.prob - bp) * 100);
             var ePeer = (guided || optimized) ? ' — ' + ((explorer.prob - best.prob) * 100).toFixed(1) + ' pp above ' + best.name : '';
-            if (best.key === 'manual') ePeer = ''; // Don't compare Explorer to itself
+            if (best.key === 'manual') ePeer = ''; // Don't compare Unconstrained Optimization to itself
             if (eGain > 0) {
-              parts.push('<strong>Explorer</strong> (' + FMT.prob(explorer.prob) + ', ' + FMT.lift(eGain) + ePeer + '): '
+              parts.push('<strong>Unconstrained Optimization</strong> (' + FMT.prob(explorer.prob) + ', ' + FMT.lift(eGain) + ePeer + '): '
                 + 'Sets all sliders to their most favorable positions with no guardrails — the theoretical ceiling. '
                 + 'Answers "how much improvement is possible in the best case?" '
-                + 'Explorer values are rarely achievable in practice; use them to understand headroom, not as a plan. '
+                + 'Unconstrained values are rarely achievable in practice; use them to understand headroom, not as a plan. '
                 + 'Open the sidebar to see exactly which levers are pushed and by how much.');
             } else {
-              parts.push('<strong>Explorer</strong> (' + FMT.prob(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
+              parts.push('<strong>Unconstrained Optimization</strong> (' + FMT.prob(explorer.prob) + '): Even with all sliders unconstrained, probability did not improve. '
                 + 'The target is very aggressive for this estimate range. Consider lowering the target or revisiting the 3-point estimate.');
             }
           }
@@ -2655,20 +3211,27 @@
         var steps = [];
 
         if (!hasVariants) {
-          // No strategies on yet — guide them through the logical sequence
-          steps.push({ action: 'Click <strong>Guided</strong>', why: 'The safest starting point. Uses industry-standard constraint bounds at level ' + plvl + '/7 — every slider stays within validated project management limits, making the result easy to defend.' });
-          steps.push({ action: 'Click <strong>Optimized</strong>', why: 'Searches a wider parameter space for the best achievable probability within standard limits. Gives you the most improvement possible while staying within reasonable assumptions.' });
-          steps.push({ action: 'Click <strong>Explorer</strong>', why: 'Reveals the theoretical upper bound with no constraints. If even Explorer can\'t move the needle, the target needs to change — not the sliders.' });
+          // Same strategy suggestions for both single and group modes
+          if (isGroupMode) {
+            steps.push({ action: 'Click <strong>Conservative Optimization</strong>', why: 'Applies industry-standard constraint bounds to the group\'s combined O/M/P at level ' + plvl + '/7. Shows the most defensible improvement for the programme as a whole.' });
+            steps.push({ action: 'Click <strong>General Optimization</strong>', why: 'Searches a wider parameter space across the full group estimate. Finds the best achievable combined probability within standard project management limits.' });
+            steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Reveals the theoretical ceiling for the group with no guardrails. If even Unconstrained can\'t move the needle, consider revising the target or individual task estimates.' });
+          } else {
+            // No strategies on yet — guide them through the logical sequence
+            steps.push({ action: 'Click <strong>Conservative Optimization</strong>', why: 'The safest starting point. Uses industry-standard constraint bounds at level ' + plvl + '/7 — every slider stays within validated project management limits, making the result easy to defend.' });
+            steps.push({ action: 'Click <strong>General Optimization</strong>', why: 'Searches a wider parameter space for the best achievable probability within standard limits. Gives you the most improvement possible while staying within reasonable assumptions.' });
+            steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Reveals the theoretical upper bound with no constraints. If even Unconstrained can\'t move the needle, the target needs to change — not the sliders.' });
+          }
         } else if (best.key === 'baseline') {
           // Strategies active but none helped — diagnostics
           if (!noGuided && guided) {
-            steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'Higher levels explore slightly looser constraint sets. Level 5–7 may find a feasible improvement path that level ' + plvl + ' missed.' });
+            steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Higher levels explore slightly looser constraint sets. Level 5–7 may find a feasible improvement path that level ' + plvl + ' missed.' });
           }
           if (noOptimized) {
-            steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Uses a wider search space than Guided. May find an improvement path that tighter constraints missed.' });
+            steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Uses a wider search space than Conservative Optimization. May find an improvement path that tighter constraints missed.' });
           }
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'If even Explorer (no constraints) can\'t improve over baseline, the target is likely unachievable for this estimate range.' });
+            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'If even Unconstrained (no constraints) can\'t improve over baseline, the target is likely unachievable for this estimate range.' });
           }
           if (!noExplorer && explorer && explorer.prob <= bp) {
             steps.push({ action: 'Reduce the target value using the slider', why: 'The theoretical ceiling with no constraints is still at or below baseline. The target is not achievable for this estimate — find a target where probability is acceptable, then decide whether to revise the estimate.' });
@@ -2676,61 +3239,61 @@
         } else if (best.prob >= 0.8) {
           // Great — 80%+ is achievable. Focus on validating and deciding which path to use.
           if (best.key === 'adaptive') {
-            steps.push({ action: 'Review Guided\'s slider positions in the sidebar', why: 'These settings are industry-validated. Each slider value represents a specific project management lever — check that these assumptions are realistic for your project.' });
+            steps.push({ action: 'Review Conservative Optimization\'s slider positions in the sidebar', why: 'These settings are industry-validated. Each slider value represents a specific project management lever — check that these assumptions are realistic for your project.' });
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'See if a wider search can improve further beyond Guided\'s ' + pct(guided.prob) + '. If Optimized also hits 80%+, you have two independent validation paths.' });
+              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'See if a wider search can improve further beyond Conservative Optimization\'s ' + pct(guided.prob) + '. If General also hits 80%+, you have two independent validation paths.' });
             }
           } else if (best.key === 'fixed') {
-            steps.push({ action: 'Review Optimized\'s slider positions in the sidebar', why: 'Optimized uses wider bounds — check each slider setting for feasibility. Some values may be more aggressive than your project can realistically absorb.' });
+            steps.push({ action: 'Review General Optimization\'s slider positions in the sidebar', why: 'General Optimization uses wider bounds — check each slider setting for feasibility. Some values may be more aggressive than your project can realistically absorb.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Check whether a more constrained path can also reach 80%+. If Guided gets close, that\'s a more defensible result for stakeholders.' });
+              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Check whether a more constrained path can also reach 80%+. If Conservative reaches close, that\'s a more defensible result for stakeholders.' });
             } else if (guided && guided.prob < 0.8) {
-              steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'Guided reached ' + pct(guided.prob) + ' — close but not 80%. A higher probe level searches a slightly broader constraint set and may close the gap.' });
+              steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Conservative Optimization reached ' + pct(guided.prob) + ' — close but not 80%. A higher probe level searches a slightly broader constraint set and may close the gap.' });
             }
           } else if (best.key === 'manual') {
-            steps.push({ action: 'Check Explorer\'s slider positions in the sidebar', why: 'Explorer has no guardrails — identify which specific sliders are pushed to extreme values. These are the levers driving the improvement.' });
+            steps.push({ action: 'Check Unconstrained Optimization\'s slider positions in the sidebar', why: 'Unconstrained has no guardrails — identify which specific sliders are pushed to extreme values. These are the levers driving the improvement.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Explorer shows 80%+ is achievable — now find the most constrained, defensible path to that result.' });
+              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Unconstrained shows 80%+ is achievable — now find the most constrained, defensible path to that result.' });
             }
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Get the best probability with standard constraints — the realistic middle ground between Guided and Explorer.' });
+              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Get the best probability with standard constraints — the realistic middle ground between Conservative and Unconstrained Optimization.' });
             }
             if (guided || optimized) {
-              steps.push({ action: 'Compare sidebar sliders between Explorer and your best constrained strategy', why: 'The gap between Explorer (' + pct(explorer.prob) + ') and ' + best.name + ' (' + pct(best.prob) + ') shows the cost of staying within realistic bounds.' });
+              steps.push({ action: 'Compare sidebar sliders between Unconstrained Optimization and your best constrained strategy', why: 'The gap between Unconstrained (' + pct(explorer.prob) + ') and ' + best.name + ' (' + pct(best.prob) + ') shows the cost of staying within realistic bounds.' });
             }
           }
         } else if (best.prob >= 0.5) {
           // Moderate — improvement but not at 80% yet
           if (noGuided) {
-            steps.push({ action: 'Activate <strong>Guided</strong>', why: 'The most constrained optimizer. If it can improve over your current best (' + pct(best.prob) + '), you have a defensible path. If it can\'t, that tells you something important about the estimate constraints.' });
+            steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'The most constrained optimizer. If it can improve over your current best (' + pct(best.prob) + '), you have a defensible path. If it can\'t, that tells you something important about the estimate constraints.' });
           }
           if (noOptimized) {
-            steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Searches a wider parameter space than Guided. May find a path to 80%+ that tighter constraints missed.' });
+            steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Searches a wider parameter space than Conservative Optimization. May find a path to 80%+ that tighter constraints missed.' });
           }
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'See the theoretical maximum. If Explorer can reach 80%, you know improvement to that level is possible — the question becomes which constraints to relax. If Explorer can\'t, the target is too ambitious.' });
+            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'See the theoretical maximum. If Unconstrained can reach 80%, you know improvement to that level is possible — the question becomes which constraints to relax. If it can\'t, the target is too ambitious.' });
           }
           // All active, none hit 80%
           if (!noGuided && !noOptimized && !noExplorer) {
             if (guided && ((guided.prob - bp) * 100) > 0 && plvl < 7) {
-              steps.push({ action: 'Increase Guided\'s probe level (currently ' + plvl + '/7)', why: 'All three strategies are active and none reached 80%. Higher probe levels search slightly broader constraint sets — try level ' + Math.min(plvl + 2, 7) + ' as a next step.' });
+              steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'All three strategies are active and none reached 80%. Higher probe levels search slightly broader constraint sets — try level ' + Math.min(plvl + 2, 7) + ' as a next step.' });
             }
             steps.push({ action: 'Adjust the target slider left to a more achievable value', why: 'All strategies have been explored and the ceiling is ' + pct(best.prob) + '. Find a target where at least Guided can reach 80%, then use that as your defensible commitment.' });
           }
         } else {
           // Low probability — significant challenge
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Explorer</strong>', why: 'First, establish whether improvement is theoretically possible at all. Explorer has no constraints — if it can\'t reach 50%, the target fundamentally needs to change.' });
+            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'First, establish whether improvement is theoretically possible at all. Unconstrained has no limits — if it can\'t reach 50%, the target fundamentally needs to change.' });
           } else if (explorer && explorer.prob < 0.5) {
-            steps.push({ action: 'Move the target slider significantly left', why: 'Even with every slider at its most favorable value (Explorer), probability stays below 50%. The target is not achievable for this estimate. Find a target where confidence is acceptable (e.g., 70%) and use that as your planning baseline.' });
+            steps.push({ action: 'Move the target slider significantly left', why: 'Even with every slider at its most favorable value (Unconstrained Optimization), probability stays below 50%. The target is not achievable for this estimate. Find a target where confidence is acceptable (e.g., 70%) and use that as your planning baseline.' });
           } else {
-            // Explorer can do it but constrained strategies can't
-            steps.push({ action: 'Check Explorer\'s slider positions in the sidebar', why: 'Explorer reaches ' + pct(explorer.prob) + ' — improvement is theoretically possible. Identify which sliders are doing the most work. These are the levers your project would need to move.' });
+            // Unconstrained can do it but constrained strategies can't
+            steps.push({ action: 'Check Unconstrained Optimization\'s slider positions in the sidebar', why: 'Unconstrained Optimization reaches ' + pct(explorer.prob) + ' — improvement is theoretically possible. Identify which sliders are doing the most work. These are the levers your project would need to move.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Guided</strong>', why: 'Find the most constrained, realistic path toward the target. It may not reach 80%, but it shows what is achievable within industry-standard limits.' });
+              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Find the most constrained, realistic path toward the target. It may not reach 80%, but it shows what is achievable within industry-standard limits.' });
             }
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>Optimized</strong>', why: 'Find the best probability with standard (not unconstrained) bounds — the realistic ceiling short of Explorer.' });
+              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Find the best probability with standard (not unconstrained) bounds — the realistic ceiling short of Unconstrained.' });
             }
           }
         }
@@ -2798,11 +3361,11 @@
             rLines.push('Each axis represents a decision lever (budget flexibility, schedule flexibility, etc.). ');
             rLines.push('The dashed green line shows your baseline at 50% on all sliders. ');
             if (best && best.key === 'adaptive') {
-              rLines.push('Guided (blue) stays close to baseline \u2014 its tight constraints limit how far sliders can move, producing the most defensible result.');
+              rLines.push('Conservative Optimization (blue) stays close to baseline \u2014 its tight constraints limit how far sliders can move, producing the most defensible result.');
             } else if (best && best.key === 'fixed') {
-              rLines.push('Optimized pushes sliders further than Guided within standard boundaries \u2014 wider reach means higher probability but more assumptions.');
+              rLines.push('General Optimization pushes sliders further than Conservative within standard boundaries \u2014 wider reach means higher probability but more assumptions.');
             } else if (best && best.key === 'manual') {
-              rLines.push('Explorer shows unconstrained slider positions \u2014 large deviations from baseline suggest assumptions that may not hold in practice.');
+              rLines.push('Unconstrained shows unconstrained slider positions \u2014 large deviations from baseline suggest assumptions that may not hold in practice.');
             }
             radarDesc.innerHTML = rLines.join('');
           } else if (onOverlay) {
@@ -2829,6 +3392,10 @@
           }
         }
       }
+
+      // Expose to window so other <script> blocks (e.g. _doUIRefresh) can call them
+      window.updateProgressDescription = updateProgressDescription;
+      window.updateRecommendation      = updateRecommendation;
 
       window.renderRightLegend = function(){ /* kept hidden via CSS */ };
 
@@ -2908,38 +3475,46 @@
         var s = WS();
         if (typeof window.ensureCharts === 'function') window.ensureCharts();
         var msgEl = document.getElementById('plotMsg');
+        var isGrp = window.TM && window.TM.mode === 'aggregate';
 
-        var haveAny =
-          (s.trianglePdf && s.trianglePdf.length) ||
-          (s.betaPertPdf && s.betaPertPdf.length) ||
-          (s.basePdf && s.basePdf.length);
+        // In Group mode: have data once aggCdf is available (Triangle/BetaPERT are also
+        // computed client-side from groupO/M/P and stored in s.trianglePdf/betaPertPdf)
+        var haveAny = (s.trianglePdf && s.trianglePdf.length) ||
+                      (s.betaPertPdf && s.betaPertPdf.length) ||
+                      (s.basePdf && s.basePdf.length) ||
+                      (isGrp && s.aggCdf && s.aggCdf.length > 0);
 
         if (!haveAny) {
-          if (msgEl) { msgEl.style.display='block'; msgEl.textContent='Select a task to view distributions.'; }
+          if (msgEl) { msgEl.style.display='block'; msgEl.textContent= isGrp ? 'Click Save \u25ba Run to compute the group distribution.' : 'Select a task to view distributions.'; }
           return;
         } else if (msgEl) { msgEl.style.display='none'; }
 
         var onOverlay = (s.tab === 'overlay');
 
         function buildDatasets(kind) {
+          // Triangle and Beta-PERT: in Group mode these are computed analytically
+          // from groupO/M/P (set in _showAggregateResult via computeTriDist_/computeBetaPertDist_)
           var triSeries = (kind==='pdf') ? (s.trianglePdf||[]) : (s.triangleCdf||[]);
           var betSeries = (kind==='pdf') ? (s.betaPertPdf||[]) : (s.betaPertCdf||[]);
-          var baseSeries= (kind==='pdf') ? (s.basePdf||[]) : (s.baseCdf||[]);
+          // Baseline: Group mode uses MC aggregate; Single mode uses MC baseline
+          var baseSeries= isGrp
+            ? ((kind==='pdf') ? (s.aggPdf||[]) : (s.aggCdf||[]))
+            : ((kind==='pdf') ? (s.basePdf||[]) : (s.baseCdf||[]));
           var manSeries = (kind==='pdf') ? (s.adjPdf||[]) : (s.adjCdf||[]);
           var fixSeries = (kind==='pdf') ? (s.optPdfFixed||[]) : (s.optCdfFixed||[]);
           var adaSeries = (kind==='pdf') ? (s.optPdfAdaptive||[]) : (s.optCdfAdaptive||[]);
 
-          var showTri = (!onOverlay && s.tab==='progress' && s.progress.triOn);
-          var showBet = (!onOverlay && s.tab==='progress' && s.progress.betaOn);
-          var showBase= (!onOverlay && s.tab==='progress' && s.progress.baseOn);
+          var showTri  = !onOverlay && s.tab==='progress' && s.progress.triOn;
+          var showBet  = !onOverlay && s.tab==='progress' && s.progress.betaOn;
+          var showBase = !onOverlay && s.tab==='progress' && s.progress.baseOn;
 
-          var base = dsLine({ label: 'Your Estimate', data: baseSeries, colorVar: '--base', z: 3, hidden: !(onOverlay ? s.overlay.baselineOn : showBase) });
+          var base = dsLine({ label: 'Baseline', data: baseSeries, colorVar: '--base', z: 3, hidden: !(onOverlay ? s.overlay.baselineOn : showBase) });
           var tri  = dsLine({ label: 'Triangle', data: triSeries, colorVar: '--tri',  z: 2, hidden: !showTri });
           var bet  = dsLine({ label: 'Beta-PERT', data: betSeries, colorVar: '--beta', z: 2, hidden: !showBet });
 
-          var man  = dsLine({ label: 'Explorer', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
-          var fix  = dsLine({ label: 'Optimized', data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
-          var ada  = dsLine({ label: 'Guided', data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
+          var man  = dsLine({ label: 'Unconstrained', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
+          var fix  = dsLine({ label: 'General Opt.', data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
+          var ada  = dsLine({ label: 'Conservative', data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
 
           var dotBase = onOverlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
           var dotAdj  = onOverlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
@@ -3220,6 +3795,7 @@
 
       const controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = false; // Disable damping — removes need for animation loop
+      window._hypercubeControls = controls; // expose for toggleChartZoom
 
       // Add axes helper for labels
       const axesHelper = new THREE.AxesHelper(5);
@@ -3291,21 +3867,21 @@
         if (guidEl) {
           if (ov.adaptiveOn && s.adaptiveProb != null && isFinite(s.adaptiveProb)) {
             var dPg = (s.adaptiveProb - P0) * 100;
-            guidEl.textContent = 'Guided\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
+            guidEl.textContent = 'Conservative\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
             guidEl.style.display = 'inline-block';
           } else { guidEl.style.display = 'none'; }
         }
         if (optEl) {
           if (ov.fixedOn && s.optimizedProb != null && isFinite(s.optimizedProb)) {
             var dPo = (s.optimizedProb - P0) * 100;
-            optEl.textContent = 'Optimized\u202f' + FMT.prob(s.optimizedProb) + '\u202f(' + FMT.lift(dPo) + ')';
+            optEl.textContent = 'General\u202f' + FMT.prob(s.optimizedProb) + '\u202f(' + FMT.lift(dPo) + ')';
             optEl.style.display = 'inline-block';
           } else { optEl.style.display = 'none'; }
         }
         if (expEl) {
           if (ov.manualOn && s.adjustedProb != null && isFinite(s.adjustedProb)) {
             var dPe = (s.adjustedProb - P0) * 100;
-            expEl.textContent = 'Explorer\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
+            expEl.textContent = 'Unconstrained\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
             expEl.style.display = 'inline-block';
           } else { expEl.style.display = 'none'; }
         }
@@ -3319,6 +3895,39 @@
         safe(function(){ window.updateChart(); });
         safe(function(){ window.renderRightLegend(); });
         safe(function(){ if (typeof window.updateProbSummary === 'function') window.updateProbSummary(); });
+        safe(function(){ if (typeof window.updateProgressDescription === 'function') window.updateProgressDescription(WS()); });
+        safe(function(){ if (typeof window.updateRecommendation === 'function') window.updateRecommendation(WS()); });
+        safe(function(){ _updateModeContext(); });
+      }
+
+      // Updates the mode context strip + plot pane headers to show active task/group
+      function _updateModeContext() {
+        var s = WS();
+        var isGrp = window.TM && window.TM.mode === 'aggregate';
+        var strip  = document.getElementById('modeContextStrip');
+        var badge  = document.getElementById('modeContextBadge');
+        var label  = document.getElementById('modeContextLabel');
+        var pdfHdr = document.getElementById('pdfPaneHdr');
+        var cdfHdr = document.getElementById('cdfPaneHdr');
+
+        if (isGrp) {
+          var n = (window.TM && window.TM.tasks)
+            ? window.TM.tasks.filter(function(t) { return t.active; }).length : 0;
+          var suffix = ' \u00b7 Group \u2014 ' + n + ' task' + (n !== 1 ? 's' : '') + ' (Monte Carlo aggregate)';
+          if (strip) strip.style.display = 'flex';
+          if (badge) { badge.textContent = 'GROUP'; badge.style.background = '#DBEAFE'; badge.style.color = '#1D4ED8'; }
+          if (label) label.textContent = n + ' task' + (n !== 1 ? 's' : '') + ' \u2014 Monte Carlo aggregate distribution';
+          if (pdfHdr) pdfHdr.textContent = 'Probability Density (PDF)' + suffix;
+          if (cdfHdr) cdfHdr.textContent = 'Cumulative Distribution (CDF)' + suffix;
+        } else {
+          var taskName = (s.task && s.task.task) ? s.task.task : null;
+          var suffix2  = taskName ? ' \u00b7 ' + taskName : '';
+          if (strip) strip.style.display = taskName ? 'flex' : 'none';
+          if (badge) { badge.textContent = 'SINGLE'; badge.style.background = '#D1FAE5'; badge.style.color = '#065F46'; }
+          if (label) label.textContent = taskName ? ('Task: ' + taskName) : '';
+          if (pdfHdr) pdfHdr.textContent = 'Probability Density (PDF)' + suffix2;
+          if (cdfHdr) cdfHdr.textContent = 'Cumulative Distribution (CDF)' + suffix2;
+        }
       }
       function scheduleUIRefresh() {
         if (_uiRefreshTimer) return; // already scheduled — coalesce
@@ -3339,14 +3948,17 @@
         var chkCDF = document.getElementById('pselCDF');
         if (!chkTri || !chkPDF || !chkCDF) return;
 
+        var lTri = document.getElementById('pselChkTriangle');
+        var lPDF = document.getElementById('pselChkPDF');
+        var lCDF = document.getElementById('pselChkCDF');
+        // Triangle pane is valid in both Single and Group mode (Group uses groupO/M/P)
+        if (lTri) lTri.style.display = '';
+
         var showTri = chkTri.checked;
         var showPDF = chkPDF.checked;
         var showCDF = chkCDF.checked;
 
         // Sync the .checked CSS class on the labels for visual feedback
-        var lTri = document.getElementById('pselChkTriangle');
-        var lPDF = document.getElementById('pselChkPDF');
-        var lCDF = document.getElementById('pselChkCDF');
         if (lTri) lTri.classList.toggle('checked', showTri);
         if (lPDF) lPDF.classList.toggle('checked', showPDF);
         if (lCDF) lCDF.classList.toggle('checked', showCDF);
@@ -3460,6 +4072,16 @@
         if (saco3dWrap)  saco3dWrap.style.display  = showSaco   ? '' : 'none';
         if (sphereWrap)  sphereWrap.style.display  = showSphere ? '' : 'none';
         if (sacoSection) sacoSection.style.display  = (showSaco || showSphere) ? '' : 'none';
+        // Sphere width: full row when alone, fixed 400px when beside SACO 3D
+        if (sphereWrap) {
+          if (showSphere && !showSaco) {
+            sphereWrap.style.flex     = '1 1 auto';
+            sphereWrap.style.maxWidth = '100%';
+          } else {
+            sphereWrap.style.flex     = '0 0 400px';
+            sphereWrap.style.maxWidth = '400px';
+          }
+        }
 
         // Trigger 3D renders when newly checked
         if (showSaco   && window.PMCSaco3D)  setTimeout(function() { window.PMCSaco3D.render();  }, 80);
@@ -3540,6 +4162,32 @@
           ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
         }
 
+        // Target τ line — green, full height, labeled with P(≤τ)
+        var tgt = s.target;
+        if (tgt != null && isFinite(tgt) && tgt > O && tgt < P) {
+          var triHAtTgt = (tgt <= M)
+            ? (tgt - O) / (M - O) * (baseY - peakY)
+            : (P - tgt) / (P - M) * (baseY - peakY);
+          var tgtTopY = baseY - triHAtTgt;
+          ctx.beginPath(); ctx.moveTo(xv(tgt), baseY); ctx.lineTo(xv(tgt), tgtTopY);
+          ctx.strokeStyle = '#10B981'; ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+          // Triangle CDF at target
+          var triCdf = (tgt <= M)
+            ? Math.pow(tgt - O, 2) / ((P - O) * (M - O))
+            : 1 - Math.pow(P - tgt, 2) / ((P - O) * (P - M));
+          var tgtLblX = xv(tgt);
+          if (tgtLblX > W - padR - 58) tgtLblX = W - padR - 58;
+          if (tgtLblX < padL + 5)      tgtLblX = padL + 5;
+          ctx.font = 'bold 9px system-ui,sans-serif';
+          ctx.fillStyle = '#047857';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+          // Place label below peak to avoid overlapping title chip at top
+          var tgtLblY = tgtTopY + 4;
+          if (tgtLblY < padT + 14) tgtLblY = padT + 14;
+          ctx.fillText('\u03C4=' + Number(tgt).toFixed(1) + '  P=' + (triCdf * 100).toFixed(1) + '%', tgtLblX, tgtLblY);
+        }
+
         // Dots at O, M, P
         [[O, '#3B82F6', baseY], [M, '#3B82F6', peakY], [P, '#3B82F6', baseY]].forEach(function(pt) {
           ctx.beginPath(); ctx.arc(xv(pt[0]), pt[2], 4.5, 0, Math.PI * 2);
@@ -3572,7 +4220,96 @@
         ctx.font = 'bold 10px system-ui, sans-serif'; ctx.fillStyle = '#1E3A5F';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         ctx.fillText(titleStr, W / 2, 4);
+
+        // ── Hover crosshair (redrawn last, on top of everything) ──────────────
+        if (window._triHoverRaw != null) {
+          var hx = window._triHoverRaw;
+          if (hx >= O && hx <= P) {
+            var hxPx = xv(hx);
+            // Height on the triangle surface at hx
+            var triHh = (hx <= M && M > O)
+              ? (hx - O) / (M - O) * (baseY - peakY)
+              : (P > M ? (P - hx) / (P - M) * (baseY - peakY) : 0);
+            var hTopY = baseY - triHh;
+            // Triangle CDF at hx
+            var triCdfH = (hx <= M)
+              ? Math.pow(hx - O, 2) / ((P - O) * Math.max(1e-9, M - O))
+              : 1 - Math.pow(P - hx, 2) / ((P - O) * Math.max(1e-9, P - M));
+            triCdfH = Math.max(0, Math.min(1, triCdfH));
+            ctx.save();
+            // Vertical dashed line
+            ctx.beginPath();
+            ctx.moveTo(hxPx, padT); ctx.lineTo(hxPx, baseY);
+            ctx.strokeStyle = 'rgba(107,114,128,0.5)';
+            ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.stroke();
+            // Horizontal dashed line at triangle surface
+            if (hTopY >= padT && hTopY <= baseY) {
+              ctx.beginPath();
+              ctx.moveTo(padL, hTopY); ctx.lineTo(hxPx, hTopY);
+              ctx.strokeStyle = 'rgba(107,114,128,0.3)';
+              ctx.setLineDash([3, 3]); ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            // Tooltip bubble
+            var tipTxt = '\u03c4 = ' + Number(hx).toFixed(1) + '  \u2192  P = ' + (triCdfH * 100).toFixed(1) + '%';
+            ctx.font = 'bold 11px system-ui,sans-serif';
+            var ttw = ctx.measureText(tipTxt).width;
+            var tth = 14, tpad = 5;
+            var ttX = hxPx + 8, ttY = padT + 14;
+            if (ttX + ttw + tpad * 2 > W - padR) ttX = hxPx - ttw - tpad * 2 - 8;
+            ctx.fillStyle = 'rgba(255,255,255,0.93)';
+            ctx.strokeStyle = 'rgba(107,114,128,0.28)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            var rx3=ttX-tpad, ry3=ttY-tpad, rw3=ttw+tpad*2, rh3=tth+tpad*2, rr3=4;
+            ctx.moveTo(rx3+rr3,ry3); ctx.lineTo(rx3+rw3-rr3,ry3);
+            ctx.arcTo(rx3+rw3,ry3,rx3+rw3,ry3+rr3,rr3);
+            ctx.lineTo(rx3+rw3,ry3+rh3-rr3);
+            ctx.arcTo(rx3+rw3,ry3+rh3,rx3+rw3-rr3,ry3+rh3,rr3);
+            ctx.lineTo(rx3+rr3,ry3+rh3);
+            ctx.arcTo(rx3,ry3+rh3,rx3,ry3+rh3-rr3,rr3);
+            ctx.lineTo(rx3,ry3+rr3);
+            ctx.arcTo(rx3,ry3,rx3+rr3,ry3,rr3);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#374151';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            ctx.font = 'bold 11px system-ui,sans-serif';
+            ctx.fillText(tipTxt, ttX, ttY + 1);
+            ctx.restore();
+          }
+        }
       };
+
+      // ── Mouse crosshair for triangle canvas ──────────────────────────────────
+      (function() {
+        function setupTriCrosshair() {
+          var canvas = document.getElementById('triPlotCanvas');
+          if (!canvas || canvas._xhairBound) return;
+          canvas._xhairBound = true;
+          canvas.addEventListener('mousemove', function(evt) {
+            var s = window.S || {};
+            var O2 = s.O, P2 = s.P;
+            if (O2 == null || P2 == null || O2 >= P2) return;
+            var rect = canvas.getBoundingClientRect();
+            var dpr = window.devicePixelRatio || 1;
+            var cssW = rect.width;
+            var padL2 = 36, padR2 = 16;
+            var cW2 = cssW - padL2 - padR2;
+            var mx = evt.clientX - rect.left;
+            var rawVal = O2 + ((mx - padL2) / cW2) * (P2 - O2);
+            window._triHoverRaw = rawVal;
+            if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
+          });
+          canvas.addEventListener('mouseleave', function() {
+            window._triHoverRaw = null;
+            if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
+          });
+        }
+        setupTriCrosshair();
+        // Also retry after a short delay in case canvas renders late
+        setTimeout(setupTriCrosshair, 800);
+      })();
 
       function ensureProbeBox(){
         if (typeof window.initProbeUI === 'function') window.initProbeUI();
@@ -3751,6 +4488,14 @@
       function fetchData(debounced) {
         var s = WS();
         if (debounced === undefined) debounced = true;
+
+        // In Group mode all distributions are computed client-side in _showAggregateResult.
+        // Never issue a server fetch for single-task data while in aggregate mode —
+        // doing so would overwrite the group Triangle/BetaPERT series with stale single-task data.
+        if (window.TM && window.TM.mode === 'aggregate') {
+          clearTimeout(s.fetchTimer); s.fetchTimer = null;
+          return;
+        }
 
         if (!s || !s.task || !s.task.task) {
           setStatusLocal('No task selected');
@@ -4130,8 +4875,13 @@
             });
             sel.selectedIndex = 0;
             onTaskChange();
+            // Hide loading overlay — workspace is ready
+            var _pl = document.getElementById('pageLoader');
+            if (_pl) _pl.style.display = 'none';
           })
           .withFailureHandler(function(err){
+            var _pl = document.getElementById('pageLoader');
+            if (_pl) _pl.style.display = 'none';
             setStatusLocal('Failed to load tasks: ' + (err && err.message ? err.message : String(err)));
             var msg = document.getElementById('plotMsg');
             if (msg) { msg.style.display='block'; msg.textContent='Failed to load tasks: ' + (err && err.message ? err.message : String(err)); }
@@ -4223,9 +4973,14 @@
         var slider = document.getElementById('targetSlider');
         if (!slider) return;
 
+        var isAggMode = window.TM && window.TM.mode === 'aggregate';
+
         if (s.targetMode === 'probability') {
           s.targetProb = Number(slider.value) / 100;
-          var baseCdf = s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf;
+          // Group mode: use aggregate MC CDF as the reference; single-task: use baseCdf/triangleCdf.
+          var baseCdf = isAggMode
+            ? (s.aggCdf && s.aggCdf.length ? s.aggCdf : s.triangleCdf)
+            : (s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf);
           if (baseCdf && baseCdf.length) {
             s.target = interpX(baseCdf, s.targetProb);
           }
@@ -4233,6 +4988,32 @@
           s.target = Number(slider.value);
         }
         updateTargetDisplayText();
+
+        // Immediately re-interpolate ALL probabilities from cached CDFs so KPI chips
+        // and report stay in sync before the server responds.
+        if (s.target != null) {
+          if (isAggMode && s.aggCdf && s.aggCdf.length) {
+            // Group mode: re-interpolate baseline from aggregate CDF + update P(≤T) in Estimates column
+            s.baselineProb = interpY(s.aggCdf, s.target);
+            var aggPEl = document.getElementById('aggStatProb');
+            if (aggPEl) aggPEl.textContent = s.baselineProb != null ? (s.baselineProb * 100).toFixed(1) + '%' : '–';
+          } else if (!isAggMode && s.baseCdf && s.baseCdf.length) {
+            // Single-task mode: immediately re-interpolate from cached baseline CDF for instant KPI update
+            s.baselineProb = interpY(s.baseCdf, s.target);
+          }
+          // Re-interpolate strategy probabilities for BOTH modes.
+          // Group mode now supports SACO optimisation on the combined O/M/P.
+          if (s.optCdfFixed    && s.optCdfFixed.length)    s.optimizedProb = interpY(s.optCdfFixed,    s.target);
+          if (s.optCdfAdaptive && s.optCdfAdaptive.length) s.adaptiveProb  = interpY(s.optCdfAdaptive, s.target);
+          if (s.adjCdf         && s.adjCdf.length)         s.adjustedProb  = interpY(s.adjCdf,         s.target);
+          if (typeof window.renderKPIs === 'function') window.renderKPIs();
+        }
+
+        // Immediately redraw Triangle plot so τ line moves with the slider
+        var triWrap = document.getElementById('triWrap');
+        if (triWrap && triWrap.style.display !== 'none' && typeof window._drawTriPlot === 'function') {
+          window._drawTriPlot();
+        }
 
         s.variantCache = {};
         fetchData(true);
@@ -4252,17 +5033,27 @@
         var slider = document.getElementById('targetSlider');
         if (!slider) return;
 
-        // Toggle question card visual state
+        // Sync the mode dropdown
+        var sel = document.getElementById('tgtModeSelect');
+        if (sel) sel.value = newMode;
+
+        // Toggle question card visual state (legacy — no-op for option elements, kept for compat)
         var cardVal  = document.getElementById('tgtCardValue');
         var cardProb = document.getElementById('tgtCardProb');
         if (cardVal)  cardVal.classList.toggle('active',  newMode === 'value');
         if (cardProb) cardProb.classList.toggle('active', newMode === 'probability');
 
-        // Toggle answer sentence visibility
+        // Toggle result area visibility (causal-flow layout)
         var sentVal  = document.getElementById('tgtSentValue');
         var sentProb = document.getElementById('tgtSentProb');
         if (sentVal)  sentVal.classList.toggle('active',  newMode === 'value');
         if (sentProb) sentProb.classList.toggle('active', newMode === 'probability');
+
+        // Toggle input area visibility (what the slider controls)
+        var inputVal  = document.getElementById('tgtInputValue');
+        var inputProb = document.getElementById('tgtInputProb');
+        if (inputVal)  inputVal.classList.toggle('active',  newMode === 'value');
+        if (inputProb) inputProb.classList.toggle('active', newMode === 'probability');
 
         // Also toggle legacy .target-mode-btn.active for any remaining elements
         var btns = document.querySelectorAll('.target-mode-btn');
@@ -4371,23 +5162,23 @@
 
         if (mode === 'manual') {
           setSlidersDisabled(false);
-          if (titleEl) titleEl.textContent = 'Explorer';
+          if (titleEl) titleEl.textContent = 'Unconstrained Optimization';
           if (noteEl) noteEl.textContent = 'No constraints — drag freely to explore any parameter combination.';
-          showImpactBanner('Explorer', s.baselineProb, s.adjustedProb);
+          showImpactBanner('Unconstrained', s.baselineProb, s.adjustedProb);
         } else if (mode === 'adaptive') {
           setSlidersDisabled(true);
           var lvl = s.overlay.probeLevel || 3;
-          if (titleEl) titleEl.textContent = 'Guided (Level ' + lvl + ')';
+          if (titleEl) titleEl.textContent = 'Conservative Optimization (Level ' + lvl + ')';
           if (noteEl) noteEl.textContent = 'Read-only — tightest best-practice constraints (level ' + lvl + ').';
-          showImpactBanner('Guided', s.baselineProb, s.adaptiveProb);
+          showImpactBanner('Conservative', s.baselineProb, s.adaptiveProb);
           var source = s.explainAdaptive;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
         } else if (mode === 'fixed') {
           setSlidersDisabled(true);
-          if (titleEl) titleEl.textContent = 'Optimized';
-          if (noteEl) noteEl.textContent = 'Read-only — standard best-practice boundaries, wider range than Guided.';
-          showImpactBanner('Optimized', s.baselineProb, s.optimizedProb);
+          if (titleEl) titleEl.textContent = 'General Optimization';
+          if (noteEl) noteEl.textContent = 'Read-only — standard best-practice boundaries, wider search space than Conservative.';
+          showImpactBanner('General', s.baselineProb, s.optimizedProb);
           var source = s.explainOpt;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
@@ -4482,14 +5273,28 @@
         var triTile = document.getElementById('kpiTriangle');
         var betaTile= document.getElementById('kpiBeta');
         var baseTile= document.getElementById('kpiBaseDist');
+        // Helper: ensure the PDF pane is visible when toggling a distribution curve on
+        function ensurePDFVisible() {
+          var chkPDF = document.getElementById('pselPDF');
+          if (chkPDF && !chkPDF.checked) {
+            chkPDF.checked = true;
+            if (typeof window.pselUpdate === 'function') window.pselUpdate();
+          }
+        }
         if (triTile) triTile.addEventListener('click', function(){
-          s.progress.triOn = !s.progress.triOn; scheduleUIRefresh();
+          s.progress.triOn = !s.progress.triOn;
+          if (s.progress.triOn) ensurePDFVisible();
+          scheduleUIRefresh();
         });
         if (betaTile) betaTile.addEventListener('click', function(){
-          s.progress.betaOn = !s.progress.betaOn; scheduleUIRefresh();
+          s.progress.betaOn = !s.progress.betaOn;
+          if (s.progress.betaOn) ensurePDFVisible();
+          scheduleUIRefresh();
         });
         if (baseTile) baseTile.addEventListener('click', function(){
-          s.progress.baseOn = !s.progress.baseOn; scheduleUIRefresh();
+          s.progress.baseOn = !s.progress.baseOn;
+          if (s.progress.baseOn) ensurePDFVisible();
+          scheduleUIRefresh();
         });
 
         syncRowToggles();
@@ -4645,48 +5450,72 @@
       }
 
       function bindZoomReset(){
-        var resetBtn = document.getElementById('resetZoomBtn');
-        if (resetBtn) {
-          resetBtn.addEventListener('click', function(){
-            var s = WS();
-            if (s?.pdfChart?.resetZoom) s.pdfChart.resetZoom();
-            if (s?.cdfChart?.resetZoom) s.cdfChart.resetZoom();
-          });
-        }
+        // Per-plot zoom buttons handle their own state; no global reset button needed.
       }
 
-      window.toggleChartZoom = function() {
+      // Per-plot zoom toggle — each chart has its own independent zoom state.
+      // key: 'pdf' | 'cdf' | 'radar' | 'saco3d' | 'sphere' | 'hypercube3d'
+      window.togglePlotZoom = function(key) {
         var s = WS();
-        var enabled = !(s._zoomEnabled || false);
-        s._zoomEnabled = enabled;
+        if (!s._plotZoom) s._plotZoom = {};
+        var enabled = !(s._plotZoom[key] || false);
+        s._plotZoom[key] = enabled;
 
-        function setZoom(chart) {
-          if (!chart || !chart.options || !chart.options.plugins || !chart.options.plugins.zoom) return;
-          chart.options.plugins.zoom.pan.enabled  = enabled;
-          chart.options.plugins.zoom.zoom.wheel.enabled = enabled;
-          chart.options.plugins.zoom.zoom.pinch.enabled = enabled;
-          if (!enabled && chart.resetZoom) chart.resetZoom();
-          chart.update('none');
+        // Update the button appearance
+        var btn = document.getElementById('zoomBtn_' + key);
+        if (btn) {
+          btn.textContent = enabled ? 'Zoom ON' : 'Zoom';
+          btn.style.borderColor = enabled ? '#3B82F6' : 'var(--line)';
+          btn.style.color       = enabled ? '#1D4ED8' : '#6B7280';
+          btn.style.background  = enabled ? '#EFF6FF' : '#fff';
         }
-        setZoom(s.pdfChart);
-        setZoom(s.cdfChart);
 
-        var toggleBtn = document.getElementById('zoomToggleBtn');
-        var resetBtn  = document.getElementById('resetZoomBtn');
-        if (toggleBtn) {
-          toggleBtn.textContent = enabled ? 'Disable Zoom' : 'Enable Zoom';
-          toggleBtn.style.borderColor = enabled ? '#3B82F6' : 'var(--line)';
-          toggleBtn.style.color       = enabled ? '#1D4ED8' : '#6B7280';
-          toggleBtn.style.background  = enabled ? '#EFF6FF' : '#fff';
+        // Helper: enable/disable Chart.js zoom plugin on one chart instance
+        function setChartJsZoom(chart, en) {
+          if (!chart || !chart.options) return;
+          if (!chart.options.plugins) chart.options.plugins = {};
+          if (!chart.options.plugins.zoom) {
+            chart.options.plugins.zoom = {
+              limits: { x:{min:'original',max:'original'}, y:{min:'original',max:'original'} },
+              pan: { enabled: false, mode: 'xy' },
+              zoom: { wheel:{enabled:false}, pinch:{enabled:false}, mode:'xy' }
+            };
+          }
+          chart.options.plugins.zoom.pan.enabled          = en;
+          chart.options.plugins.zoom.zoom.wheel.enabled   = en;
+          chart.options.plugins.zoom.zoom.pinch.enabled   = en;
+          if (!en && typeof chart.resetZoom === 'function') chart.resetZoom();
+          chart.update();
         }
-        if (resetBtn) resetBtn.style.display = enabled ? '' : 'none';
+
+        // Dispatch to the appropriate renderer
+        if (key === 'pdf') {
+          setChartJsZoom(s.pdfChart, enabled);
+        } else if (key === 'cdf') {
+          setChartJsZoom(s.cdfChart, enabled);
+        } else if (key === 'radar') {
+          if (window.hyperRadarChart) setChartJsZoom(window.hyperRadarChart, enabled);
+        } else if (key === 'saco3d') {
+          if (window.PMCSaco3D && window.PMCSaco3D.setZoom) window.PMCSaco3D.setZoom(enabled);
+        } else if (key === 'sphere') {
+          if (window.PMCSphere && window.PMCSphere.setZoom) window.PMCSphere.setZoom(enabled);
+        } else if (key === 'hypercube3d') {
+          if (window._hypercubeControls) {
+            window._hypercubeControls.enableZoom = enabled;
+            window._hypercubeControls.enablePan  = enabled;
+          }
+        }
+      };
+
+      // Backward-compat shim (not called by any button now, kept for console use)
+      window.toggleChartZoom = function() {
+        ['pdf','cdf','radar','saco3d','sphere','hypercube3d'].forEach(function(k){ window.togglePlotZoom(k); });
       };
 
       window.addEventListener('DOMContentLoaded', function(){
-        // Boot log — visible diagnostic for debugging
-        var bootLog = document.getElementById('errorBanner');
+        // Boot log — server-side only (no UI display)
+        var bootLog = null; // kept for compat (some catch blocks reference it)
         function blogMsg(t) {
-          if (bootLog) { bootLog.style.display='block'; bootLog.style.background='#EFF6FF'; bootLog.style.color='#1E40AF'; bootLog.style.borderColor='#3B82F6'; bootLog.innerHTML += '<div>[BOOT] '+t+'</div>'; }
           if (typeof fetch === 'function') {
             fetch('/console', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'boot', msg:t}) }).catch(function(){});
           }
@@ -4706,6 +5535,12 @@
 
           var refresh = document.getElementById('refreshBtn');
           if (refresh) refresh.addEventListener('click', function(){
+            // In Group mode: re-run the aggregate computation
+            if (window.TM && window.TM.mode === 'aggregate') {
+              if (typeof window.TM.saveAndRun === 'function') window.TM.saveAndRun();
+              return;
+            }
+            // Single mode: refresh single-task data and active variants
             fetchData(false);
             var s = WS();
             if (s.tab==='overlay') {
@@ -4815,8 +5650,9 @@
             blogMsg('Dropdown empty after 5s — retrying loadTasks');
             try { loadTasks(); } catch(e) { blogMsg('Retry error: ' + e.message); }
           } else {
-            // Hide boot log after successful load
-            if (bootLog) { bootLog.style.display = 'none'; bootLog.innerHTML = ''; }
+            // Hide loading overlay once tasks are confirmed present
+            var pl = document.getElementById('pageLoader');
+            if (pl) pl.style.display = 'none';
           }
         }, 5000);
       });
@@ -4863,10 +5699,10 @@
           const manualProb = V.manual?.prob ?? S.adjustedProb;
 
           const candidates = [
-            { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Your Estimate' },
-            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Explorer' },
-            { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'Optimized' },
-            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Guided (Level ${S.overlay?.probeLevel ?? 3})` }
+            { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Your Estimate', constrained: false },
+            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Unconstrained Optimization', constrained: false },
+            { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'General Optimization', constrained: true },
+            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Conservative Optimization (Level ${S.overlay?.probeLevel ?? 3})`, constrained: true }
           ].filter(c => c.prob != null);
 
           const best = candidates.length ? candidates.reduce((a, b) => a.prob > b.prob ? a : b) : { prob: null, explain: {}, label: '–' };
@@ -4918,9 +5754,9 @@
           const probeLvl = S.overlay?.probeLevel ?? 3;
           const variants = [
             { key: 'baseline', label: 'Your Estimate', desc: 'Your original PERT estimate — no optimization applied. This is your starting point.', prob: baselineProb, sliders: KEYS.reduce((o,k)=>{o[k]=0;return o;},{}), constrained: false, constraintLvl: 'None', constraintNote: 'Unmodified three-point estimate', color: '#3B82F6', order: 0 },
-            { key: 'adaptive', label: 'Guided (Lvl ' + probeLvl + ')', desc: 'Conservative guidance — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
-            { key: 'fixed', label: 'Optimized', desc: 'Standard boundaries — wider range allows more room for optimization, typically achieving higher probability than Guided', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
-            { key: 'manual', label: 'Explorer', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
+            { key: 'adaptive', label: 'Conservative Optimization (Lvl ' + probeLvl + ')', desc: 'Tightest constraint bounds — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
+            { key: 'fixed', label: 'General Optimization', desc: 'Standard boundaries — wider range allows more room for optimization, typically achieving higher probability than Conservative Optimization', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
+            { key: 'manual', label: 'Unconstrained Optimization', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
           ];
 
           // Ranked by probability for determining "best"
@@ -4938,24 +5774,31 @@
           const riskColor = riskLevel === 'High' ? '#DC2626' : riskLevel === 'Medium' ? '#D97706' : '#16A34A';
 
           dr.innerHTML = `
-<div style="display:flex;gap:8px;margin-bottom:10px;">
-  <button class="rep-tab active" data-reptab="pm" style="flex:1;padding:10px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Project Manager View</button>
-  <button class="rep-tab" data-reptab="stat" style="flex:1;padding:10px 14px;border:2px solid var(--line);border-radius:8px;background:#fff;color:var(--fg);font-weight:600;font-size:13px;cursor:pointer;">Statistical Validation View</button>
+<div style="margin-bottom:10px;">
+  <button id="repMenuTrigger" style="width:100%;padding:10px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:13px;letter-spacing:.07em;cursor:pointer;text-align:center;">REPORTS &#9660;</button>
+  <div id="repMenuDropdown" style="display:none;border:1px solid var(--line);border-radius:0 0 8px 8px;overflow:hidden;margin-top:-2px;background:#fff;">
+    <button class="rep-menu-item" data-reptab="pm" style="display:block;width:100%;padding:12px 16px;text-align:left;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:1px solid var(--line);">&#128203; Project Report</button>
+  </div>
 </div>
-<div id="rep-pm" class="rep-panel">
+<div id="rep-pm" class="rep-panel" style="display:none;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;border-bottom:2px solid var(--line);margin-bottom:14px;">
+    <span style="font-size:13px;font-weight:800;color:#1E3A5F;">&#128203; Project Report</span>
+    <button id="repCloseBtn" style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;" title="Close report">&#x2715; Close</button>
+  </div>
   <!-- 1. Project Context -->
   <div class="rep-card" style="background:linear-gradient(135deg,#EFF6FF,#F0FDF4);border:2px solid #93C5FD;">
     <div style="font-size:17px;font-weight:800;color:#1E3A5F;margin-bottom:8px;">Project Estimate Overview</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Optimistic</div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(O)}</div></div>
-      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Most Likely</div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(M)}</div></div>
-      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Pessimistic</div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(P)}</div></div>
-      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid ${riskColor}33;background:${riskColor}08;text-align:center;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Risk Level</div><div style="font-size:20px;font-weight:800;color:${riskColor};">${riskLevel}</div></div>
+      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Optimistic <span class="help-icon" data-title="Optimistic (O)" data-body="Best-case scenario — minimum reasonable estimate if everything goes well. Represents the fastest or cheapest plausible outcome.">?</span></div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(O)}</div></div>
+      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Most Likely <span class="help-icon" data-title="Most Likely (M)" data-body="Most realistic scenario — what you'd expect under normal conditions. Receives 4× the weight in the PERT formula.">?</span></div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(M)}</div></div>
+      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid #93C5FD;text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Pessimistic <span class="help-icon" data-title="Pessimistic (P)" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly. Represents the slowest or most expensive plausible outcome.">?</span></div><div style="font-size:20px;font-weight:800;color:#3B82F6;">${this.num(P)}</div></div>
+      <div style="flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid ${riskColor}33;background:${riskColor}08;text-align:center;"><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Risk Level <span class="help-icon" data-title="Risk Level" data-body="Spread-based risk classification: Low = (P−O)/M < 0.5; Medium = 0.5–1.0; High = &gt; 1.0. Reflects how much uncertainty exists relative to the most likely outcome.">?</span></div><div style="font-size:20px;font-weight:800;color:${riskColor};">${riskLevel}</div></div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">Target</div><div style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(target)}</div></div>
-      <div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">PERT Mean</div><div style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(pertMean,2)}</div></div>
-      ${ciLower!=null?`<div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">${(confLevel*100).toFixed(0)}% CI</div><div style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(ciLower,1)} – ${this.num(ciUpper,1)}</div></div>`:''}
+      <div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">Target (τ) <span class="help-icon" data-title="Target Value (τ)" data-body="The finish value you are targeting. Probability is computed as P(X ≤ τ) — the chance of completing at or below this value. Drag the target slider at the top to change it live.">?</span></div><div id="repTargetVal" style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(target)}</div></div>
+      <div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">P(≤τ) <span class="help-icon" data-title="Probability at Target" data-body="Probability of finishing at or below the target value (τ) based on your original estimate. Updates live as you drag the target slider.">?</span></div><div id="repTargetProb" style="font-size:15px;font-weight:700;color:#10B981;">${baselineProb!=null?(baselineProb*100).toFixed(1)+'%':'–'}</div></div>
+      <div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">PERT Mean <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Extra weight on Most Likely produces a realistic expected mean. More accurate than a simple average of the three points.">?</span></div><div style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(pertMean,2)}</div></div>
+      ${ciLower!=null?`<div style="flex:1;min-width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);text-align:center;background:#fff;"><div style="font-size:10px;color:#6B7280;">${(confLevel*100).toFixed(0)}% CI <span class="help-icon" data-title="Confidence Interval" data-body="Monte Carlo smoothed confidence interval at the selected confidence level. Shows the range within which the actual outcome is expected to fall with high probability.">?</span></div><div style="font-size:15px;font-weight:700;color:var(--cdf);">${this.num(ciLower,1)} – ${this.num(ciUpper,1)}</div></div>`:''}
     </div>
   </div>
   ${noOpt}
@@ -4974,25 +5817,36 @@
         const manualLift = manualProb!=null && baselineProb!=null ? ((manualProb-baselineProb)*100) : 0;
         let html = '<p style="margin-bottom:8px;"><strong>Baseline</strong> gives a <strong>' + bp + '</strong> probability of achieving the target. ';
         if (fixedLift > 0.01 || adaptiveLift > 0.01 || manualLift > 0.01) {
-          html += 'Optimization finds lever settings that improve this probability. Results ordered from most conservative (tightest constraints) to least conservative:</p>';
+          html += 'Optimization finds lever settings that improve this probability. Strategies sorted by achieved probability (highest first):</p>';
+          // Sort by probability descending so the display always reflects reality
+          var optRows = [];
+          if (adaptiveProb != null) optRows.push({ label: 'Conservative Optimization (Level ' + probeLvl + ')', prob: adaptiveProb, lift: adaptiveLift, desc: 'Multi-pass SACO search with best-practice constraint bounds at level ' + probeLvl + '. <em>Most defensible</em> for external reporting.' });
+          if (fixedProb != null)    optRows.push({ label: 'General Optimization',                              prob: fixedProb,    lift: fixedLift,    desc: 'Single-pass grid search with wider slider bounds (level 1). Larger search space, standard constraints.' });
+          if (manualProb != null)   optRows.push({ label: 'Unconstrained Optimization',                        prob: manualProb,   lift: manualLift,   desc: '<strong>No constraints</strong> — user-defined values, no best-practice validation. Highest potential but not defensible.' });
+          optRows.sort(function(a,b){ return b.prob - a.prob; });
           html += '<ol style="margin:6px 0 10px;padding-left:18px;">';
-          // Always ordered: Adaptive (most constrained) → Fixed → Manual (least)
-          if (adaptiveProb != null) html += '<li><strong>Guided (Level ' + probeLvl + ')</strong> achieves <strong>' + ap + '</strong> (' + FMT.lift(adaptiveLift) + ') — tightest best-practice boundaries. Level ' + probeLvl + ' narrows each slider\'s feasible range, so the optimizer has less room to move. This is the <em>most defensible</em> result.</li>';
-          if (fixedProb != null) html += '<li><strong>Optimized</strong> achieves <strong>' + fp + '</strong> (' + FMT.lift(fixedLift) + ') — standard boundaries (level 1). Wider slider ranges give the optimizer more freedom, which is why Optimized typically achieves a higher probability than Guided.</li>';
-          if (manualProb != null) html += '<li><strong>Explorer</strong> achieves <strong>' + mp + '</strong> (' + FMT.lift(manualLift) + ') — <strong>no constraints</strong>. User-defined values with no best-practice validation. Highest potential but least defensible.</li>';
+          optRows.forEach(function(r) {
+            html += '<li><strong>' + r.label + '</strong> achieves <strong>' + FMT.prob(r.prob) + '</strong> (' + FMT.lift(r.lift) + ') — ' + r.desc + '</li>';
+          });
           html += '</ol>';
         } else {
           html += 'The distribution is already well-positioned and optimization has limited room to improve.</p>';
           html += '<ul style="margin:6px 0 10px;padding-left:18px;">';
-          if (adaptiveProb != null) html += '<li><strong>Guided:</strong> ' + ap + '</li>';
-          if (fixedProb != null) html += '<li><strong>Optimized:</strong> ' + fp + '</li>';
-          if (manualProb != null) html += '<li><strong>Explorer:</strong> ' + mp + '</li>';
+          if (adaptiveProb != null) html += '<li><strong>Conservative Optimization:</strong> ' + ap + '</li>';
+          if (fixedProb != null)    html += '<li><strong>General Optimization:</strong> ' + fp + '</li>';
+          if (manualProb != null)   html += '<li><strong>Unconstrained Optimization:</strong> ' + mp + '</li>';
           html += '</ul>';
         }
-        // Why Fixed > Adaptive explanation
-        if (fixedProb != null && adaptiveProb != null && fixedProb > adaptiveProb + 0.001) {
+        // Explain algorithm differences when Conservative beats General
+        if (adaptiveProb != null && fixedProb != null) {
           html += '<div style="padding:8px 12px;border-radius:8px;background:#F5F3FF;border:1px solid #C4B5FD;margin:6px 0;font-size:12px;color:#5B21B6;line-height:1.6;">';
-          html += '<strong>Why does Optimized beat Guided?</strong> Optimized uses level 1 (widest boundaries), giving the optimizer the largest feasible region to search. Guided at level ' + probeLvl + ' tightens those boundaries — each slider can move less. Tighter constraints = more conservative = lower probability, but <em>more defensible</em> in audit/governance contexts.';
+          if (adaptiveProb > fixedProb + 0.001) {
+            html += '<strong>Why does Conservative Optimization outperform General?</strong> Conservative uses a multi-pass SACO search algorithm that iteratively refines slider values — this can find better configurations than General\'s single-pass grid search, even with tighter constraint bounds at level ' + probeLvl + '. Conservative is both <em>more thorough in search</em> and <em>more defensible in output</em>.';
+          } else if (fixedProb > adaptiveProb + 0.001) {
+            html += '<strong>Why does General Optimization outperform Conservative?</strong> General Optimization uses level 1 (widest boundaries), giving the optimizer the largest feasible region. Conservative Optimization at level ' + probeLvl + ' tightens those boundaries — each slider can move less. Tighter constraints = more conservative = lower probability, but <em>more defensible</em> in audit/governance contexts.';
+          } else {
+            html += 'Conservative and General Optimization achieve the same probability — the constraint level has no additional impact for this estimate.';
+          }
           html += '</div>';
         }
         // Recommendation box
@@ -5003,7 +5857,7 @@
         } else if (bestVariant.constrained) {
           html += '<p style="margin:0;color:#166534;">Use <strong>' + bestVariant.label + '</strong> (' + this.fmtPct(bestVariant.prob) + ') for planning. These slider values follow best-practice boundaries and provide the highest defensible probability improvement.</p>';
         } else {
-          html += '<p style="margin:0;color:#166534;">Explorer achieves the highest probability at <strong>' + this.fmtPct(bestVariant.prob) + '</strong>, but note that these values are <strong>unconstrained</strong> and may not align with industry best practices. Consider validating with stakeholders before adopting. The best constrained option is';
+          html += '<p style="margin:0;color:#166534;">Unconstrained Optimization achieves the highest probability at <strong>' + this.fmtPct(bestVariant.prob) + '</strong>, but note that these values are <strong>unconstrained</strong> and may not align with industry best practices. Consider validating with stakeholders before adopting. The best constrained option is';
           const bestConstrained = ranked.find(v=>v.constrained);
           html += bestConstrained ? '<strong>' + bestConstrained.label + '</strong> at ' + this.fmtPct(bestConstrained.prob) + '.' : 'not yet computed.';
           html += '</p>';
@@ -5058,9 +5912,9 @@
       <thead><tr>
         <th style="width:24%;">Lever</th>
         <th style="width:13%;">Baseline</th>
-        ${adaptiveProb != null ? '<th style="width:13%;">Guided</th>' : ''}
-        ${fixedProb != null ? '<th style="width:13%;">Optimized</th>' : ''}
-        ${manualProb != null ? '<th style="width:13%;">Explorer</th>' : ''}
+        ${adaptiveProb != null ? '<th style="width:13%;">Conservative</th>' : ''}
+        ${fixedProb != null ? '<th style="width:13%;">General</th>' : ''}
+        ${manualProb != null ? '<th style="width:13%;">Unconstrained</th>' : ''}
         <th style="width:24%;">Rationale</th>
       </tr></thead>
       <tbody>
@@ -5095,21 +5949,54 @@
 ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb, adaptiveProb, fixedProb, manualProb, adaptiveSliders, fixedSliders, manualSliders, kl, alpha, beta, cv, skew, explain, KEYS, LABELS)}
           `;
 
-          // Report tab switching (PM vs Statistical)
-          dr.querySelectorAll('.rep-tab').forEach(btn => {
-            btn.addEventListener('click', function() {
-              dr.querySelectorAll('.rep-tab').forEach(b => {
-                b.classList.remove('active');
-                b.style.background = '#fff'; b.style.color = 'var(--fg)'; b.style.borderColor = 'var(--line)';
-              });
-              this.classList.add('active');
-              this.style.background = 'var(--accent)'; this.style.color = '#fff'; this.style.borderColor = 'var(--accent)';
-              const target = this.getAttribute('data-reptab');
-              dr.querySelectorAll('.rep-panel').forEach(p => p.style.display = 'none');
-              const panel = document.getElementById('rep-' + target);
-              if (panel) panel.style.display = 'block';
+          // REPORTS — inline dropdown (no absolute positioning) + scroll-to-report + close button
+          const repTrigger  = dr.querySelector('#repMenuTrigger');
+          const repDropdown = dr.querySelector('#repMenuDropdown');
+          const repCloseBtn = dr.querySelector('#repCloseBtn');
+
+          function closeAllPanels() {
+            dr.querySelectorAll('.rep-panel').forEach(function(p) { p.style.display = 'none'; });
+          }
+          function resetTrigger() {
+            if (repTrigger) repTrigger.innerHTML = 'REPORTS &#9660;';
+            if (repDropdown) repDropdown.style.display = 'none';
+          }
+
+          if (repTrigger && repDropdown) {
+            repTrigger.addEventListener('click', function() {
+              const open = repDropdown.style.display !== 'none';
+              // If a panel is open, close it first rather than toggling the list
+              const anyOpen = dr.querySelectorAll('.rep-panel[style*="block"]').length > 0;
+              if (anyOpen) { closeAllPanels(); resetTrigger(); return; }
+              repDropdown.style.display = open ? 'none' : 'block';
+              repTrigger.innerHTML = open ? 'REPORTS &#9660;' : 'REPORTS &#9650;';
             });
-          });
+
+            dr.querySelectorAll('.rep-menu-item').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                resetTrigger();
+                const key = this.getAttribute('data-reptab');
+                closeAllPanels();
+                const panel = dr.querySelector('#rep-' + key);
+                if (panel) {
+                  panel.style.display = 'block';
+                  // Scroll the report panel into view smoothly
+                  setTimeout(function() {
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 60);
+                }
+              });
+            });
+          }
+
+          if (repCloseBtn) {
+            repCloseBtn.addEventListener('click', function() {
+              closeAllPanels();
+              resetTrigger();
+              // Scroll back up to REPORTS button
+              if (repTrigger) repTrigger.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
 
 
           // Render KaTeX math formulas in the report
@@ -5305,10 +6192,10 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
           html += '<div class="rep-note" style="margin-bottom:10px;">Each strategy applies the SACO framework with different constraint boundaries. Below shows the actual slider values, computed moments, and resulting Beta parameters for each active strategy.</div>';
           html += '</div>';
 
-          // Guided
+          // Conservative Optimization
           if (adaptiveProb != null) {
             html += strategySection(
-              'Guided (Level ' + probeLvl + ')', '#0EA5E9', adaptiveProb, adaptiveSliders, guidedT, guidedKL,
+              'Conservative Optimization (Level ' + probeLvl + ')', '#0EA5E9', adaptiveProb, adaptiveSliders, guidedT, guidedKL,
               'Tightest best-practice constraints — Level ' + probeLvl + ' narrows each slider\'s feasible range. ' + (probeLvl >= 5 ? 'At this high level, constraints are very tight; if sliders show 0%, the optimizer found no improvement possible within these bounds.' : 'Lower levels allow more room for the optimizer.'),
               1
             );
@@ -5323,10 +6210,10 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
             );
           }
 
-          // Explorer
+          // Unconstrained Optimization
           if (manualProb != null) {
             html += strategySection(
-              'Explorer', '#F59E0B', manualProb, manualSliders, explorerT, explorerKL,
+              'Unconstrained Optimization', '#F59E0B', manualProb, manualSliders, explorerT, explorerKL,
               'Unconstrained — user-defined slider positions with no best-practice validation. Shows the theoretical ceiling but may not be achievable in practice.',
               3
             );
@@ -5392,9 +6279,9 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 
           // KL checks per strategy
           [
-            { label: 'KL (Guided)', val: guidedKL },
-            { label: 'KL (Optimized)', val: optimizedKL },
-            { label: 'KL (Explorer)', val: explorerKL }
+            { label: 'KL (Conservative)', val: guidedKL },
+            { label: 'KL (General)', val: optimizedKL },
+            { label: 'KL (Unconstrained)', val: explorerKL }
           ].forEach(chk => {
             if (chk.val != null) {
               const klOk = chk.val < 0.5;
@@ -5728,6 +6615,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
     var _renderer = null, _scene = null, _camera = null, _controls = null;
     var _baseGroup = null, _curGroup = null, _tauGroup = null, _heptGroup = null;
     var _animId = null, _initialized = false, _lastW = 0, _lastH = 0;
+    var _zoomEnabled = false; // pending zoom state — applied when controls are created
     var D = 1.8; // scene z-depth (ribbons span z = 0 … D)
     var _ribbonMeta = null; // {xMid, xScale, yMax3} — updated each render, used for annotation projection
     var _otherGroups = []; // ghost ribbon groups for non-primary active strategies
@@ -5951,6 +6839,9 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         _controls.target.set(0, 1.8, D / 2);
         _controls.autoRotate = false;
         _controls.autoRotateSpeed = 0.4;
+        // Zoom/pan disabled by default; enabled when user clicks "Zoom" button
+        _controls.enableZoom = _zoomEnabled;
+        _controls.enablePan  = _zoomEnabled;
         _controls.update();
       }
 
@@ -6516,8 +7407,14 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 
       var M = window.PMCMath;
 
+      // Group mode: baseline is the Monte Carlo aggregate PDF (S.aggPdf).
+      // Single-task mode: baseline is the server-fetched S.basePdf.
+      var _isGrp3d = window.TM && window.TM.mode === 'aggregate';
+
       // Use primaryMode (last-focused strategy) for 3D comparison; fall back to first active
-      var rawBase = (S.basePdf && S.basePdf.length > 1) ? S.basePdf : null;
+      var rawBase = _isGrp3d
+        ? (S.aggPdf && S.aggPdf.length > 1 ? S.aggPdf : null)
+        : (S.basePdf && S.basePdf.length > 1 ? S.basePdf : null);
       var overlay = S.overlay || {};
       var pm3d = overlay.primaryMode;
       if (!pm3d) {
@@ -6527,11 +7424,11 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       }
       var rawCur = null, source = 'None';
       if (pm3d === 'adaptive' && overlay.adaptiveOn && S.optPdfAdaptive && S.optPdfAdaptive.length > 1) {
-        rawCur = S.optPdfAdaptive; source = 'Guided (Level ' + (overlay.probeLevel || 3) + ')';
+        rawCur = S.optPdfAdaptive; source = 'Conservative Optimization (Level ' + (overlay.probeLevel || 3) + ')';
       } else if (pm3d === 'fixed' && overlay.fixedOn && S.optPdfFixed && S.optPdfFixed.length > 1) {
         rawCur = S.optPdfFixed; source = 'Optimized';
       } else if (pm3d === 'manual' && overlay.manualOn && S.adjPdf && S.adjPdf.length > 1) {
-        rawCur = S.adjPdf; source = 'Explorer';
+        rawCur = S.adjPdf; source = 'Unconstrained Optimization';
       }
 
       // Normalize: clamp negatives, trapezoid-normalize so ∫ = 1
@@ -6630,7 +7527,11 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       });
     });
 
-    window.PMCSaco3D = { render: render };
+    function setZoom(en) {
+      _zoomEnabled = en; // store so it's applied if controls initialize later
+      if (_controls) { _controls.enableZoom = en; _controls.enablePan = en; }
+    }
+    window.PMCSaco3D = { render: render, setZoom: setZoom };
   })();
   </script>
 
@@ -6649,6 +7550,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
     var _sR = 1.65;          // scene-unit sphere radius (fixed)
     var _sRen = null, _sScn = null, _sCam = null, _sCtl = null;
     var _sLastW = 0, _sLastH = 0;
+    var _sZoomEnabled = false; // pending zoom state — applied when controls are created
     var _sFillBase = null;
     var _sFills    = [];           // per-strategy fills [Guided=0, Optimized=1, Explorer=2]
     var _sAnim = null, _sInited = false;
@@ -6857,7 +7759,7 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       _sScn.add(_sFillBase);
 
       // ── Per-strategy fills — distinct radii, invisible until strategy active ─
-      // Guided=purple 0.984R, Optimized=blue 0.974R, Explorer=green 0.964R
+      // Conservative=purple 0.984R, General=blue 0.974R, Unconstrained=green 0.964R
       var _fillDefs = [
         { col: 0x8b5cf6, r: _sR * 0.984 },
         { col: 0x3b82f6, r: _sR * 0.974 },
@@ -6929,6 +7831,9 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         _sCtl.minDistance = 3; _sCtl.maxDistance = 12;
         _sCtl.target.set(0, 0, 0);
         _sCtl.autoRotate = true; _sCtl.autoRotateSpeed = 0.55;
+        // Zoom/pan disabled by default; enabled when user clicks "Zoom" button
+        _sCtl.enableZoom = _sZoomEnabled;
+        _sCtl.enablePan  = _sZoomEnabled;
         _sCtl.update();
       }
 
@@ -7022,9 +7927,9 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
         dpEl.style.color = dP > 0.005 ? '#16A34A' : dP < -0.005 ? '#DC2626' : '#6B7280';
       }
       if (stEl) {
-        stEl.textContent = pmSph === 'adaptive' && ov.adaptiveOn ? 'Guided (Level ' + (ov.probeLevel || 3) + ')' :
-                           pmSph === 'fixed'    && ov.fixedOn    ? 'Optimized' :
-                           pmSph === 'manual'   && ov.manualOn   ? 'Explorer' : 'Baseline';
+        stEl.textContent = pmSph === 'adaptive' && ov.adaptiveOn ? 'Conservative Optimization (Level ' + (ov.probeLevel || 3) + ')' :
+                           pmSph === 'fixed'    && ov.fixedOn    ? 'General Optimization' :
+                           pmSph === 'manual'   && ov.manualOn   ? 'Unconstrained Optimization' : 'Baseline';
       }
       if (window.PMCMath && typeof window.PMCMath.validateLift === 'function')
         window.PMCMath.validateLift(P0, Pcur, dP);
@@ -7050,7 +7955,11 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
       _setSphChip('sphChipExplorer',  ov.manualOn   ? 'Explorer'  : null, ov.manualOn   ? S.adjustedProb  : null, sphP0);
     }
 
-    window.PMCSphere = { render: render };
+    function _setSphereZoom(en) {
+      _sZoomEnabled = en; // store so it's applied if controls initialize later
+      if (_sCtl) { _sCtl.enableZoom = en; _sCtl.enablePan = en; }
+    }
+    window.PMCSphere = { render: render, setZoom: _setSphereZoom };
 
     document.addEventListener('DOMContentLoaded', function() {
 
@@ -7368,6 +8277,76 @@ ${this.buildStatisticalView(S, O, M, P, target, pertMean, pertStd, baselineProb,
 'use strict';
 
 /* ────────────────────────────────────────────────────────────────
+   Analytical distribution helpers (client-side, no server call)
+   Used to compute Triangle and Beta-PERT series from O/M/P,
+   including in Group mode where groupO/M/P serve as parameters.
+──────────────────────────────────────────────────────────────── */
+
+/** Triangle distribution PDF + CDF from 3-point estimate (a=O, c=M, b=P). */
+function computeTriDist_(O, M, P, n) {
+  n = n || 120;
+  var a = O, c = M, b = P, range = b - a;
+  if (range <= 0 || c < a || c > b) return { pdf: [], cdf: [] };
+  var pdf = [], cdf = [];
+  for (var i = 0; i <= n; i++) {
+    var x = a + range * i / n;
+    var f, F;
+    if (x <= c) {
+      f = (c > a) ? 2 * (x - a) / (range * (c - a)) : 0;
+      F = (c > a) ? Math.pow(x - a, 2) / (range * (c - a)) : 0;
+    } else {
+      f = (c < b) ? 2 * (b - x) / (range * (b - c)) : 0;
+      F = (c < b) ? 1 - Math.pow(b - x, 2) / (range * (b - c)) : 1;
+    }
+    pdf.push({ x: x, y: Math.max(0, f) });
+    cdf.push({ x: x, y: Math.min(1, Math.max(0, F)) });
+  }
+  return { pdf: pdf, cdf: cdf };
+}
+
+/**
+ * Beta-PERT distribution PDF + CDF from 3-point estimate.
+ * mu = (O + 4M + P)/6  →  alpha = 6(mu-O)/(P-O), beta = 6(P-mu)/(P-O)
+ * Distribution is Beta(alpha,beta) scaled to [O, P].
+ * Computed numerically (trapezoidal integration) — no special functions needed.
+ */
+function computeBetaPertDist_(O, M, P, n) {
+  n = n || 120;
+  var a = O, c = M, b = P, range = b - a;
+  if (range <= 0 || c < a || c > b) return { pdf: [], cdf: [] };
+  var mu = (a + 4 * c + b) / 6;
+  var al = 6 * (mu - a) / range;
+  var be = 6 * (b - mu) / range;
+  var dx = range / n;
+
+  // Sample unnormalized kernel at each point using log to avoid underflow
+  var kernel = [];
+  for (var i = 0; i <= n; i++) {
+    var x = a + range * i / n;
+    var t = (x - a) / range;   // normalized t in [0,1]
+    var k = (t > 0 && t < 1)
+      ? Math.exp((al - 1) * Math.log(t) + (be - 1) * Math.log(1 - t))
+      : 0;
+    kernel.push({ x: x, k: k });
+  }
+
+  // Normalize by total area (trapezoidal)
+  var area = 0;
+  for (var i = 0; i < kernel.length - 1; i++) {
+    area += (kernel[i].k + kernel[i + 1].k) * 0.5 * dx;
+  }
+  if (area <= 0) return { pdf: [], cdf: [] };
+
+  var pdf = [], cdf = [], cum = 0;
+  for (var i = 0; i < kernel.length; i++) {
+    if (i > 0) cum += (kernel[i - 1].k + kernel[i].k) * 0.5 * dx / area;
+    pdf.push({ x: kernel[i].x, y: kernel[i].k / area });
+    cdf.push({ x: kernel[i].x, y: Math.min(1, Math.max(0, cum)) });
+  }
+  return { pdf: pdf, cdf: cdf };
+}
+
+/* ────────────────────────────────────────────────────────────────
    TM — Task Manager state and methods
 ──────────────────────────────────────────────────────────────── */
 window.TM = {
@@ -7450,9 +8429,11 @@ window.TM = {
     var s = window.S || (window.S = {});
     if (!s) return;
 
+    // In Group mode: only include checked (active) tasks in the aggregate.
+    // In Single mode: ALL tasks appear in the dropdown — active/inactive is a Group concept.
     var active = this.mode === 'aggregate'
       ? this.tasks.filter(function(t) { return t.active; })
-      : this.tasks.filter(function(t) { return t.active; });
+      : this.tasks;
 
     // Convert to legacy format
     s.tasks = active.map(function(t) {
@@ -7500,17 +8481,65 @@ window.TM = {
     if (btnS) btnS.classList.toggle('active', mode === 'single');
     if (btnA) btnA.classList.toggle('active', mode === 'aggregate');
 
+    // Show inline group picker or single-task dropdown depending on mode
+    var taskSel    = document.getElementById('taskSel');
+    var groupPicker = document.getElementById('tmGroupPicker');
+    var isAgg = mode === 'aggregate';
+    if (taskSel)    taskSel.style.display    = isAgg ? 'none' : '';
+    if (groupPicker) {
+      groupPicker.style.display = isAgg ? 'flex' : 'none';
+      if (isAgg) this._renderGroupPicker();
+    }
+
+    // Switch estimates column between single and aggregate stacks
+    var estSingle = document.getElementById('estSingleStack');
+    var estAgg    = document.getElementById('estAggStack');
+    var estPend   = document.getElementById('estAggPending');
+    if (isAgg) {
+      if (estSingle) estSingle.style.display = 'none';
+      if (this._lastAggResult) {
+        if (estAgg)  estAgg.style.display  = '';
+        if (estPend) estPend.style.display  = 'none';
+      } else {
+        if (estAgg)  estAgg.style.display  = 'none';
+        if (estPend) estPend.style.display  = '';
+      }
+    } else {
+      if (estSingle) estSingle.style.display = '';
+      if (estAgg)    estAgg.style.display    = 'none';
+      if (estPend)   estPend.style.display   = 'none';
+    }
+
     var aggBar = document.getElementById('tmAggBar');
     if (aggBar) {
-      // Only show aggregate bar when we have actual run results.
-      // Switching to aggregate mode alone does NOT populate the bar.
       if (mode === 'single') {
         aggBar.classList.remove('visible');
       } else if (this._lastAggResult) {
-        aggBar.classList.add('visible'); // restore cached results on re-entry
+        aggBar.classList.add('visible');
       }
-      // else: aggregate mode but no run yet — bar stays hidden
     }
+
+    if (isAgg) {
+      // When entering Group mode, clear stale single-task probabilities immediately.
+      // _showAggregateResult will re-populate them from the group result if available.
+      var _sClr = window.S || {};
+      _sClr.baselineProb  = null;
+      _sClr.optimizedProb = null;
+      _sClr.adaptiveProb  = null;
+      _sClr.adjustedProb  = null;
+      if (this._lastAggResult) {
+        // Restore full group state from cache (sets baselineProb, KPI chips, recommendations)
+        this._showAggregateResult(this._lastAggResult);
+      } else {
+        // No run yet — clear KPI chips so they show "–" not stale single-task values
+        if (typeof window.renderKPIs === 'function') window.renderKPIs();
+        if (typeof window.updateRecommendation === 'function') window.updateRecommendation(window.S || {});
+      }
+    }
+
+    // In Group mode Save & Run should always be visible so user can (re-)run
+    var s1 = document.getElementById('btnSaveRun');
+    if (s1) s1.style.display = (mode === 'aggregate') ? 'inline-flex' : 'none';
 
     this._updateBar();
     if (!silent) {
@@ -7542,19 +8571,33 @@ window.TM = {
     var s3 = document.getElementById('mgrDiscardBtn');
     if (b1) b1.style.display = 'none';
     if (b2) b2.style.display = 'none';
-    if (s1) s1.style.display = 'none';
+    // Keep Save & Run visible in Group mode so user can always re-run
+    if (s1) s1.style.display = (this.mode === 'aggregate') ? 'inline-flex' : 'none';
     if (s2) s2.style.display = 'none';
     if (s3) s3.style.display = 'none';
   },
 
-  /* ── Update TM bar info text ── */
+  /* ── Update TM bar info text + estimates subtitle ── */
   _updateBar: function() {
     var info = document.getElementById('tmTaskInfo');
-    if (!info) return;
+    var sub  = document.getElementById('estSubtitle');
     var total  = this.tasks.length;
     var active = this.tasks.filter(function(t) { return t.active; }).length;
+
+    // Update estimates column subtitle
+    if (sub) {
+      if (this.mode === 'aggregate') {
+        sub.textContent = this._lastAggResult
+          ? 'Group · ' + active + ' tasks · Monte Carlo'
+          : 'Group · ' + active + ' / ' + total + ' selected';
+      } else {
+        sub.textContent = '3-point estimate (O / M / P)';
+      }
+    }
+
+    if (!info) return;
     if (total === 0) {
-      info.textContent = 'No tasks — click Manage Tasks to add some.';
+      info.textContent = 'No tasks — click Data Source to add some.';
     } else if (this.mode === 'aggregate') {
       if (this._lastAggResult) {
         info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
@@ -7582,7 +8625,7 @@ window.TM = {
     }
 
     var s = window.S || (window.S = {});
-    var tau  = s ? (s.currentTarget != null ? s.currentTarget : null) : null;
+    var tau  = s ? (s.target != null ? s.target : null) : null;
     var conf = s ? (s.confidenceLevel || 0.95) : 0.95;
     var selId = this.selectedTaskId;
     if (!selId && activeTasks.length > 0) selId = activeTasks[0].id;
@@ -7616,7 +8659,13 @@ window.TM = {
           self._updateBar();
 
           if (res.mode === 'aggregate' && res.result) {
-            self._showAggregateResult(res.result);
+            // groupO/M/P live on res (top-level), not on res.result — merge them in
+            var aggPayload = res.result;
+            aggPayload.groupO    = res.groupO;
+            aggPayload.groupM    = res.groupM;
+            aggPayload.groupP    = res.groupP;
+            aggPayload.groupPert = res.groupPert;
+            self._showAggregateResult(aggPayload);
           }
 
           if (typeof window.setStatus === 'function') window.setStatus('Ready');
@@ -7648,10 +8697,79 @@ window.TM = {
 
   /* ── Show aggregate result ── */
   _showAggregateResult: function(agg) {
-    this._lastAggResult = agg; // cache so bar can be restored on mode re-entry
+    this._lastAggResult = agg; // cache so panel can be restored on mode re-entry
+
+    // Store aggregate CDF and PDF so charts can render the group distribution
+    var _s = window.S || (window.S = {});
+    if (agg && agg.cdfPoints && agg.cdfPoints.length) {
+      _s.aggCdf  = agg.cdfPoints;
+      _s.aggPdf  = (agg.pdfPoints && agg.pdfPoints.length) ? agg.pdfPoints : [];
+      _s.aggMean = agg.mean;
+      // Set baselineProb for Group mode — interpolate live from aggregate CDF at current target
+      // (server's probAtTarget may be stale if target slider moved after last run)
+      _s.baselineProb = (_s.target != null && typeof interpY === 'function')
+        ? interpY(_s.aggCdf, _s.target)
+        : (agg.probAtTarget != null ? Number(agg.probAtTarget) : null);
+    }
+
+    // ── Virtual group task: PERT aggregation (sum of individual O/M/P) ─────────
+    // This is mathematically sound for sequential independent tasks.
+    // Setting s.O/M/P/task lets requestVariant() run SACO on the group's
+    // combined distribution, and lets the Triangle canvas render the group shape.
+    if (agg.groupO != null) {
+      var nT = agg.taskCount || 0;
+      _s.O = agg.groupO;
+      _s.M = agg.groupM;
+      _s.P = agg.groupP;
+      _s.task = {
+        task:        'Group \u2014 ' + nT + ' task' + (nT !== 1 ? 's' : ''),
+        task_name:   'Group \u2014 ' + nT + ' task' + (nT !== 1 ? 's' : ''),
+        best_case:   agg.groupO, optimistic:  agg.groupO,
+        most_likely: agg.groupM, mostLikely:  agg.groupM,
+        worst_case:  agg.groupP, pessimistic: agg.groupP
+      };
+      // Reset overlay so strategy results from a previous single-task don't bleed in
+      if (!_s.overlay) _s.overlay = {};
+      _s.overlay.adaptiveOn = false;
+      _s.overlay.fixedOn    = false;
+      _s.overlay.manualOn   = false;
+      _s.overlay.baselineOn = true;
+      // Clear stale strategy distributions and probabilities
+      _s.optimizedProb  = null; _s.adaptiveProb  = null; _s.adjustedProb  = null;
+      _s.optPdfFixed    = []; _s.optCdfFixed   = [];
+      _s.optPdfAdaptive = []; _s.optCdfAdaptive= [];
+      _s.adjPdf         = []; _s.adjCdf        = [];
+      _s.variantCache   = {};
+      // Compute analytical Triangle and Beta-PERT distributions from group O/M/P.
+      // This mirrors the single-task pipeline: Triangle → Beta-PERT → MC baseline.
+      // groupO/M/P serve as the aggregated 3-point parameters.
+      var triG  = computeTriDist_(_s.O, _s.M, _s.P);
+      var pertG = computeBetaPertDist_(_s.O, _s.M, _s.P);
+      _s.trianglePdf = triG.pdf;  _s.triangleCdf = triG.cdf;
+      _s.betaPertPdf = pertG.pdf; _s.betaPertCdf = pertG.cdf;
+      // Default curve visibility for Group mode
+      if (!_s.progress) _s.progress = {};
+      _s.progress.triOn  = true;   // show Triangle from groupO/M/P
+      _s.progress.betaOn = false;  // Beta-PERT off by default (user can toggle)
+      _s.progress.baseOn = true;   // show MC aggregate baseline
+      // Redraw triangle canvas with group O/M/P (client-side, no server call needed)
+      if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
+      // Update OMP bar elements (normally set by onTaskChange — must also set here for Group mode)
+      var fmt2 = function(v) { return v != null ? Number(v).toFixed(2) : '–'; };
+      var oE = document.getElementById('oVal');    if (oE) oE.textContent = fmt2(agg.groupO);
+      var mE = document.getElementById('mVal');    if (mE) mE.textContent = fmt2(agg.groupM);
+      var pE = document.getElementById('pVal');    if (pE) pE.textContent = fmt2(agg.groupP);
+      var ptE = document.getElementById('pertVal'); if (ptE) ptE.textContent = fmt2(agg.groupPert != null ? agg.groupPert : (agg.groupO + 4*agg.groupM + agg.groupP)/6);
+    }
+
+    // Reveal aggregate estimates stack, hide pending placeholder
+    var estAgg  = document.getElementById('estAggStack');
+    var estPend = document.getElementById('estAggPending');
+    if (estAgg)  estAgg.style.display  = '';
+    if (estPend) estPend.style.display  = 'none';
+
     var bar = document.getElementById('tmAggBar');
-    if (!bar) return;
-    bar.classList.add('visible');
+    if (bar) bar.classList.add('visible');
     function fmtN(v) { return v != null && isFinite(v) ? Number(v).toFixed(2) : '–'; }
     function fmtP(v) { return v != null && isFinite(v) ? (Number(v) * 100).toFixed(1) + '%' : '–'; }
     function setEl(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
@@ -7660,7 +8778,29 @@ window.TM = {
     setEl('aggStatP50',   fmtN(agg.p50));
     setEl('aggStatP80',   fmtN(agg.p80));
     setEl('aggStatP90',   fmtN(agg.p90));
-    setEl('aggStatProb',  agg.probAtTarget != null ? fmtP(agg.probAtTarget) : '–');
+    // Show live-interpolated probability (always matches target slider)
+    setEl('aggStatProb',  _s.baselineProb != null ? fmtP(_s.baselineProb) : '–');
+
+    // Switch plot selector to PDF/CDF (Triangle doesn't apply to the aggregate group)
+    var chkTriAgg = document.getElementById('pselTriangle');
+    var chkPDFAgg = document.getElementById('pselPDF');
+    var chkCDFAgg = document.getElementById('pselCDF');
+    if (chkTriAgg) chkTriAgg.checked = false;
+    if (chkPDFAgg && !chkPDFAgg.checked && chkCDFAgg && !chkCDFAgg.checked) {
+      // Neither is checked — enable CDF by default
+      if (chkCDFAgg) chkCDFAgg.checked = true;
+    }
+    if (typeof window.pselUpdate === 'function') window.pselUpdate();
+
+    // Update target slider range to [groupO, groupP] — the correct span for Group mode.
+    // This is mathematically sound: groupO (sum of best cases) → P≈0%,
+    // groupP (sum of worst cases) → P≈100%, since Monte Carlo samples are bounded by [O,P] per task.
+    if (typeof window.updateTargetSlider === 'function') window.updateTargetSlider();
+
+    // Refresh target display, KPI chips, charts, description, and recommendation
+    if (typeof window.updateTargetDisplayText === 'function') window.updateTargetDisplayText();
+    if (typeof window.renderKPIs === 'function') window.renderKPIs();
+    if (typeof window.scheduleUIRefresh === 'function') window.scheduleUIRefresh();
   },
 
   /* ── Open / Close Manager ── */
@@ -7732,8 +8872,43 @@ window.TM = {
     this.tasks.forEach(function(t) { t.active = onOff; });
     this._markDirty();
     this._renderTaskList();
+    this._renderGroupPicker();
     this._syncToLegacy();
     this._updateBar();
+  },
+
+  /* ── Expand / collapse group task list ── */
+  _toggleGroupList: function() {
+    var list = document.getElementById('grpList');
+    var btn  = document.getElementById('grpToggleBtn');
+    if (!list) return;
+    var collapsed = list.classList.toggle('grp-collapsed');
+    if (btn) btn.textContent = collapsed ? 'Expand' : 'Collapse';
+  },
+
+  /* ── Render inline group picker checklist ── */
+  _renderGroupPicker: function() {
+    var list    = document.getElementById('grpList');
+    var countEl = document.getElementById('grpCount');
+    if (!list) return;
+    var self   = this;
+    var active = this.tasks.filter(function(t) { return t.active; }).length;
+    if (countEl) countEl.textContent = active + ' / ' + this.tasks.length + ' selected';
+    if (this.tasks.length === 0) {
+      list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px 8px;">No tasks yet — click Data Source to add some.</div>';
+      return;
+    }
+    var html = '';
+    this.tasks.forEach(function(t) {
+      var rowCls = 'grp-task-row' + (t.active ? ' grp-active' : '');
+      html += '<label class="' + rowCls + '">';
+      html += '<input type="checkbox"' + (t.active ? ' checked' : '') +
+              ' onclick="event.stopPropagation();TM._toggleActive(\'' + t.id + '\')"/>';
+      html += '<span class="grp-task-name">' + (t.task_name || t.task || 'Task') + '</span>';
+      html += '<span class="grp-task-omp">' + t.best_case + '/' + t.most_likely + '/' + t.worst_case + '</span>';
+      html += '</label>';
+    });
+    list.innerHTML = html;
   },
 
   _selectTask: function(id) {
@@ -7757,6 +8932,7 @@ window.TM = {
     t.active = !t.active;
     this._markDirty();
     this._renderTaskList();
+    if (this.mode === 'aggregate') this._renderGroupPicker();
     this._syncToLegacy();
     this._updateBar();
   },
