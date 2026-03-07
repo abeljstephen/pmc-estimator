@@ -2727,7 +2727,7 @@
       const sel = document.getElementById('probeSelect');
       const show = (s.tab === 'overlay') && (s.overlay?.sidebarMode === 'adaptive');
       if (box) box.style.display = show ? 'inline-flex' : 'none';
-      if (sel && Number(sel.value) !== Number(s.overlay.probeLevel || 3)) {
+      if (sel && s.overlay && Number(sel.value) !== Number(s.overlay.probeLevel || 3)) {
         sel.value = String(s.overlay.probeLevel || 3);
       }
     }
@@ -2738,7 +2738,7 @@
       sel.addEventListener('change', () => {
         const s = window.S || S;
         const lvl = Number(sel.value) || 3;
-        s.overlay.probeLevel = Math.max(1, Math.min(7, lvl));
+        if (s.overlay) s.overlay.probeLevel = Math.max(1, Math.min(7, lvl));
         if (s.tab === 'overlay' && s.overlay.adaptiveOn) {
           const key = JSON.stringify({ task: s.task?.task, O:s.O, M:s.M, P:s.P, target:s.target, variant:'adaptive', probeLevel:s.overlay.probeLevel });
           if (s.variantCache) delete s.variantCache[key];
@@ -3528,7 +3528,7 @@
           var showBet  = !onOverlay && s.tab==='progress' && s.progress.betaOn;
           var showBase = !onOverlay && s.tab==='progress' && s.progress.baseOn;
 
-          var base = dsLine({ label: 'Baseline', data: baseSeries, colorVar: '--base', z: 3, hidden: !(onOverlay ? s.overlay.baselineOn : showBase) });
+          var base = dsLine({ label: 'Baseline', data: baseSeries, colorVar: '--base', z: 3, hidden: !(onOverlay ? (s.overlay && s.overlay.baselineOn) : showBase) });
           var tri  = dsLine({ label: 'Triangle', data: triSeries, colorVar: '--tri',  z: 2, hidden: !showTri });
           var bet  = dsLine({ label: 'Beta-PERT', data: betSeries, colorVar: '--beta', z: 2, hidden: !showBet });
 
@@ -3536,10 +3536,10 @@
           var fix  = dsLine({ label: 'General Opt.', data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
           var ada  = dsLine({ label: 'Conservative', data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
 
-          var dotBase = onOverlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
-          var dotAdj  = onOverlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
-          var dotOpt  = onOverlay && s.overlay.fixedOn    ? dsTargetDot({ key:'optimized',x:(s.target), series: fixSeries,  colorVar:'--fixed' }) : null;
-          var dotAda  = onOverlay && s.overlay.adaptiveOn ? dsTargetDot({ key:'adaptive', x:(s.target), series: adaSeries,  colorVar:'--adaptive' }) : null;
+          var dotBase = onOverlay && s.overlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
+          var dotAdj  = onOverlay && s.overlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
+          var dotOpt  = onOverlay && s.overlay && s.overlay.fixedOn    ? dsTargetDot({ key:'optimized',x:(s.target), series: fixSeries,  colorVar:'--fixed' }) : null;
+          var dotAda  = onOverlay && s.overlay && s.overlay.adaptiveOn ? dsTargetDot({ key:'adaptive', x:(s.target), series: adaSeries,  colorVar:'--adaptive' }) : null;
 
           // Progress tab: annotated dots on visible curves at the target value
           var dotTri  = (!onOverlay && showTri)  ? dsTargetDot({ key:'triangle', x:(s.target), series: triSeries, colorVar:'--tri' }) : null;
@@ -3861,7 +3861,7 @@
       function safe(fn){ try { fn(); } catch(e){
         console.error('[safe] error:', e);
         var b = document.getElementById('errorBanner');
-        if (b) { b.style.display='block'; b.style.background='#FEE2E2'; b.style.color='#991B1B'; b.style.borderColor='#DC2626'; b.innerHTML += '<div>[SAFE] '+e.message+' at '+(e.stack||'').split('\\n')[1]+'</div>'; }
+        if (b) { b.style.display='block'; b.style.background='#FEE2E2'; b.style.color='#991B1B'; b.style.borderColor='#DC2626'; b.insertAdjacentHTML('beforeend', '<div>[SAFE] '+e.message+' at '+(e.stack||'').split('\n')[1]+'</div>'); }
         fetch('/console',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'error',msg:'[safe] '+e.message,stack:e.stack})}).catch(function(){});
       } }
       function WS(){ return window.S || (window.S = {}); }
@@ -5122,8 +5122,9 @@
         var sidebar = document.getElementById('sliderSidebar');
         if (!container || !sidebar) return;
 
+        var ov = s.overlay || {};
         var showSidebar = (s.tab === 'overlay') &&
-          (s.overlay.manualOn || s.overlay.fixedOn || s.overlay.adaptiveOn);
+          (ov.manualOn || ov.fixedOn || ov.adaptiveOn);
 
         var overlayKpisEl = document.getElementById('overlayKpis');
         if (overlayKpisEl) overlayKpisEl.classList.toggle('sidebar-active', showSidebar);
@@ -5132,6 +5133,12 @@
 
         if (!showSidebar) {
           if (bannerEl) bannerEl.style.display = 'none';
+          // Sidebar hidden — charts may have expanded; resize after DOM settles
+          var _s1 = window.S || {};
+          setTimeout(function() {
+            if (_s1.pdfChart && typeof _s1.pdfChart.resize === 'function') _s1.pdfChart.resize();
+            if (_s1.cdfChart && typeof _s1.cdfChart.resize === 'function') _s1.cdfChart.resize();
+          }, 80);
           return;
         }
 
@@ -5206,6 +5213,13 @@
 
         // Update probe level selector visibility (shown only when adaptive is active mode)
         if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
+
+        // Resize charts after sidebar visibility changes (sidebar show/hide shifts chart container width)
+        var _s2 = window.S || {};
+        setTimeout(function() {
+          if (_s2.pdfChart && typeof _s2.pdfChart.resize === 'function') _s2.pdfChart.resize();
+          if (_s2.cdfChart && typeof _s2.cdfChart.resize === 'function') _s2.cdfChart.resize();
+        }, 80);
       }
 
       function syncRowToggles(){
@@ -5217,10 +5231,11 @@
         var m = document.getElementById('rowTglManual');
         var f = document.getElementById('rowTglFixed');
         var a = document.getElementById('rowTglAdaptive');
-        if (b) b.setAttribute('aria-pressed', s.overlay.baselineOn ? 'true' : 'false');
-        if (m) m.setAttribute('aria-pressed', s.overlay.manualOn ? 'true' : 'false');
-        if (f) f.setAttribute('aria-pressed', s.overlay.fixedOn ? 'true' : 'false');
-        if (a) a.setAttribute('aria-pressed', s.overlay.adaptiveOn ? 'true' : 'false');
+        var _ov = s.overlay || {};
+        if (b) b.setAttribute('aria-pressed', _ov.baselineOn ? 'true' : 'false');
+        if (m) m.setAttribute('aria-pressed', _ov.manualOn ? 'true' : 'false');
+        if (f) f.setAttribute('aria-pressed', _ov.fixedOn ? 'true' : 'false');
+        if (a) a.setAttribute('aria-pressed', _ov.adaptiveOn ? 'true' : 'false');
 
         ensureProbeBox();
       }
@@ -5267,11 +5282,19 @@
                   if (om) om.classList.remove('active');
                 }
 
+                var _tabOv = s.overlay || {};
                 if (typeof window.setSlidersDisabled === 'function') {
-                  window.setSlidersDisabled(s.tab !== 'overlay' || !s.overlay.manualOn);
+                  window.setSlidersDisabled(s.tab !== 'overlay' || !_tabOv.manualOn);
                 }
 
                 syncRowToggles();
+
+                // Explicitly resize charts after tab layout change settles
+                setTimeout(function() {
+                  var _cs = window.S || {};
+                  if (_cs.pdfChart && typeof _cs.pdfChart.resize === 'function') _cs.pdfChart.resize();
+                  if (_cs.cdfChart && typeof _cs.cdfChart.resize === 'function') _cs.cdfChart.resize();
+                }, 150);
 
                 scheduleUIRefresh();
                 fetchData(true);
@@ -5279,9 +5302,9 @@
                 if (s.tab === 'overlay') {
                   s.pendingVariants = 0;
                   var act = [];
-                  if (s.overlay.manualOn && !s.adjPdf.length) { act.push('manual'); s.pendingVariants++; }
-                  if (s.overlay.fixedOn && !s.optPdfFixed.length) { act.push('fixed'); s.pendingVariants++; }
-                  if (s.overlay.adaptiveOn && !s.optPdfAdaptive.length) { act.push('adaptive'); s.pendingVariants++; }
+                  if (_tabOv.manualOn && !(s.adjPdf && s.adjPdf.length)) { act.push('manual'); s.pendingVariants++; }
+                  if (_tabOv.fixedOn && !(s.optPdfFixed && s.optPdfFixed.length)) { act.push('fixed'); s.pendingVariants++; }
+                  if (_tabOv.adaptiveOn && !(s.optPdfAdaptive && s.optPdfAdaptive.length)) { act.push('adaptive'); s.pendingVariants++; }
                   act.forEach(requestVariant);
                 }
                 ensureProbeBox();
