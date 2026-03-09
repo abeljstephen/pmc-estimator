@@ -1133,6 +1133,36 @@
     .pmc-wiz-spacer { flex: 1; }
     /* Step-3 standalone slider panel header (outside overlayKpis) */
     #sliderWizPanel .slider-panel-hdr { margin-bottom: 8px; }
+
+    /* ── Dashboard mode — all panels visible, wizard footers hidden ─────── */
+    .pmc-dashboard .pmc-wiz-panel,
+    .pmc-dashboard .pmc-wiz-panel.hidden { display: block !important; }
+    .pmc-dashboard .pmc-wiz-footer { display: none; }
+    /* Nav becomes a jump-to bar */
+    .pmc-dashboard .pmc-wiz-nav::before {
+      content: 'JUMP TO:';
+      font-size: 9px; font-weight: 700; color: var(--muted);
+      letter-spacing: .05em; align-self: center; white-space: nowrap;
+      margin-right: 2px;
+    }
+    .pmc-dashboard .pmc-wiz-tab {
+      background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE;
+    }
+    .pmc-dashboard .pmc-wiz-tab.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .pmc-dashboard .pmc-wiz-arr { color: #BFDBFE; }
+    /* Setup button — hidden in wizard mode, shown in dashboard mode */
+    .pmc-wiz-setup-btn {
+      display: none; margin-left: 6px; padding: 4px 10px; border-radius: 12px;
+      font-size: 10px; font-weight: 700; cursor: pointer; white-space: nowrap;
+      border: 1.5px solid var(--line); background: var(--chip); color: var(--muted);
+      font-family: inherit; flex-shrink: 0;
+    }
+    .pmc-wiz-setup-btn:hover { background: var(--hover); }
+    .pmc-dashboard .pmc-wiz-setup-btn { display: block; }
+    /* Section dividers get more breathing room in dashboard scroll */
+    .pmc-dashboard .pmc-wiz-panel + .pmc-wiz-panel { border-top: 2px solid var(--line); padding-top: 6px; margin-top: 4px; }
   </style>
 </head>
 
@@ -1172,6 +1202,7 @@
   <div class="pmc-wiz-tab" data-wiz="4" onclick="pmcWizGo(4)" title="View probability distributions, compare strategies, and see recommendations">
     <span class="pmc-wiz-num">4</span>Results
   </div>
+  <button class="pmc-wiz-setup-btn" onclick="pmcWizGo(1)" title="Return to step-by-step setup wizard">&#9664; Setup</button>
 </nav>
 
 <!-- ══ STEP 1 — TASK ══════════════════════════════════════════════════ -->
@@ -5073,34 +5104,67 @@
       };
 
       // ── Horizontal wizard navigation ──────────────────────────────────
+      // ── Wizard / Dashboard navigation ────────────────────────────────────
+      // Steps 1-3 → wizard mode: one panel at a time, Back/Next footers shown.
+      // Step 4 ("Run & See Results") → dashboard mode: all panels visible,
+      //   nav becomes jump-to anchors, Back/Next footers hidden.
+      // In dashboard mode, clicking any nav tab scrolls to that section
+      //   without hiding others — enabling the iterative slider ↔ results loop.
       window.pmcWizGo = function(step) {
         step = parseInt(step, 10);
-        // Show only the target panel
+        var wrap = document.querySelector('.wrap');
+        var isDash = wrap && wrap.classList.contains('pmc-dashboard');
+
+        // ── Dashboard mode: any click scrolls to that section ────────────
+        if (isDash && step !== 1) {
+          // step 1 is the only one that exits dashboard back to wizard
+          var target = document.getElementById('wizPanel' + step);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
+            t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === step);
+          });
+          return;
+        }
+
+        // ── Step 4 → enter dashboard mode ────────────────────────────────
+        if (step === 4) {
+          if (wrap) wrap.classList.add('pmc-dashboard');
+          // All tabs show as "done" anchors; results tab is active
+          document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
+            var n = parseInt(t.dataset.wiz, 10);
+            t.classList.toggle('active', n === 4);
+            t.classList.remove('done');
+          });
+          // Scroll to results section
+          var resultsPanel = document.getElementById('wizPanel4');
+          if (resultsPanel) resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Redraw charts now that the panel is visible
+          setTimeout(function() {
+            if (typeof window.updateChart === 'function') window.updateChart();
+          }, 80);
+          return;
+        }
+
+        // ── Steps 1-3 → wizard mode (exit dashboard if needed) ───────────
+        if (wrap) wrap.classList.remove('pmc-dashboard');
         document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
-          var pStep = parseInt(p.dataset.wiz, 10);
-          p.classList.toggle('hidden', pStep !== step);
+          p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== step);
         });
-        // Update nav tab states
         document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
-          var tStep = parseInt(t.dataset.wiz, 10);
-          t.classList.toggle('active', tStep === step);
-          t.classList.toggle('done', tStep < step);
+          var n = parseInt(t.dataset.wiz, 10);
+          t.classList.toggle('active', n === step);
+          t.classList.toggle('done', n < step);
         });
-        // Reflect reference class badge in nav
+        // Scroll nav to top so user sees the step
+        var nav = document.getElementById('pmcWizNav');
+        if (nav) nav.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Reflect reference class badge
         var histBadge = document.getElementById('histCtxBadge');
         var wizBadge  = document.getElementById('wizRefBadge');
         if (wizBadge && histBadge) {
           wizBadge.style.display = (histBadge.style.display !== 'none' && histBadge.textContent) ? '' : 'none';
         }
-        // On entering step 4 (Results), redraw charts so they fill the newly visible container
-        if (step === 4) {
-          setTimeout(function() {
-            if (typeof window.updateChart === 'function') window.updateChart();
-          }, 60);
-        }
-        // Scroll wizard nav into view on mobile
-        var nav = document.getElementById('pmcWizNav');
-        if (nav) nav.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       };
 
       function requestVariant(variant) {
