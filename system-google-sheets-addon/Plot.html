@@ -1187,31 +1187,27 @@
 
 <!-- ── Horizontal wizard nav ──────────────────────────────────────────── -->
 <nav class="pmc-wiz-nav" id="pmcWizNav" role="navigation" aria-label="Estimation wizard steps">
-  <div class="pmc-wiz-tab active" data-wiz="1" onclick="pmcWizGo(1)" title="Select the task you want to estimate">
-    <span class="pmc-wiz-num">1</span>Task
+  <div class="pmc-wiz-tab active" data-wiz="1" onclick="pmcWizGo(1)" title="Select task, set target, and optionally add reference class data">
+    <span class="pmc-wiz-num">1</span>Estimate<span id="wizRefBadge" style="display:none; margin-left:4px; font-size:9px; font-weight:800; background:#3B82F6; color:#fff; padding:0 5px; border-radius:8px;">RCF</span>
   </div>
   <span class="pmc-wiz-arr" aria-hidden="true">›</span>
-  <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="Optional: enter data from similar past projects to calibrate the baseline">
-    <span class="pmc-wiz-num">2</span>Reference<span id="wizRefBadge" style="display:none; margin-left:4px; font-size:9px; font-weight:800; background:#fff; color:#1D4ED8; padding:0 5px; border-radius:8px;">ON</span>
+  <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="View Conservative and General Optimization strategies — fully automatic">
+    <span class="pmc-wiz-num">2</span>Strategies
   </div>
   <span class="pmc-wiz-arr" aria-hidden="true">›</span>
-  <div class="pmc-wiz-tab" data-wiz="3" onclick="pmcWizGo(3)" title="Set the 7 decision levers that describe your project constraints">
-    <span class="pmc-wiz-num">3</span>Conditions
+  <div class="pmc-wiz-tab" data-wiz="3" onclick="pmcWizGo(3)" title="Manually set the 7 sliders for Unconstrained what-if exploration">
+    <span class="pmc-wiz-num">3</span>Explore
   </div>
-  <span class="pmc-wiz-arr" aria-hidden="true">›</span>
-  <div class="pmc-wiz-tab" data-wiz="4" onclick="pmcWizGo(4)" title="View probability distributions, compare strategies, and see recommendations">
-    <span class="pmc-wiz-num">4</span>Results
-  </div>
-  <button class="pmc-wiz-setup-btn" onclick="pmcWizGo(1)" title="Return to step-by-step setup wizard">&#9664; Setup</button>
+  <button class="pmc-wiz-setup-btn" onclick="pmcWizGo(1)" title="Return to step-by-step setup">&#9664; Setup</button>
 </nav>
 
-<!-- ══ STEP 1 — TASK ══════════════════════════════════════════════════ -->
+<!-- ══ STEP 1 — ESTIMATE ═══════════════════════════════════════════════ -->
 <div class="pmc-wiz-panel" data-wiz="1" id="wizPanel1">
 <div class="pmc-step-hdr">
   <span class="pmc-step-num">1</span>
   <div>
-    <div class="pmc-step-title">What are you estimating?</div>
-    <div class="pmc-step-desc">Select a task — or switch to Group to combine tasks. Estimates are read from your spreadsheet. Set your completion target on the right.</div>
+    <div class="pmc-step-title">Your Estimate</div>
+    <div class="pmc-step-desc">Select a task, review the 3-point estimates, and set your completion target. Your probability appears immediately. Optionally calibrate with past project data below.</div>
   </div>
 </div>
 
@@ -1406,48 +1402,33 @@
   <!-- Aggregate stats bar retired — stats now shown in Estimates column -->
   <div id="tmAggBar" style="display:none!important;"></div>
 </div>
-<!-- Wizard footer: step 1 -->
-<div class="pmc-wiz-footer">
-  <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Next: Reference Class data (optional)">Reference &amp; Calibration ›</button>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="Skip to Project Conditions">Skip to Conditions ›</button>
-</div>
-</div><!-- /wizPanel1 -->
-
-<!-- ══ STEP 2 — REFERENCE ══════════════════════════════════════════════ -->
-<div class="pmc-wiz-panel hidden" data-wiz="2" id="wizPanel2">
-<div class="pmc-step-hdr">
-  <span class="pmc-step-num">2</span>
-  <div>
-    <div class="pmc-step-title">Reference Class <span class="pmc-step-optional">optional</span> <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; vertical-align:middle;">ACTIVE</span></div>
-    <div class="pmc-step-desc">Did similar past projects overrun? Enter the data here — SACO activates a Bayesian MCMC chain to shift the baseline to match your organisation's actual track record.</div>
-  </div>
-</div>
-<details id="histCtxBox" class="pmc-ref-class-box">
+<!-- Reference Class — optional calibration, lives inside Estimate step -->
+<details id="histCtxBox" class="pmc-ref-class-box" style="margin-top:8px;">
   <summary class="pmc-ref-class-summary">
     <span class="pmc-ref-class-arrow">&#9654;</span>
-    Add reference class data from similar past projects
+    Calibrate with past project data <span class="pmc-step-optional" style="margin-left:4px;">optional</span>
+    <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; margin-left:6px;">ACTIVE</span>
   </summary>
   <div class="pmc-ref-class-body">
     <div class="pmc-ref-class-intro">
-      Based on Reference Class Forecasting (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
-      Uses Metropolis-Hastings MCMC with Student-t prior (1,000 posterior samples, burn-in 500).
+      Reference Class Forecasting (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
+      SACO runs a Metropolis-Hastings MCMC chain to shift the baseline to match your organisation&rsquo;s track record.
     </div>
     <div class="pmc-ref-class-fields">
       <label class="pmc-ref-field">
         <span class="pmc-ref-field-lbl">How many similar past projects? <span class="pmc-ref-field-req">required</span></span>
         <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">A project is &ldquo;similar&rdquo; if it used the same unit of measure and was delivered by the same team or method.</span>
+        <span class="pmc-ref-field-hint">A project is &ldquo;similar&rdquo; if it used the same unit and was delivered by the same team or method.</span>
       </label>
       <label class="pmc-ref-field">
         <span class="pmc-ref-field-lbl">Average overrun % <span class="pmc-ref-field-req">required</span></span>
         <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">If PERT predicted 100 days and actuals averaged 115, enter 15. Negative values are allowed (underrun).</span>
+        <span class="pmc-ref-field-hint">If PERT predicted 100 days and actuals averaged 115, enter 15. Negative = underrun.</span>
       </label>
       <label class="pmc-ref-field">
         <span class="pmc-ref-field-lbl">Std dev of overrun % <span class="pmc-ref-field-opt">optional</span></span>
         <input id="histStd" type="number" min="0" max="100" step="1" placeholder="leave blank to auto-estimate" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">How consistent were the overruns? Leave blank — SACO defaults to 50% of the mean.</span>
+        <span class="pmc-ref-field-hint">Leave blank — SACO defaults to 50% of the mean.</span>
       </label>
     </div>
     <div id="histCredibility" style="display:none;" class="pmc-ref-credibility"></div>
@@ -1458,40 +1439,40 @@
     <div id="histPreview" style="display:none;" class="pmc-ref-preview"></div>
   </div>
 </details>
-<!-- Wizard footer: step 2 -->
+<!-- Wizard footer: step 1 -->
 <div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Task selection">‹ Task</button>
   <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="Next: Project Conditions">Project Conditions ›</button>
+  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(2)" title="Run optimizations and view full results dashboard">See Strategies &amp; Results ›</button>
 </div>
-</div><!-- /wizPanel2 -->
+</div><!-- /wizPanel1 -->
 
-<!-- ══ STEP 3 — CONDITIONS ═════════════════════════════════════════════ -->
+<!-- (Reference Class is now embedded in wizPanel1 above) -->
+
+<!-- ══ STEP 3 — EXPLORE (UNCONSTRAINED) ════════════════════════════════ -->
 <div class="pmc-wiz-panel hidden" data-wiz="3" id="wizPanel3">
 <div class="pmc-step-hdr">
   <span class="pmc-step-num">3</span>
   <div>
-    <div class="pmc-step-title">Project Conditions</div>
-    <div class="pmc-step-desc">Set 7 decision levers that describe your project&rsquo;s constraints, flexibility, and risk appetite. SACO uses these to reshape the probability distribution.</div>
+    <div class="pmc-step-title">Explore — Unconstrained</div>
+    <div class="pmc-step-desc">Manually set all 7 decision levers to explore any what-if scenario. Unlike Conservative and General strategies (which are fully automatic), here you are in full control. Results update live in Strategies above.</div>
   </div>
 </div>
 <!-- sliderSidebar injected here by JS -->
 <div id="sliderWizPanel"></div>
-<!-- Wizard footer: step 3 -->
+<!-- Wizard footer: step 3 (dashboard mode hides this) -->
 <div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Back to Reference Class">‹ Reference</button>
+  <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Back to Strategies">‹ Strategies</button>
   <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(4)" title="Run and view results">Run &amp; See Results ›</button>
 </div>
 </div><!-- /wizPanel3 -->
 
-<!-- ══ STEP 4 — RESULTS ════════════════════════════════════════════════ -->
-<div class="pmc-wiz-panel hidden" data-wiz="4" id="wizPanel4">
+<!-- ══ STEP 2 — STRATEGIES ═════════════════════════════════════════════ -->
+<div class="pmc-wiz-panel hidden" data-wiz="2" id="wizPanel2">
 <div class="pmc-step-hdr pmc-step-results">
-  <span class="pmc-step-num">4</span>
+  <span class="pmc-step-num">2</span>
   <div>
-    <div class="pmc-step-title">Results</div>
-    <div class="pmc-step-desc"><em>How It&rsquo;s Built</em> shows your distribution step-by-step. <em>Compare Strategies</em> shows Conservative, General, and Unconstrained optimizations side-by-side.</div>
+    <div class="pmc-step-title">Optimize &amp; Compare</div>
+    <div class="pmc-step-desc">Enable strategies using the toggles. <strong>Conservative</strong> and <strong>General</strong> are fully automatic — SACO finds the optimal slider values. <strong>Unconstrained</strong> uses your manually set sliders from step 3.</div>
   </div>
 </div>
 
@@ -1961,13 +1942,13 @@
     <div id="overlayMath" class="live-math" aria-live="polite"></div>
   </div>
 </div>
-<!-- Wizard footer: step 4 -->
+<!-- Wizard footer: step 2 (dashboard mode hides this) -->
 <div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(3)" title="Back to Project Conditions">‹ Conditions</button>
+  <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">‹ Estimate</button>
   <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Task selection">‹ Start Over</button>
+  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="Set sliders manually for Unconstrained exploration">Explore Manually ›</button>
 </div>
-</div><!-- /wizPanel4 -->
+</div><!-- /wizPanel2 -->
 
 <!-- Toast -->
 <div id="toast" style="display:none;position:fixed;top:20px;right:20px;background:var(--accent);color:#fff;padding:12px;border-radius:8px;z-index:1002;">Tip</div>  </div>
@@ -5105,66 +5086,62 @@
 
       // ── Horizontal wizard navigation ──────────────────────────────────
       // ── Wizard / Dashboard navigation ────────────────────────────────────
-      // Steps 1-3 → wizard mode: one panel at a time, Back/Next footers shown.
-      // Step 4 ("Run & See Results") → dashboard mode: all panels visible,
-      //   nav becomes jump-to anchors, Back/Next footers hidden.
-      // In dashboard mode, clicking any nav tab scrolls to that section
-      //   without hiding others — enabling the iterative slider ↔ results loop.
+      // 3-panel flow:
+      //   Step 1 (Estimate)   → wizard mode: only panel 1 visible.
+      //   Step 2 (Strategies) → ENTERS dashboard mode: all panels visible,
+      //                         nav becomes jump-to anchors, footers hidden,
+      //                         Compare Strategies tab auto-activated.
+      //   Step 3 (Explore)    → in dashboard: scrolls to panel 3.
+      // "◀ Setup" (pmcWizGo(1)) always exits dashboard back to wizard step 1.
       window.pmcWizGo = function(step) {
         step = parseInt(step, 10);
         var wrap = document.querySelector('.wrap');
         var isDash = wrap && wrap.classList.contains('pmc-dashboard');
 
-        // ── Dashboard mode: any click scrolls to that section ────────────
+        // ── Dashboard mode: clicks 2 & 3 just scroll ─────────────────────
         if (isDash && step !== 1) {
-          // step 1 is the only one that exits dashboard back to wizard
-          var target = document.getElementById('wizPanel' + step);
-          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          var scrollTarget = document.getElementById('wizPanel' + step);
+          if (scrollTarget) scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
           document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
             t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === step);
           });
           return;
         }
 
-        // ── Step 4 → enter dashboard mode ────────────────────────────────
-        if (step === 4) {
+        // ── Step 2 → enter dashboard mode ────────────────────────────────
+        if (step === 2) {
           if (wrap) wrap.classList.add('pmc-dashboard');
-          // All tabs show as "done" anchors; results tab is active
           document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
-            var n = parseInt(t.dataset.wiz, 10);
-            t.classList.toggle('active', n === 4);
+            t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 2);
             t.classList.remove('done');
           });
-          // Scroll to results section
-          var resultsPanel = document.getElementById('wizPanel4');
-          if (resultsPanel) resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          // Redraw charts now that the panel is visible
+          // Default to Compare Strategies tab so strategies are immediately visible
+          setTimeout(function() {
+            var overlayTab = document.querySelector('.tab[data-tab="overlay"]');
+            if (overlayTab && !overlayTab.classList.contains('active')) overlayTab.click();
+          }, 50);
+          // Scroll to Strategies panel
+          var stratPanel = document.getElementById('wizPanel2');
+          if (stratPanel) stratPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Redraw charts (container now visible)
           setTimeout(function() {
             if (typeof window.updateChart === 'function') window.updateChart();
-          }, 80);
+          }, 100);
           return;
         }
 
-        // ── Steps 1-3 → wizard mode (exit dashboard if needed) ───────────
+        // ── Step 1 → exit dashboard, wizard mode ─────────────────────────
         if (wrap) wrap.classList.remove('pmc-dashboard');
+        // Show only panel 1; hide panels 2 & 3
         document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
-          p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== step);
+          p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== 1);
         });
         document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
-          var n = parseInt(t.dataset.wiz, 10);
-          t.classList.toggle('active', n === step);
-          t.classList.toggle('done', n < step);
+          t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 1);
+          t.classList.remove('done');
         });
-        // Scroll nav to top so user sees the step
         var nav = document.getElementById('pmcWizNav');
         if (nav) nav.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-        // Reflect reference class badge
-        var histBadge = document.getElementById('histCtxBadge');
-        var wizBadge  = document.getElementById('wizRefBadge');
-        if (wizBadge && histBadge) {
-          wizBadge.style.display = (histBadge.style.display !== 'none' && histBadge.textContent) ? '' : 'none';
-        }
       };
 
       function requestVariant(variant) {
