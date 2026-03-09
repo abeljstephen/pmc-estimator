@@ -1278,18 +1278,19 @@
     </div>
   </div>
 
-  <!-- Historical Context — optional MCMC Bayesian baseline adjustment -->
+  <!-- Reference Class Data — optional MCMC Bayesian baseline calibration -->
   <details id="histCtxBox" style="margin:8px 0 4px; border:1px solid var(--line); border-radius:10px; background:#F8FAFF; overflow:hidden;">
     <summary style="padding:8px 12px; font-size:12px; font-weight:700; color:#374151; cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px;">
-      <span>&#9881;</span> Historical Context
-      <span style="font-size:10px; font-weight:500; color:#6B7280; margin-left:4px;">(optional — activates Bayesian baseline)</span>
-      <span id="histCtxBadge" style="display:none; margin-left:auto; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px;">ON</span>
+      <span>&#128202;</span> Reference Class Data
+      <span style="font-size:10px; font-weight:500; color:#6B7280; margin-left:4px;">(optional — calibrates baseline from similar past projects)</span>
+      <span id="histCtxBadge" style="display:none; margin-left:auto; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px;">ACTIVE</span>
     </summary>
     <div style="padding:10px 12px 12px; border-top:1px solid var(--line);">
       <p style="font-size:11px; color:#6B7280; margin:0 0 8px;">
-        If similar past projects overran their PERT estimates, enter the overrun history here.
-        SACO will use a Metropolis-Hastings MCMC chain (Student-t prior, 1000 effective samples)
-        to shift the baseline distribution to reflect your organization's track record.
+        Enter data from similar completed projects. SACO will run a Metropolis-Hastings MCMC chain
+        (Student-t prior, 1000 posterior samples) to shift the baseline to reflect your
+        organization's actual delivery track record. Based on Reference Class Forecasting
+        (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
       </p>
       <div style="display:flex; flex-direction:column; gap:8px;">
         <label style="font-size:11px; font-weight:600; color:#374151;">
@@ -1903,7 +1904,7 @@
   </script>
 
   <script>
-  // ── Historical Context wiring ──────────────────────────────────────────
+  // ── Reference Class Data wiring ────────────────────────────────────────
   (function() {
     var _histPrior = null;  // null = standard MC, object = MCMC mode
 
@@ -1917,13 +1918,13 @@
       el.style.display = '';
       if (n < 3) {
         el.style.background = '#FEF3C7'; el.style.color = '#92400E'; el.style.borderColor = '#FCD34D';
-        el.textContent = 'Low credibility (N=' + n + ') — posterior will stay close to prior (no assumed overrun).';
+        el.textContent = 'Low credibility (N=' + n + ') — posterior stays near prior; little adjustment.';
       } else if (n < 7) {
         el.style.background = '#FFF7ED'; el.style.color = '#9A3412'; el.style.borderColor = '#FDBA74';
-        el.textContent = 'Moderate credibility (N=' + n + ') — moderate pull from historical data.';
+        el.textContent = 'Moderate credibility (N=' + n + ') — meaningful pull from reference class data.';
       } else {
         el.style.background = '#F0FDF4'; el.style.color = '#166534'; el.style.borderColor = '#86EFAC';
-        el.textContent = 'Good credibility (N=' + n + ') — posterior strongly reflects historical overrun.';
+        el.textContent = 'Good credibility (N=' + n + ') — posterior strongly reflects reference class.';
       }
     }
 
@@ -1939,13 +1940,20 @@
       el.style.display = '';
       var mean = (priorObj.meanOverrunFrac * 100).toFixed(1);
       var std  = priorObj.stdOverrunFrac ? (priorObj.stdOverrunFrac * 100).toFixed(1) : '—';
-      el.textContent = 'MCMC active: N=' + priorObj.n + ', mean overrun ' + (priorObj.meanOverrunFrac >= 0 ? '+' : '') + mean + '%, std ' + std + '%. Baseline will shift accordingly.';
+      el.textContent = 'MH-MCMC active — N=' + priorObj.n + ' projects, mean overrun '
+        + (priorObj.meanOverrunFrac >= 0 ? '+' : '') + mean + '%, std ' + std
+        + '%. Baseline shifted accordingly.';
     }
 
-    onReady(function() {
-      var nEl    = document.getElementById('histN');
-      var meanEl = document.getElementById('histMean');
-      var stdEl  = document.getElementById('histStd');
+    function triggerRerun() {
+      if (typeof window.fetchData === 'function') window.fetchData();
+      else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+    }
+
+    function init() {
+      var nEl      = document.getElementById('histN');
+      var meanEl   = document.getElementById('histMean');
+      var stdEl    = document.getElementById('histStd');
       var applyBtn = document.getElementById('histApply');
       var clearBtn = document.getElementById('histClear');
 
@@ -1956,7 +1964,7 @@
         var mean = Number(meanEl && meanEl.value);
         var std  = stdEl && stdEl.value !== '' ? Number(stdEl.value) : null;
         if (!n || n < 1 || isNaN(mean)) {
-          alert('Please enter at least N (≥1) and Mean Overrun %.');
+          alert('Please enter Number of Projects (≥1) and Mean Overrun %.');
           return;
         }
         _histPrior = {
@@ -1966,9 +1974,7 @@
         };
         updateBadge();
         updatePreview(_histPrior);
-        // Trigger a fresh run with MCMC baseline
-        if (typeof window.fetchData === 'function') window.fetchData();
-        else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+        triggerRerun();
       });
 
       if (clearBtn) clearBtn.addEventListener('click', function() {
@@ -1979,10 +1985,16 @@
         updateCredibility(0);
         updateBadge();
         updatePreview(null);
-        if (typeof window.fetchData === 'function') window.fetchData();
-        else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+        triggerRerun();
       });
-    });
+    }
+
+    // Inline DOM-ready — works regardless of outer IIFE scope
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init, { once: true });
+    } else {
+      init();
+    }
   })();
   </script>
 
