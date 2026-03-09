@@ -1279,6 +1279,7 @@
           <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
           <span class="tgt-flow-result-text">chance of completion based on your original values.</span>
           <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
+          <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
         </div>
         <div class="tgt-flow-result" id="tgtSentProb">
           <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
@@ -2053,19 +2054,26 @@
 
     function updatePreview(priorObj) {
       var el = document.getElementById('histPreview');
-      if (!el) return;
-      if (!priorObj) { el.style.display = 'none'; return; }
-      el.style.display = '';
+      var banner = document.getElementById('rclActiveBanner');
+      if (!priorObj) {
+        if (el) el.style.display = 'none';
+        if (banner) banner.style.display = 'none';
+        return;
+      }
       var mean = (priorObj.meanOverrunFrac * 100).toFixed(1);
-      var std  = priorObj.stdOverrunFrac ? (priorObj.stdOverrunFrac * 100).toFixed(1) : '—';
-      el.textContent = 'MH-MCMC active — N=' + priorObj.n + ' projects, mean overrun '
-        + (priorObj.meanOverrunFrac >= 0 ? '+' : '') + mean + '%, std ' + std
-        + '%. Baseline shifted accordingly.';
+      var std  = priorObj.stdOverrunFrac ? (priorObj.stdOverrunFrac * 100).toFixed(1) : 'auto';
+      var msg  = '&#128202; Reference class active — N=' + priorObj.n + ' similar project'
+        + (priorObj.n !== 1 ? 's' : '') + ', avg overrun '
+        + (priorObj.meanOverrunFrac >= 0 ? '+' : '') + mean + '%'
+        + (priorObj.stdOverrunFrac ? ', std ' + std + '%' : '')
+        + '. Baseline and probability updated.';
+      if (el) { el.style.display = ''; el.innerHTML = msg; }
+      if (banner) { banner.style.display = ''; banner.innerHTML = msg; }
     }
 
     function triggerRerun() {
-      if (typeof window.fetchData === 'function') window.fetchData();
-      else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+      if (typeof window.pmcRefreshBaseline === 'function') window.pmcRefreshBaseline();
+      else if (typeof window.onTaskChange === 'function') window.onTaskChange();
     }
 
     function init() {
@@ -4794,7 +4802,9 @@
 
         s.fetching = true; setStatusLocal('Fetching…');
 
-        var baseKey = JSON.stringify({ task: s.task.task, O:s.O, M:s.M, P:s.P, target:s.target });
+        var _rcl = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
+        var baseKey = JSON.stringify({ task: s.task.task, O:s.O, M:s.M, P:s.P, target:s.target,
+          rcl: _rcl ? (_rcl.n + '|' + _rcl.meanOverrunFrac + '|' + (_rcl.stdOverrunFrac||'')) : null });
 
         if (s.baselineCache && s.baselineCache[baseKey]) {
           var c = s.baselineCache[baseKey];
@@ -4924,6 +4934,20 @@
 
       window.requestVariant = requestVariant;
       window.onTaskChange = onTaskChange;
+
+      // Lightweight baseline refresh — clears only baseline cache/data, preserves
+      // sliders and overlay state. Called when Reference Class data changes.
+      window.pmcRefreshBaseline = function() {
+        var s = WS();
+        if (!s) return;
+        // Clear cached baseline so fetchData goes to the API (not cache)
+        s.baselineCache = {};
+        s.trianglePdf = []; s.triangleCdf = [];
+        s.betaPertPdf = []; s.betaPertCdf = [];
+        s.basePdf = []; s.baseCdf = [];
+        s.baselineProb = null;
+        fetchData(false);
+      };
 
       function requestVariant(variant) {
         var s = WS();
