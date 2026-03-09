@@ -1278,6 +1278,51 @@
     </div>
   </div>
 
+  <!-- Historical Context — optional MCMC Bayesian baseline adjustment -->
+  <details id="histCtxBox" style="margin:8px 0 4px; border:1px solid var(--line); border-radius:10px; background:#F8FAFF; overflow:hidden;">
+    <summary style="padding:8px 12px; font-size:12px; font-weight:700; color:#374151; cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px;">
+      <span>&#9881;</span> Historical Context
+      <span style="font-size:10px; font-weight:500; color:#6B7280; margin-left:4px;">(optional — activates Bayesian baseline)</span>
+      <span id="histCtxBadge" style="display:none; margin-left:auto; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px;">ON</span>
+    </summary>
+    <div style="padding:10px 12px 12px; border-top:1px solid var(--line);">
+      <p style="font-size:11px; color:#6B7280; margin:0 0 8px;">
+        If similar past projects overran their PERT estimates, enter the overrun history here.
+        SACO will use a Metropolis-Hastings MCMC chain (Student-t prior, 1000 effective samples)
+        to shift the baseline distribution to reflect your organization's track record.
+      </p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <label style="font-size:11px; font-weight:600; color:#374151;">
+          Number of similar past projects (N)
+          <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5"
+            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
+        </label>
+        <label style="font-size:11px; font-weight:600; color:#374151;">
+          Mean overrun % (e.g. 15 means actuals averaged 15% above PERT)
+          <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15"
+            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
+        </label>
+        <label style="font-size:11px; font-weight:600; color:#374151;">
+          Std dev of overrun % <span style="font-weight:400; color:#9CA3AF;">(optional — defaults to 50% of mean)</span>
+          <input id="histStd" type="number" min="0" max="100" step="1" placeholder="optional"
+            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
+        </label>
+        <div id="histCredibility" style="display:none; font-size:11px; padding:5px 8px; border-radius:7px; background:#FEF3C7; color:#92400E; border:1px solid #FCD34D;">
+          Low credibility — fewer than 3 projects. Posterior will stay close to the prior (no systematic overrun).
+        </div>
+        <div style="display:flex; gap:6px; margin-top:2px;">
+          <button id="histApply" style="flex:1; padding:6px; background:#3B82F6; color:#fff; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;">
+            Apply &amp; Re-run
+          </button>
+          <button id="histClear" style="padding:6px 12px; background:#F3F4F6; color:#374151; border:1px solid var(--line); border-radius:7px; font-size:12px; font-weight:600; cursor:pointer;">
+            Clear
+          </button>
+        </div>
+        <div id="histPreview" style="display:none; font-size:11px; color:#1D4ED8; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; padding:5px 8px;"></div>
+      </div>
+    </div>
+  </details>
+
   <!-- Decision Sliders — between strategy tabs and recommendations -->
   <div id="sliderSidebar" role="complementary" aria-label="Decision Sliders">
     <div id="slidersPanel" class="sliders-panel">
@@ -1854,6 +1899,90 @@
       showIfActive();
     }
     onReady(() => { ensureReportVisibleWhenOverlayActive(); renderReportSkeletonOrFull(true); });
+  })();
+  </script>
+
+  <script>
+  // ── Historical Context wiring ──────────────────────────────────────────
+  (function() {
+    var _histPrior = null;  // null = standard MC, object = MCMC mode
+
+    function getHistPrior() { return _histPrior; }
+    window.getHistPrior = getHistPrior;
+
+    function updateCredibility(n) {
+      var el = document.getElementById('histCredibility');
+      if (!el) return;
+      if (!n || isNaN(n) || n < 1) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      if (n < 3) {
+        el.style.background = '#FEF3C7'; el.style.color = '#92400E'; el.style.borderColor = '#FCD34D';
+        el.textContent = 'Low credibility (N=' + n + ') — posterior will stay close to prior (no assumed overrun).';
+      } else if (n < 7) {
+        el.style.background = '#FFF7ED'; el.style.color = '#9A3412'; el.style.borderColor = '#FDBA74';
+        el.textContent = 'Moderate credibility (N=' + n + ') — moderate pull from historical data.';
+      } else {
+        el.style.background = '#F0FDF4'; el.style.color = '#166534'; el.style.borderColor = '#86EFAC';
+        el.textContent = 'Good credibility (N=' + n + ') — posterior strongly reflects historical overrun.';
+      }
+    }
+
+    function updateBadge() {
+      var badge = document.getElementById('histCtxBadge');
+      if (badge) badge.style.display = _histPrior ? '' : 'none';
+    }
+
+    function updatePreview(priorObj) {
+      var el = document.getElementById('histPreview');
+      if (!el) return;
+      if (!priorObj) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      var mean = (priorObj.meanOverrunFrac * 100).toFixed(1);
+      var std  = priorObj.stdOverrunFrac ? (priorObj.stdOverrunFrac * 100).toFixed(1) : '—';
+      el.textContent = 'MCMC active: N=' + priorObj.n + ', mean overrun ' + (priorObj.meanOverrunFrac >= 0 ? '+' : '') + mean + '%, std ' + std + '%. Baseline will shift accordingly.';
+    }
+
+    onReady(function() {
+      var nEl    = document.getElementById('histN');
+      var meanEl = document.getElementById('histMean');
+      var stdEl  = document.getElementById('histStd');
+      var applyBtn = document.getElementById('histApply');
+      var clearBtn = document.getElementById('histClear');
+
+      if (nEl) nEl.addEventListener('input', function() { updateCredibility(Number(nEl.value)); });
+
+      if (applyBtn) applyBtn.addEventListener('click', function() {
+        var n    = Number(nEl && nEl.value);
+        var mean = Number(meanEl && meanEl.value);
+        var std  = stdEl && stdEl.value !== '' ? Number(stdEl.value) : null;
+        if (!n || n < 1 || isNaN(mean)) {
+          alert('Please enter at least N (≥1) and Mean Overrun %.');
+          return;
+        }
+        _histPrior = {
+          n:               n,
+          meanOverrunFrac: mean / 100,
+          stdOverrunFrac:  (std !== null && !isNaN(std) && std > 0) ? std / 100 : undefined
+        };
+        updateBadge();
+        updatePreview(_histPrior);
+        // Trigger a fresh run with MCMC baseline
+        if (typeof window.fetchData === 'function') window.fetchData();
+        else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+      });
+
+      if (clearBtn) clearBtn.addEventListener('click', function() {
+        _histPrior = null;
+        if (nEl)    nEl.value    = '';
+        if (meanEl) meanEl.value = '';
+        if (stdEl)  stdEl.value  = '';
+        updateCredibility(0);
+        updateBadge();
+        updatePreview(null);
+        if (typeof window.fetchData === 'function') window.fetchData();
+        else if (typeof window.runOverlay === 'function') window.runOverlay('adaptive');
+      });
+    });
   })();
   </script>
 
@@ -4557,7 +4686,8 @@
           optimistic: s.O, mostLikely: s.M, pessimistic: s.P,
           targetValue: (s.target != null ? s.target : s.M),
           optimize: false, mode: 'view', adaptive: false,
-          reshapeTriangle: true, reshapeBetaPert: true
+          reshapeTriangle: true, reshapeBetaPert: true,
+          priorHistory: (typeof window.getHistPrior === 'function') ? window.getHistPrior() : undefined
         };
 
         if (!window.google || !google.script || !google.script.run) {
@@ -4712,7 +4842,8 @@
           adaptive: isAdaptive,
           probeLevel: isManual ? 0 : (isAdaptive ? (s.overlay?.probeLevel || 3) : undefined),
           sliderValues: isManual ? (typeof window.sliderValues==='function' ? window.sliderValues() : undefined) : undefined,
-          reshapeTriangle: true, reshapeBetaPert: true
+          reshapeTriangle: true, reshapeBetaPert: true,
+          priorHistory: (typeof window.getHistPrior === 'function') ? window.getHistPrior() : undefined
         };
 
         if (!window.google || !google.script || !google.script.run) {
