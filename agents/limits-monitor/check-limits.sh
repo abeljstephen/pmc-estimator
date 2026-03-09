@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================
 # PMC Estimator — Apps Script Limits Monitor
-# Run manually: bash scripts/check-limits.sh
+# Run manually: bash agents/limits-monitor/check-limits.sh
 # Or let the Claude session cron call it automatically.
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 ADDON_DIR="$REPO_ROOT/system-google-sheets-addon"
-TRACKER="$REPO_ROOT/scripts/deploy-tracker.md"
+TRACKER="$SCRIPT_DIR/deploy-tracker.md"
 
 # ── Limits (Google Apps Script as of 2024) ─────────────────
 DEPLOY_LIMIT=20
