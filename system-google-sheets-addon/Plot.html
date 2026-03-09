@@ -1289,14 +1289,14 @@
         <!-- RESULT: the derived answer -->
         <div class="tgt-flow-result active" id="tgtSentValue">
           <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
-          <span class="tgt-flow-result-text">chance of completion based on your original values.</span>
+          <span class="tgt-flow-result-text" id="tgtSentValueLabel">chance of completion based on your original values.</span>
           <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
           <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
         </div>
         <div class="tgt-flow-result" id="tgtSentProb">
           <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
           <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
-          <span class="tgt-flow-result-text">required to hit this probability based on your original values.</span>
+          <span class="tgt-flow-result-text" id="tgtSentProbLabel">required to hit this probability based on your original values.</span>
           <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
         </div>
 
@@ -2207,6 +2207,8 @@
     }
 
     function triggerRerun() {
+      // Update label text immediately (before API returns) so it reflects RCF state
+      if (typeof window.updateTargetDisplayText === 'function') window.updateTargetDisplayText();
       if (typeof window.pmcRefreshBaseline === 'function') window.pmcRefreshBaseline();
       else if (typeof window.onTaskChange === 'function') window.onTaskChange();
     }
@@ -2689,6 +2691,14 @@
           }
         }
       }
+
+      // ── RCF-aware label text ─────────────────────────────────────────────
+      var rcf = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
+      var srcSuffix = rcf ? 'based on reference class adjusted estimate.' : 'based on your original values.';
+      var sentValLabel = document.getElementById('tgtSentValueLabel');
+      var sentProbLabel = document.getElementById('tgtSentProbLabel');
+      if (sentValLabel) sentValLabel.textContent = 'chance of completion ' + srcSuffix;
+      if (sentProbLabel) sentProbLabel.textContent = 'required to hit this probability ' + srcSuffix;
     }
 
     // Linked crosshair plugin for PDF ↔ CDF
@@ -5081,6 +5091,8 @@
         s.betaPertPdf = []; s.betaPertCdf = [];
         s.basePdf = []; s.baseCdf = [];
         s.baselineProb = null;
+        // Reset fetching guard so a prior in-flight request doesn't block this refresh
+        s.fetching = false;
         fetchData(false);
       };
 
