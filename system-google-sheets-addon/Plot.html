@@ -1256,7 +1256,59 @@
       </div>
     </div>
 
-    <!-- MIDDLE (25%): Estimates — single OMP or aggregate stats, dynamic -->
+    <!-- MIDDLE (35%): Query — probability result, target slider -->
+    <div class="ctrl-col ctrl-query">
+      <span class="ctrl-col-label">Set Targets <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Set Targets" data-body="Interactively explore your probability distribution. Value mode: drag the slider to a target value — see the probability of finishing within it. Probability mode: set a desired probability — see what value achieves it. Results reflect your original estimate (baseline). For other strategies, see the Compare Strategies tab.">?</span></span>
+      <div id="targetPanel">
+
+        <!-- Mode dropdown + slider + live value — all on one row -->
+        <div class="tgt-top-row" id="tgtModeCards">
+          <select class="tgt-mode-select" id="tgtModeSelect"
+                  onchange="onTargetModeSwitch(this.value)"
+                  title="Switch between setting a target value or a target probability">
+            <option value="value" id="tgtCardValue" class="target-mode-btn" data-mode="value">Target value</option>
+            <option value="probability" id="tgtCardProb" class="target-mode-btn" data-mode="probability">Target probability</option>
+          </select>
+          <div class="tgt-slider-inline" id="tgtSliderRow">
+            <span class="tgt-hint">&#x25C4;</span>
+            <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
+                   title="Drag to explore — target and result update live" />
+            <span class="tgt-hint">&#x25BA;</span>
+            <span id="tgtSliderContext" style="display:none;"></span>
+          </div>
+          <!-- Live value display: right of slider -->
+          <div class="tgt-live-val active" id="tgtInputValue">
+            <span class="tgt-chip tgt-val tgt-input-chip" id="targetValDisplay">–</span>
+            <span class="tgt-flow-units" id="tgtUnitsHint1"></span>
+          </div>
+          <div class="tgt-live-val" id="tgtInputProb">
+            <span class="tgt-chip tgt-prob tgt-input-chip" id="tgtProbAlt">–</span>
+          </div>
+        </div>
+
+        <!-- RESULT: the derived answer -->
+        <div class="tgt-flow-result active" id="tgtSentValue">
+          <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
+          <span class="tgt-flow-result-text">chance of completion based on your original values.</span>
+          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
+          <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
+        </div>
+        <div class="tgt-flow-result" id="tgtSentProb">
+          <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
+          <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
+          <span class="tgt-flow-result-text">required to hit this probability based on your original values.</span>
+          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
+        </div>
+
+        <!-- Context band: PERT mean + distance from mean -->
+        <div id="tgtAnswerRow" class="tgt-context-band">
+          <span id="tgtAnswerLabel" style="display:none;"></span>
+          <span id="tgtMeanCtx"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT (25%): Estimates — single OMP or aggregate stats, dynamic -->
     <div class="ctrl-col ctrl-estimates">
       <span class="ctrl-col-label">Estimates</span>
       <div class="est-subtitle" id="estSubtitle">Single task</div>
@@ -1342,58 +1394,6 @@
       <!-- Awaiting first group run -->
       <div class="est-pending" id="estAggPending" style="display:none;">
         Check tasks above,<br>then Save &amp; Run ▶
-      </div>
-    </div>
-
-    <!-- RIGHT (35%): Query — causal flow, narrow column -->
-    <div class="ctrl-col ctrl-query">
-      <span class="ctrl-col-label">Set Targets <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Set Targets" data-body="Interactively explore your probability distribution. Value mode: drag the slider to a target value — see the probability of finishing within it. Probability mode: set a desired probability — see what value achieves it. Results reflect your original estimate (baseline). For other strategies, see the Compare Strategies tab.">?</span></span>
-      <div id="targetPanel">
-
-        <!-- Mode dropdown + slider + live value — all on one row -->
-        <div class="tgt-top-row" id="tgtModeCards">
-          <select class="tgt-mode-select" id="tgtModeSelect"
-                  onchange="onTargetModeSwitch(this.value)"
-                  title="Switch between setting a target value or a target probability">
-            <option value="value" id="tgtCardValue" class="target-mode-btn" data-mode="value">Target value</option>
-            <option value="probability" id="tgtCardProb" class="target-mode-btn" data-mode="probability">Target probability</option>
-          </select>
-          <div class="tgt-slider-inline" id="tgtSliderRow">
-            <span class="tgt-hint">&#x25C4;</span>
-            <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
-                   title="Drag to explore — target and result update live" />
-            <span class="tgt-hint">&#x25BA;</span>
-            <span id="tgtSliderContext" style="display:none;"></span>
-          </div>
-          <!-- Live value display: right of slider -->
-          <div class="tgt-live-val active" id="tgtInputValue">
-            <span class="tgt-chip tgt-val tgt-input-chip" id="targetValDisplay">–</span>
-            <span class="tgt-flow-units" id="tgtUnitsHint1"></span>
-          </div>
-          <div class="tgt-live-val" id="tgtInputProb">
-            <span class="tgt-chip tgt-prob tgt-input-chip" id="tgtProbAlt">–</span>
-          </div>
-        </div>
-
-        <!-- RESULT: the derived answer -->
-        <div class="tgt-flow-result active" id="tgtSentValue">
-          <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
-          <span class="tgt-flow-result-text">chance of completion based on your original values.</span>
-          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
-          <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
-        </div>
-        <div class="tgt-flow-result" id="tgtSentProb">
-          <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
-          <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
-          <span class="tgt-flow-result-text">required to hit this probability based on your original values.</span>
-          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
-        </div>
-
-        <!-- Context band: PERT mean + distance from mean -->
-        <div id="tgtAnswerRow" class="tgt-context-band">
-          <span id="tgtAnswerLabel" style="display:none;"></span>
-          <span id="tgtMeanCtx"></span>
-        </div>
       </div>
     </div>
 
