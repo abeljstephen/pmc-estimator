@@ -1163,6 +1163,186 @@
     .pmc-dashboard .pmc-wiz-setup-btn { display: block; }
     /* Section dividers get more breathing room in dashboard scroll */
     .pmc-dashboard .pmc-wiz-panel + .pmc-wiz-panel { border-top: 2px solid var(--line); padding-top: 6px; margin-top: 4px; }
+
+    /* ══════════════════════════════════════════════════════════
+       STEP 1 — Single-column redesign
+       All stp1-* rules are scoped to #wizPanel1 so they can't
+       bleed into Steps 2 / 3 or the dashboard.
+       ══════════════════════════════════════════════════════════ */
+
+    /* Reset #tmBar when inside the new single-col step 1 */
+    #wizPanel1 #tmBar {
+      display: flex; flex-direction: column; align-items: stretch;
+      gap: 6px; background: transparent; border: none;
+      border-radius: 0; padding: 0; margin-bottom: 0;
+      font-size: 12px;
+    }
+    /* Section card wrapper */
+    .stp1-card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+    }
+    .stp1-task-card { background: #F8FAFF; }
+    .stp1-target-card { background: #F8FAFF; }
+
+    /* Section header row (label left, meta right) */
+    .stp1-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .stp1-label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    /* Task card: mode toggle full-width */
+    #wizPanel1 .tm-mode-toggle { width: 100%; }
+    #wizPanel1 .tm-mode-btn { flex: 1; font-size: 11px; padding: 4px 6px; text-align: center; }
+    /* Task select full-width */
+    #wizPanel1 #taskSel {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--line);
+      border-radius: 8px; font-size: 13px; font-weight: 500; min-height: 34px;
+    }
+    /* Action buttons */
+    #wizPanel1 .tm-actions { gap: 4px; flex-wrap: wrap; display: flex; }
+    #wizPanel1 .tm-btn { padding: 4px 10px; font-size: 11px; min-height: 28px; }
+    /* Task meta: manage + settings buttons right-aligned in header */
+    .stp1-task-meta { display: flex; gap: 4px; align-items: center; }
+    .stp1-meta-btn {
+      padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px;
+      background: var(--panel); font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: inherit; min-height: 26px;
+    }
+    .stp1-meta-btn:hover { background: var(--hover); }
+    /* Task footer row: info text + status (status hidden unless fetching) */
+    .stp1-task-footer {
+      display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+      margin-top: 2px;
+    }
+    .stp1-task-info { color: var(--muted); font-size: 10px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Status: hide when Ready, show only when fetching */
+    #wizPanel1 .status {
+      font-size: 9px; padding: 2px 7px; min-height: 20px;
+      border-radius: 6px; transition: all .3s; flex-shrink: 0;
+    }
+    #wizPanel1 .status:not(.fetching) { display: none; }
+    #wizPanel1 #refreshBtn { min-height: 22px; padding: 2px 7px; font-size: 11px; flex-shrink: 0; }
+
+    /* ── Mode pills (replace <select> for target mode) ── */
+    .stp1-mode-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+    }
+    .stp1-mode-pills {
+      display: inline-flex; border: 1px solid var(--line);
+      border-radius: 20px; overflow: hidden; flex-shrink: 0;
+    }
+    .stp1-pill {
+      padding: 4px 11px; font-size: 10px; font-weight: 600;
+      background: var(--chip); color: var(--muted);
+      border: none; cursor: pointer; font-family: inherit; line-height: 1.4; white-space: nowrap;
+    }
+    .stp1-pill:hover { background: var(--hover); }
+    .stp1-pill.active,
+    .stp1-pill.target-mode-btn.active { background: #111827; color: #fff; }
+    .stp1-pill + .stp1-pill { border-left: 1px solid var(--line); }
+
+    /* ── Slider: full-width ── */
+    .stp1-slider-row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    }
+    .stp1-slider-row input[type=range] { flex: 1; min-width: 0; }
+    /* Live value chip right of slider */
+    .stp1-live-chip { flex-shrink: 0; }
+
+    /* ── Hero probability card ── */
+    .stp1-hero-card {
+      display: none; flex-direction: column; align-items: center;
+      text-align: center; padding: 14px 14px 10px;
+      border-radius: 10px; border: 1.5px solid #BFDBFE; background: #EFF6FF;
+      gap: 2px; margin-top: 6px;
+    }
+    .stp1-hero-card.active { display: flex; }
+    /* ── Probability colour tiers ── */
+    .stp1-hero-card.prob-high { background: #F0FDF4; border-color: #86EFAC; }
+    .stp1-hero-card.prob-mid  { background: #FFF7ED; border-color: #FCD34D; }
+    .stp1-hero-card.prob-low  { background: #FEF2F2; border-color: #FCA5A5; }
+    /* Hero number */
+    .stp1-prob-num {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 48px; font-weight: 800; line-height: 1;
+      color: #1D4ED8;
+    }
+    .stp1-hero-card.prob-high .stp1-prob-num { color: #166534; }
+    .stp1-hero-card.prob-mid  .stp1-prob-num { color: #92400E; }
+    .stp1-hero-card.prob-low  .stp1-prob-num { color: #991B1B; }
+    /* Hero label */
+    .stp1-prob-lbl {
+      font-size: 12px; font-weight: 600; color: #1E40AF; line-height: 1.4;
+      max-width: 260px;
+    }
+    .stp1-hero-card.prob-high .stp1-prob-lbl { color: #166534; }
+    .stp1-hero-card.prob-mid  .stp1-prob-lbl { color: #92400E; }
+    .stp1-hero-card.prob-low  .stp1-prob-lbl { color: #991B1B; }
+    /* Context line (PERT mean) inside hero card */
+    .stp1-hero-ctx {
+      font-size: 10px; color: var(--muted); margin-top: 4px;
+      border-top: 1px solid rgba(0,0,0,.06); padding-top: 5px; width: 100%; text-align: center;
+    }
+    /* Hero note */
+    .stp1-hero-note {
+      font-size: 9px; color: #6B7280; font-style: italic; margin-top: 2px;
+    }
+    /* Result chip inside hero card (probability mode: shows a value) */
+    .stp1-hero-card .tgt-result-chip { font-size: 38px !important; }
+
+    /* ── Estimates collapse ── */
+    .stp1-est-detail {
+      border: 1px solid var(--line); border-radius: 10px;
+      overflow: hidden; margin-bottom: 8px;
+    }
+    .stp1-est-summary {
+      display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+      cursor: pointer; user-select: none; list-style: none;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--chip);
+    }
+    .stp1-est-summary::-webkit-details-marker { display: none; }
+    .stp1-est-summary:hover { background: var(--hover); }
+    .stp1-est-arrow { font-size: 8px; transition: transform .15s; flex-shrink: 0; }
+    .stp1-est-detail[open] .stp1-est-arrow { transform: rotate(90deg); }
+    .stp1-est-detail[open] .stp1-est-summary { border-bottom: 1px solid var(--line); }
+    .stp1-est-body { padding: 8px 12px; background: var(--panel); }
+    /* Horizontal strip of O/M/P/PERT */
+    .stp1-est-strip {
+      display: flex; flex-direction: row; flex-wrap: nowrap; gap: 0;
+    }
+    .stp1-est-item {
+      flex: 1; min-width: 0; text-align: center;
+      padding: 5px 4px; border-right: 1px solid var(--line);
+    }
+    .stp1-est-item:last-child { border-right: none; }
+    .stp1-est-item.stp1-pert { background: rgba(59,130,246,.05); border-radius: 4px; }
+    .stp1-est-lbl {
+      display: flex; align-items: center; justify-content: center; gap: 3px;
+      font-size: 8px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .03em; line-height: 1.2;
+    }
+    .stp1-est-val {
+      display: block; margin-top: 3px;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 13px; font-weight: 700; color: #111827;
+    }
+    .stp1-est-item.stp1-pert .stp1-est-val { color: var(--cdf); }
+
+    /* ── CTA footer button: full width ── */
+    #wizPanel1 .pmc-wiz-footer { padding-top: 8px; margin-top: 4px; }
+    #wizPanel1 .pmc-wiz-btn.primary.stp1-cta {
+      flex: 1; justify-content: center; font-size: 13px;
+      padding: 12px 16px; border-radius: 10px;
+    }
+
+    /* ── RCF box: relabelled, keep existing styles ── */
+    #wizPanel1 .pmc-ref-class-box { margin-bottom: 8px; }
   </style>
 </head>
 
@@ -1203,210 +1383,214 @@
 
 <!-- ══ STEP 1 — ESTIMATE ═══════════════════════════════════════════════ -->
 <div class="pmc-wiz-panel" data-wiz="1" id="wizPanel1">
-<div class="pmc-step-hdr">
-  <span class="pmc-step-num">1</span>
-  <div>
-    <div class="pmc-step-title">Your Estimate</div>
-    <div class="pmc-step-desc">Select a task, review the 3-point estimates, and set your completion target. Your probability appears immediately. Optionally calibrate with past project data below.</div>
+
+<!-- ── TASK CARD ── -->
+<div class="stp1-card stp1-task-card" id="tmBar">
+  <div class="stp1-hdr">
+    <span class="stp1-label">Task</span>
+    <div class="stp1-task-meta">
+      <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Manage tasks</button>
+      <button class="stp1-meta-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task settings">&#9881;</button>
+    </div>
   </div>
-</div>
 
-<!-- ── CONTROL CARD: 3 columns (40 / 25 / 35) ── -->
-<div class="card ctrl-card">
-  <div class="ctrl-3col">
+  <div class="tm-mode-toggle" title="Single: analyze one task. Group: combine multiple tasks into one distribution.">
+    <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single task</button>
+    <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Group</button>
+  </div>
 
-    <!-- LEFT (40%): Task controls -->
-    <div class="ctrl-col ctrl-left" id="tmBar">
-      <span class="ctrl-col-label">Select Task <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Select Task" data-body="Choose a task from your data source to analyze. Single mode: analyze one task at a time using its 3-point estimate. Group mode: select multiple tasks to combine via Monte Carlo simulation into one aggregate distribution.">?</span></span>
+  <select id="taskSel" title="Select a task"></select>
 
-      <div class="tm-mode-toggle" title="Single: analyze one task at a time. Group: combine selected tasks into one distribution.">
-        <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single</button>
-        <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Group</button>
+  <!-- Group mode: inline multi-select checklist -->
+  <div id="tmGroupPicker" style="display:none;">
+    <div class="grp-header">
+      <span class="grp-count" id="grpCount">0 selected</span>
+      <button class="grp-quick-btn" onclick="TM._aggSelectAll(true)" title="Select all tasks">All</button>
+      <button class="grp-quick-btn" onclick="TM._aggSelectAll(false)" title="Deselect all tasks">None</button>
+      <button class="grp-quick-btn" id="grpToggleBtn" onclick="TM._toggleGroupList()" title="Expand/collapse task list">Collapse</button>
+    </div>
+    <div class="grp-list" id="grpList"></div>
+  </div>
+
+  <div class="tm-actions">
+    <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
+    <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
+  </div>
+
+  <div class="stp1-task-footer">
+    <span id="tmTaskInfo" class="stp1-task-info">Initializing…</span>
+    <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved</span>
+    <span id="fetchStatus" class="status">Ready</span>
+    <button id="refreshBtn" class="primary">&#x21bb;</button>
+  </div>
+</div><!-- /task card -->
+
+<!-- ── TARGET + RESULT CARD ── -->
+<div class="stp1-card stp1-target-card" id="targetPanel">
+
+  <!-- Mode pills + label -->
+  <div class="stp1-mode-row" id="tgtModeCards">
+    <span class="stp1-label">Your completion target</span>
+    <div class="stp1-mode-pills">
+      <button class="stp1-pill target-mode-btn active" data-mode="value"
+              onclick="onTargetModeSwitch('value')" title="Set a target value — see the probability of finishing within it">
+        Target value
+      </button>
+      <button class="stp1-pill target-mode-btn" data-mode="probability"
+              onclick="onTargetModeSwitch('probability')" title="Set a target probability — see what value achieves it">
+        Target probability
+      </button>
+    </div>
+    <!-- Hidden select kept for JS compat (JS sets sel.value = newMode) -->
+    <select id="tgtModeSelect" style="display:none;" onchange="onTargetModeSwitch(this.value)">
+      <option value="value" id="tgtCardValue" class="target-mode-btn" data-mode="value">Target value</option>
+      <option value="probability" id="tgtCardProb" class="target-mode-btn" data-mode="probability">Target probability</option>
+    </select>
+  </div>
+
+  <!-- Slider row: full width + live value chip right -->
+  <div class="stp1-slider-row" id="tgtSliderRow">
+    <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
+           title="Drag to explore — target and result update live" />
+    <span id="tgtSliderContext" style="display:none;"></span>
+    <div class="tgt-live-val active stp1-live-chip" id="tgtInputValue">
+      <span class="tgt-chip tgt-val tgt-input-chip" id="targetValDisplay">–</span>
+      <span class="tgt-flow-units" id="tgtUnitsHint1"></span>
+    </div>
+    <div class="tgt-live-val stp1-live-chip" id="tgtInputProb">
+      <span class="tgt-chip tgt-prob tgt-input-chip" id="tgtProbAlt">–</span>
+    </div>
+  </div>
+
+  <!-- HERO probability card (value mode) -->
+  <div class="stp1-hero-card active" id="tgtSentValue">
+    <div class="stp1-prob-num" id="targetProbDisplay">–</div>
+    <div class="stp1-prob-lbl" id="tgtSentValueLabel">chance of completion based on your original values.</div>
+    <div class="stp1-hero-ctx">
+      <span id="tgtMeanCtx"></span>
+    </div>
+    <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
+    <div class="stp1-hero-note">See Compare Strategies tab for other strategies.</div>
+  </div>
+
+  <!-- HERO value card (probability mode) -->
+  <div class="stp1-hero-card" id="tgtSentProb">
+    <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
+    <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
+    <div class="stp1-prob-lbl" id="tgtSentProbLabel">required to hit this probability based on your original values.</div>
+    <div class="stp1-hero-ctx">
+      <span id="tgtAnswerLabel" style="display:none;"></span>
+    </div>
+    <div class="stp1-hero-note">See Compare Strategies tab for other strategies.</div>
+  </div>
+
+  <!-- tgtAnswerRow preserved for JS (used by updateTargetDisplayText) -->
+  <div id="tgtAnswerRow" style="display:none;"></div>
+
+</div><!-- /target card -->
+
+<!-- ── ESTIMATES COLLAPSE ── -->
+<details class="stp1-est-detail">
+  <summary class="stp1-est-summary">
+    <span class="stp1-est-arrow">&#9654;</span>
+    <span id="estSubtitle">3-point estimate (O / M / P)</span>
+  </summary>
+  <div class="stp1-est-body">
+
+    <!-- SINGLE MODE: O / M / P / Expected (PERT mean) -->
+    <div class="stp1-est-strip" id="estSingleStack">
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="Optimistic Estimate" data-body="Best-case scenario — minimum reasonable estimate if everything goes well. Represents the fastest or cheapest plausible outcome.">?</span>
+          Optimistic
+        </span>
+        <span class="stp1-est-val" id="oVal">–</span>
       </div>
-
-      <!-- Single mode: one-task dropdown -->
-      <select id="taskSel" title="Select a task"></select>
-
-      <!-- Group mode: inline multi-select checklist (shown when mode = aggregate) -->
-      <div id="tmGroupPicker" style="display:none;">
-        <div class="grp-header">
-          <span class="grp-count" id="grpCount">0 selected</span>
-          <button class="grp-quick-btn" onclick="TM._aggSelectAll(true)" title="Select all tasks">All</button>
-          <button class="grp-quick-btn" onclick="TM._aggSelectAll(false)" title="Deselect all tasks">None</button>
-          <button class="grp-quick-btn" id="grpToggleBtn" onclick="TM._toggleGroupList()" title="Expand/collapse task list">Collapse</button>
-        </div>
-        <div class="grp-list" id="grpList"></div>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="Most Likely Estimate" data-body="Most realistic scenario — what you'd expect under normal conditions. This value receives 4× the weight in the PERT formula.">?</span>
+          Most Likely
+        </span>
+        <span class="stp1-est-val" id="mVal">–</span>
       </div>
-
-      <div class="tm-actions">
-        <button class="tm-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Data Source</button>
-        <button class="tm-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task Manager settings">&#9881;</button>
-        <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
-        <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="Pessimistic Estimate" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly. Represents the slowest or most expensive plausible outcome.">?</span>
+          Pessimistic
+        </span>
+        <span class="stp1-est-val" id="pVal">–</span>
       </div>
-
-      <div class="status-compact">
-        <span id="fetchStatus" class="status">Ready</span>
-        <button id="refreshBtn" class="primary">&#x21bb;</button>
-      </div>
-
-      <div class="ctrl-info-row">
-        <span id="tmTaskInfo">Initializing…</span>
-        <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved</span>
+      <div class="stp1-est-item stp1-pert">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Extra weight on Most Likely produces a realistic expected mean. More accurate than a simple average of the three points.">?</span>
+          Expected
+        </span>
+        <span class="stp1-est-val" id="pertVal">–</span>
       </div>
     </div>
 
-    <!-- MIDDLE (35%): Query — probability result, target slider -->
-    <div class="ctrl-col ctrl-query">
-      <span class="ctrl-col-label">Set Targets <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Set Targets" data-body="Interactively explore your probability distribution. Value mode: drag the slider to a target value — see the probability of finishing within it. Probability mode: set a desired probability — see what value achieves it. Results reflect your original estimate (baseline). For other strategies, see the Compare Strategies tab.">?</span></span>
-      <div id="targetPanel">
-
-        <!-- Mode dropdown + slider + live value — all on one row -->
-        <div class="tgt-top-row" id="tgtModeCards">
-          <select class="tgt-mode-select" id="tgtModeSelect"
-                  onchange="onTargetModeSwitch(this.value)"
-                  title="Switch between setting a target value or a target probability">
-            <option value="value" id="tgtCardValue" class="target-mode-btn" data-mode="value">Target value</option>
-            <option value="probability" id="tgtCardProb" class="target-mode-btn" data-mode="probability">Target probability</option>
-          </select>
-          <div class="tgt-slider-inline" id="tgtSliderRow">
-            <span class="tgt-hint">&#x25C4;</span>
-            <input id="targetSlider" type="range" min="-10" max="110" step="any" value="50"
-                   title="Drag to explore — target and result update live" />
-            <span class="tgt-hint">&#x25BA;</span>
-            <span id="tgtSliderContext" style="display:none;"></span>
-          </div>
-          <!-- Live value display: right of slider -->
-          <div class="tgt-live-val active" id="tgtInputValue">
-            <span class="tgt-chip tgt-val tgt-input-chip" id="targetValDisplay">–</span>
-            <span class="tgt-flow-units" id="tgtUnitsHint1"></span>
-          </div>
-          <div class="tgt-live-val" id="tgtInputProb">
-            <span class="tgt-chip tgt-prob tgt-input-chip" id="tgtProbAlt">–</span>
-          </div>
-        </div>
-
-        <!-- RESULT: the derived answer -->
-        <div class="tgt-flow-result active" id="tgtSentValue">
-          <span class="tgt-chip tgt-prob tgt-result-chip" id="targetProbDisplay">–</span>
-          <span class="tgt-flow-result-text" id="tgtSentValueLabel">chance of completion based on your original values.</span>
-          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
-          <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
-        </div>
-        <div class="tgt-flow-result" id="tgtSentProb">
-          <span class="tgt-chip tgt-val tgt-result-chip" id="tgtValAlt">–</span>
-          <span class="tgt-flow-units" id="tgtUnitsHint2"></span>
-          <span class="tgt-flow-result-text" id="tgtSentProbLabel">required to hit this probability based on your original values.</span>
-          <span class="tgt-result-note">See Compare Strategies tab for values based on other strategies.</span>
-        </div>
-
-        <!-- Context band: PERT mean + distance from mean -->
-        <div id="tgtAnswerRow" class="tgt-context-band">
-          <span id="tgtAnswerLabel" style="display:none;"></span>
-          <span id="tgtMeanCtx"></span>
-        </div>
+    <!-- GROUP MODE: combined distribution stats -->
+    <div class="stp1-est-strip" id="estAggStack" style="display:none;">
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="Task Count" data-body="Number of tasks combined in this Group simulation.">?</span>
+          Tasks
+        </span>
+        <span class="stp1-est-val" id="aggStatTasks">–</span>
+      </div>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="Aggregate Mean" data-body="Average outcome across all 5,000 Monte Carlo simulations of the combined tasks.">?</span>
+          Mean
+        </span>
+        <span class="stp1-est-val" id="aggStatMean">–</span>
+      </div>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="P50 — Median" data-body="50th percentile: 50% probability of finishing at or below this value.">?</span>
+          P50
+        </span>
+        <span class="stp1-est-val" id="aggStatP50">–</span>
+      </div>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="P80 — Risk-Adjusted" data-body="80th percentile: industry standard for risk-adjusted planning commitments.">?</span>
+          P80
+        </span>
+        <span class="stp1-est-val" id="aggStatP80">–</span>
+      </div>
+      <div class="stp1-est-item">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="P90 — High Confidence" data-body="90th percentile: used for high-confidence external commitments.">?</span>
+          P90
+        </span>
+        <span class="stp1-est-val" id="aggStatP90">–</span>
+      </div>
+      <div class="stp1-est-item stp1-pert">
+        <span class="stp1-est-lbl">
+          <span class="help-icon" data-title="P(≤τ) — Target Probability" data-body="Probability of finishing at or below your target value (τ) based on the combined group distribution.">?</span>
+          P(≤τ)
+        </span>
+        <span class="stp1-est-val" id="aggStatProb">–</span>
       </div>
     </div>
 
-    <!-- RIGHT (25%): Estimates — single OMP or aggregate stats, dynamic -->
-    <div class="ctrl-col ctrl-estimates">
-      <span class="ctrl-col-label">Estimates</span>
-      <div class="est-subtitle" id="estSubtitle">Single task</div>
-
-      <!-- SINGLE MODE: O / M / P / PERT Mean -->
-      <div class="est-stack" id="estSingleStack">
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="Optimistic Estimate" data-body="Best-case scenario — minimum reasonable estimate if everything goes well. Represents the fastest or cheapest plausible outcome.">?</span>
-            <span class="est-label">Optimistic</span>
-          </div>
-          <span class="est-val" id="oVal">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="Most Likely Estimate" data-body="Most realistic scenario — what you'd expect under normal conditions. This value receives 4× the weight in the PERT formula.">?</span>
-            <span class="est-label">Most Likely</span>
-          </div>
-          <span class="est-val" id="mVal">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="Pessimistic Estimate" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly. Represents the slowest or most expensive plausible outcome.">?</span>
-            <span class="est-label">Pessimistic</span>
-          </div>
-          <span class="est-val" id="pVal">–</span>
-        </div>
-        <div class="est-item pert">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Extra weight on Most Likely produces a realistic expected mean. More accurate than a simple average of the three points.">?</span>
-            <span class="est-label">PERT Mean</span>
-          </div>
-          <span class="est-val" id="pertVal">–</span>
-        </div>
-      </div>
-
-      <!-- GROUP MODE (after run): combined distribution stats -->
-      <div class="est-stack" id="estAggStack" style="display:none;">
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="Task Count" data-body="Number of tasks combined in this Group simulation. Each task's 3-point estimate is simulated independently and their results are summed to form the aggregate distribution.">?</span>
-            <span class="est-label">Tasks</span>
-          </div>
-          <span class="est-val" id="aggStatTasks">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="Aggregate Mean" data-body="Average outcome across all 5,000 Monte Carlo simulations of the combined tasks. This is the expected total if all selected tasks run simultaneously.">?</span>
-            <span class="est-label">Mean</span>
-          </div>
-          <span class="est-val" id="aggStatMean">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="P50 — Median" data-body="50th percentile: there is a 50% probability of finishing at or below this value. This is the median outcome of the combined simulation. A balanced, unbiased reference point.">?</span>
-            <span class="est-label">P50</span>
-          </div>
-          <span class="est-val" id="aggStatP50">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="P80 — Risk-Adjusted" data-body="80th percentile: 80% probability of finishing at or below this value. Industry standard for risk-adjusted planning commitments. Use this when presenting to sponsors or stakeholders who expect realistic accountability.">?</span>
-            <span class="est-label">P80</span>
-          </div>
-          <span class="est-val" id="aggStatP80">–</span>
-        </div>
-        <div class="est-item">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="P90 — High Confidence" data-body="90th percentile: 90% probability of finishing at or below this value. Used for high-confidence external commitments and contractual guarantees where the cost of overrun is significant.">?</span>
-            <span class="est-label">P90</span>
-          </div>
-          <span class="est-val" id="aggStatP90">–</span>
-        </div>
-        <div class="est-item pert">
-          <div class="est-label-row">
-            <span class="help-icon" data-title="P(≤τ) — Target Probability" data-body="Probability of finishing at or below your target value (τ) based on the combined group distribution. Set your target value or probability in the Set Targets column on the left.">?</span>
-            <span class="est-label">P(≤τ)</span>
-          </div>
-          <span class="est-val" id="aggStatProb">–</span>
-        </div>
-      </div>
-
-      <!-- Awaiting first group run -->
-      <div class="est-pending" id="estAggPending" style="display:none;">
-        Check tasks above,<br>then Save &amp; Run ▶
-      </div>
+    <!-- Group mode: awaiting first run -->
+    <div class="est-pending" id="estAggPending" style="display:none;">
+      Check tasks above,<br>then Save &amp; Run ▶
     </div>
 
-  </div><!-- /.ctrl-3col -->
+  </div>
+</details><!-- /estimates -->
 
-  <!-- Aggregate stats bar retired — stats now shown in Estimates column -->
-  <div id="tmAggBar" style="display:none!important;"></div>
-</div>
-<!-- Reference Class — optional calibration, lives inside Estimate step -->
-<details id="histCtxBox" class="pmc-ref-class-box" style="margin-top:8px;">
+<!-- tmAggBar: kept in DOM for JS (always hidden) -->
+<div id="tmAggBar" style="display:none!important;"></div>
+
+<!-- ── CALIBRATE WITH TEAM HISTORY (RCF) ── -->
+<details id="histCtxBox" class="pmc-ref-class-box">
   <summary class="pmc-ref-class-summary">
     <span class="pmc-ref-class-arrow">&#9654;</span>
-    Calibrate with past project data <span class="pmc-step-optional" style="margin-left:4px;">optional</span>
+    Calibrate with your team's history <span class="pmc-step-optional" style="margin-left:4px;">optional</span>
     <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; margin-left:6px;">ACTIVE</span>
   </summary>
   <div class="pmc-ref-class-body">
@@ -1439,10 +1623,10 @@
     <div id="histPreview" style="display:none;" class="pmc-ref-preview"></div>
   </div>
 </details>
-<!-- Wizard footer: step 1 -->
+
+<!-- Wizard footer: step 1 — full-width CTA -->
 <div class="pmc-wiz-footer">
-  <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(2)" title="Run optimizations and view full results dashboard">See Strategies &amp; Results ›</button>
+  <button class="pmc-wiz-btn primary stp1-cta" onclick="pmcWizGo(2)" title="Run optimizations and view full results dashboard">See Strategies &amp; Results ›</button>
 </div>
 </div><!-- /wizPanel1 -->
 
@@ -2699,6 +2883,19 @@
       var sentProbLabel = document.getElementById('tgtSentProbLabel');
       if (sentValLabel) sentValLabel.textContent = 'chance of completion ' + srcSuffix;
       if (sentProbLabel) sentProbLabel.textContent = 'required to hit this probability ' + srcSuffix;
+
+      // ── Semantic color tier on hero cards ────────────────────────────────
+      var prob = s.targetProb;
+      ['tgtSentValue', 'tgtSentProb'].forEach(function(id) {
+        var card = document.getElementById(id);
+        if (!card) return;
+        card.classList.remove('prob-high', 'prob-mid', 'prob-low');
+        if (prob != null && Number.isFinite(prob)) {
+          if (prob >= 0.75)      card.classList.add('prob-high');
+          else if (prob >= 0.50) card.classList.add('prob-mid');
+          else                   card.classList.add('prob-low');
+        }
+      });
     }
 
     // Linked crosshair plugin for PDF ↔ CDF
