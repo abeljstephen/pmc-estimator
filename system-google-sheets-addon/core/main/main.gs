@@ -172,7 +172,8 @@ function processTask(task) {
       mode = (optimize ? 'opt' : 'view'),
       randomSeed = BUILD_INFO.randomSeed || Date.now().toString(),
       adaptive = true,
-      probeLevel = 5
+      probeLevel = 5,
+      priorHistory = null
     } = task || {};
 
     const hasTarget = Number.isFinite(targetValue);
@@ -202,7 +203,9 @@ function processTask(task) {
       pessimistic,
       numSamples: MAX_POINTS,
       suppressOtherDistros,
-      randomSeed
+      randomSeed,
+      priorHistory: (priorHistory && Number.isFinite(priorHistory.n) && priorHistory.n >= 1
+        && Number.isFinite(priorHistory.meanOverrunFrac)) ? priorHistory : undefined
     });
     if (baselineRaw?.error) raise(`generateBaseline failed: ${baselineRaw.error}`, baselineRaw.details || {});
 
