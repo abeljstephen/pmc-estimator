@@ -236,6 +236,8 @@
       margin-bottom: 14px;
     }
     #overlayKpis.sidebar-active #sliderSidebar { display: block; }
+    /* When sliderSidebar is relocated into step-3 wizard panel, always show it */
+    #sliderWizPanel #sliderSidebar { display: block; border-top: none; padding-top: 4px; margin-top: 0; }
     .plot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
     /* Panel interior: header row + horizontal category columns */
@@ -1539,6 +1541,11 @@
       </div>
       <div class="val">–</div>
     </div>
+  </div>
+
+  <!-- Slider shortcut — shown in Results tab when sliders are in step 3 -->
+  <div id="sliderResultsLink" style="display:none; margin: 8px 0 4px; padding: 7px 12px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; font-size:11px; color:#1D4ED8; cursor:pointer;" onclick="pmcWizGo(3)" title="Go to Project Conditions to adjust sliders">
+    &#9881; Adjust Decision Sliders &rarr; Go to Step 3 (Conditions)
   </div>
 
   <!-- Decision Sliders — between strategy tabs and recommendations -->
@@ -5552,14 +5559,19 @@
         var s = WS();
         var container = document.getElementById('plotContainer');
         var sidebar = document.getElementById('sliderSidebar');
-        if (!container || !sidebar) return;
+        if (!container) return;
 
         var ov = s.overlay || {};
         var showSidebar = (s.tab === 'overlay') &&
           (ov.manualOn || ov.fixedOn || ov.adaptiveOn);
 
         var overlayKpisEl = document.getElementById('overlayKpis');
-        if (overlayKpisEl) overlayKpisEl.classList.toggle('sidebar-active', showSidebar);
+        // sliderSidebar has been relocated to step-3 wizard panel by DOM move.
+        // In Results (step 4), show a link to step 3 instead of the sidebar.
+        var sliderInResults = !sidebar || !overlayKpisEl || !overlayKpisEl.contains(sidebar);
+        var linkEl = document.getElementById('sliderResultsLink');
+        if (linkEl) linkEl.style.display = showSidebar && sliderInResults ? '' : 'none';
+        if (overlayKpisEl) overlayKpisEl.classList.toggle('sidebar-active', showSidebar && !sliderInResults);
 
         var bannerEl = document.getElementById('sliderImpactBanner');
 
