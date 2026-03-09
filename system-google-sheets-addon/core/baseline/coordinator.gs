@@ -79,9 +79,21 @@ function generateBaseline(params) {
     }
 
     // Monte Carlo smoothed (active baseline)
+    // If priorHistory is provided and valid (n >= 1), use MH-MCMC with Student-t(ν=4) prior
+    // (burn-in 500, thinning 5, 1000 effective chain samples).
+    // Otherwise use standard i.i.d. Beta MC sampling. The downstream pipeline is identical.
     const smoothedParams = { optimistic, mostLikely, pessimistic, numSamples };
     if (monteCarloRawPoints?.samples?.length) smoothedParams.samples = monteCarloRawPoints.samples;
-    const monteCarloSmoothedPoints = generateMonteCarloSmoothedPoints(smoothedParams);
+    const hasPriorHistory = params.priorHistory &&
+      Number.isFinite(params.priorHistory.n) && params.priorHistory.n >= 1 &&
+      Number.isFinite(params.priorHistory.meanOverrunFrac);
+    if (hasPriorHistory) {
+      smoothedParams.priorHistory = params.priorHistory;
+      console.log('generateBaseline: Using MCMC Bayesian baseline (priorHistory n=' + params.priorHistory.n + ')');
+    }
+    const monteCarloSmoothedPoints = hasPriorHistory
+      ? generateMCMCSmoothedPoints(smoothedParams)
+      : generateMonteCarloSmoothedPoints(smoothedParams);
     if (monteCarloSmoothedPoints.error ||
         !isValidPdfArray(monteCarloSmoothedPoints.pdfPoints) ||
         !isValidCdfArray(monteCarloSmoothedPoints.cdfPoints)) {
@@ -161,6 +173,8 @@ function generateBaseline(params) {
         klDivergenceToTriangle: monteCarloSmoothedPoints.klDivergenceToTriangle || kld
       },
       alpha, beta,
+      posteriorStats: monteCarloSmoothedPoints.posteriorStats || null,
+      baselineMode: hasPriorHistory ? 'mcmc' : 'montecarlo',
       error: null
     };
   } catch (error) {

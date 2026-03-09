@@ -1,0 +1,794 @@
+<div id="pmc-estimator" class="pmc-estimator" role="main" aria-label="PMC Estimator">
+
+  <!-- ===== Control Card: 3 columns (task | estimates | targets) ===== -->
+  <div class="card ctrl-card">
+    <div class="ctrl-3col">
+
+      <!-- LEFT: Task input / task selector -->
+      <div class="ctrl-col ctrl-left">
+        <span class="ctrl-col-label">Task Input</span>
+
+        <!-- Single / Group mode toggle -->
+        <div class="tm-mode-toggle">
+          <button class="tm-mode-btn active" id="pmc-mode-single" title="Enter one task manually">Single</button>
+          <button class="tm-mode-btn" id="pmc-mode-group" title="Manage multiple tasks">Group</button>
+        </div>
+
+        <!-- Single mode: direct input fields -->
+        <div id="pmc-single-inputs">
+          <input id="pmc-task-name" class="pmc-full-input" type="text" placeholder="Task name (optional)" autocomplete="off" />
+          <div class="omp-row">
+            <input id="pmc-optimistic"  class="pmc-num-input" type="number" min="0" step="any" placeholder="Best" title="Optimistic (O)" />
+            <input id="pmc-most-likely" class="pmc-num-input" type="number" min="0" step="any" placeholder="Likely" title="Most Likely (M)" />
+            <input id="pmc-pessimistic" class="pmc-num-input" type="number" min="0" step="any" placeholder="Worst" title="Pessimistic (P)" />
+          </div>
+          <div class="run-row">
+            <button id="pmc-run" class="tm-btn primary">Run Estimation</button>
+            <button id="pmc-run-opts-btn" class="tm-btn pmc-opts-btn" title="Advanced run options">&#9881;</button>
+            <span id="pmc-spinner" class="pmc-spinner" hidden></span>
+          </div>
+          <p id="pmc-error" class="pmc-error" role="alert" hidden></p>
+
+          <!-- Run Options Popover -->
+          <div id="pmc-run-opts-popover" class="pmc-run-opts-popover" style="display:none;" role="dialog" aria-label="Advanced run options">
+            <div class="pmc-ropt-title">Run Options</div>
+
+            <div class="pmc-ropt-row">
+              <label class="pmc-ropt-label">Optimize for</label>
+              <div class="pmc-ropt-radio-group">
+                <label><input type="radio" name="pmc-optfor" value="target" checked /> Hit target &#964;</label>
+                <label><input type="radio" name="pmc-optfor" value="mean" /> Minimize mean</label>
+                <label><input type="radio" name="pmc-optfor" value="risk" /> Reduce P90 risk</label>
+              </div>
+            </div>
+
+            <div class="pmc-ropt-row">
+              <label class="pmc-ropt-label">Baseline fidelity
+                <span class="help-icon" data-title="Baseline Fidelity (KL Weight)" data-body="Controls how far the optimized result can diverge from your PERT baseline. Higher = more conservative and auditable. Lower = allows larger probability improvements but may not be defensible to stakeholders. Research basis: KL divergence (Kullback &amp; Leibler 1951).">?</span>
+              </label>
+              <div class="pmc-ropt-slider-row">
+                <span class="pmc-ropt-hint">Strict</span>
+                <input type="range" id="pmc-ropt-kl" min="0" max="100" step="5" value="70" />
+                <span class="pmc-ropt-hint">Loose</span>
+                <span class="pmc-ropt-val" id="pmc-ropt-kl-val">70</span>
+              </div>
+              <p class="pmc-ropt-desc">Strict: result stays close to baseline — conservative and auditable.<br>Loose: allows larger probability improvement — less defensible.</p>
+            </div>
+
+            <div class="pmc-ropt-row">
+              <label class="pmc-ropt-label">Operational change allowed
+                <span class="help-icon" data-title="Leash (Operational Change)" data-body="Limits how far SACO can move your slider values from their current positions. Small = SACO recommends minor adjustments only. Large = SACO can propose significant operational changes. Only use Large if leadership has committed to concrete project changes.">?</span>
+              </label>
+              <div class="pmc-ropt-slider-row">
+                <span class="pmc-ropt-hint">Small</span>
+                <input type="range" id="pmc-ropt-leash" min="0" max="100" step="5" value="35" />
+                <span class="pmc-ropt-hint">Large</span>
+                <span class="pmc-ropt-val" id="pmc-ropt-leash-val">35</span>
+              </div>
+              <p class="pmc-ropt-desc">Small: SACO tweaks settings. Large: SACO can recommend big changes — only if operationally realistic.</p>
+            </div>
+
+            <div class="pmc-ropt-row">
+              <label class="pmc-ropt-label">Search depth
+                <span class="help-icon" data-title="Probe Level (Search Depth)" data-body="Controls how many optimizer passes run (1=fast/shallow, 7=deep/thorough). Higher values find better solutions but take longer. Research basis: Latin Hypercube Sampling (McKay et al. 1979) probe count scales with this setting.">?</span>
+              </label>
+              <div class="pmc-ropt-slider-row">
+                <span class="pmc-ropt-hint">Fast</span>
+                <input type="range" id="pmc-ropt-probe" min="1" max="7" step="1" value="5" />
+                <span class="pmc-ropt-hint">Deep</span>
+                <span class="pmc-ropt-val" id="pmc-ropt-probe-val">5</span>
+              </div>
+            </div>
+
+            <div class="pmc-ropt-row">
+              <label class="pmc-ropt-label">PERT mode weight (&#955;)
+                <span class="help-icon" data-title="PERT Lambda Weight" data-body="Controls how much weight the Most Likely estimate receives relative to Optimistic and Pessimistic. &#955;=4 is the PMBOK standard (Malcolm et al. 1959). &#955;=2 treats all three points more equally; &#955;=6 gives M even stronger dominance. Use &#955;=2 if your Most Likely is aspirational; &#955;=6 if your team has strong historical accuracy at M.">?</span>
+              </label>
+              <div class="pmc-ropt-radio-group">
+                <label><input type="radio" name="pmc-lambda" value="2" /> &#955;=2 Conservative</label>
+                <label><input type="radio" name="pmc-lambda" value="4" checked /> &#955;=4 Standard (PMBOK)</label>
+                <label><input type="radio" name="pmc-lambda" value="6" /> &#955;=6 Confident</label>
+              </div>
+              <p class="pmc-ropt-desc">Mean = (O + &#955;&#183;M + P) / (&#955;+2). Standard (&#955;=4) is 65-year PMBOK default.</p>
+            </div>
+
+            <div class="pmc-ropt-footer">
+              <button class="tm-btn-secondary" id="pmc-run-opts-close">Close</button>
+              <button class="tm-btn primary" id="pmc-run-opts-run">Apply &amp; Re-run</button>
+            </div>
+          </div>
+
+          <!-- Historical Context (collapsible, optional) -->
+          <details class="pmc-hist-ctx" id="pmc-hist-ctx">
+            <summary class="pmc-hist-ctx-hdr">
+              Historical Context
+              <span class="pmc-optional-badge">optional</span>
+            </summary>
+            <div class="pmc-hist-ctx-body">
+              <p class="pmc-hist-intro">Enter data from past similar projects. SACO shifts the baseline using a Bayesian posterior update (Normal-Normal conjugate) over the overrun rate.</p>
+              <div class="pmc-hist-field-row">
+                <label class="pmc-hist-label">Similar projects (N)
+                  <span class="help-icon" data-title="Number of Reference Projects" data-body="How many past projects you are drawing on. N&lt;3: very low confidence (amber warning). N=3-9: moderate. N&#8805;10: strong signal (green). Only count projects that used the same unit of measure and similar methodology.">?</span>
+                </label>
+                <input id="pmc-hist-n" class="pmc-hist-input" type="number" min="1" max="200" step="1" placeholder="e.g. 5" />
+              </div>
+              <div class="pmc-hist-field-row">
+                <label class="pmc-hist-label">Mean overrun vs PERT predicted
+                  <span class="help-icon" data-title="Mean Overrun %" data-body="Average % by which actuals exceeded PERT predicted values. Example: if PERT predicted 100 days and actuals averaged 115, enter 15. Negative values are valid (under-runs). This is relative to the PERT mean, not to Pessimistic.">?</span>
+                </label>
+                <div class="pmc-hist-input-row">
+                  <input id="pmc-hist-mean" class="pmc-hist-input" type="number" min="-50" max="200" step="0.5" placeholder="e.g. 15" />
+                  <span class="pmc-hist-unit">%</span>
+                </div>
+              </div>
+              <div class="pmc-hist-field-row">
+                <label class="pmc-hist-label">Std dev of overrun
+                  <span class="pmc-optional-badge">optional</span>
+                  <span class="help-icon" data-title="Std Dev of Overrun %" data-body="Spread of overruns across the N projects. If left blank, SACO assumes std dev = 50% of the mean overrun (conservative). Providing this narrows the posterior and produces a more precise baseline shift.">?</span>
+                </label>
+                <div class="pmc-hist-input-row">
+                  <input id="pmc-hist-std" class="pmc-hist-input" type="number" min="0" max="100" step="0.5" placeholder="auto" />
+                  <span class="pmc-hist-unit">%</span>
+                </div>
+              </div>
+              <div id="pmc-hist-warning" class="pmc-hist-warning" style="display:none;"></div>
+              <div id="pmc-hist-preview" class="pmc-hist-preview" style="display:none;"></div>
+              <div class="pmc-hist-actions">
+                <button class="tm-btn" id="pmc-hist-clear">Clear</button>
+                <button class="tm-btn primary" id="pmc-hist-apply">Apply History &amp; Re-run</button>
+              </div>
+            </div>
+          </details>
+
+        </div>
+
+        <!-- Group mode: task list + actions -->
+        <div id="pmc-group-inputs" style="display:none;">
+          <div class="grp-header">
+            <span class="grp-count" id="pmc-grp-count">0 tasks</span>
+            <button class="grp-quick-btn" id="pmc-grp-all" title="Select all">All</button>
+            <button class="grp-quick-btn" id="pmc-grp-none" title="Deselect all">None</button>
+          </div>
+          <div class="grp-list" id="pmc-grp-list"></div>
+          <div class="run-row" style="margin-top:6px;">
+            <button id="pmc-grp-run" class="tm-btn primary">Run Group</button>
+          </div>
+        </div>
+
+        <!-- Task actions -->
+        <div class="tm-actions" style="margin-top:6px;">
+          <button class="tm-btn" id="pmc-btn-add-task" title="Add a new task">+ Add Task</button>
+          <button class="tm-btn" id="pmc-btn-csv" title="Import tasks from CSV">Import CSV</button>
+        </div>
+
+        <div class="ctrl-info-row" style="margin-top:4px;">
+          <span id="pmc-task-info" style="font-size:9px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">No task selected</span>
+        </div>
+      </div>
+
+      <!-- MIDDLE: Estimates display -->
+      <div class="ctrl-col ctrl-estimates">
+        <span class="ctrl-col-label">Estimates</span>
+        <div class="est-subtitle" id="pmc-est-subtitle">Enter values left</div>
+
+        <!-- Single mode estimates -->
+        <div class="est-stack" id="pmc-est-single">
+          <div class="est-item">
+            <div class="est-label-row">
+              <span class="help-icon" data-title="Optimistic Estimate" data-body="Best-case scenario — minimum reasonable estimate if everything goes well.">?</span>
+              <span class="est-label">Optimistic</span>
+            </div>
+            <span class="est-val" id="pmc-o-val">–</span>
+          </div>
+          <div class="est-item">
+            <div class="est-label-row">
+              <span class="help-icon" data-title="Most Likely Estimate" data-body="Most realistic scenario — what you'd expect under normal conditions. Receives 4× weight in PERT.">?</span>
+              <span class="est-label">Most Likely</span>
+            </div>
+            <span class="est-val" id="pmc-m-val">–</span>
+          </div>
+          <div class="est-item">
+            <div class="est-label-row">
+              <span class="help-icon" data-title="Pessimistic Estimate" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly.">?</span>
+              <span class="est-label">Pessimistic</span>
+            </div>
+            <span class="est-val" id="pmc-p-val">–</span>
+          </div>
+          <div class="est-item pert">
+            <div class="est-label-row">
+              <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Produces a realistic expected mean.">?</span>
+              <span class="est-label">PERT Mean</span>
+            </div>
+            <span class="est-val" id="pmc-pert-val">–</span>
+          </div>
+        </div>
+
+        <!-- Group mode estimates -->
+        <div class="est-stack" id="pmc-est-group" style="display:none;">
+          <div class="est-item">
+            <div class="est-label-row"><span class="est-label">Tasks</span></div>
+            <span class="est-val" id="pmc-agg-tasks">–</span>
+          </div>
+          <div class="est-item">
+            <div class="est-label-row"><span class="est-label">Mean</span></div>
+            <span class="est-val" id="pmc-agg-mean">–</span>
+          </div>
+          <div class="est-item">
+            <div class="est-label-row"><span class="est-label">P50</span></div>
+            <span class="est-val" id="pmc-agg-p50">–</span>
+          </div>
+          <div class="est-item">
+            <div class="est-label-row"><span class="est-label">P80</span></div>
+            <span class="est-val" id="pmc-agg-p80">–</span>
+          </div>
+          <div class="est-item pert">
+            <div class="est-label-row"><span class="est-label">P(≤τ)</span></div>
+            <span class="est-val" id="pmc-agg-prob">–</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Target analysis -->
+      <div class="ctrl-col ctrl-query">
+        <span class="ctrl-col-label">Set Targets
+          <span class="help-icon" style="font-size:8px;width:12px;height:12px;" data-title="Set Targets" data-body="Value mode: set a target value — see probability of finishing within it. Probability mode: set a target probability — see what value achieves it.">?</span>
+        </span>
+        <div id="pmc-target-panel">
+          <div class="tgt-top-row">
+            <select class="tgt-mode-select" id="pmc-tgt-mode">
+              <option value="value">Target value</option>
+              <option value="probability">Target prob.</option>
+            </select>
+            <div class="tgt-slider-inline">
+              <span class="tgt-hint">&#x25C4;</span>
+              <input id="pmc-target-slider" type="range" min="-10" max="110" step="any" value="50" title="Drag to explore" />
+              <span class="tgt-hint">&#x25BA;</span>
+            </div>
+            <div class="tgt-live-val active" id="pmc-tgt-val-display">
+              <span class="tgt-chip tgt-val tgt-input-chip" id="pmc-target-val-chip">–</span>
+            </div>
+            <div class="tgt-live-val" id="pmc-tgt-prob-display">
+              <span class="tgt-chip tgt-prob tgt-input-chip" id="pmc-target-prob-chip">–</span>
+            </div>
+          </div>
+          <div class="tgt-flow-result active" id="pmc-tgt-sent-value">
+            <span class="tgt-chip tgt-prob tgt-result-chip" id="pmc-tgt-result-prob">–</span>
+            <span class="tgt-flow-result-text">chance of completion at this value.</span>
+          </div>
+          <div class="tgt-flow-result" id="pmc-tgt-sent-prob">
+            <span class="tgt-chip tgt-val tgt-result-chip" id="pmc-tgt-result-val">–</span>
+            <span class="tgt-flow-result-text">required to hit this probability.</span>
+          </div>
+          <div class="tgt-context-band" id="pmc-tgt-context"></div>
+        </div>
+      </div>
+
+    </div><!-- /.ctrl-3col -->
+  </div><!-- /.ctrl-card -->
+
+  <!-- ===== Tabs + Series Toggles + Distribution KPI Tiles ===== -->
+  <div class="pmc-tab-bar" id="pmc-tab-bar">
+    <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution.">How It's Built</div>
+    <div class="tab" data-tab="overlay" title="Compare baseline vs all optimization strategies.">Compare Strategies</div>
+
+    <div class="series-toggles" id="pmc-series-toggles">
+      <div class="toggle-group baseline-group">
+        <button class="tg active" id="pmc-tgl-base" data-series="baseline" title="Your Estimate (baseline distribution)">Your Estimate</button>
+        <button class="tg" id="pmc-tgl-adaptive" data-series="adaptive" title="Conservative Optimization — tightest SACO constraints">Conservative<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      </div>
+      <div class="toggle-group manual-group">
+        <button class="tg" id="pmc-tgl-fixed" data-series="fixed" title="General Optimization — standard SACO constraints">General<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+        <button class="tg" id="pmc-tgl-manual" data-series="manual" title="Unconstrained Optimization — no slider bounds">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      </div>
+    </div>
+
+    <div class="kpi-group dist-tiles" id="pmc-dist-tiles">
+      <div class="kpi" id="pmc-kpi-triangle" title="Triangle Distribution">
+        <div class="ttl">Triangle</div>
+        <div class="val" style="color:var(--tri);">Curve</div>
+      </div>
+      <div class="kpi" id="pmc-kpi-beta" title="Beta-PERT Distribution">
+        <div class="ttl">Beta-PERT</div>
+        <div class="val" style="color:var(--beta);">Curve</div>
+      </div>
+      <div class="kpi baseline" id="pmc-kpi-base-dist" title="Baseline (Monte Carlo)">
+        <div class="ttl">Baseline</div>
+        <div class="val" style="color:var(--base);">Curve</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Overlay KPIs Card (Compare Strategies tab) ===== -->
+  <div class="card" id="pmc-overlay-kpis" style="display:none;">
+    <div class="kpi-group">
+      <div class="kpi baseline inactive" id="pmc-kpi-baseline">
+        <div class="ttl">Your Estimate
+          <span class="help-icon" data-title="Your Estimate (Baseline)" data-body="Original 3-point estimate with no optimization. Starting point — all strategies compared against this.">?</span>
+        </div>
+        <div class="val">–</div>
+      </div>
+      <div class="kpi adaptive inactive" id="pmc-kpi-adaptive">
+        <div class="ttl">Conservative Opt.
+          <span class="help-icon" data-title="Conservative Optimization" data-body="Best probability improvement within tight, industry best-practice constraints. Most defensible strategy. Best for regulated or risk-averse projects.">?</span>
+        </div>
+        <div class="val">–</div>
+      </div>
+      <div class="kpi optimized inactive" id="pmc-kpi-optimized">
+        <div class="ttl">General Opt.
+          <span class="help-icon" data-title="General Optimization" data-body="Same SACO engine but wider constraints — finds maximum probability improvement. Better for internal planning than external reporting.">?</span>
+        </div>
+        <div class="val">–</div>
+      </div>
+      <div class="kpi adjusted inactive" id="pmc-kpi-adjusted">
+        <div class="ttl">Unconstrained
+          <span class="help-icon" data-title="Unconstrained Optimization" data-body="No slider bounds — you control all 7 Decision Sliders for what-if analysis. Not intended for external reporting.">?</span>
+        </div>
+        <div class="val">–</div>
+      </div>
+    </div>
+
+    <!-- Decision Sliders Panel -->
+    <div id="pmc-sliders-panel" class="sliders-panel">
+      <div class="slider-panel-hdr">
+        <div class="title">Decision Sliders</div>
+        <div class="note" id="pmc-slider-note">Adjust levers to reshape the distribution (Unconstrained), or read optimal values for active strategies.</div>
+      </div>
+
+      <div class="slider-preset-row">
+        <span class="slider-preset-label">Unconstrained starting point:</span>
+        <div class="slider-actions">
+          <button id="pmc-reset-sliders" class="slider-btn" title="Reset all sliders to zero">Reset to Zero</button>
+          <button id="pmc-match-optimized" class="slider-btn primary" title="Copy General Optimization slider values">Reset to General Opt.</button>
+        </div>
+      </div>
+
+      <div class="slider-cats">
+
+        <!-- Capacity -->
+        <div class="slider-category" data-cat="capacity">
+          <div class="cat-header" style="color:var(--cat-capacity)">Capacity</div>
+          <div class="slider-row" data-key="budgetFlexibility">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="budgetFlexibility">?</button>
+              <label for="pmc-s-budget">Budget Flexibility</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-budget-range" min="0" max="100" step="1" value="0" class="slider-range" />
+              <input type="number" id="pmc-s-budget"       min="0" max="100" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-budget-marker"></div>
+          </div>
+          <div class="slider-row" data-key="scheduleFlexibility">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="scheduleFlexibility">?</button>
+              <label for="pmc-s-schedule">Schedule Flexibility</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-schedule-range" min="0" max="100" step="1" value="0" class="slider-range" />
+              <input type="number" id="pmc-s-schedule"       min="0" max="100" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-schedule-marker"></div>
+          </div>
+        </div>
+
+        <!-- Certainty -->
+        <div class="slider-category" data-cat="certainty">
+          <div class="cat-header" style="color:var(--cat-certainty)">Certainty</div>
+          <div class="slider-row" data-key="scopeCertainty">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="scopeCertainty">?</button>
+              <label for="pmc-s-scopecert">Scope Certainty</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-scopecert-range" min="0" max="100" step="1" value="0" class="slider-range" />
+              <input type="number" id="pmc-s-scopecert"       min="0" max="100" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-scopecert-marker"></div>
+          </div>
+          <div class="slider-row" data-key="scopeReductionAllowance">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="scopeReductionAllowance">?</button>
+              <label for="pmc-s-scopered">Scope Reduction</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-scopered-range" min="0" max="100" step="1" value="0" class="slider-range" />
+              <input type="number" id="pmc-s-scopered"       min="0" max="100" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-scopered-marker"></div>
+          </div>
+        </div>
+
+        <!-- Process -->
+        <div class="slider-category" data-cat="process">
+          <div class="cat-header" style="color:var(--cat-process)">Process</div>
+          <div class="slider-row" data-key="reworkPercentage">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="reworkPercentage">?</button>
+              <label for="pmc-s-rework">Rework Percentage</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-rework-range" min="0" max="50" step="1" value="0" class="slider-range pmc-slider--rework" />
+              <input type="number" id="pmc-s-rework"       min="0" max="50" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-rework-marker"></div>
+          </div>
+        </div>
+
+        <!-- Behavioral -->
+        <div class="slider-category" data-cat="behavioral">
+          <div class="cat-header" style="color:var(--cat-behavioral)">Behavioral</div>
+          <div class="slider-row" data-key="riskTolerance">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="riskTolerance">?</button>
+              <label for="pmc-s-risk">Risk Tolerance</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-risk-range" min="0" max="100" step="1" value="0" class="slider-range" />
+              <input type="number" id="pmc-s-risk"       min="0" max="100" step="1" value="0" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-risk-marker"></div>
+          </div>
+          <div class="slider-row" data-key="userConfidence">
+            <div class="slider-label-row">
+              <button class="slider-help-btn" data-slider-help="userConfidence">?</button>
+              <label for="pmc-s-userconf">User Confidence</label>
+            </div>
+            <div class="slider-pair">
+              <input type="range"  id="pmc-s-userconf-range" min="0" max="100" step="1" value="100" class="slider-range" />
+              <input type="number" id="pmc-s-userconf"       min="0" max="100" step="1" value="100" class="slider-num" />
+              <span class="slider-unit">%</span>
+            </div>
+            <div class="slider-optimal-marker" id="pmc-s-userconf-marker"></div>
+          </div>
+        </div>
+
+      </div><!-- /.slider-cats -->
+    </div><!-- /#pmc-sliders-panel -->
+
+    <!-- Sensitivity Bars -->
+    <div id="pmc-sensitivity" class="sensitivity-panel" style="display:none;">
+      <div class="cat-header" style="color:var(--muted)">Sensitivity (Relative Impact)</div>
+      <div id="pmc-sensitivity-content"></div>
+    </div>
+
+    <!-- Recommendation Banner -->
+    <div id="pmc-rec-banner" class="rec-banner" style="display:none;">
+      <div id="pmc-rec-active-bar"></div>
+      <div class="rec-statement" id="pmc-rec-statement"></div>
+      <div class="rec-context"   id="pmc-rec-context"></div>
+      <div class="rec-details"   id="pmc-rec-details"></div>
+    </div>
+
+    <!-- Why This Result? — optimizer explainer panel -->
+    <div id="pmc-why-result" class="pmc-why-result" style="display:none;">
+      <div class="pmc-why-hdr">Why did SACO recommend these settings?</div>
+      <div id="pmc-why-body" class="pmc-why-body"></div>
+      <div class="pmc-why-footer">
+        <span class="pmc-why-source">Objective: P(X&#8804;&#964;)<sup>(1+bb)</sup> &#xB7; exp(&#8722;KL) &#xB7; exp(&#8722;leash)</span>
+      </div>
+    </div>
+
+  </div><!-- /#pmc-overlay-kpis -->
+
+  <!-- ===== Results section (hidden until first run) ===== -->
+  <section id="pmc-results" hidden>
+
+    <!-- Probability summary bar -->
+    <div id="pmc-prob-summary-bar" style="display:none;">
+      <span style="font-size:10px;color:#94a3b8;font-weight:600;white-space:nowrap;margin-right:2px;">AT TARGET:</span>
+      <span id="psb-tau"></span>
+      <span id="psb-base"></span>
+      <span id="psb-adaptive" style="display:none;"></span>
+      <span id="psb-fixed"    style="display:none;"></span>
+      <span id="psb-manual"   style="display:none;"></span>
+    </div>
+
+    <!-- Plot container -->
+    <div class="plot-container">
+      <div class="plots">
+
+        <!-- How It's Built — plot dropdown -->
+        <div id="pmc-plot-sel-bar" class="pmc-plot-dd-wrap">
+          <button id="pmc-psel-btn" class="pmc-plot-dd-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="pmc-plot-dd-icon">&#9965;</span>
+            <span class="pmc-plot-dd-label">Plots</span>
+            <span id="pmc-psel-count" class="pmc-plot-dd-badge">1</span>
+            <span class="pmc-plot-dd-arrow">&#9660;</span>
+          </button>
+          <div id="pmc-psel-menu" class="pmc-plot-dd-menu" role="menu" style="display:none;">
+            <div class="pmc-plot-dd-hdr">How It&rsquo;s Built</div>
+            <label class="pmc-plot-dd-item" id="pmc-psel-chk-triangle">
+              <input type="checkbox" id="pmc-psel-triangle" checked />
+              <span class="pmc-plot-dd-item-lbl">Triangle</span>
+              <span class="pmc-plot-dd-item-sub">3-pt shape</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-psel-chk-pdf">
+              <input type="checkbox" id="pmc-psel-pdf" />
+              <span class="pmc-plot-dd-item-lbl">PDF</span>
+              <span class="pmc-plot-dd-item-sub">Density curve</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-psel-chk-cdf">
+              <input type="checkbox" id="pmc-psel-cdf" />
+              <span class="pmc-plot-dd-item-lbl">CDF</span>
+              <span class="pmc-plot-dd-item-sub">Cumulative P</span>
+            </label>
+            <div class="pmc-plot-dd-footer">1 plot = full width &middot; 2+ = side-by-side</div>
+          </div>
+        </div>
+
+        <!-- Compare Strategies — overlay plot dropdown -->
+        <div id="pmc-overlay-sel-bar" class="pmc-plot-dd-wrap" style="display:none;">
+          <button id="pmc-osel-btn" class="pmc-plot-dd-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="pmc-plot-dd-icon">&#9965;</span>
+            <span class="pmc-plot-dd-label">Plots</span>
+            <span id="pmc-osel-count" class="pmc-plot-dd-badge">2</span>
+            <span class="pmc-plot-dd-arrow">&#9660;</span>
+          </button>
+          <div id="pmc-osel-menu" class="pmc-plot-dd-menu" role="menu" style="display:none;">
+            <div class="pmc-plot-dd-hdr">Compare Strategies</div>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-cdf">
+              <input type="checkbox" id="pmc-osel-cdf" checked />
+              <span class="pmc-plot-dd-item-lbl">CDF</span>
+              <span class="pmc-plot-dd-item-sub">Cumulative P</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-pdf">
+              <input type="checkbox" id="pmc-osel-pdf" />
+              <span class="pmc-plot-dd-item-lbl">PDF</span>
+              <span class="pmc-plot-dd-item-sub">Density curve</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-radar">
+              <input type="checkbox" id="pmc-osel-radar" checked />
+              <span class="pmc-plot-dd-item-lbl">Radar</span>
+              <span class="pmc-plot-dd-item-sub">Slider profile</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-saco3d">
+              <input type="checkbox" id="pmc-osel-saco3d" />
+              <span class="pmc-plot-dd-item-lbl">SACO 3D</span>
+              <span class="pmc-plot-dd-item-sub">PDF ribbons</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-sphere">
+              <input type="checkbox" id="pmc-osel-sphere" />
+              <span class="pmc-plot-dd-item-lbl">Sphere</span>
+              <span class="pmc-plot-dd-item-sub">Probability fill</span>
+            </label>
+            <label class="pmc-plot-dd-item" id="pmc-osel-chk-hypercube3d">
+              <input type="checkbox" id="pmc-osel-hypercube3d" />
+              <span class="pmc-plot-dd-item-lbl">Hypercube 3D</span>
+              <span class="pmc-plot-dd-item-sub">7D projection</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Plot inner area -->
+        <div class="plot" style="position:relative;">
+          <div class="plot-inner" id="pmc-plot-inner">
+
+            <!-- Triangle pane -->
+            <div class="plot-pane" id="pmc-tri-wrap" style="display:none;">
+              <div class="plot-pane-hdr">Triangle Distribution</div>
+              <canvas id="pmc-chart-triangle"></canvas>
+            </div>
+
+            <!-- PDF pane -->
+            <div class="plot-pane" id="pmc-pdf-wrap">
+              <div class="plot-pane-hdr">
+                <span style="flex:1;">Probability Density (PDF)</span>
+              </div>
+              <canvas id="pmc-chart-pdf" aria-label="PDF chart"></canvas>
+            </div>
+
+            <!-- CDF pane -->
+            <div class="plot-pane" id="pmc-cdf-wrap">
+              <div class="plot-pane-hdr">
+                <span style="flex:1;">Cumulative Distribution (CDF)</span>
+              </div>
+              <canvas id="pmc-chart-cdf" aria-label="CDF chart"></canvas>
+            </div>
+
+          </div>
+
+          <!-- Legends -->
+          <div class="legend" id="pmc-legend-overlay" style="display:none;">
+            <span><span class="legend-dot dot-base"></span>Your Estimate</span>
+            <span><span class="legend-dot dot-man"></span>Unconstrained</span>
+            <span><span class="legend-dot dot-fix"></span>General Opt.</span>
+            <span><span class="legend-dot dot-adp"></span>Conservative</span>
+          </div>
+          <div class="legend" id="pmc-legend-distributions">
+            <span><span class="legend-dot dot-tri"></span>Triangle</span>
+            <span><span class="legend-dot dot-beta"></span>Beta-PERT</span>
+            <span><span class="legend-dot dot-base"></span>Your Estimate</span>
+          </div>
+
+        </div><!-- /.plot -->
+
+        <!-- Radar chart section (Compare Strategies tab only) -->
+        <div id="pmc-hypercube-section" style="display:none;">
+          <div id="pmc-radar-card" class="card" style="position:relative;">
+            <div class="plot-title">Slider Profile</div>
+            <canvas id="pmc-chart-radar" aria-label="Slider profile radar chart"></canvas>
+            <div id="pmc-radar-subtitle" class="plot-subtitle"></div>
+          </div>
+        </div>
+
+        <!-- SACO 3D Surface section -->
+        <div id="pmc-saco3d-section" style="display:none;">
+          <div class="card" style="padding:12px 14px;">
+            <div class="plot-title">SACO 3D — PDF Surface</div>
+            <div id="pmc-saco3d-hud" style="font-size:11px;color:#6B7280;margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap;min-height:18px;"></div>
+            <div id="pmc-saco3d-container" style="width:100%;height:340px;border-radius:8px;overflow:hidden;background:#0e1118;"></div>
+            <p style="font-size:10px;color:#9CA3AF;margin:6px 0 0;">Gray ribbon = baseline distribution. Colored ribbon = active strategy. Heptagon ring = slider values. Click + drag to orbit.</p>
+          </div>
+        </div>
+
+        <!-- Probability Sphere section -->
+        <div id="pmc-sphere-section" style="display:none;">
+          <div class="card" style="padding:12px 14px;">
+            <div class="plot-title">Probability Sphere</div>
+            <div id="pmc-sphere-hud" style="font-size:11px;color:#6B7280;margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap;min-height:18px;"></div>
+            <div id="pmc-sphere-container" style="width:100%;height:300px;border-radius:8px;overflow:hidden;background:#F0F4FA;"></div>
+            <p style="font-size:10px;color:#9CA3AF;margin:6px 0 0;">Liquid fill height = P(≤τ). Gray = baseline. Purple/blue/green = active strategies. Drag to orbit.</p>
+          </div>
+        </div>
+
+        <!-- Hypercube 3D section -->
+        <div id="pmc-hypercube3d-section" style="display:none;">
+          <div class="card" style="padding:12px 14px;">
+            <div class="plot-title">7D Hypercube Projection</div>
+            <div id="pmc-hypercube3d-subtitle" style="font-size:11px;color:#6B7280;margin-bottom:8px;min-height:16px;"></div>
+            <canvas id="pmc-hypercube3d-canvas" style="width:100%;height:300px;display:block;border-radius:8px;" aria-label="7D hypercube 3D projection"></canvas>
+            <p style="font-size:10px;color:#9CA3AF;margin:6px 0 0;">4D hypercube projected to 3D. Edge rotation angles driven by slider values. Drag to orbit.</p>
+          </div>
+        </div>
+
+      </div><!-- /.plots -->
+    </div><!-- /.plot-container -->
+
+    <!-- Report / narrative section -->
+    <div id="pmc-report" class="card" style="margin-top:12px;display:none;">
+      <div class="rep-btn-bar" id="pmc-rep-btn-bar">
+        <button class="rep-tab-btn active" data-rep="narrative">Summary</button>
+        <button class="rep-tab-btn" data-rep="stats">Statistics</button>
+        <button class="rep-tab-btn" data-rep="export">Export</button>
+      </div>
+
+      <!-- Summary narrative -->
+      <div id="pmc-rep-narrative" class="pmc-narratives"></div>
+
+      <!-- Statistics table -->
+      <div id="pmc-rep-stats" style="display:none;">
+        <table class="rep-tbl" aria-label="Statistical metrics">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Baseline</th>
+              <th>Unconstrained</th>
+              <th>General Opt.</th>
+              <th>Conservative</th>
+            </tr>
+          </thead>
+          <tbody id="pmc-stats-body">
+            <tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted);">Run an estimation to see statistics.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Export -->
+      <div id="pmc-rep-export" style="display:none;">
+        <div class="pmc-export-row">
+          <button id="pmc-export-csv" class="tm-btn">Export CSV</button>
+          <button id="pmc-copy-summary" class="tm-btn">Copy Summary</button>
+        </div>
+      </div>
+    </div>
+
+  </section><!-- /#pmc-results -->
+
+  <!-- ===== Modals ===== -->
+
+  <!-- Add / Edit Task Modal -->
+  <div class="tm-modal-backdrop" id="pmc-task-modal-backdrop">
+    <div class="tm-modal" id="pmc-task-modal">
+      <button class="tm-modal-close" id="pmc-task-modal-close">&times;</button>
+      <h2 id="pmc-task-modal-title">Add Task</h2>
+      <div class="tm-field-row">
+        <div class="tm-field tm-full-field" style="width:100%;">
+          <label>Task Name</label>
+          <input id="pmc-tm-name" type="text" placeholder="e.g. Backend API sprint" autocomplete="off" />
+        </div>
+      </div>
+      <div class="tm-field-row">
+        <div class="tm-field">
+          <label>Optimistic (O)</label>
+          <input id="pmc-tm-o" type="number" min="0" step="any" placeholder="Best case" />
+        </div>
+        <div class="tm-field">
+          <label>Most Likely (M)</label>
+          <input id="pmc-tm-m" type="number" min="0" step="any" placeholder="Expected" />
+        </div>
+        <div class="tm-field">
+          <label>Pessimistic (P)</label>
+          <input id="pmc-tm-p" type="number" min="0" step="any" placeholder="Worst case" />
+        </div>
+      </div>
+      <div class="tm-field-row">
+        <div class="tm-field">
+          <label>Target Value (optional)</label>
+          <input id="pmc-tm-target" type="number" min="0" step="any" placeholder="Deadline / budget" />
+        </div>
+      </div>
+      <!-- Live triangle preview -->
+      <canvas id="pmc-tri-preview" width="340" height="90"></canvas>
+      <div class="tm-preview-labels">
+        <span id="pmc-tri-prev-o">O</span>
+        <span id="pmc-tri-prev-m">M</span>
+        <span id="pmc-tri-prev-p">P</span>
+      </div>
+      <p id="pmc-task-modal-error" class="pmc-error" hidden></p>
+      <div class="tm-modal-footer">
+        <button class="tm-btn-secondary" id="pmc-task-modal-cancel">Cancel</button>
+        <button class="tm-btn-primary"   id="pmc-task-modal-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSV Import Modal -->
+  <div class="tm-modal-backdrop" id="pmc-csv-backdrop">
+    <div class="tm-modal wide" id="pmc-csv-modal">
+      <button class="tm-modal-close" id="pmc-csv-close">&times;</button>
+      <h2>&#128196; Import from CSV</h2>
+      <div id="pmc-csv-step1">
+        <div class="tm-info">
+          Your CSV should have columns: <strong>Task Name, Best Case, Most Likely, Worst Case</strong>.
+          Optional columns: Target, Risk Weight, Active, Notes.
+        </div>
+        <input type="file" id="pmc-csv-file" accept=".csv,.txt" style="font-size:12px;margin:8px 0;display:block;" />
+        <div id="pmc-csv-parse-status" style="font-size:11px;color:var(--muted);"></div>
+      </div>
+      <div id="pmc-csv-step2" style="display:none;">
+        <div id="pmc-csv-warnings"></div>
+        <div id="pmc-csv-summary" style="font-size:12px;margin-bottom:8px;"></div>
+        <div class="tm-csv-table-wrap">
+          <table class="tm-csv-table" id="pmc-csv-preview-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Task Name</th>
+                <th>Best</th>
+                <th>Likely</th>
+                <th>Worst</th>
+                <th>Weight</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="pmc-csv-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tm-modal-footer">
+        <button class="tm-btn-secondary" id="pmc-csv-cancel">Cancel</button>
+        <button class="tm-btn-primary" id="pmc-csv-import-btn" style="display:none;">Import Valid Rows</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slider Help Modal -->
+  <div id="pmc-slider-help-backdrop"></div>
+  <div id="pmc-slider-help-modal" role="dialog" aria-modal="true">
+    <div class="shm-header">
+      <div class="shm-title" id="pmc-shm-title"></div>
+      <button class="shm-close" id="pmc-shm-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="shm-body" id="pmc-shm-body"></div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="pmc-toast" style="display:none;position:fixed;top:20px;right:20px;background:#111827;color:#fff;padding:12px 18px;border-radius:8px;z-index:1002;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.25);">Tip</div>
+
+</div><!-- /#pmc-estimator -->

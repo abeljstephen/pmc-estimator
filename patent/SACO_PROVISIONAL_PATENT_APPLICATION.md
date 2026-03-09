@@ -3,7 +3,8 @@
 **Title of Invention:**
 SHAPE-ADAPTIVE COPULA OPTIMIZATION (SACO): A SYSTEM AND METHOD FOR
 CONTEXT-AWARE PROBABILISTIC PROJECT DURATION ESTIMATION USING
-GAUSSIAN COPULA MOMENT MAPPING WITH KL-DIVERGENCE CONSTRAINT
+GAUSSIAN COPULA MOMENT MAPPING WITH KL-DIVERGENCE CONSTRAINT,
+BAYESIAN MCMC BASELINE UPDATING, AND USER-CONTROLLED WEIGHT ARCHITECTURE
 
 **Inventor:**
 Abel J. Stephen
@@ -73,9 +74,12 @@ solution has been published.
 buffer to P. This is subjective, inconsistent, and does not produce
 a principled probability redistribution.
 
-**Bayesian updating:** Requires historical project data to form prior
-distributions. Most organizations lack sufficient historical data, and
-the data is rarely standardized enough to use directly.
+**Bayesian updating:** Conventional Bayesian updating requires structured
+historical project data and typically assumes a fixed parametric form for
+the likelihood. When N is small (fewer than 10 projects), the posterior
+is dominated by the prior and provides little discriminative power. No
+existing system provides a lightweight conjugate Bayesian update path that
+gracefully degrades to standard PERT estimation when no history is available.
 
 **Neural network surrogates:** Require training data, are black boxes
 with no theoretical justification, and suffer from overfitting. They
@@ -169,9 +173,27 @@ improves, with baseline distribution preserved.
 **FIG. 7** — KL divergence safety tether: graphical illustration of
 maximum allowed reshaping (~5%) relative to baseline distribution.
 
-**FIG. 8** — Full user interface of the PMC Estimator Google Sheets
-Add-on implementing SACO, showing PDF/CDF charts, slider panel,
-target query, and report system.
+**FIG. 8** — Full user interface of the PMC Estimator implementing SACO,
+showing PDF/CDF charts, slider panel, target query, and report system.
+
+**FIG. 9** — Metropolis-Hastings MCMC Bayesian baseline extension:
+Student-t(ν=4) prior combined with Normal likelihood; MH chain trace
+showing burn-in discard (first 500 iterations), thinning-by-5, and
+convergence to posterior; chain-driven overrun injection diagram showing
+how 1000 effective chain samples cycle through per PERT draw to produce
+a right-shifted, wider, outlier-robust baseline distribution relative
+to standard PERT.
+
+**FIG. 10** — User-controlled weight architecture: four-tier progressive
+disclosure UI showing Tier 1 (always visible: O/M/P, sliders, mode),
+Tier 2 (run popover: optimize-for, KL weight, leash, probe level),
+Tier 3 (advanced: PERT λ, KDE smoothing, copula preset), Tier 4
+(methodology footnotes in report export).
+
+**FIG. 11** — "Why This Result?" optimizer explainer panel showing the
+three objective-function forces (target hit, baseline fidelity, leash)
+as proportional bars, and per-slider movement table comparing user values
+vs. SACO-recommended values with direction indicators.
 
 ---
 
@@ -289,6 +311,185 @@ smoothing.
 
 This baseline PDF/CDF is stored and used as the reference distribution
 for KL divergence computation in Stage 5.
+
+---
+
+### III-A. STAGE 1 EXTENSION — BAYESIAN MCMC BASELINE WITH HISTORICAL CONTEXT
+
+#### A. Motivation
+
+Standard PERT Monte Carlo sampling produces an identical baseline
+distribution regardless of whether the estimating organization has a
+documented history of systematic overruns. An organization that
+consistently delivers 20% over PERT predicted values should not receive
+the same baseline probability as one with no overrun history. The SACO
+system provides an optional Bayesian baseline update path that activates
+when historical project data is available and gracefully falls back to
+standard Monte Carlo when no history is supplied.
+
+#### B. Historical Context Input
+
+The system accepts an optional historical context parameter:
+
+    priorHistory = {
+      n:                integer ≥ 1   (number of similar past projects)
+      meanOverrunFrac:  real ∈ (-0.5, 2.0)  (mean overrun as fraction:
+                        0.15 = actuals averaged 15% above PERT predicted)
+      stdOverrunFrac:   real ≥ 0, optional  (std dev of overrun across
+                        the N projects; defaults to 0.5 × |mean|)
+    }
+
+"Similar project" is defined as one using the same unit of measure
+(days, dollars, story points, etc.) and delivered by the same team or
+under the same methodology. The overrun is expressed relative to the
+PERT mean: if PERT predicted 100 days and actuals averaged 115, the
+practitioner enters meanOverrunFrac = 0.15.
+
+#### C. Student-t Prior with Metropolis-Hastings MCMC
+
+The system models the organizational overrun rate μ_overrun as a latent
+variable and samples its posterior distribution using Metropolis-Hastings
+(MH) Markov Chain Monte Carlo. A Student-t prior with ν=4 degrees of
+freedom is used in place of a Normal prior to achieve robustness against
+outlier projects.
+
+**Why Student-t, not Normal:**
+A Normal prior on μ_overrun produces a closed-form conjugate posterior
+but assigns exponentially diminishing probability to outlier observations.
+If a single historical project overran by 200%, a Normal prior pulls the
+posterior strongly toward that value. The Student-t(ν=4) prior has
+heavier tails under which extreme observations are considered plausible
+but not disproportionately influential. Gelman et al. ("Bayesian Data
+Analysis," 3rd ed., §2.9) recommend ν=4 as the weakly-informative
+default for location parameters; the posterior is no longer analytically
+tractable, requiring MCMC.
+
+**Prior:**
+
+    μ_overrun ~ t(ν=4, location=0, scale=σ_prior)
+    σ_prior   = 0.30   (spans ±30% overrun — calibrated against
+                        Flyvbjerg et al. 2002 (infrastructure avg 45%)
+                        and Jones 2007 (software avg 27%))
+
+    log p(μ) ∝ -(ν+1)/2 · log(1 + μ²/(ν · σ²_prior))
+
+**Likelihood (Normal, sufficient statistic):**
+
+    data: N projects, sample mean = meanOverrunFrac, std = σ_obs
+
+    log p(data|μ) ∝ -N · (μ − meanOverrunFrac)² / (2 · σ²_obs)
+
+**Log-posterior (unnormalized):**
+
+    log p(μ|data) = log p(data|μ) + log p(μ)
+
+Because the Student-t prior and Normal likelihood are not conjugate,
+the posterior has no closed form and is sampled via MH.
+
+#### D. Metropolis-Hastings Algorithm with Burn-in and Thinning
+
+The system runs a random-walk Metropolis-Hastings chain to draw samples
+from p(μ_overrun | data):
+
+**Chain parameters:**
+
+    Total iterations : 5500
+    Burn-in          : 500   (warm-up; discarded before collection)
+    Thinning factor  : 5     (keep every 5th post-burn-in sample)
+    Effective samples: (5500 − 500) / 5 = 1000
+
+**Burn-in justification:** Early chain states depend on the
+initialization point (μ_0 = meanOverrunFrac, the MLE). The first 500
+iterations allow the chain to reach the high-probability region of the
+posterior before samples are recorded. For a unimodal 1-dimensional
+target with a well-tuned step size, 500 iterations is empirically
+sufficient (Gelman et al., BDA3 §11.4).
+
+**Thinning justification:** Successive chain states are correlated
+(each is a small perturbation of the previous). Keeping every 5th
+sample reduces this autocorrelation, producing a more independent
+effective sample set for downstream use.
+
+**Proposal distribution:**
+
+    μ* = μ_current + ε,    ε ~ N(0, (0.5 · σ_prior)²)
+
+Step size 0.5·σ_prior = 0.15 targets a MH acceptance rate of ~30–40%,
+consistent with the optimal rate for 1-dimensional targets
+(Roberts, Gelman & Gilks, 1997).
+
+**Acceptance step:**
+
+    log α = log p(μ*|data) − log p(μ_current|data)
+    Accept μ* with probability min(1, exp(log α))
+
+**Pseudocode:**
+
+    μ_current ← meanOverrunFrac          // MLE warm start
+    chainSamples ← []
+    for i = 0 to 5499:
+      μ* ← μ_current + N(0, 0.15²)
+      log α ← logPost(μ*) − logPost(μ_current)
+      u ← Uniform(0, 1)
+      if log(u) < log α:
+        μ_current ← μ*
+      if i ≥ 500 and (i − 500) mod 5 == 0:
+        chainSamples.append(μ_current)
+    // |chainSamples| = 1000
+
+**Credibility indicator:**
+
+    credibility = min(1, N/10)
+
+Surfaced in the UI (0–1) to communicate posterior signal strength.
+Acceptance rate is also returned as a diagnostic (healthy range: 0.20–0.50).
+
+#### E. Chain-Driven Overrun Injection
+
+Rather than drawing overruns from a parametric approximation of the
+posterior, the system uses the chain samples directly. For each PERT
+base draw, a μ value is selected by cycling through the 1000 chain
+samples. This correctly propagates epistemic uncertainty (which μ is
+the true overrun rate?) without relying on a Gaussian approximation.
+A separate aleatoric noise draw captures project-level variability
+around the systematic rate:
+
+    K ← |chainSamples|   (= 1000)
+    x_max ← P × (1 + max(0, chainMean + 3·chainStd))
+
+    For i = 1 to numSamples:
+      s_i       = O + betaSample(α, β) × range      [PERT base draw]
+      μ_k       = chainSamples[i mod K]             [epistemic: cycle chain]
+      ε_i       = μ_k + σ_obs · N(0, 1)            [epistemic + aleatoric]
+      adjusted_i = s_i × (1 + ε_i)                 [history-adjusted sample]
+      clamped_i  = clamp(adjusted_i, O, x_max)
+
+Where x_max extends the grid to accommodate positive-overrun tails
+beyond the pessimistic estimate.
+
+This produces a baseline distribution that is:
+- Shifted rightward in proportion to chainMean (systematic overrun)
+- Wider than the standard PERT baseline by chainStd + σ_obs (combined uncertainty)
+- Robust to outlier historical projects via the Student-t prior
+- Convergent with standard PERT baseline when N → 0 (graceful degradation)
+
+The same Gaussian KDE (bandwidth h = gridRange/63.3) and trapezoid
+normalization from Stage 1 are applied to the adjusted samples.
+
+#### F. Mode Switching
+
+The system automatically selects between the two baseline generation
+modes at runtime:
+
+    if (priorHistory && N ≥ 1 && isFinite(meanOverrunFrac)):
+      baseline = generateMCMCSmoothedPoints(params)   // MH-MCMC path
+    else:
+      baseline = generateMonteCarloSmoothedPoints(params)  // standard path
+
+All downstream stages (Gaussian copula, betaRefit, optimizer, KL
+divergence) operate identically on the resulting PDF/CDF regardless of
+which mode generated it. The MH-MCMC extension is fully contained within
+Stage 1; no changes to Stages 2–7 are required.
 
 ---
 
@@ -664,6 +865,144 @@ actions.
 
 ---
 
+---
+
+### XVI. USER-CONTROLLED WEIGHT ARCHITECTURE
+
+The SACO system exposes its internal weights and constraints through a
+four-tier progressive disclosure architecture, allowing practitioners to
+understand and override the mathematical foundations without requiring
+knowledge of the underlying theory.
+
+#### A. The Five Controllable Weights
+
+**1. PERT Mode Weight (λ)**
+
+The canonical PERT formula weights the most-likely estimate M by λ:
+
+    Mean(λ) = (O + λ×M + P) / (λ + 2)
+    α(λ)    = 1 + λ×(M - O)/range
+    β(λ)    = 1 + λ×(P - M)/range
+
+The system exposes λ ∈ {2, 4, 6}:
+- λ=2: Equal weight to all three points (uniform-like)
+- λ=4: PMBOK standard (Malcolm et al. 1959, US Navy Polaris program)
+- λ=6: High confidence in modal estimate (well-calibrated estimators)
+
+Research basis: Golenko-Ginzburg (1988) tested λ ∈ [2,8] across
+engineering domains and found λ=4–6 most robust. The choice of λ=4
+as the PMBOK standard is a 65-year empirical consensus.
+
+**2. KDE Bandwidth (smoothing)**
+
+The Gaussian kernel density estimation bandwidth h = gridRange/63.3
+is derived from Silverman's rule-of-thumb (1986) evaluated at n=2000
+with σ ≈ range/6. The system allows users to deviate from Auto:
+- Sharp: h ← h × 0.5 (spikier PDF, tracks samples closely)
+- Auto: h = gridRange/63.3 (Silverman rule, default)
+- Smooth: h ← h × 1.5 (wider PDF, robust to outliers)
+
+**3. Copula Correlation Preset**
+
+The 7×7 BASE_R matrix encodes organizational risk interdependencies.
+The system offers three named presets:
+- Independent: BASE_R = I₇ (no correlation between slider dimensions)
+- PMBOK Standard: BASE_R as defined in Section VII (default)
+- Tightly Coupled: all off-diagonal entries scaled by 1.5 (saturated
+  correlation, more pessimistic joint risk estimation)
+
+The PMBOK Standard preset is derived from PMI Risk Practice Standard
+and Flyvbjerg et al. (2002) empirical overrun correlation analysis.
+
+**4. Optimizer Fidelity Weight (KL)**
+
+The exp(-KL) penalty term in the objective function is controlled by
+a fidelity parameter κ ∈ [0, 1]:
+
+    effective KL weight = κ × KL_raw
+
+κ=1.0 (Strict): Result stays close to baseline — auditable, conservative
+κ=0.3 (Loose): Allows larger divergence — higher probability potential
+
+**5. Leash (Operational Change Bound)**
+
+The exp(-leash_penalty) term is controlled by a leash parameter
+λ_leash ∈ [0, 1] representing the maximum fractional displacement of
+any slider from its user-set value:
+
+    leash_penalty = max(0, displacement - λ_leash × range)²
+
+λ_leash=0.15 (Small): SACO recommends minor operational adjustments
+λ_leash=0.50 (Large): SACO may recommend substantial operational changes
+
+#### B. Four-Tier Disclosure Architecture
+
+The system surfaces these weights through a layered interface:
+
+**Tier 1 — Always Visible (all users):**
+- O, M, P, target τ inputs
+- 7 slider controls with plain-language questions per dimension
+- Mode selection: You Decide / Quick Find / Deep Find
+- Per-slider probability delta: live readout of each slider's marginal
+  contribution to P(X≤τ)
+
+**Tier 2 — Run Options Popover (motivated users):**
+- Optimize for: hit target / minimize mean / reduce P90
+- Baseline fidelity (KL weight): Strict ↔ Loose slider
+- Operational change allowed (leash): Small ↔ Large slider
+- Search depth (probe level 1–7)
+- PERT mode weight (λ): Conservative / Standard / Confident
+
+**Tier 3 — Advanced Controls (technical users):**
+- Baseline smoothing: Auto / Sharp / Smooth
+- Copula preset: Independent / PMBOK / Tightly Coupled / Custom
+- Historical Context: priorHistory input with Bayesian posterior display
+
+**Tier 4 — Methodology Footnotes (auditors / executives):**
+- Static citations to Malcolm et al. (1959), Silverman (1986),
+  Kullback & Leibler (1951), McKay et al. (1979), PMI Risk Standard,
+  Flyvbjerg et al. (2002), Kahneman & Tversky (1979)
+- Surfaced in report export, not in the main UI
+
+---
+
+### XVII. OPTIMIZER EXPLAINER — "WHY THIS RESULT?" PANEL
+
+After each optimization run, the system generates a natural-language
+explanation of the optimizer's decisions through the following process:
+
+**Step 1: Force decomposition**
+
+The three forces in the objective function are represented as
+proportional bars:
+
+    target_contribution  ∝ (1 - κ × 0.2 - λ_leash × 0.1)
+    kl_contribution      ∝ κ × 0.6
+    leash_contribution   ∝ λ_leash × 0.4
+
+**Step 2: Slider delta table**
+
+For each of the 7 slider dimensions, the system computes:
+
+    Δᵢ = S*ᵢ - S_user_ᵢ
+
+Where S*ᵢ is the optimizer-recommended value and S_user_ᵢ is the
+user's current manual setting. Deltas are sorted by |Δᵢ| × wᵢ
+(magnitude × PMBOK weight) to identify the highest-leverage changes.
+
+**Step 3: Summary**
+
+A natural-language summary reports the total probability lift
+(ΔP = P_optimized - P_baseline) and identifies the primary driver
+(the slider with the largest weighted delta).
+
+This explainer transforms the optimizer from a black box into a
+transparent advisor, enabling practitioners to evaluate whether
+the recommended changes are operationally realistic before acting
+on them.
+
+---
+
 ## CLAIMS
 
 *(Note: These are informal claims suitable for a provisional patent
@@ -762,6 +1101,87 @@ A non-transitory computer-readable medium storing instructions that,
 when executed by a processor, perform Shape-Adaptive Copula Optimization
 (SACO) comprising the steps of Claims 1 through 7.
 
+**Claim 10 (Independent — Bayesian MCMC Baseline Extension):**
+A computer-implemented method extending the method of Claim 1, wherein
+Stage 1 baseline generation further comprises:
+(a) accepting a historical context parameter comprising a count N of
+    similar past projects, a mean overrun fraction relative to PERT
+    predicted values, and an optional standard deviation of overrun;
+(b) placing a Student-t prior with ν=4 degrees of freedom, location 0,
+    and scale σ_prior=0.30 over the organizational overrun rate μ_overrun,
+    yielding the log-prior:
+        log p(μ) ∝ −(ν+1)/2 · log(1 + μ²/(ν · σ²_prior))
+    said heavy-tailed prior conferring robustness against outlier
+    historical projects relative to a Normal prior;
+(c) sampling the intractable posterior p(μ_overrun | data) using a
+    random-walk Metropolis-Hastings Markov Chain Monte Carlo algorithm
+    comprising: a total chain length of 5500 iterations; a burn-in
+    period of 500 iterations discarded before sample collection to
+    allow the chain to reach stationarity; thinning by a factor of 5
+    to reduce inter-sample autocorrelation, yielding 1000 effective
+    posterior chain samples; and a Gaussian random-walk proposal with
+    standard deviation 0.5·σ_prior targeting an acceptance rate of
+    approximately 0.30–0.40;
+(d) for each of the numSamples PERT base draws, selecting a posterior
+    overrun value μ_k by cycling through the 1000 chain samples, then
+    computing an adjusted sample as:
+        adjusted_i = s_i × (1 + μ_k + σ_obs · N(0,1))
+    thereby propagating both epistemic uncertainty (via the chain) and
+    aleatoric per-project variability (via σ_obs) into the distribution;
+(e) applying Gaussian KDE over an extended grid whose upper bound is
+    P × (1 + max(0, chainMean + 3·chainStd)), accommodating the
+    overrun-shifted tail beyond the pessimistic estimate;
+(f) when no historical context is provided, reverting to standard i.i.d.
+    Beta Monte Carlo sampling, with all downstream stages operating
+    identically on either baseline.
+
+**Claim 11 (Dependent on Claim 10):**
+The method of Claim 10, wherein a credibility indicator
+credibility = min(1, N/10) is computed and displayed to the
+practitioner, communicating the statistical strength of the
+historical signal on a 0–1 scale.
+
+**Claim 12 (Independent — User-Controlled Weight Architecture):**
+A computer-implemented system for context-aware probabilistic project
+duration estimation comprising:
+(a) a user interface implementing a four-tier progressive disclosure
+    architecture exposing mathematical weights and constraints at
+    levels of increasing technical sophistication;
+(b) a Tier 1 interface comprising: three-point estimate inputs,
+    seven project characteristic sliders, and per-slider real-time
+    probability delta readouts showing each slider's marginal
+    contribution to P(X≤τ);
+(c) a Tier 2 run options control exposing: optimization objective
+    selection (target / mean / P90), a baseline fidelity parameter
+    controlling KL divergence penalty weight, a leash parameter
+    controlling maximum slider displacement from user values, search
+    depth (probe level 1–7), and PERT mode weight λ ∈ {2, 4, 6};
+(d) a Tier 3 advanced controls interface exposing: KDE bandwidth
+    smoothing, Gaussian copula correlation matrix preset selection,
+    and historical context input for Bayesian baseline updating;
+(e) each exposed parameter accompanied by a plain-language description
+    of its trade-off and a citation to the research basis for its
+    default value.
+
+**Claim 13 (Independent — Optimizer Explainer):**
+A computer-implemented method for generating natural-language
+explanations of optimization results in the method of Claim 1,
+comprising:
+(a) decomposing the SACO objective function into its three component
+    forces and representing their relative contributions as
+    proportional visual indicators;
+(b) computing per-slider delta values Δᵢ = S*ᵢ - S_user_ᵢ comparing
+    optimizer-recommended slider values to practitioner-supplied
+    values, sorted by |Δᵢ| × wᵢ where wᵢ are PMBOK-derived weights;
+(c) generating a natural-language summary identifying the highest-
+    leverage slider change, the total probability lift ΔP, and
+    whether the recommended changes are within the user-specified
+    operational leash bound;
+(d) displaying said explanation in a dedicated panel adjacent to
+    the reshaped distribution charts, enabling practitioners to
+    evaluate the operational feasibility of optimizer recommendations
+    before acting on them.
+
 ---
 
 ## ABSTRACT
@@ -771,22 +1191,35 @@ Optimization (SACO) addresses the context-blindness of standard PERT
 and Monte Carlo project estimation by repositioning a target duration
 value's percentile within a probability distribution based on seven
 project characteristic parameters without modifying the practitioner's
-original three-point estimate. The method applies a Gaussian copula with
-a project-management-theoretic correlation matrix to model realistic
-dependencies between parameters including budget flexibility, schedule
-flexibility, scope certainty, scope reduction allowance, rework
-percentage, risk tolerance, and user confidence. A novel hybrid moment
-mapping function interpolates between conservative linear weighted
-aggregation and pessimistic probabilistic disjunction using an
-interpolation weight dynamically determined by the copula coupling
-coefficient. Adjusted moments are used to refit a Beta distribution via
-method-of-moments estimation. A two-stage optimization combining Latin
-Hypercube Sampling and COBYLA local refinement maximizes the probability
-of completion at the target value subject to a Kullback-Leibler
-divergence constraint that prevents unrealistic departure from the
-baseline PERT distribution. The result is a higher (or lower) confidence
-level at the same estimate when project context supports it — context-aware
-estimation grounded in probabilistic theory.
+original three-point estimate. The system incorporates four novel
+contributions: (1) A Gaussian copula with a project-management-theoretic
+correlation matrix models realistic dependencies between parameters
+including budget flexibility, schedule flexibility, scope certainty,
+scope reduction allowance, rework percentage, risk tolerance, and user
+confidence. (2) A hybrid moment mapping function interpolates between
+conservative linear weighted aggregation and pessimistic probabilistic
+disjunction, with interpolation weight dynamically determined by the
+copula coupling coefficient. (3) A two-stage optimization combining
+Latin Hypercube Sampling and COBYLA local refinement maximizes the
+probability of completion at the target value subject to a
+Kullback-Leibler divergence constraint. (4) An optional Bayesian MCMC baseline extension employs a
+Metropolis-Hastings Markov Chain Monte Carlo sampler with a
+Student-t(ν=4) prior over the organizational overrun rate; the
+heavy-tailed prior confers robustness against outlier historical
+projects relative to conjugate Normal approaches; a 500-iteration
+burn-in and thinning-by-5 yield 1000 effective posterior chain samples
+which are cycled through per PERT draw to inject both epistemic and
+aleatoric uncertainty into the baseline; the system reverts
+automatically to standard i.i.d. PERT sampling when no history is
+provided. The system further exposes all internal weights and constraints
+through a four-tier progressive disclosure architecture with
+plain-language descriptions and research citations, and generates
+natural-language optimizer explanations comparing recommended slider
+values to practitioner-supplied values, sorted by PMBOK-derived
+importance weights. The result is context-aware estimation that adapts
+to both organizational risk characteristics and documented project
+history, grounded throughout in probabilistic and information-theoretic
+foundations.
 
 ---
 
