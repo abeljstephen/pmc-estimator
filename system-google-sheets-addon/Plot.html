@@ -986,6 +986,99 @@
 
     /* KPI tile title row: flex so help icon sits right of label */
     .kpi .ttl { display: flex; align-items: center; gap: 0; }
+
+    /* ── Step headers ─────────────────────────────────────────────────── */
+    .pmc-step-hdr {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 14px 2px 6px; margin-top: 2px;
+      border-top: 1.5px solid var(--line);
+    }
+    .pmc-step-hdr:first-of-type { border-top: none; padding-top: 6px; }
+    .pmc-step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 800; margin-top: 1px;
+    }
+    .pmc-step-results .pmc-step-num { background: #059669; }
+    .pmc-step-title {
+      font-size: 12px; font-weight: 800; color: var(--fg);
+      letter-spacing: .01em; line-height: 1.3;
+    }
+    .pmc-step-desc {
+      font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 2px;
+    }
+    .pmc-step-optional {
+      font-size: 9px; font-weight: 700; color: #fff; background: #9CA3AF;
+      border-radius: 6px; padding: 1px 5px; margin-left: 4px;
+      vertical-align: middle; letter-spacing: .02em;
+    }
+
+    /* ── Reference Class box ──────────────────────────────────────────── */
+    .pmc-ref-class-box {
+      margin: 4px 0 2px; border: 1.5px solid #BFDBFE;
+      border-radius: 10px; background: #F0F7FF; overflow: hidden;
+    }
+    .pmc-ref-class-box[open] { border-color: var(--accent); }
+    .pmc-ref-class-summary {
+      padding: 9px 12px; font-size: 11px; font-weight: 600;
+      color: var(--accent); cursor: pointer; list-style: none;
+      display: flex; align-items: center; gap: 7px; user-select: none;
+    }
+    .pmc-ref-class-summary:hover { background: #E0EDFF; }
+    .pmc-ref-class-box[open] .pmc-ref-class-summary { border-bottom: 1px solid #BFDBFE; }
+    .pmc-ref-class-arrow { font-size: 9px; transition: transform .15s; flex-shrink: 0; }
+    .pmc-ref-class-box[open] .pmc-ref-class-arrow { transform: rotate(90deg); }
+    .pmc-ref-class-body { padding: 10px 12px 12px; }
+    .pmc-ref-class-intro {
+      font-size: 10px; color: var(--muted); line-height: 1.5;
+      margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #DBEAFE;
+    }
+    .pmc-ref-class-fields { display: flex; flex-direction: column; gap: 10px; }
+    .pmc-ref-field { display: flex; flex-direction: column; gap: 3px; }
+    .pmc-ref-field-lbl {
+      font-size: 11px; font-weight: 700; color: #1E40AF;
+    }
+    .pmc-ref-field-req {
+      font-size: 9px; font-weight: 600; color: #fff; background: #3B82F6;
+      border-radius: 4px; padding: 0 4px; margin-left: 3px; vertical-align: middle;
+    }
+    .pmc-ref-field-opt {
+      font-size: 9px; font-weight: 600; color: #fff; background: #9CA3AF;
+      border-radius: 4px; padding: 0 4px; margin-left: 3px; vertical-align: middle;
+    }
+    .pmc-ref-input {
+      width: 100%; padding: 6px 9px; border: 1.5px solid #BFDBFE;
+      border-radius: 7px; font-size: 12px; box-sizing: border-box;
+      background: #fff; color: var(--fg); font-family: inherit;
+      transition: border-color .12s;
+    }
+    .pmc-ref-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+    .pmc-ref-field-hint {
+      font-size: 10px; color: var(--muted); line-height: 1.4;
+    }
+    .pmc-ref-credibility {
+      margin-top: 6px; font-size: 11px; padding: 5px 9px;
+      border-radius: 7px; line-height: 1.4;
+    }
+    .pmc-ref-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .pmc-ref-apply-btn {
+      flex: 1; padding: 7px; background: var(--accent); color: #fff;
+      border: none; border-radius: 7px; font-size: 12px; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: background .12s;
+    }
+    .pmc-ref-apply-btn:hover { background: #2563EB; }
+    .pmc-ref-clear-btn {
+      padding: 7px 14px; background: #F3F4F6; color: #374151;
+      border: 1.5px solid var(--line); border-radius: 7px; font-size: 12px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .pmc-ref-clear-btn:hover { background: #E5E7EB; }
+    .pmc-ref-preview {
+      margin-top: 8px; font-size: 11px; color: #1D4ED8;
+      background: #EFF6FF; border: 1px solid #BFDBFE;
+      border-radius: 7px; padding: 6px 9px; line-height: 1.5;
+    }
   </style>
 </head>
 
@@ -1006,7 +1099,16 @@
   };
   </script>
   <div class="wrap">
-    <h1 title="Probability Plots Dashboard">Probability Plots</h1>
+    <h1 title="Probability Plots Dashboard">PMC Estimator</h1>
+
+<!-- ══ STEP 1 ══════════════════════════════════════════════════════════ -->
+<div class="pmc-step-hdr">
+  <span class="pmc-step-num">1</span>
+  <div>
+    <div class="pmc-step-title">What are you estimating?</div>
+    <div class="pmc-step-desc">Select a task — or switch to Group to combine tasks. Estimates are read from your spreadsheet. Set your completion target on the right.</div>
+  </div>
+</div>
 
 <!-- ── CONTROL CARD: 3 columns (40 / 25 / 35) ── -->
 <div class="card ctrl-card">
@@ -1199,6 +1301,68 @@
   <div id="tmAggBar" style="display:none!important;"></div>
 </div>
 
+<!-- ══ STEP 2 ══════════════════════════════════════════════════════════ -->
+<div class="pmc-step-hdr">
+  <span class="pmc-step-num">2</span>
+  <div>
+    <div class="pmc-step-title">Reference Class <span class="pmc-step-optional">optional</span> <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; vertical-align:middle;">ACTIVE</span></div>
+    <div class="pmc-step-desc">Did similar past projects overrun? Enter the data here — SACO activates a Bayesian MCMC chain to shift the baseline to match your organisation's actual track record.</div>
+  </div>
+</div>
+<details id="histCtxBox" class="pmc-ref-class-box">
+  <summary class="pmc-ref-class-summary">
+    <span class="pmc-ref-class-arrow">&#9654;</span>
+    Add reference class data from similar past projects
+  </summary>
+  <div class="pmc-ref-class-body">
+    <div class="pmc-ref-class-intro">
+      Based on Reference Class Forecasting (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
+      Uses Metropolis-Hastings MCMC with Student-t prior (1,000 posterior samples, burn-in 500).
+    </div>
+    <div class="pmc-ref-class-fields">
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">How many similar past projects? <span class="pmc-ref-field-req">required</span></span>
+        <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">A project is &ldquo;similar&rdquo; if it used the same unit of measure and was delivered by the same team or method.</span>
+      </label>
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">Average overrun % <span class="pmc-ref-field-req">required</span></span>
+        <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">If PERT predicted 100 days and actuals averaged 115, enter 15. Negative values are allowed (underrun).</span>
+      </label>
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">Std dev of overrun % <span class="pmc-ref-field-opt">optional</span></span>
+        <input id="histStd" type="number" min="0" max="100" step="1" placeholder="leave blank to auto-estimate" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">How consistent were the overruns? Leave blank — SACO defaults to 50% of the mean.</span>
+      </label>
+    </div>
+    <div id="histCredibility" style="display:none;" class="pmc-ref-credibility"></div>
+    <div class="pmc-ref-actions">
+      <button id="histApply" class="pmc-ref-apply-btn">Apply &amp; Re-run</button>
+      <button id="histClear" class="pmc-ref-clear-btn">Clear</button>
+    </div>
+    <div id="histPreview" style="display:none;" class="pmc-ref-preview"></div>
+  </div>
+</details>
+
+<!-- ══ STEP 3 ══════════════════════════════════════════════════════════ -->
+<div class="pmc-step-hdr">
+  <span class="pmc-step-num">3</span>
+  <div>
+    <div class="pmc-step-title">Project Conditions</div>
+    <div class="pmc-step-desc">Set 7 decision levers that describe your project&rsquo;s constraints, flexibility, and risk appetite. SACO uses these to reshape the probability distribution.</div>
+  </div>
+</div>
+
+<!-- ══ STEP 4 ══════════════════════════════════════════════════════════ -->
+<div class="pmc-step-hdr pmc-step-results">
+  <span class="pmc-step-num">4</span>
+  <div>
+    <div class="pmc-step-title">Results</div>
+    <div class="pmc-step-desc"><em>How It&rsquo;s Built</em> shows your distribution step-by-step. <em>Compare Strategies</em> shows Conservative, General, and Unconstrained optimizations side-by-side.</div>
+  </div>
+</div>
+
 <!-- TABS + KPI GROUP -->
 <div class="tabs" id="tabs">
   <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution, step by step.">How It's Built</div>
@@ -1277,52 +1441,6 @@
       <div class="val">–</div>
     </div>
   </div>
-
-  <!-- Reference Class Data — optional MCMC Bayesian baseline calibration -->
-  <details id="histCtxBox" style="margin:8px 0 4px; border:1px solid var(--line); border-radius:10px; background:#F8FAFF; overflow:hidden;">
-    <summary style="padding:8px 12px; font-size:12px; font-weight:700; color:#374151; cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px;">
-      <span>&#128202;</span> Reference Class Data
-      <span style="font-size:10px; font-weight:500; color:#6B7280; margin-left:4px;">(optional — calibrates baseline from similar past projects)</span>
-      <span id="histCtxBadge" style="display:none; margin-left:auto; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px;">ACTIVE</span>
-    </summary>
-    <div style="padding:10px 12px 12px; border-top:1px solid var(--line);">
-      <p style="font-size:11px; color:#6B7280; margin:0 0 8px;">
-        Enter data from similar completed projects. SACO will run a Metropolis-Hastings MCMC chain
-        (Student-t prior, 1000 posterior samples) to shift the baseline to reflect your
-        organization's actual delivery track record. Based on Reference Class Forecasting
-        (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
-      </p>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <label style="font-size:11px; font-weight:600; color:#374151;">
-          Number of similar past projects (N)
-          <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5"
-            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
-        </label>
-        <label style="font-size:11px; font-weight:600; color:#374151;">
-          Mean overrun % (e.g. 15 means actuals averaged 15% above PERT)
-          <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15"
-            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
-        </label>
-        <label style="font-size:11px; font-weight:600; color:#374151;">
-          Std dev of overrun % <span style="font-weight:400; color:#9CA3AF;">(optional — defaults to 50% of mean)</span>
-          <input id="histStd" type="number" min="0" max="100" step="1" placeholder="optional"
-            style="display:block; margin-top:3px; width:100%; padding:5px 8px; border:1.5px solid var(--line); border-radius:7px; font-size:12px; box-sizing:border-box;" />
-        </label>
-        <div id="histCredibility" style="display:none; font-size:11px; padding:5px 8px; border-radius:7px; background:#FEF3C7; color:#92400E; border:1px solid #FCD34D;">
-          Low credibility — fewer than 3 projects. Posterior will stay close to the prior (no systematic overrun).
-        </div>
-        <div style="display:flex; gap:6px; margin-top:2px;">
-          <button id="histApply" style="flex:1; padding:6px; background:#3B82F6; color:#fff; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;">
-            Apply &amp; Re-run
-          </button>
-          <button id="histClear" style="padding:6px 12px; background:#F3F4F6; color:#374151; border:1px solid var(--line); border-radius:7px; font-size:12px; font-weight:600; cursor:pointer;">
-            Clear
-          </button>
-        </div>
-        <div id="histPreview" style="display:none; font-size:11px; color:#1D4ED8; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; padding:5px 8px;"></div>
-      </div>
-    </div>
-  </details>
 
   <!-- Decision Sliders — between strategy tabs and recommendations -->
   <div id="sliderSidebar" role="complementary" aria-label="Decision Sliders">
