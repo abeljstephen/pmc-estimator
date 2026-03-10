@@ -68,6 +68,86 @@ This is widely recognized as a deficiency in the project management
 literature (PMI PMBOK Guide, 7th Ed.) but no systematic computational
 solution has been published.
 
+### The Decision-Uncertainty Boundary: Management Stance vs. Outcome Predictions
+
+A second and equally fundamental limitation of standard PERT and Monte Carlo
+is epistemic: the methods conflate two categorically distinct types of inputs
+that practitioners routinely provide.
+
+**Uncertain outcomes** are properties of the external world that the
+practitioner cannot control — the inherent variability in task execution time,
+subcontractor performance, material availability, and other aleatory sources.
+These are properly represented as probability distributions and captured by
+the O, M, P three-point estimate.
+
+**Management stance** refers to the set of deliberate policy decisions and
+organizational constraints that the project manager controls or commits to —
+how much contingency reserve to hold, how tightly requirements are defined,
+how much rework to plan for, the organization's risk appetite. These are
+**decision variables** in the formal sense of Howard and Matheson's influence
+diagram framework (Howard, 1968; Howard & Matheson, 1984): quantities whose
+values are set by the decision maker, not sampled from a distribution.
+
+The distinction between decision nodes (management stance) and chance nodes
+(uncertain outcomes) is foundational in decision analysis and was formalized
+in Howard's 1968 paper "The Foundations of Decision Analysis" and in the
+influence diagram literature (Howard & Matheson, 1984). In this framework,
+the probability distribution of project outcomes is properly understood as
+a *conditional* distribution: P(duration | management stance). Standard PERT
+ignores management stance entirely, computing P(duration) unconditionally.
+
+Kahneman and Lovallo (2003) identified the practical consequence of this
+conflation as the **planning fallacy**: practitioners systematically treat
+their management commitments (scope will remain stable, rework will be
+minimal) as though they were predictions about the world. The result is
+systematic optimism bias — not because practitioners misestimate task
+duration, but because they misstate their management stance as more favorable
+than it proves to be in practice. Flyvbjerg (2008) documented this bias
+empirically across thousands of infrastructure, IT, and engineering projects,
+finding that the inside view — which treats management quality as given and
+optimistic — systematically underestimates actual outcomes.
+
+Chapman and Ward (2003) formalized "controllable conditions" as a distinct
+category within project uncertainty management, arguing that sources of
+uncertainty include not only variability and hazard (discrete risk events)
+but also **ambiguity** — uncertainty that arises directly from management
+decisions about scope definition, priority setting, and resource commitment.
+The PMBOK Guide (6th Ed., §11.3.2.3) operationalizes this as the
+**controllability** attribute of each identified risk: the degree to which
+the project manager can influence the risk's probability and impact.
+
+Spetzler and Staël von Holstein (1975) further established that the act of
+eliciting probability distributions from practitioners is an elicitation of
+**states of knowledge** — subjective beliefs about uncertain outcomes — which
+are properly distinguished from **preference statements** and **policy
+commitments** about what the decision maker intends to do. User confidence
+(one of the seven SACO parameters) is precisely this: a calibration
+correction on the practitioner's state of knowledge, not a prediction about
+the world. Hubbard (2014) demonstrated that calibration — the degree to which
+stated confidence intervals contain true values at their stated frequency —
+is measurable and improvable, and that miscalibrated confidence is a primary
+driver of project cost and schedule overrun.
+
+The SACO framework operationalizes this theoretical distinction computationally
+for the first time in a practical project estimation system. The seven
+project characteristic parameters (the "slider vector") are explicitly
+classified as **decision nodes** — management stance inputs — that condition
+the outcome distribution, rather than additional uncertain quantities to be
+sampled. The Gaussian copula models the joint dependency structure of these
+management decisions, recognizing that budget flexibility, schedule
+flexibility, and scope certainty are not organizationally independent choices.
+The KL divergence constraint ensures that no management stance, however
+favorable, can cause the system to produce a distribution that contradicts
+the practitioner's own learned judgment embedded in O, M, P.
+
+This theoretical grounding distinguishes SACO from all prior parametric
+adjustment approaches, which either treat management conditions as ad hoc
+buffer additions (no formal framework) or ignore management stance entirely
+(standard PERT/MC). SACO is, to the inventors' knowledge, the first system
+to formally separate the decision node space (management stance) from the
+chance node space (outcome uncertainty) in a computational project estimation
+framework.
+
 ### Existing Approaches and Their Limitations
 
 **Parametric adjustment (ad hoc buffers):** Practitioners manually add
@@ -247,6 +327,17 @@ probability (inverse query mode), in which case the system returns
 the value τ achieving that probability.
 
 #### C. Seven Project Characteristic Parameters (The Slider Vector)
+
+**Theoretical basis:** The seven parameters below are classified as
+**decision nodes** in the Howard-Matheson influence diagram formalism
+(Howard & Matheson, 1984) — quantities set by the project manager as
+policy commitments, not uncertain quantities to be sampled from a
+distribution. Each parameter represents a **controllable condition**
+(Chapman & Ward, 2003; PMBOK §11.3.2.3) that conditions the project
+outcome distribution: P(duration | S₁,...,S₇). This is the formal
+basis for treating these parameters separately from the three-point
+estimate O, M, P, which represent the practitioner's probability
+encoding of uncertain outcomes (Spetzler & Staël von Holstein, 1975).
 
 The system accepts a seven-dimensional vector **S** = (S₁, S₂, S₃, S₄,
 S₅, S₆, S₇) where each component is normalized to [0, 1]:
@@ -962,6 +1053,11 @@ The system surfaces these weights through a layered interface:
 - Static citations to Malcolm et al. (1959), Silverman (1986),
   Kullback & Leibler (1951), McKay et al. (1979), PMI Risk Standard,
   Flyvbjerg et al. (2002), Kahneman & Tversky (1979)
+- Decision analysis foundations: Howard (1968), Howard & Matheson (1984),
+  Spetzler & Staël von Holstein (1975)
+- Management stance and controllable conditions: Chapman & Ward (2003),
+  PMBOK §11.3.2.3, Kahneman & Lovallo (2003), Flyvbjerg (2008)
+- Calibration and user confidence: Hubbard (2014)
 - Surfaced in report export, not in the main UI
 
 ---
@@ -1220,6 +1316,91 @@ importance weights. The result is context-aware estimation that adapts
 to both organizational risk characteristics and documented project
 history, grounded throughout in probabilistic and information-theoretic
 foundations.
+
+---
+
+## REFERENCES
+
+Chapman, C., & Ward, S. (2003). Transforming project risk management into
+project uncertainty management. *International Journal of Project
+Management*, 21(2), 97–105.
+
+Chapman, C., & Ward, S. (2003). *Project Risk Management: Processes,
+Techniques and Insights* (2nd ed.). Wiley.
+
+Flyvbjerg, B. (2008). Curbing optimism bias and strategic
+misrepresentation in planning: Reference class forecasting in practice.
+*European Planning Studies*, 16(1), 3–21.
+
+Flyvbjerg, B., Holm, M. S., & Buhl, S. (2002). Underestimating costs in
+public works projects: Error or lie? *Journal of the American Planning
+Association*, 68(3), 279–295.
+
+Flyvbjerg, B., & Gardner, D. (2023). *How Big Things Get Done*. Crown.
+
+Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., &
+Rubin, D. B. (2013). *Bayesian Data Analysis* (3rd ed.). CRC Press.
+
+Golenko-Ginzburg, D. (1988). On the distribution of activity time in
+PERT. *Journal of the Operational Research Society*, 39(8), 767–771.
+
+Howard, R. A. (1968). The foundations of decision analysis. *IEEE
+Transactions on Systems Science and Cybernetics*, 4(3), 211–219.
+
+Howard, R. A., & Matheson, J. E. (1984). Influence diagrams. In R. A.
+Howard & J. E. Matheson (Eds.), *Readings on the Principles and
+Applications of Decision Analysis* (Vol. 1, pp. 721–762). Strategic
+Decisions Group.
+
+Hubbard, D. W. (2014). *How to Measure Anything: Finding the Value of
+Intangibles in Business* (3rd ed.). Wiley.
+
+Hubbard, D. W., Budzier, A., & Bang Leed, S. (2024). *How to Measure
+Anything in Project Management*. Wiley.
+
+Kahneman, D., & Lovallo, D. (2003). Delusions of success: How optimism
+undermines executives' decisions. *Harvard Business Review*, 81(7), 56–63.
+
+Kahneman, D., & Tversky, A. (1979). Prospect theory: An analysis of
+decision under risk. *Econometrica*, 47(2), 263–291.
+
+Kullback, S., & Leibler, R. A. (1951). On information and sufficiency.
+*Annals of Mathematical Statistics*, 22(1), 79–86.
+
+Malcolm, D. G., Roseboom, J. H., Clark, C. E., & Fazar, W. (1959).
+Application of a technique for research and development program
+evaluation. *Operations Research*, 7(5), 646–669.
+
+McKay, M. D., Beckman, R. J., & Conover, W. J. (1979). A comparison of
+three methods for selecting values of input variables in the analysis of
+output from a computer code. *Technometrics*, 21(2), 239–245.
+
+Powell, M. J. D. (1994). A direct search optimization method that models
+the objective and constraint functions by linear interpolation. In S.
+Gomez & J.-P. Hennart (Eds.), *Advances in Optimization and Numerical
+Analysis* (pp. 51–67). Kluwer Academic.
+
+Project Management Institute. (2017). *A Guide to the Project Management
+Body of Knowledge (PMBOK Guide)* (6th ed.). PMI.
+
+Project Management Institute. (2021). *A Guide to the Project Management
+Body of Knowledge (PMBOK Guide)* (7th ed.). PMI.
+
+Project Management Institute. (2009). *Practice Standard for Project Risk
+Management*. PMI.
+
+Roberts, G. O., Gelman, A., & Gilks, W. R. (1997). Weak convergence and
+optimal scaling of random walk Metropolis algorithms. *Annals of Applied
+Probability*, 7(1), 110–120.
+
+Silverman, B. W. (1986). *Density Estimation for Statistics and Data
+Analysis*. Chapman and Hall.
+
+Spetzler, C. S., & Staël von Holstein, C.-A. S. (1975). Probability
+encoding in decision analysis. *Management Science*, 22(3), 340–358.
+
+Washington State Department of Transportation. (2022). *Project Risk
+Analysis Model (PRAM) User's Guide*. WSDOT.
 
 ---
 
