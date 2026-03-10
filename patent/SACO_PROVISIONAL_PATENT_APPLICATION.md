@@ -140,6 +140,16 @@ The KL divergence constraint ensures that no management stance, however
 favorable, can cause the system to produce a distribution that contradicts
 the practitioner's own learned judgment embedded in O, M, P.
 
+Howard's **clarity test** (1968) provides the formal criterion for this
+classification: a quantity passes the clarity test if an omniscient but
+non-interpretive observer could determine its value independent of the
+practitioner's choices. O, M, P pass — they represent states of the external
+world. Budget flexibility, scope certainty, and rework tolerance fail — their
+values are determined entirely by practitioner intent and organizational
+policy. Quantities that fail the clarity test are decision nodes, not chance
+nodes, and must not be treated as uncertain random variables in a
+well-formed decision model.
+
 This theoretical grounding distinguishes SACO from all prior parametric
 adjustment approaches, which either treat management conditions as ad hoc
 buffer additions (no formal framework) or ignore management stance entirely
@@ -194,9 +204,13 @@ context-blindness of standard PERT/Monte Carlo estimation by:
    uncertainty model, preserving the practitioner's learned judgment.
 
 2. **Accepting seven project characteristic parameters** (sliders)
-   representing budget flexibility, schedule flexibility, scope certainty,
-   scope reduction allowance, rework percentage, risk tolerance, and user
-   confidence.
+   classified as management stance inputs — decision nodes in the
+   Howard-Matheson influence diagram formalism — representing budget
+   flexibility, schedule flexibility, scope certainty, scope reduction
+   allowance, rework percentage, risk tolerance, and user confidence.
+   These are explicitly distinguished from the outcome uncertainty
+   encoded in O, M, P: their values are set by the practitioner as
+   policy commitments, not sampled from a distribution.
 
 3. **Modeling realistic dependencies** between the seven parameters using
    a Gaussian copula with a project-management-theoretic correlation
@@ -274,6 +288,17 @@ Tier 3 (advanced: PERT λ, KDE smoothing, copula preset), Tier 4
 three objective-function forces (target hit, baseline fidelity, leash)
 as proportional bars, and per-slider movement table comparing user values
 vs. SACO-recommended values with direction indicators.
+
+**FIG. 12** — Influence diagram illustrating SACO's two-category input
+architecture in the Howard-Matheson formalism: decision nodes (rectangles)
+representing S₁–S₇ management stance parameters, feeding into the Gaussian
+copula dependency layer; chance node (oval) representing the project duration
+outcome distribution; and value node representing P(duration ≤ τ). Arrows
+show the conditional dependency structure: the outcome distribution is a
+function of both the three-point estimate (aleatory uncertainty) and the
+management stance vector (decision node inputs). No prior project estimation
+system has represented this conditional structure explicitly in its
+computational architecture.
 
 ---
 
@@ -654,6 +679,16 @@ percentage, etc. This assumption is false in practice.
 SACO models realistic dependencies between the seven project
 characteristic parameters using a Gaussian copula with a theoretically
 derived correlation matrix.
+
+**Novel application of copula theory:** Copulas are conventionally applied
+to model statistical dependencies between *uncertain random variables*
+(chance nodes). SACO applies the Gaussian copula to model organizational
+dependencies between *management policy decisions* (decision nodes) —
+recognizing that budget flexibility and schedule flexibility are
+organizationally correlated commitments, not independent choices. This is,
+to the inventors' knowledge, the first application of copula theory to
+the joint dependency structure of a decision node vector rather than a
+chance node vector in a project estimation context.
 
 #### B. The Base Correlation Matrix (BASE_R)
 
@@ -1111,9 +1146,12 @@ estimation comprising:
 (a) receiving a three-point project duration estimate comprising an
 optimistic value O, a most-likely value M, and a pessimistic value P;
 (b) receiving a plurality of project characteristic parameters
-comprising at least budget flexibility, schedule flexibility, scope
-certainty, scope reduction allowance, rework percentage, risk tolerance,
-and user confidence;
+classified as management stance inputs — decision node values in the
+Howard-Matheson influence diagram formalism whose values are set by the
+practitioner as policy commitments, not sampled as uncertain random
+variables — comprising at least budget flexibility, schedule flexibility,
+scope certainty, scope reduction allowance, rework percentage, risk
+tolerance, and user confidence;
 (c) applying a Gaussian copula transformation to said project
 characteristic parameters using a correlation matrix derived from
 project management theory to produce copula-transformed values
@@ -1259,6 +1297,43 @@ duration estimation comprising:
     of its trade-off and a citation to the research basis for its
     default value.
 
+**Claim 14 (Independent — Decision Node Architecture):**
+A computer-implemented method for probabilistic project estimation
+comprising:
+(a) explicitly classifying estimation inputs into two distinct categories:
+    (i) outcome uncertainty inputs comprising a three-point estimate
+        (O, M, P) treated as a probability distribution over uncertain
+        project duration outcomes; and
+    (ii) management stance inputs comprising a plurality of project
+         characteristic parameters treated as decision node values set
+         by the practitioner as policy commitments, wherein said
+         parameters are classified as decision nodes by application of
+         the clarity test: each parameter's value is determined by
+         practitioner intent rather than by observation of an external
+         uncertain state;
+(b) computing a conditional probability distribution P(duration |
+    management stance) by applying a Gaussian copula transformation
+    to the management stance inputs, wherein said copula models
+    organizational dependencies between management policy decisions
+    rather than statistical dependencies between uncertain random
+    variables;
+(c) computing adjusted distribution moments from the copula-transformed
+    management stance inputs and applying said moments to reshape the
+    outcome uncertainty distribution; and
+(d) reporting the conditional probability P(duration ≤ τ | management
+    stance) as the primary system output, representing the probability
+    of project completion at or before a target value given the
+    practitioner's stated management policy.
+
+**Claim 15 (Dependent on Claim 14):**
+The method of Claim 14, wherein the management stance inputs are
+further constrained by a Kullback-Leibler divergence penalty ensuring
+that no management stance, however favorable, can produce a conditional
+distribution that diverges from the practitioner's outcome uncertainty
+distribution by more than approximately 5%, thereby preventing
+management stance inputs from overriding the practitioner's learned
+judgment embedded in O, M, P.
+
 **Claim 13 (Independent — Optimizer Explainer):**
 A computer-implemented method for generating natural-language
 explanations of optimization results in the method of Claim 1,
@@ -1287,18 +1362,28 @@ Optimization (SACO) addresses the context-blindness of standard PERT
 and Monte Carlo project estimation by repositioning a target duration
 value's percentile within a probability distribution based on seven
 project characteristic parameters without modifying the practitioner's
-original three-point estimate. The system incorporates four novel
-contributions: (1) A Gaussian copula with a project-management-theoretic
-correlation matrix models realistic dependencies between parameters
-including budget flexibility, schedule flexibility, scope certainty,
-scope reduction allowance, rework percentage, risk tolerance, and user
-confidence. (2) A hybrid moment mapping function interpolates between
-conservative linear weighted aggregation and pessimistic probabilistic
-disjunction, with interpolation weight dynamically determined by the
-copula coupling coefficient. (3) A two-stage optimization combining
-Latin Hypercube Sampling and COBYLA local refinement maximizes the
-probability of completion at the target value subject to a
-Kullback-Leibler divergence constraint. (4) An optional Bayesian MCMC baseline extension employs a
+original three-point estimate. The system incorporates five novel
+contributions: (1) A formal two-category input architecture explicitly
+separating outcome uncertainty inputs (the three-point estimate O, M, P,
+treated as a probability distribution over uncertain durations) from
+management stance inputs (seven project characteristic parameters
+classified as decision nodes in the Howard-Matheson influence diagram
+formalism, whose values are set by the practitioner as policy commitments
+rather than sampled as uncertain random variables); the Gaussian copula
+is applied to model organizational dependencies between these decision
+nodes — a novel application of copula theory to a decision node vector
+rather than a chance node vector. (2) A Gaussian copula with a
+project-management-theoretic correlation matrix models realistic
+dependencies between parameters including budget flexibility, schedule
+flexibility, scope certainty, scope reduction allowance, rework
+percentage, risk tolerance, and user confidence. (3) A hybrid moment
+mapping function interpolates between conservative linear weighted
+aggregation and pessimistic probabilistic disjunction, with interpolation
+weight dynamically determined by the copula coupling coefficient.
+(4) A two-stage optimization combining Latin Hypercube Sampling and
+COBYLA local refinement maximizes the probability of completion at the
+target value subject to a Kullback-Leibler divergence constraint.
+(5) An optional Bayesian MCMC baseline extension employs a
 Metropolis-Hastings Markov Chain Monte Carlo sampler with a
 Student-t(ν=4) prior over the organizational overrun rate; the
 heavy-tailed prior confers robustness against outlier historical
