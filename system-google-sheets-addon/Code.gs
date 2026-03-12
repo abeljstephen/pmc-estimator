@@ -390,13 +390,20 @@ function validateTask_(task) {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   const pert = ui.createMenu('PERT')
-    .addItem('PERT All Rows', 'pertRunAllRows')
-    .addItem('PERT Selected Rows', 'pertRunSelectedRows')
+    .addItem('All Rows',      'pertRunAllRows')
+    .addItem('Selected Rows', 'pertRunSelectedRows')
+    .addItem('Checked Rows',  'pertRunCheckedRows')
+    .addSeparator()
+    .addItem('Re-run Last Sheet', 'pertRerunLastSheet')
     .addSeparator()
     .addItem('Export Run Log', 'writeLogsToSheet');
+  const settings = ui.createMenu('Settings')
+    .addItem('Add "Run?" Checkbox Column', 'pmcAddCheckboxColumn')
+    .addItem('Clear Validation Highlights', 'pmcClearHighlights');
   ui.createMenu('PMC')
     .addSubMenu(pert)
     .addItem('PLOT', 'openPlotUi')
+    .addSubMenu(settings)
     .addToUi();
 }
 function openPlotUi() {
@@ -824,23 +831,178 @@ function normalizePlotResponseForUI_(resp) {
 /************************************************************
  * 9. PERT ENTRY POINTS
  ************************************************************/
+// ── Column detection ─────────────────────────────────────────────────────────
+// Detects Name/O/M/P columns from a header row. Returns 1-based column indices
+// (-1 = not found). Accepts flexible header names (case-insensitive).
+function detectColumns_(headers) {
+  let nameCol = -1, optCol = -1, mostCol = -1, pessCol = -1, checkCol = -1;
+  for (let c = 0; c < headers.length; c++) {
+    const h = String(headers[c] || '').trim().toLowerCase().replace(/[-_ ]+/g, '');
+    if (h.includes('name') || h.includes('task') || h.includes('title')) nameCol = c + 1;
+    if (h.includes('bestcase') || h.includes('optimistic') || h === 'best' || h === 'o') optCol = c + 1;
+    if (h.includes('mostlikely') || h.includes('most') || h.includes('likely') || h === 'm') mostCol = c + 1;
+    if (h.includes('worstcase') || h.includes('pessimistic') || h === 'worst' || h === 'p') pessCol = c + 1;
+    if (h === 'run?' || h === 'run' || h === '✓' || h === 'include' || h === 'check') checkCol = c + 1;
+  }
+  return { nameCol, optCol, mostCol, pessCol, checkCol };
+}
+
+// Returns true if the sheet has all four required columns detectable from row 1.
+function looksLikeTaskData_(sheet) {
+  try {
+    if (!sheet || sheet.getLastColumn() < 3 || sheet.getLastRow() < 2) return false;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const m = detectColumns_(headers);
+    return m.nameCol > 0 && m.optCol > 0 && m.mostCol > 0 && m.pessCol > 0;
+  } catch(_) { return false; }
+}
+
+// ── Pre-flight validation ─────────────────────────────────────────────────────
+// Scans rows, highlights invalid cells in source sheet, returns categorised rows.
+// Returns { valid: [{task,optimistic,mostLikely,pessimistic,row},...],
+//           invalid: [{row, name, reason},...] }
+function preflight_(sheet, colMap, startRow, endRow) {
+  const numCols = Math.max(colMap.nameCol, colMap.optCol, colMap.mostCol, colMap.pessCol);
+  const values  = sheet.getRange(startRow, 1, endRow - startRow + 1, numCols).getValues();
+
+  const valid = [], invalid = [];
+  const highlightRanges = [];  // cells to mark red
+
+  for (let i = 0; i < values.length; i++) {
+    const r      = values[i];
+    const rowNum = startRow + i;
+    const name   = String(r[colMap.nameCol - 1] != null ? r[colMap.nameCol - 1] : '').trim();
+
+    if (!name) {
+      // blank name — skip silently (common to have trailing empty rows)
+      continue;
+    }
+
+    const rawO = r[colMap.optCol  - 1];
+    const rawM = r[colMap.mostCol - 1];
+    const rawP = r[colMap.pessCol - 1];
+    const O    = (typeof rawO === 'number') ? rawO : num(rawO);
+    const M    = (typeof rawM === 'number') ? rawM : num(rawM);
+    const P    = (typeof rawP === 'number') ? rawP : num(rawP);
+
+    const task = { task: name, optimistic: O, mostLikely: M, pessimistic: P, _row: rowNum };
+    const errs = validateTask_(task);
+
+    if (!errs) {
+      valid.push(task);
+    } else {
+      // Collect the specific bad cells for highlighting
+      if (!isNumber(O)) highlightRanges.push(sheet.getRange(rowNum, colMap.optCol));
+      if (!isNumber(M)) highlightRanges.push(sheet.getRange(rowNum, colMap.mostCol));
+      if (!isNumber(P)) highlightRanges.push(sheet.getRange(rowNum, colMap.pessCol));
+      if (isNumber(O) && isNumber(M) && isNumber(P)) {
+        // Order violations — highlight all three
+        if (O > M || M > P || O >= P) {
+          highlightRanges.push(sheet.getRange(rowNum, colMap.optCol));
+          highlightRanges.push(sheet.getRange(rowNum, colMap.mostCol));
+          highlightRanges.push(sheet.getRange(rowNum, colMap.pessCol));
+        }
+      }
+      // Short reason for the dialog
+      let reason = '';
+      if (!isNumber(O) || !isNumber(M) || !isNumber(P)) {
+        reason = 'non-numeric value';
+      } else if (O > M || M > P) {
+        reason = 'O \u2264 M \u2264 P order violated (' + O + ', ' + M + ', ' + P + ')';
+      } else if (O >= P) {
+        reason = 'Best Case must be < Worst Case (' + O + ' vs ' + P + ')';
+      }
+      invalid.push({ row: rowNum, name: name, reason: reason });
+    }
+  }
+
+  // Apply highlight to invalid cells
+  if (highlightRanges.length > 0) {
+    highlightRanges.forEach(function(rng) {
+      try { rng.setBackground('#FECACA'); } catch(_) {}
+    });
+  }
+
+  return { valid: valid, invalid: invalid };
+}
+
+// Clears red validation highlights from the entire source sheet data area.
+function pmcClearHighlights() {
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const active = ss.getActiveSheet();
+  if (!active || active.getLastRow() < 2) { toast_('Settings', 'Nothing to clear.', 3); return; }
+  try {
+    active.getRange(2, 1, active.getLastRow() - 1, active.getLastColumn()).setBackground(null);
+    toast_('Settings', 'Highlights cleared on: ' + active.getName(), 3);
+  } catch(e) {
+    safeAlert_('Could not clear highlights: ' + e.message);
+  }
+}
+
+// Builds the pre-flight confirmation message and asks user to proceed or cancel.
+// Returns true if user confirms (or no invalids), false if cancelled.
+function preflightConfirm_(sheetName, valid, invalid) {
+  if (invalid.length === 0) {
+    toast_('PERT', 'Running on: ' + sheetName + ' \u2014 ' + valid.length + ' rows', 4);
+    return true;
+  }
+  const lines = ['Running on: ' + sheetName,
+    valid.length + ' valid, ' + invalid.length + ' invalid (will be skipped).',
+    '',
+    'Invalid rows:'];
+  const show = invalid.slice(0, 10);  // cap at 10 lines in dialog
+  show.forEach(function(inv) {
+    lines.push('  \u2022 Row ' + inv.row + ': ' + inv.name + ' \u2014 ' + inv.reason);
+  });
+  if (invalid.length > 10) lines.push('  \u2026 and ' + (invalid.length - 10) + ' more (see highlights in sheet).');
+  lines.push('');
+  lines.push('Invalid cells are highlighted in red. Proceed with ' + valid.length + ' valid row(s)?');
+  const ui       = SpreadsheetApp.getUi();
+  const response = ui.alert('PMC \u2014 Pre-flight Check', lines.join('\n'), ui.ButtonSet.OK_CANCEL);
+  return response === ui.Button.OK;
+}
+
+// Saves the last-used source sheet name to document properties.
+function saveLastSheet_(sheetName) {
+  try {
+    PropertiesService.getDocumentProperties().setProperty('pmc_last_src_sheet', sheetName);
+  } catch(_) {}
+}
+
+// ── Source sheet resolution ───────────────────────────────────────────────────
+// Priority: (1) active sheet if it looks like task data,
+//           (2) last-used sheet (ScriptProperties),
+//           (3) CFG.SRC_SHEET_NAME fallback,
+//           (4) any sheet with detectable task columns.
 function getSourceSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const active = ss.getActiveSheet();
+
+  // 1. Active sheet takes priority — most natural for multi-sheet workbooks
+  if (active && looksLikeTaskData_(active)) return active;
+
+  // 2. Last-used sheet remembered across sessions
+  try {
+    const last = PropertiesService.getDocumentProperties().getProperty('pmc_last_src_sheet');
+    if (last) {
+      const byLast = ss.getSheetByName(last);
+      if (byLast && looksLikeTaskData_(byLast)) return byLast;
+    }
+  } catch(_) {}
+
+  // 3. CFG name fallback (legacy)
   if (CFG.SRC_SHEET_NAME) {
     const byName = ss.getSheetByName(CFG.SRC_SHEET_NAME);
-    if (byName) return byName;
+    if (byName && looksLikeTaskData_(byName)) return byName;
   }
+
+  // 4. Any sheet that looks like task data
   const sheets = ss.getSheets();
   for (const sh of sheets) {
-    try {
-      const a1 = String(sh.getRange(1,1).getDisplayValue() || '').trim().toLowerCase();
-      if (a1 === 'name' || a1 === 'task' || a1 === 'title') return sh;
-    } catch(_){}
+    if (looksLikeTaskData_(sh)) return sh;
   }
-  for (const sh of sheets) {
-    if (sh.getLastColumn() >= 4 && sh.getLastRow() >= 2) return sh;
-  }
-  return sheets[Math.max(0, Math.min(CFG.SRC_SHEET_INDEX, sheets.length - 1))] || null;
+
+  return null;
 }
 
 function getAllTasks(params) {
@@ -1174,54 +1336,176 @@ function ensureHeadersAndWidths_(sheet) {
 }
 
 function pertRunAllRows() {
-  const result = getAllTasks();
-  // getAllTasks() returns { tasks, sheetTabs } — unwrap the array
-  const tasks = Array.isArray(result) ? result : (result && Array.isArray(result.tasks) ? result.tasks : []);
-  if (!tasks || !tasks.length) { safeAlert_('No tasks found.'); return; }
-  runTasks_(tasks, 'All Rows');
+  const src = getSourceSheet_();
+  if (!src) {
+    safeAlert_('No task data sheet found.\n\nNavigate to your data tab (with Name, Best Case, Most Likely, Worst Case columns) and try again.');
+    return;
+  }
+  const sheetName = src.getName();
+  const lastRow   = src.getLastRow();
+  if (lastRow < 2) { safeAlert_('Sheet "' + sheetName + '" has no data rows.'); return; }
+
+  const headers = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
+  const colMap  = detectColumns_(headers);
+  if (colMap.nameCol < 0 || colMap.optCol < 0 || colMap.mostCol < 0 || colMap.pessCol < 0) {
+    safeAlert_('Sheet "' + sheetName + '" is missing required columns.\nExpected: Name (or Task), Best Case (or Optimistic), Most Likely, Worst Case (or Pessimistic).');
+    return;
+  }
+
+  const pf = preflight_(src, colMap, 2, lastRow);
+  if (!preflightConfirm_(sheetName, pf.valid, pf.invalid)) return;
+  if (!pf.valid.length) { safeAlert_('No valid rows to process.'); return; }
+
+  saveLastSheet_(sheetName);
+  runTasks_(pf.valid, 'All Rows', pf.invalid);
 }
 
 function pertRunSelectedRows() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const src = getSourceSheet_();
-  if (!src) { safeAlert_('No source sheet.'); return; }
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const src    = ss.getActiveSheet();   // always the active sheet — user navigated here
+  if (!src) { safeAlert_('No active sheet.'); return; }
+
+  if (!looksLikeTaskData_(src)) {
+    safeAlert_('This sheet doesn\'t appear to have task data.\n\nNavigate to your data tab (with Name, Best Case, Most Likely, Worst Case columns) and try again.');
+    return;
+  }
 
   const headers = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
-  let nameCol = -1, optCol = -1, mostCol = -1, pessCol = -1;
-  for (let c = 0; c < headers.length; c++) {
-    const h = String(headers[c] || '').trim().toLowerCase();
-    if (h.includes('name') || h.includes('task')) nameCol = c + 1;
-    if (h.includes('best case') || h.includes('best_case') || h.includes('bestcase') || h.includes('optimistic')) optCol = c + 1;
-    if (h.includes('most likely') || h.includes('most_likely') || h.includes('mostlikely')) mostCol = c + 1;
-    if (h.includes('worst case') || h.includes('worst_case') || h.includes('worstcase') || h.includes('pessimistic')) pessCol = c + 1;
-  }
-  if (nameCol === -1) {
-    safeAlert_('Name column not found in source sheet.'); return;
-  }
+  const colMap  = detectColumns_(headers);
 
   const sel = src.getActiveRange();
-  if (!sel || sel.getColumn() !== nameCol || sel.getRow() < 2) {
-    safeAlert_(`Select cells in the Name column (starting from row 2) in the source sheet.`); return;
+  if (!sel || sel.getRow() < 2) {
+    safeAlert_('Select one or more data rows (below the header) and try again.'); return;
   }
+
   const startRow = Math.max(2, sel.getRow());
-  const endRow = Math.min(src.getLastRow(), startRow + sel.getNumRows() - 1);
-  const numCols = Math.max(optCol, mostCol, pessCol, nameCol);
-  const values = src.getRange(startRow, 1, endRow - startRow + 1, numCols).getValues();
-  const tasks = [];
-  for (let i = 0; i < values.length; i++) {
-    const r = values[i];
-    const name = String(r[nameCol - 1] || '').trim();
-    if (!name) continue;
-    const O = num(r[optCol - 1]), M = num(r[mostCol - 1]), P = num(r[pessCol - 1]);
-    if (isNumber(O) && isNumber(M) && isNumber(P)) {
-      tasks.push({ task: name, optimistic: O, mostLikely: M, pessimistic: P });
-    }
-  }
-  if (!tasks.length) { safeAlert_('No valid tasks selected.'); return; }
-  runTasks_(tasks, 'Selected Rows');
+  const endRow   = Math.min(src.getLastRow(), sel.getLastRow());
+  if (startRow > endRow) { safeAlert_('Selection is outside the data area.'); return; }
+
+  const pf = preflight_(src, colMap, startRow, endRow);
+  if (!preflightConfirm_(src.getName(), pf.valid, pf.invalid)) return;
+  if (!pf.valid.length) { safeAlert_('No valid rows in selection.'); return; }
+
+  saveLastSheet_(src.getName());
+  runTasks_(pf.valid, 'Selected Rows', pf.invalid);
 }
 
-function runTasks_(tasks, mode) {
+// Processes only rows where the "Run?" checkbox column is checked.
+function pertRunCheckedRows() {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const src = ss.getActiveSheet();
+  if (!src) { safeAlert_('No active sheet.'); return; }
+
+  if (!looksLikeTaskData_(src)) {
+    safeAlert_('This sheet doesn\'t appear to have task data.\n\nNavigate to your data tab and try again.');
+    return;
+  }
+
+  const headers = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
+  const colMap  = detectColumns_(headers);
+
+  if (colMap.checkCol < 0) {
+    safeAlert_('No "Run?" checkbox column found.\n\nUse PMC → Settings → Add "Run?" Checkbox Column to add one, then check the rows you want to process.');
+    return;
+  }
+
+  const lastRow = src.getLastRow();
+  if (lastRow < 2) { safeAlert_('Sheet has no data rows.'); return; }
+
+  const numCols   = Math.max(colMap.nameCol, colMap.optCol, colMap.mostCol, colMap.pessCol, colMap.checkCol);
+  const allValues = src.getRange(2, 1, lastRow - 1, numCols).getValues();
+
+  // Collect row indices where checkbox is ticked
+  const checkedRows = [];
+  for (let i = 0; i < allValues.length; i++) {
+    if (allValues[i][colMap.checkCol - 1] === true) checkedRows.push(i + 2);
+  }
+
+  if (!checkedRows.length) {
+    safeAlert_('No rows are checked.\n\nTick the "Run?" checkbox on the rows you want to process.'); return;
+  }
+
+  // Pre-flight only the checked rows
+  const pf = { valid: [], invalid: [] };
+  for (const rowNum of checkedRows) {
+    const singlePf = preflight_(src, colMap, rowNum, rowNum);
+    pf.valid.push(...singlePf.valid);
+    pf.invalid.push(...singlePf.invalid);
+  }
+
+  if (!preflightConfirm_(src.getName(), pf.valid, pf.invalid)) return;
+  if (!pf.valid.length) { safeAlert_('No valid checked rows to process.'); return; }
+
+  saveLastSheet_(src.getName());
+  runTasks_(pf.valid, 'Checked Rows', pf.invalid);
+}
+
+// Re-runs PERT All Rows on the last-used data sheet, regardless of active sheet.
+function pertRerunLastSheet() {
+  const props = PropertiesService.getDocumentProperties();
+  const last  = props.getProperty('pmc_last_src_sheet');
+  if (!last) {
+    safeAlert_('No previous run found.\n\nRun "PERT → All Rows" first, then use Re-run Last Sheet to refresh.'); return;
+  }
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const src = ss.getSheetByName(last);
+  if (!src) {
+    safeAlert_('Last-used sheet "' + last + '" no longer exists.\n\nNavigate to your data tab and use "All Rows" instead.');
+    return;
+  }
+
+  const lastRow = src.getLastRow();
+  if (lastRow < 2) { safeAlert_('Sheet "' + last + '" has no data rows.'); return; }
+
+  const headers = src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0];
+  const colMap  = detectColumns_(headers);
+  if (colMap.nameCol < 0 || colMap.optCol < 0 || colMap.mostCol < 0 || colMap.pessCol < 0) {
+    safeAlert_('Sheet "' + last + '" is missing required columns.'); return;
+  }
+
+  const pf = preflight_(src, colMap, 2, lastRow);
+  if (!preflightConfirm_(last, pf.valid, pf.invalid)) return;
+  if (!pf.valid.length) { safeAlert_('No valid rows to process.'); return; }
+
+  runTasks_(pf.valid, 'Re-run: ' + last, pf.invalid);
+}
+
+// Adds a "Run?" checkbox column to the active sheet, after the last data column.
+function pmcAddCheckboxColumn() {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const src = ss.getActiveSheet();
+  if (!src) { safeAlert_('No active sheet.'); return; }
+
+  const headers = src.getLastColumn() > 0
+    ? src.getRange(1, 1, 1, src.getLastColumn()).getValues()[0]
+    : [];
+  const colMap = detectColumns_(headers);
+
+  if (colMap.checkCol > 0) {
+    safeAlert_('"Run?" column already exists at column ' + colMap.checkCol + ' in this sheet.'); return;
+  }
+
+  const lastCol    = src.getLastColumn() + 1;
+  const lastDataRow = Math.max(src.getLastRow(), 2);
+
+  // Header
+  src.getRange(1, lastCol).setValue('Run?')
+     .setFontWeight('bold')
+     .setBackground('#D1FAE5')
+     .setNote('Check the rows you want to include when using PERT \u2192 Checked Rows.');
+
+  // Checkboxes for all data rows
+  if (lastDataRow > 1) {
+    src.getRange(2, lastCol, lastDataRow - 1, 1)
+       .insertCheckboxes()
+       .setBackground('#F0FDF4');
+  }
+
+  src.setColumnWidth(lastCol, 55);
+  toast_('Settings', '"Run?" column added at column ' + lastCol + ' in "' + src.getName() + '"', 5);
+}
+
+function runTasks_(tasks, mode, skippedRows) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let out = ss.getSheetByName(CFG.OUT_SHEET_NAME);
 
@@ -1296,8 +1580,26 @@ function runTasks_(tasks, mode) {
 
   shadeConfidenceColumns_(out);
 
+  // ── Append skipped-rows log to output sheet ───────────────────────────────
+  if (skippedRows && skippedRows.length > 0) {
+    const skipStartRow = out.getLastRow() + 2;
+    out.getRange(skipStartRow, 1).setValue('SKIPPED ROWS (' + skippedRows.length + ')')
+       .setFontWeight('bold').setBackground('#FEE2E2').setFontColor('#991B1B');
+    out.getRange(skipStartRow, 2).setValue('Row').setFontWeight('bold').setBackground('#FEE2E2');
+    out.getRange(skipStartRow, 3).setValue('Reason').setFontWeight('bold').setBackground('#FEE2E2');
+    skippedRows.forEach(function(inv, idx) {
+      const r = skipStartRow + 1 + idx;
+      out.getRange(r, 1).setValue(inv.name).setBackground('#FFF1F2');
+      out.getRange(r, 2).setValue(inv.row).setBackground('#FFF1F2');
+      out.getRange(r, 3).setValue(inv.reason).setBackground('#FFF1F2');
+    });
+    SpreadsheetApp.flush();
+    logSheet.appendRow([tsMsg('Skipped ' + skippedRows.length + ' invalid rows')]);
+  }
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  const msg = `Done (${tasks.length} tasks): ${ok} OK, ${partial} partial, ${err} errors in ${elapsed}s`;
+  const skipNote = (skippedRows && skippedRows.length) ? ', ' + skippedRows.length + ' skipped' : '';
+  const msg = `Done (${tasks.length} tasks): ${ok} OK, ${partial} partial, ${err} errors${skipNote} in ${elapsed}s`;
   toast_(mode, msg, 10);
   logSheet.appendRow([tsMsg(msg)]);
 }

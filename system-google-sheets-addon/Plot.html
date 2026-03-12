@@ -383,6 +383,45 @@
     /* KPI natural language */
     .kpi-natural { font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 
+    /* ── Export-to-sheet action bar ────────────────────────────────── */
+    .pmc-export-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 10px 0 4px; padding: 8px 12px;
+      background: #F8FAFC; border: 1px solid rgba(148,163,184,0.28);
+      border-radius: 10px;
+    }
+    .pmc-export-label {
+      font-size: 10px; font-weight: 700; color: #94A3B8;
+      letter-spacing: .06em; white-space: nowrap; margin-right: 4px;
+    }
+    .pmc-export-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 7px; border: 1px solid;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: background .15s, box-shadow .15s;
+      white-space: nowrap;
+    }
+    .pmc-export-btn.snapshot {
+      background: #FFFBEB; border-color: rgba(245,158,11,0.45);
+      color: #92400E;
+    }
+    .pmc-export-btn.snapshot:hover {
+      background: #FEF3C7; box-shadow: 0 1px 4px rgba(245,158,11,0.25);
+    }
+    .pmc-export-btn.full-report {
+      background: #EFF6FF; border-color: rgba(59,130,246,0.40);
+      color: #1E40AF;
+    }
+    .pmc-export-btn.full-report:hover {
+      background: #DBEAFE; box-shadow: 0 1px 4px rgba(59,130,246,0.20);
+    }
+    .pmc-export-btn:disabled {
+      opacity: .45; cursor: default; pointer-events: none;
+    }
+    .pmc-export-hint {
+      font-size: 10px; color: #94A3B8; margin-left: auto;
+    }
+
     /* Recommendation banner */
     .rec-banner{margin-top:10px;padding:12px 16px;border-radius:10px;border-left:4px solid var(--muted);background:#F9FAFB;transition:border-color .3s,background .3s;}
     .rec-banner.rec-green{border-left-color:var(--good);background:#F0FDF4;}
@@ -1343,6 +1382,398 @@
 
     /* ── RCF box: relabelled, keep existing styles ── */
     #wizPanel1 .pmc-ref-class-box { margin-bottom: 8px; }
+
+    /* ══════════════════════════════════════════════════════════
+       STEP 2 — Strategies redesign
+       All stp2-* rules scoped to avoid bleed into other panels.
+       ══════════════════════════════════════════════════════════ */
+
+    /* Hidden backing div — keeps renderKPIs() DOM targets alive */
+    .stp2-kpi-backing {
+      position: absolute !important;
+      width: 1px !important; height: 1px !important;
+      overflow: hidden !important; opacity: 0 !important;
+      pointer-events: none !important; left: -9999px !important;
+    }
+
+    /* RCF banner */
+    .stp2-rcf-banner {
+      display: none;
+      background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.35);
+      border-radius: 8px; padding: 8px 12px; margin-bottom: 10px;
+      font-size: 11px; color: #92400e; line-height: 1.4;
+    }
+    .stp2-rcf-banner.stp2-visible { display: flex; align-items: flex-start; gap: 8px; }
+    .stp2-rcf-icon { font-size: 14px; flex-shrink: 0; }
+
+    /* Framing header */
+    .stp2-framing-hdr { margin-bottom: 12px; }
+    .stp2-framing-title {
+      font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px;
+    }
+    .stp2-framing-sub {
+      font-size: 11px; color: var(--muted); line-height: 1.45;
+    }
+    .stp2-framing-sub strong { color: var(--text); }
+
+    /* Step 1 baseline result */
+    .stp1-baseline-result {
+      margin: 12px 0 0; padding: 12px 14px; background: var(--panel);
+      border: 1px solid rgba(148,163,184,0.25); border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .stp1-result-row {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .stp1-result-badge {
+      flex-shrink: 0; text-align: center; background: #F8FAFC;
+      border: 1.5px solid #94A3B8; border-radius: 10px; padding: 8px 14px; min-width: 80px;
+    }
+    .stp1-result-prob {
+      font-size: 26px; font-weight: 800; color: #334155; letter-spacing: -1px; line-height: 1; display: block;
+    }
+    .stp1-result-prob-label {
+      font-size: 10px; color: #64748B; white-space: nowrap; display: block; margin-top: 3px;
+    }
+    .stp1-result-text { flex: 1; }
+    .stp1-result-name {
+      font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px;
+    }
+    .stp1-result-clarifier {
+      font-size: 11px; color: var(--muted); line-height: 1.45;
+    }
+    /* Step 1 "How it's built" collapsible */
+    .stp1-how-built {
+      margin-top: 10px; border-top: 1px solid rgba(148,163,184,0.15);
+    }
+    .stp1-how-built summary {
+      padding: 8px 0 0; font-size: 11px; font-weight: 600; color: var(--muted);
+      cursor: pointer; list-style: none; user-select: none;
+    }
+    .stp1-how-built summary::-webkit-details-marker { display: none; }
+    .stp1-how-built-body {
+      padding: 8px 0 2px; font-size: 12px; color: var(--muted); line-height: 1.55;
+    }
+    .stp1-how-built-body p { margin: 0 0 7px; }
+
+    /* Strategy cards grid */
+    .stp2-cards-zone {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+    }
+    @media (max-width: 420px) { .stp2-cards-zone { grid-template-columns: 1fr; } }
+
+    .stp2-card {
+      background: var(--panel); border: 1px solid rgba(148,163,184,0.25);
+      border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      cursor: default; transition: border-color 0.2s, box-shadow 0.2s; position: relative;
+    }
+    .stp2-card:hover { border-color: rgba(148,163,184,0.5); box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+    .stp2-card.stp2-card-active { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+
+    .stp2-card-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 6px; margin-bottom: 8px;
+    }
+    .stp2-card-name { font-size: 11px; font-weight: 700; color: var(--text); line-height: 1.3; flex: 1; }
+    .stp2-card-letter { font-size: 10px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+    .stp2-card-stance { font-size: 10px; color: var(--muted); font-weight: 400; line-height: 1.3; }
+    .stp2-toggle-wrap { flex-shrink: 0; }
+    .stp2-toggle-wrap button {
+      font-size: 10px !important; padding: 3px 8px !important;
+      min-height: 22px !important; min-width: 42px !important;
+    }
+
+    /* Probability badge box */
+    .stp2-card-prob-col {
+      flex-shrink: 0; text-align: center;
+      background: #F1F5F9; border: 1.5px solid #CBD5E1;
+      border-radius: 10px; padding: 8px 14px; min-width: 80px;
+    }
+    .stp2-card-prob {
+      font-size: 26px; font-weight: 800; color: #1E293B;
+      letter-spacing: -1px; line-height: 1; display: block;
+    }
+    .stp2-card-prob-label { font-size: 10px; color: #64748B; white-space: nowrap; display: block; margin-top: 3px; }
+
+    /* Per-card accent colors for the badge */
+    .stp2-card-baseline  .stp2-card-prob-col { background: #F8FAFC; border-color: #94A3B8; }
+    .stp2-card-baseline  .stp2-card-prob      { color: #334155; }
+    .stp2-card-adaptive  .stp2-card-prob-col { background: #ECFDF5; border-color: #34D399; }
+    .stp2-card-adaptive  .stp2-card-prob      { color: #065F46; }
+    .stp2-card-fixed     .stp2-card-prob-col { background: #EFF6FF; border-color: #60A5FA; }
+    .stp2-card-fixed     .stp2-card-prob      { color: #1D4ED8; }
+    .stp2-card-scenario  .stp2-card-prob-col { background: #F5F3FF; border-color: #A78BFA; }
+    .stp2-card-scenario  .stp2-card-prob      { color: #5B21B6; }
+
+    .stp2-delta-track {
+      background: rgba(148,163,184,0.15); border-radius: 4px;
+      height: 5px; width: 100%; overflow: hidden; margin-bottom: 6px;
+    }
+    .stp2-delta-fill {
+      height: 100%; border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); background: #3B82F6;
+    }
+    .stp2-delta-fill.stp2-fill-green  { background: #16A34A; }
+    .stp2-delta-fill.stp2-fill-blue   { background: #3B82F6; }
+    .stp2-delta-fill.stp2-fill-purple { background: #7C3AED; }
+    .stp2-delta-fill.stp2-fill-gray   { background: #64748B; }
+    .stp2-delta-pct { font-size: 10px; color: var(--muted); }
+    .stp2-delta-pct span { font-weight: 600; }
+
+    .stp2-badge {
+      display: inline-flex; align-items: center;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 2px 6px; border-radius: 4px; margin-bottom: 6px; text-transform: uppercase;
+    }
+    .stp2-badge-recommended { background: #16A34A; color: #fff; }
+    .stp2-badge-internal    { background: #1D4ED8; color: #fff; }
+    .stp2-badge-manual      { background: #7C3AED; color: #fff; }
+    .stp2-badge-baseline    { background: #64748B; color: #fff; }
+
+    .stp2-level-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .stp2-pill {
+      font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+      border: 1px solid transparent; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      background: rgba(148,163,184,0.12); color: var(--muted);
+    }
+    .stp2-pill:hover { background: rgba(148,163,184,0.25); }
+    .stp2-pill.stp2-pill-active {
+      background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.4); color: #3B82F6;
+    }
+
+    .stp2-conditions-body {
+      display: none; margin-top: 6px; font-size: 10px; color: var(--muted);
+      line-height: 1.5; border-top: 1px solid rgba(148,163,184,0.15); padding-top: 6px;
+    }
+    .stp2-conditions-body.stp2-cond-open { display: block; }
+    .stp2-cond-row { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 3px; }
+    .stp2-cond-label { color: var(--muted); }
+    .stp2-cond-val   { color: var(--text); font-weight: 600; }
+    .stp2-cond-toggle {
+      font-size: 9px; color: #3B82F6; cursor: pointer; margin-top: 4px; display: inline-block;
+    }
+    .stp2-cond-toggle:hover { text-decoration: underline; }
+
+    .stp2-model-explainer {
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 10px;
+      padding: 0; margin-bottom: 12px; overflow: hidden;
+    }
+    .stp2-model-explainer summary {
+      padding: 9px 14px; font-size: 11px; font-weight: 600; color: var(--muted);
+      cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+      background: rgba(148,163,184,0.06);
+    }
+    .stp2-model-explainer summary::-webkit-details-marker { display: none; }
+    .stp2-model-explainer summary::before { content: "▶"; font-size: 9px; transition: transform 0.2s; }
+    .stp2-model-explainer[open] summary::before { transform: rotate(90deg); }
+    .stp2-explainer-body, .stp2-model-body {
+      padding: 10px 14px 12px; font-size: 12px; color: var(--muted);
+      line-height: 1.55; border-top: 1px solid rgba(148,163,184,0.15);
+    }
+    .stp2-explainer-body p, .stp2-model-para { margin: 0 0 7px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+    .stp2-explainer-body p:last-child, .stp2-model-para:last-child { margin-bottom: 0; }
+    .stp2-explainer-body strong, .stp2-model-body strong { color: var(--text); }
+    .stp2-model-caveat { font-size: 11px; color: var(--muted); font-style: italic; }
+    .stp2-model-hint { font-size: 11px; color: var(--muted); font-weight: 400; }
+    .stp2-model-arrow { display: none; } /* arrow provided by summary::before */
+    .stp2-node-row { display: flex; gap: 12px; margin: 8px 0; }
+    .stp2-node-box {
+      flex: 1; border-radius: 8px; padding: 8px 10px; font-size: 10px; line-height: 1.4;
+    }
+    .stp2-node-box.chance  { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.3); }
+    .stp2-node-box.decision{ background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3); }
+    .stp2-node-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .stp2-node-box.chance  .stp2-node-label { color: #92400e; }
+    .stp2-node-box.decision .stp2-node-label { color: #1D4ED8; }
+
+    /* Your Scenario zone */
+    .stp2-scenario-zone {
+      background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .stp2-scenario-left { flex: 1; min-width: 0; }
+    .stp2-scenario-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .stp2-scenario-sub   { font-size: 10px; color: var(--muted); line-height: 1.4; }
+    #probSummaryBar { font-size: 10px; margin-top: 5px; color: var(--muted); }
+
+    /* Charts disclosure */
+    .stp2-charts-disclosure {
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 10px;
+      overflow: hidden; margin-bottom: 8px; margin-top: 8px;
+    }
+    .stp2-charts-toggle-btn {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: rgba(148,163,184,0.06);
+      border: none; cursor: pointer; font-size: 11px; font-weight: 600;
+      color: var(--muted); gap: 6px;
+    }
+    .stp2-charts-toggle-btn:hover { background: rgba(148,163,184,0.12); }
+    .stp2-charts-caret { font-size: 10px; transition: transform 0.2s; }
+    .stp2-charts-caret.stp2-open { transform: rotate(180deg); }
+    .stp2-charts-area { display: block; border-top: 1px solid rgba(148,163,184,0.15); }
+    /* toggle class kept for JS but charts start open */
+    .stp2-charts-area.stp2-charts-closed { display: none; }
+
+    /* Hide floating series toggles in step 2 (cards own them) */
+    .stp2-series-hidden { display: none !important; }
+    .stp2-dist-tiles-hidden { display: none !important; }
+
+    /* ── Delta fill colors (matching card class) ── */
+    .stp2-delta-baseline { background: #64748B; }
+    .stp2-delta-adaptive { background: #16A34A; }
+    .stp2-delta-fixed    { background: #3B82F6; }
+    .stp2-delta-manual   { background: #7C3AED; }
+    .stp2-delta-fill { height: 100%; border-radius: 4px; transition: width 0.45s cubic-bezier(.4,0,.2,1); }
+
+    /* ── Delta track ── */
+    .stp2-delta-track {
+      background: rgba(148,163,184,0.15); border-radius: 4px;
+      height: 5px; width: 100%; overflow: hidden;
+      margin: 4px 0 2px; position: relative;
+    }
+    .stp2-delta-label {
+      font-size: 9px; color: var(--muted); margin-bottom: 6px; display: block;
+    }
+
+    /* ── Level pills ── */
+    .stp2-level-pills { display: flex; gap: 3px; flex-wrap: wrap; }
+    .stp2-level-label { font-size: 10px; color: var(--muted); }
+    .stp2-level-pill {
+      font-size: 10px; font-weight: 600; width: 22px; height: 22px;
+      border-radius: 5px; border: 1px solid rgba(148,163,184,0.3);
+      background: rgba(148,163,184,0.1); cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .stp2-level-pill:hover { background: rgba(148,163,184,0.25); }
+    .stp2-level-pill.stp2-level-pill-active {
+      background: rgba(22,163,74,0.15); border-color: rgba(22,163,74,0.5); color: #15803d;
+    }
+
+    /* ── Conditions expand/collapse ── */
+    .stp2-conditions-toggle {
+      font-size: 10px; color: #3B82F6; cursor: pointer; background: none;
+      border: 1px solid rgba(59,130,246,0.25); border-radius: 5px;
+      padding: 2px 8px; transition: background 0.15s;
+    }
+    .stp2-conditions-toggle:hover { background: rgba(59,130,246,0.08); }
+    .stp2-conditions-body { display: none; margin-top: 6px; }
+    .stp2-conditions-body[aria-hidden="false"] { display: block; }
+    .stp2-conditions-intro {
+      font-size: 10px; color: var(--muted); margin-bottom: 5px; font-style: italic;
+    }
+    .stp2-conditions-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px;
+    }
+    .stp2-cond-row {
+      display: flex; justify-content: space-between; gap: 4px;
+      font-size: 10px; padding: 2px 0;
+      border-bottom: 1px solid rgba(148,163,184,0.1);
+    }
+    .stp2-cond-key { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stp2-cond-val { font-weight: 700; color: var(--text); flex-shrink: 0; }
+    .stp2-cond-placeholder { font-size: 10px; color: var(--muted); font-style: italic; grid-column: 1/-1; }
+
+    /* Card D: scenario conditions always visible — no top border separator */
+    .stp2-scenario-conds { border-top: 1px dashed rgba(124,58,237,0.2); margin-top: 6px; padding-top: 6px; }
+
+    /* ── Management Stance slider rows ─────────────────────────────────── */
+    .stp2-stance-row { display: flex; align-items: center; gap: 5px; margin: 4px 0; }
+    .stp2-stance-label { font-size: 10px; color: var(--muted); width: 84px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stp2-stance-pct { font-size: 10px; font-weight: 700; color: var(--text); width: 26px; text-align: right; flex-shrink: 0; }
+    .stp2-stance-row.stp2-stance-disabled { opacity: 0.45; pointer-events: none; }
+    .stp2-stance-range { flex: 1; cursor: pointer; accent-color: #7C3AED; min-width: 0; }
+    .stp2-stance-range:disabled { accent-color: #94A3B8; cursor: default; }
+    .stp2-stance-na { font-size: 10px; color: var(--muted); font-style: italic; margin-bottom: 5px; }
+
+    /* ── recBanner positioned below cards ── */
+    .stp2-rec-banner { margin-bottom: 10px; }
+
+    /* ── Card inner structure (matching actual HTML class names) ── */
+    .stp2-card-header {
+      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;
+    }
+    .stp2-card-name-col { flex: 1; min-width: 0; }
+    .stp2-card-name {
+      font-size: 11px; font-weight: 700; color: var(--text);
+      display: block; margin-bottom: 4px;
+    }
+    .stp2-card-clarifier {
+      font-size: 10px; color: var(--muted); line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .stp2-card-prob-col {
+      flex-shrink: 0; text-align: center;
+      background: #F1F5F9; border: 1.5px solid #CBD5E1;
+      border-radius: 10px; padding: 6px 10px; min-width: 72px;
+    }
+    .stp2-card-prob {
+      font-size: 22px; font-weight: 800; color: #1E293B;
+      letter-spacing: -1px; line-height: 1; display: block;
+    }
+    .stp2-card-prob-label {
+      font-size: 9px; color: #64748B; white-space: nowrap; display: block; margin-top: 2px;
+    }
+    .stp2-card-level-row {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      font-size: 10px; margin: 4px 0; color: var(--muted);
+    }
+    .stp2-card-level-row label { font-size: 10px; }
+    .stp2-card-ref-label {
+      font-size: 11px; color: #64748B; font-style: italic;
+    }
+    .stp2-card-footer {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid rgba(148,163,184,0.15);
+    }
+    .stp2-card-toggle {
+      font-size: 10px; padding: 3px 10px; border-radius: 6px;
+      background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.3);
+      cursor: pointer; color: var(--text); transition: background 0.15s;
+    }
+    .stp2-card-toggle:hover { background: rgba(148,163,184,0.25); }
+    .stp2-card-toggle[aria-pressed="true"] {
+      background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.4); color: #1D4ED8;
+    }
+    .stp2-card-toggle.stp2-card-toggle-loading {
+      background: rgba(234,179,8,0.12); border-color: rgba(234,179,8,0.4); color: #92400e;
+      pointer-events: none; cursor: wait;
+    }
+    .stp2-card-help-link {
+      flex-shrink: 0;
+    }
+    .stp2-cond-expand-btn {
+      font-size: 10px; color: #3B82F6; cursor: pointer; background: none;
+      border: none; padding: 0; text-decoration: underline;
+    }
+    .stp2-card-cond-body {
+      font-size: 10px; color: var(--muted); margin-top: 6px;
+      padding-top: 6px; border-top: 1px solid rgba(148,163,184,0.12);
+      display: none;
+    }
+    .stp2-card-cond-body.open { display: block; }
+    .stp2-goto-explore-cta {
+      font-size: 11px; font-weight: 600; padding: 7px 14px;
+      border-radius: 8px; border: 1px solid rgba(59,130,246,0.4);
+      background: rgba(59,130,246,0.08); color: #1D4ED8;
+      cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    }
+    .stp2-goto-explore-cta:hover { background: rgba(59,130,246,0.15); }
+    /* Charts toggle button */
+    /* .stp2-charts-disclosure border-top handled by main CSS block above */
+    /* Step 1 (wizard): only How It's Built */
+    .wrap:not(.pmc-dashboard) #tabs .tab[data-tab="overlay"] { display: none; }
+    /* Step 2 (dashboard): only Compare curves */
+    .wrap.pmc-dashboard #tabs .tab[data-tab="progress"] { display: none; }
+    .wrap.pmc-dashboard #tabs .tab[data-tab="overlay"]  { display: flex; }
+    .stp2-charts-toggle-btn { display: none; } /* charts always visible, hide toggle */
   </style>
 </head>
 
@@ -1371,12 +1802,8 @@
     <span class="pmc-wiz-num">1</span>Estimate<span id="wizRefBadge" style="display:none; margin-left:4px; font-size:9px; font-weight:800; background:#3B82F6; color:#fff; padding:0 5px; border-radius:8px;">RCF</span>
   </div>
   <span class="pmc-wiz-arr" aria-hidden="true">›</span>
-  <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="View Conservative and General Optimization strategies — fully automatic">
-    <span class="pmc-wiz-num">2</span>Strategies
-  </div>
-  <span class="pmc-wiz-arr" aria-hidden="true">›</span>
-  <div class="pmc-wiz-tab" data-wiz="3" onclick="pmcWizGo(3)" title="Manually set the 7 sliders for Unconstrained what-if exploration">
-    <span class="pmc-wiz-num">3</span>Explore
+  <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="Apply management conditions to improve project odds — Benchmarked, Unconstrained, and Your Conditions">
+    <span class="pmc-wiz-num">2</span>Optimize
   </div>
   <button class="pmc-wiz-setup-btn" onclick="pmcWizGo(1)" title="Return to step-by-step setup">&#9664; Setup</button>
 </nav>
@@ -1425,6 +1852,44 @@
   </div>
 </div><!-- /task card -->
 
+<!-- ── CALIBRATE WITH TEAM HISTORY (RCF) ── -->
+<details id="histCtxBox" class="pmc-ref-class-box">
+  <summary class="pmc-ref-class-summary">
+    <span class="pmc-ref-class-arrow">&#9654;</span>
+    Calibrate with your team's history <span class="pmc-step-optional" style="margin-left:4px;">optional</span>
+    <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; margin-left:6px;">ACTIVE</span>
+  </summary>
+  <div class="pmc-ref-class-body">
+    <div class="pmc-ref-class-intro">
+      Reference Class Forecasting (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
+      SACO runs a Metropolis-Hastings MCMC chain to shift the baseline to match your organisation&rsquo;s track record.
+    </div>
+    <div class="pmc-ref-class-fields">
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">How many similar past projects? <span class="pmc-ref-field-req">required</span></span>
+        <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">A project is &ldquo;similar&rdquo; if it used the same unit and was delivered by the same team or method.</span>
+      </label>
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">Average overrun % <span class="pmc-ref-field-req">required</span></span>
+        <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">If PERT predicted 100 days and actuals averaged 115, enter 15. Negative = underrun.</span>
+      </label>
+      <label class="pmc-ref-field">
+        <span class="pmc-ref-field-lbl">Std dev of overrun % <span class="pmc-ref-field-opt">optional</span></span>
+        <input id="histStd" type="number" min="0" max="100" step="1" placeholder="leave blank to auto-estimate" class="pmc-ref-input" />
+        <span class="pmc-ref-field-hint">Leave blank — SACO defaults to 50% of the mean.</span>
+      </label>
+    </div>
+    <div id="histCredibility" style="display:none;" class="pmc-ref-credibility"></div>
+    <div class="pmc-ref-actions">
+      <button id="histApply" class="pmc-ref-apply-btn">Apply &amp; Re-run</button>
+      <button id="histClear" class="pmc-ref-clear-btn">Clear</button>
+    </div>
+    <div id="histPreview" style="display:none;" class="pmc-ref-preview"></div>
+  </div>
+</details>
+
 <!-- ── TARGET + RESULT CARD ── -->
 <div class="stp1-card stp1-target-card" id="targetPanel">
 
@@ -1470,7 +1935,7 @@
       <span id="tgtMeanCtx"></span>
     </div>
     <div id="rclActiveBanner" style="display:none; margin-top:6px; padding:5px 9px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:7px; font-size:10px; color:#1D4ED8; line-height:1.5;"></div>
-    <div class="stp1-hero-note">See Compare Strategies tab for other strategies.</div>
+    <div class="stp1-hero-note">Go to Optimize to apply management conditions.</div>
   </div>
 
   <!-- HERO value card (probability mode) -->
@@ -1481,7 +1946,7 @@
     <div class="stp1-hero-ctx">
       <span id="tgtAnswerLabel" style="display:none;"></span>
     </div>
-    <div class="stp1-hero-note">See Compare Strategies tab for other strategies.</div>
+    <div class="stp1-hero-note">Go to Optimize to apply management conditions.</div>
   </div>
 
   <!-- tgtAnswerRow preserved for JS (used by updateTargetDisplayText) -->
@@ -1586,82 +2051,604 @@
 <!-- tmAggBar: kept in DOM for JS (always hidden) -->
 <div id="tmAggBar" style="display:none!important;"></div>
 
-<!-- ── CALIBRATE WITH TEAM HISTORY (RCF) ── -->
-<details id="histCtxBox" class="pmc-ref-class-box">
-  <summary class="pmc-ref-class-summary">
-    <span class="pmc-ref-class-arrow">&#9654;</span>
-    Calibrate with your team's history <span class="pmc-step-optional" style="margin-left:4px;">optional</span>
-    <span id="histCtxBadge" style="display:none; font-size:10px; font-weight:700; background:#3B82F6; color:#fff; padding:1px 7px; border-radius:10px; margin-left:6px;">ACTIVE</span>
-  </summary>
-  <div class="pmc-ref-class-body">
-    <div class="pmc-ref-class-intro">
-      Reference Class Forecasting (Kahneman &amp; Lovallo 1993; Flyvbjerg 2006).
-      SACO runs a Metropolis-Hastings MCMC chain to shift the baseline to match your organisation&rsquo;s track record.
+<!-- Step 1 baseline result — shows after first run -->
+<div class="stp1-baseline-result" id="stp1-baseline-result" style="display:none;">
+  <div class="stp1-result-row">
+    <div class="stp1-result-badge">
+      <span class="stp1-result-prob" id="stp1-result-prob">&ndash;</span>
+      <span class="stp1-result-prob-label" id="stp1-result-prob-label">at target</span>
     </div>
-    <div class="pmc-ref-class-fields">
-      <label class="pmc-ref-field">
-        <span class="pmc-ref-field-lbl">How many similar past projects? <span class="pmc-ref-field-req">required</span></span>
-        <input id="histN" type="number" min="1" max="100" step="1" placeholder="e.g. 5" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">A project is &ldquo;similar&rdquo; if it used the same unit and was delivered by the same team or method.</span>
-      </label>
-      <label class="pmc-ref-field">
-        <span class="pmc-ref-field-lbl">Average overrun % <span class="pmc-ref-field-req">required</span></span>
-        <input id="histMean" type="number" min="-50" max="200" step="1" placeholder="e.g. 15" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">If PERT predicted 100 days and actuals averaged 115, enter 15. Negative = underrun.</span>
-      </label>
-      <label class="pmc-ref-field">
-        <span class="pmc-ref-field-lbl">Std dev of overrun % <span class="pmc-ref-field-opt">optional</span></span>
-        <input id="histStd" type="number" min="0" max="100" step="1" placeholder="leave blank to auto-estimate" class="pmc-ref-input" />
-        <span class="pmc-ref-field-hint">Leave blank — SACO defaults to 50% of the mean.</span>
-      </label>
+    <div class="stp1-result-text">
+      <div class="stp1-result-name">Unoptimized Estimate</div>
+      <div class="stp1-result-clarifier">Your 3-point estimate with no management conditions applied. This is the starting point — see distributions below, then go to Optimize to improve your odds.</div>
     </div>
-    <div id="histCredibility" style="display:none;" class="pmc-ref-credibility"></div>
-    <div class="pmc-ref-actions">
-      <button id="histApply" class="pmc-ref-apply-btn">Apply &amp; Re-run</button>
-      <button id="histClear" class="pmc-ref-clear-btn">Clear</button>
-    </div>
-    <div id="histPreview" style="display:none;" class="pmc-ref-preview"></div>
   </div>
-</details>
+</div>
 
 <!-- Wizard footer: step 1 — full-width CTA -->
 <div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn primary stp1-cta" onclick="pmcWizGo(2)" title="Run optimizations and view full results dashboard">See Strategies &amp; Results ›</button>
+  <button class="pmc-wiz-btn primary stp1-cta" onclick="pmcWizGo(2)" title="Apply management conditions to improve your probability at target">Optimize ›</button>
 </div>
 </div><!-- /wizPanel1 -->
 
 <!-- (Reference Class is now embedded in wizPanel1 above) -->
 
-<!-- ══ STEP 3 — EXPLORE (UNCONSTRAINED) ════════════════════════════════ -->
-<div class="pmc-wiz-panel hidden" data-wiz="3" id="wizPanel3">
-<div class="pmc-step-hdr">
-  <span class="pmc-step-num">3</span>
-  <div>
-    <div class="pmc-step-title">Explore — Unconstrained</div>
-    <div class="pmc-step-desc">Manually set all 7 decision levers to explore any what-if scenario. Unlike Conservative and General strategies (which are fully automatic), here you are in full control. Results update live in Strategies above.</div>
-  </div>
-</div>
-<!-- sliderSidebar injected here by JS -->
-<div id="sliderWizPanel"></div>
-<!-- Wizard footer: step 3 (dashboard mode hides this) -->
-<div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Back to Strategies">‹ Strategies</button>
-  <span class="pmc-wiz-spacer"></span>
-</div>
-</div><!-- /wizPanel3 -->
 
 <!-- ══ STEP 2 — STRATEGIES ═════════════════════════════════════════════ -->
 <div class="pmc-wiz-panel hidden" data-wiz="2" id="wizPanel2">
 <div class="pmc-step-hdr pmc-step-results">
   <span class="pmc-step-num">2</span>
   <div>
-    <div class="pmc-step-title">Optimize &amp; Compare</div>
-    <div class="pmc-step-desc">Enable strategies using the toggles. <strong>Conservative</strong> and <strong>General</strong> are fully automatic — SACO finds the optimal slider values. <strong>Unconstrained</strong> uses your manually set sliders from step 3.</div>
+    <div class="pmc-step-title">Optimize</div>
+    <div class="pmc-step-desc">Apply management conditions to improve your probability at target.</div>
   </div>
 </div>
 
-<!-- TABS + KPI GROUP -->
-<div class="tabs" id="tabs">
+<!-- ══ ZONE 1: RCF notice ══════════════════════════════════════════════ -->
+<div id="stp2-rcf-banner" class="stp2-rcf-banner" style="display:none;">
+  <span class="stp2-rcf-icon">&#9432;</span>
+  <span id="stp2-rcf-text">Baseline adjusted for historical overrun — applied equally to all strategies.</span>
+</div>
+
+<!-- ══ ZONE 2: Framing header ═════════════════════════════════════════ -->
+<div class="stp2-framing-hdr">
+  <div class="stp2-framing-title">
+    Apply management conditions to improve your odds.
+    <span class="help-icon" data-title="What is this panel?" data-body="Your Step 1 estimate captures uncertainty you cannot control. This panel lets you apply management conditions — budget headroom, schedule flexibility, scope controls — and see how each commitment changes your probability at target. The SACO algorithm searches thousands of combinations to find which conditions help the most.">?</span>
+  </div>
+  <div class="stp2-framing-sub" id="stp2-framing-sub">Your Step 1 baseline probability is shown below. Each card shows how much conditions improve it.</div>
+</div>
+
+<!-- ══ ZONE 4: How does this work? (collapsed) ════════════════════════ -->
+<details class="stp2-model-explainer" id="stp2-model-explainer">
+  <summary class="stp2-model-summary">
+    <span class="stp2-model-arrow">&#9654;</span>
+    How does this work?
+    <span class="stp2-model-hint">What is the algorithm actually doing?</span>
+  </summary>
+  <div class="stp2-model-body">
+    <p class="stp2-model-para"><strong>Your O/M/P estimate</strong> captures things you cannot control — how long tasks actually take, whether requirements change, whether the unexpected happens. These are uncertainties. The distribution is anchored to your judgment.</p>
+    <p class="stp2-model-para"><strong>The 7 management conditions</strong> are different. They capture decisions you make as a manager: how much budget headroom to maintain, how frozen the scope is, how much rework to plan for. These are not uncertain — they are choices you control.</p>
+    <p class="stp2-model-para"><strong>The SACO algorithm</strong> searches thousands of combinations of those 7 conditions to find which specific set gives you the best probability at your target. It does not change what is uncertain about the project. It finds which set of conditions, if genuinely implemented, shifts the odds the most. Think of it as a policy search engine, not a prediction engine.</p>
+    <p class="stp2-model-para stp2-model-caveat">One guardrail: the algorithm will never recommend a stance so extreme that it contradicts your own O/M/P judgment. A KL-divergence constraint keeps the result anchored to your estimate.</p>
+  </div>
+</details>
+
+<!-- ══ ZONE 3: Strategy cards ═════════════════════════════════════════ -->
+<div class="stp2-cards-zone">
+
+  <!-- Hidden backing: renderKPIs() still writes here; visually offscreen -->
+  <div class="stp2-kpi-backing" id="overlayKpis">
+    <div class="kpi-group">
+      <div class="kpi baseline inactive" id="kpiBaseline">
+        <div class="ttl">Unoptimized Estimate
+          <span class="help-icon" data-title="Unoptimized Estimate" data-body="Your original 3-point estimate with no optimization applied. All other strategies are compared against this.">?</span>
+        </div>
+        <div class="val">&ndash;</div>
+      </div>
+      <div class="kpi adaptive inactive" id="kpiAdaptive">
+        <div class="ttl">Benchmarked Optimization
+          <span class="help-icon" data-title="Benchmarked Optimization" data-body="SACO searches condition combinations within PMBOK/CII-anchored bounds. Most defensible for external reporting.">?</span>
+        </div>
+        <div class="val">&ndash;</div>
+      </div>
+      <div id="probeBox" class="chip" style="display:none; align-items:center; gap:6px; min-height:36px; padding:6px 10px;">
+        <span style="font-weight:600;">Strictness:</span>
+        <span class="help-icon" data-title="Benchmark Strictness (1–7)" data-body="Level 1 = widest exploration within benchmarks. Level 7 = tightest best-practice. Higher = more defensible, less uplift. Start at Level 3.">?</span>
+        <select id="probeSelect" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:8px; height:28px;">
+          <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
+        </select>
+      </div>
+      <div class="kpi optimized inactive" id="kpiOptimized">
+        <div class="ttl">Unconstrained Optimization
+          <span class="help-icon" data-title="Unconstrained Optimization" data-body="Same SACO engine, wider search space not anchored to benchmarks. Finds higher probability but less conservative. Best for internal planning.">?</span>
+        </div>
+        <div class="val">&ndash;</div>
+      </div>
+      <div class="kpi adjusted inactive" id="kpiAdjusted">
+        <div class="ttl">Your Conditions
+          <span class="help-icon" data-title="Your Conditions" data-body="You set all 7 conditions below. The algorithm evaluates the probability for your specific choices — it does not search for a better set.">?</span>
+        </div>
+        <div class="val">&ndash;</div>
+      </div>
+    </div>
+    <!-- sliderResultsLink: hidden in new layout -->
+    <div id="sliderResultsLink" style="display:none;"></div>
+    <!-- sliderSidebar: JS moves this to wizPanel3 on DOMContentLoaded — keep here as source -->
+    <div id="sliderSidebar" role="complementary" aria-label="Decision Sliders">
+      <div id="slidersPanel" class="sliders-panel">
+        <div class="slider-panel-hdr">
+          <div class="title" id="sliderTitle">Decision Sliders</div>
+          <div class="note" id="optimizeNote">Adjust levers to reshape the distribution, or read optimal values for active strategies.</div>
+          <div id="sliderImpactBanner" style="display:none;"></div>
+        </div>
+        <div class="slider-preset-row">
+          <span class="slider-preset-label">Your Scenario starting point:</span>
+          <div class="slider-actions" style="margin-top:0;">
+            <button id="resetBaseline" class="slider-btn" title="Reset all 7 Decision Sliders to zero">Reset to Zero</button>
+            <button id="matchOptimized" class="slider-btn primary" title="Copy the Optimized slider values into Your Scenario">Copy from Optimized</button>
+          </div>
+        </div>
+        <div class="slider-cats">
+          <div class="slider-category" data-cat="capacity">
+            <div class="cat-header" style="color:var(--cat-capacity)">Capacity</div>
+            <div class="slider-row" data-key="budgetFlexibility">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="budgetFlexibility" aria-label="Help: Budget Flexibility">?</button>
+                <label for="s_budget">Budget Flexibility</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_budget_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Budget Flexibility slider">
+                <input type="number" id="s_budget" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_budget_marker"></div>
+            </div>
+            <div class="slider-row" data-key="scheduleFlexibility">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="scheduleFlexibility" aria-label="Help: Schedule Flexibility">?</button>
+                <label for="s_schedule">Schedule Flexibility</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_schedule_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Schedule Flexibility slider">
+                <input type="number" id="s_schedule" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_schedule_marker"></div>
+            </div>
+          </div>
+          <div class="slider-category" data-cat="certainty">
+            <div class="cat-header" style="color:var(--cat-certainty)">Certainty</div>
+            <div class="slider-row" data-key="scopeCertainty">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="scopeCertainty" aria-label="Help: Scope Certainty">?</button>
+                <label for="s_scopeCert">Scope Certainty</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_scopeCert_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Scope Certainty slider">
+                <input type="number" id="s_scopeCert" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_scopeCert_marker"></div>
+            </div>
+            <div class="slider-row" data-key="scopeReductionAllowance">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="scopeReductionAllowance" aria-label="Help: Scope Reduction">?</button>
+                <label for="s_scopeRed">Scope Reduction</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_scopeRed_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Scope Reduction slider">
+                <input type="number" id="s_scopeRed" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_scopeRed_marker"></div>
+            </div>
+          </div>
+          <div class="slider-category" data-cat="process">
+            <div class="cat-header" style="color:var(--cat-process)">Process</div>
+            <div class="slider-row" data-key="reworkPercentage">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="reworkPercentage" aria-label="Help: Rework Percentage">?</button>
+                <label for="s_rework">Rework Percentage</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_rework_range" min="0" max="50" step="1" value="0" class="slider-range" aria-label="Rework Percentage slider">
+                <input type="number" id="s_rework" min="0" max="50" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_rework_marker"></div>
+            </div>
+          </div>
+          <div class="slider-category" data-cat="behavioral">
+            <div class="cat-header" style="color:var(--cat-behavioral)">Behavioral</div>
+            <div class="slider-row" data-key="riskTolerance">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="riskTolerance" aria-label="Help: Risk Tolerance">?</button>
+                <label for="s_risk">Risk Tolerance</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_risk_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="Risk Tolerance slider">
+                <input type="number" id="s_risk" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_risk_marker"></div>
+            </div>
+            <div class="slider-row" data-key="userConfidence">
+              <div class="slider-label-row">
+                <button class="slider-help-btn" data-slider-help="userConfidence" aria-label="Help: User Confidence">?</button>
+                <label for="s_userConf">User Confidence</label>
+              </div>
+              <div class="slider-pair">
+                <input type="range" id="s_userConf_range" min="0" max="100" step="1" value="0" class="slider-range" aria-label="User Confidence slider">
+                <input type="number" id="s_userConf" min="0" max="100" step="1" value="0" class="slider-num">
+                <span class="slider-unit">%</span>
+              </div>
+              <div class="slider-optimal-marker" id="s_userConf_marker"></div>
+            </div>
+          </div>
+        </div><!-- /.slider-cats -->
+        <div id="slidersNoteMissing" class="note" style="display:none;">Server did not return optimal slider values.</div>
+      </div><!-- /#slidersPanel -->
+      <div id="sensitivityBars" class="sensitivity-panel" style="display:none;">
+        <div class="cat-header" style="color:var(--muted)">Sensitivity (Relative Impact)</div>
+        <div id="sensitivityContent"></div>
+      </div>
+    </div><!-- /#sliderSidebar -->
+  </div><!-- /#overlayKpis backing -->
+
+  <div class="stp2-card stp2-card-adaptive" id="stp2-card-guided" data-strategy="adaptive">
+    <div class="stp2-card-header">
+      <div class="stp2-card-name-col">
+        <span class="stp2-card-name"><span class="stp2-card-letter">(B)</span> Benchmarked Optimization</span>
+        <span class="stp2-card-clarifier">SACO searches conditions within PMBOK/CII-anchored bounds. More defensible for external reporting and stakeholder commitments.</span>
+      </div>
+      <div class="stp2-card-prob-col">
+        <span class="stp2-card-prob stp2-card-prob-adaptive stp2-prob-pending" id="stp2-prob-guided">&ndash;</span>
+        <span class="stp2-card-prob-label" id="stp2-prob-lbl-guided">at target</span>
+      </div>
+    </div>
+    <div class="stp2-delta-track">
+      <div class="stp2-delta-fill stp2-delta-adaptive" id="stp2-delta-guided" style="width:0%;"></div>
+      <span class="stp2-delta-label" id="stp2-delta-label-guided">run to compare</span>
+    </div>
+    <div class="stp2-card-level-row" id="stp2-guided-level-row">
+      <span class="stp2-level-label">Benchmark strictness:
+        <span class="help-icon" data-title="Benchmark Strictness (1–7)" data-body="Level 1 = widest allowed exploration within benchmarks. Level 7 = tightest best-practice constraints. Higher = more defensible, less uplift. Start at Level 3; increase for regulated or high-risk environments.">?</span>
+      </span>
+      <div class="stp2-level-pills" id="stp2-level-pills">
+        <button class="stp2-level-pill" data-level="1">1</button>
+        <button class="stp2-level-pill" data-level="2">2</button>
+        <button class="stp2-level-pill stp2-level-pill-active" data-level="3">3</button>
+        <button class="stp2-level-pill" data-level="4">4</button>
+        <button class="stp2-level-pill" data-level="5">5</button>
+        <button class="stp2-level-pill" data-level="6">6</button>
+        <button class="stp2-level-pill" data-level="7">7</button>
+      </div>
+    </div>
+    <div class="stp2-card-footer">
+      <button class="stp2-card-toggle stp2-card-toggle-off" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Run Benchmarked Optimization">Run this strategy</button>
+      <button class="stp2-conditions-toggle" id="stp2-cond-toggle-guided" aria-expanded="true" aria-controls="stp2-cond-body-guided">Conditions &#9660;</button>
+      <span class="stp2-card-help-link help-icon" data-title="Benchmarked Optimization" data-body="SACO searches thousands of condition combinations, but only considers those within conservative bounds derived from PMBOK Chapter 6 and CII benchmarks. It returns the combination that maximizes P(completion at or below target). Because the search space is anchored to defensible norms, this result is most justifiable to stakeholders and auditors.">?</span>
+    </div>
+    <div class="stp2-conditions-body" id="stp2-cond-body-guided" aria-hidden="false">
+      <div class="stp2-conditions-intro">Management conditions selected by optimizer (read-only)
+        <span class="help-icon" data-title="Management Conditions" data-body="These 7 levers represent project management decisions that directly affect delivery probability: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. SACO searched within PMBOK/CII-anchored bounds and selected the combination that maximises P(completion ≤ target).">?</span>
+      </div>
+      <div class="stp2-stance-bars" id="stp2-stance-guided"></div>
+    </div>
+  </div>
+
+  <!-- Card C: Unconstrained Optimization -->
+  <div class="stp2-card stp2-card-fixed" id="stp2-card-optimized" data-strategy="fixed">
+    <div class="stp2-card-header">
+      <div class="stp2-card-name-col">
+        <span class="stp2-card-name"><span class="stp2-card-letter">(C)</span> Unconstrained Optimization</span>
+        <span class="stp2-card-clarifier">Same algorithm, wider search space — no external benchmark anchors. Typically finds higher probability. Best for internal planning and feasibility analysis.</span>
+      </div>
+      <div class="stp2-card-prob-col">
+        <span class="stp2-card-prob stp2-card-prob-fixed stp2-prob-pending" id="stp2-prob-optimized">&ndash;</span>
+        <span class="stp2-card-prob-label" id="stp2-prob-lbl-optimized">at target</span>
+      </div>
+    </div>
+    <div class="stp2-delta-track">
+      <div class="stp2-delta-fill stp2-delta-fixed" id="stp2-delta-optimized" style="width:0%;"></div>
+      <span class="stp2-delta-label" id="stp2-delta-label-optimized">run to compare</span>
+    </div>
+    <div class="stp2-card-footer">
+      <button class="stp2-card-toggle stp2-card-toggle-off" id="rowTglFixed" role="switch" aria-pressed="false" title="Run Unconstrained Optimization">Run this strategy</button>
+      <button class="stp2-conditions-toggle" id="stp2-cond-toggle-optimized" aria-expanded="true" aria-controls="stp2-cond-body-optimized">Conditions &#9660;</button>
+      <span class="stp2-card-help-link help-icon" data-title="Unconstrained Optimization" data-body="Uses the same SACO policy search as Benchmarked, but with wider constraint boundaries — not anchored to PMBOK or CII norms. This gives the algorithm a larger search space and typically produces higher probability, but the resulting conditions may be harder to defend to external stakeholders. Use it for internal planning and to understand the maximum achievable probability.">?</span>
+    </div>
+    <div class="stp2-conditions-body" id="stp2-cond-body-optimized" aria-hidden="false">
+      <div class="stp2-conditions-intro">Management conditions selected by optimizer (read-only)
+        <span class="help-icon" data-title="Management Conditions" data-body="These 7 levers represent project management decisions that directly affect delivery probability: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. SACO searched an unconstrained space and selected the combination that maximises P(completion ≤ target). Results may exceed PMBOK/CII norms — use for internal planning.">?</span>
+      </div>
+      <div class="stp2-stance-bars" id="stp2-stance-optimized"></div>
+    </div>
+  </div>
+
+  <!-- Card D: Your Conditions -->
+  <div class="stp2-card stp2-card-manual" id="stp2-card-scenario" data-strategy="manual">
+    <div class="stp2-card-header">
+      <div class="stp2-card-name-col">
+        <span class="stp2-card-name"><span class="stp2-card-letter">(D)</span> Your Conditions</span>
+        <span class="stp2-card-clarifier">You set all 7 conditions below. The algorithm evaluates the probability for your specific choices — it does not search for a better set.</span>
+      </div>
+      <div class="stp2-card-prob-col">
+        <span class="stp2-card-prob stp2-card-prob-manual stp2-prob-pending" id="stp2-prob-scenario">&ndash;</span>
+        <span class="stp2-card-prob-label" id="stp2-prob-lbl-scenario">at target</span>
+      </div>
+    </div>
+    <div class="stp2-delta-track">
+      <div class="stp2-delta-fill stp2-delta-manual" id="stp2-delta-scenario" style="width:0%;"></div>
+      <span class="stp2-delta-label" id="stp2-delta-label-scenario">set conditions to compare</span>
+    </div>
+    <div class="stp2-card-footer">
+      <button class="stp2-card-toggle stp2-card-toggle-off" id="rowTglManual" role="switch" aria-pressed="false" title="Evaluate Your Conditions">Evaluate my conditions</button>
+      <button class="stp2-conditions-toggle" id="stp2-cond-toggle-scenario" aria-expanded="true" aria-controls="stp2-cond-body-scenario">Conditions &#9660;</button>
+      <span class="stp2-card-help-link help-icon" data-title="Your Conditions" data-body="Unlike Benchmarked and Unconstrained (which search for the best conditions automatically), Your Conditions lets you specify each one yourself. The algorithm computes the resulting probability — it does not search for a better answer. Use this for what-if analysis: 'What would our odds be if we committed to exactly these conditions?'">?</span>
+    </div>
+    <!-- Interactive condition sliders — open by default -->
+    <div class="stp2-conditions-body stp2-scenario-conds" id="stp2-cond-body-scenario" aria-hidden="false">
+      <div class="stp2-conditions-intro">Your management conditions — drag to adjust
+        <span class="help-icon" data-title="Your Management Conditions" data-body="Set each of the 7 management levers to reflect your project's actual conditions: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. Higher values generally mean more favourable conditions. The algorithm evaluates — but does not search for — the probability at your chosen settings.">?</span>
+      </div>
+      <div class="stp2-stance-interactive" id="stp2-stance-scenario"></div>
+    </div>
+  </div>
+
+</div><!-- /.stp2-cards-zone -->
+
+<!-- ══ EXPORT ACTION BAR ══════════════════════════════════════════════ -->
+<div class="pmc-export-bar" id="pmcExportBar">
+  <span class="pmc-export-label">SAVE TO SHEET:</span>
+  <button class="pmc-export-btn snapshot" id="btnExportSnapshot"
+          onclick="pmcExportToSheet('snapshot')"
+          title="Writes key metrics to a new tab in this spreadsheet — Run Date, PERT, P90, Baseline vs Best Strategy, and top recommendation.">
+    &#8599; New Tab: Snapshot
+  </button>
+  <button class="pmc-export-btn full-report" id="btnExportFull"
+          onclick="pmcExportToSheet('full')"
+          title="Writes complete analysis to a new tab — all percentiles, all four strategies, slider conditions, diagnostics, and playbook recommendations.">
+    &#8599; New Tab: Full Report
+  </button>
+  <span class="pmc-export-hint" id="pmcExportHint">Includes original inputs &#183; PERT column highlighted</span>
+</div>
+
+<!-- ══ RECOMMENDATION BANNER — below cards, always visible ═══════════ -->
+<div id="recBanner" class="rec-banner stp2-rec-banner" style="display:none;">
+  <div id="recActiveBar"></div>
+  <div class="rec-statement" id="recStatement"></div>
+  <div class="rec-context" id="recContext"></div>
+  <div class="rec-details" id="recDetails"></div>
+</div>
+
+<!-- ══ ZONE 5: Probability summary bar ════════════════════════════════ -->
+<div class="stp2-scenario-zone" id="stp2-scenario-zone">
+  <!-- Probability summary bar (JS writes here) — shows all strategies at target once any run -->
+  <div id="probSummaryBar" style="display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 12px; margin-bottom:6px; background:rgba(248,250,255,0.97); border:1px solid rgba(148,163,184,0.30); border-radius:8px; font-size:11px; line-height:1;">
+    <span style="font-size:10px; color:#94a3b8; font-weight:600; white-space:nowrap; margin-right:2px;">AT TARGET:</span>
+    <span id="psbTau"       style="padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#92400E; border:1px solid rgba(245,158,11,0.45); font-weight:700; white-space:nowrap;"></span>
+    <span id="psbBase"      style="padding:2px 8px; border-radius:12px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbGuided"    style="display:none; padding:2px 8px; border-radius:12px; background:rgba(139,92,246,0.08); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbOptimized" style="display:none; padding:2px 8px; border-radius:12px; background:rgba(59,130,246,0.08); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
+  </div>
+</div>
+
+<!-- ══ ZONE 6: Charts disclosure ══════════════════════════════════════ -->
+<div class="stp2-charts-disclosure" id="stp2-charts-disclosure">
+  <button class="stp2-charts-toggle-btn" id="stp2-charts-toggle" aria-expanded="false" aria-controls="stp2-charts-area" onclick="stp2ToggleCharts()">View probability curves <span class="stp2-charts-caret">&#9660;</span></button>
+  <div class="stp2-charts-area" id="stp2-charts-area" aria-hidden="true">
+
+    <!-- Tabs now live inside the chart area -->
+    <div class="tabs stp2-tabs-inner" id="tabs">
+      <div class="tab active" data-tab="overlay" title="Compare strategy curves">Compare curves</div>
+      <div class="tab" data-tab="progress" title="See how your 3-point estimate builds into a distribution step by step">How It's Built</div>
+      <!-- seriesToggles: kept in DOM for JS, hidden visually -->
+      <div class="series-toggles stp2-series-hidden" id="seriesToggles">
+        <div class="toggle-group baseline-group">
+          <button class="tg" role="switch" aria-pressed="true">Unoptimized</button>
+          <button class="tg" role="switch" aria-pressed="false">Guided</button>
+        </div>
+        <div class="toggle-group manual-group">
+          <button class="tg" role="switch" aria-pressed="false">Optimized</button>
+          <button class="tg" role="switch" aria-pressed="false">Your Scenario</button>
+        </div>
+      </div>
+      <!-- distTiles: kept in DOM for JS, hidden visually -->
+      <div class="kpi-group stp2-dist-tiles-hidden" id="distTiles" style="margin-left:auto;">
+        <div class="kpi" id="kpiTriangle"><div class="ttl">Triangle</div><div class="val" style="color:var(--tri);">Curve</div></div>
+        <div class="kpi" id="kpiBeta"><div class="ttl">Beta-PERT</div><div class="val" style="color:var(--beta);">Curve</div></div>
+        <div class="kpi baseline" id="kpiBaseDist"><div class="ttl">Baseline</div><div class="val" style="color:var(--base);">Curve</div></div>
+      </div>
+    </div>
+
+    <!-- Progress tab description banner -->
+    <div id="progressDescBanner" class="rec-banner" style="display:none;border-left-color:var(--cdf);background:#EFF6FF;">
+      <div class="rec-statement" id="progressDescStatement"></div>
+      <div class="rec-context" id="progressDescContext"></div>
+    </div>
+
+    <!-- Plot selector bar: How It's Built tab -->
+    <div id="plotSelBar">
+      <span class="psel-label">CURVES:</span>
+      <label class="psel-chk checked" id="pselChkTriangle" title="Triangle Distribution — raw 3-point estimate shape (always visible as reference)">
+        <input type="checkbox" id="pselTriangle" checked onchange="pselUpdate()">
+        <span class="psel-lbl">Triangle</span><span class="psel-sub">3-pt shape</span>
+      </label>
+      <label class="psel-chk" id="pselChkBeta" title="Beta-PERT — weights Most Likely 4× more heavily, giving a more realistic distribution">
+        <input type="checkbox" id="pselBeta" onchange="pselDistUpdate()">
+        <span class="psel-lbl">Beta-PERT</span><span class="psel-sub">Weighted</span>
+      </label>
+      <label class="psel-chk" id="pselChkBase" title="Baseline — Monte Carlo (10k simulations), KDE-smoothed. This is what the target panel uses.">
+        <input type="checkbox" id="pselBase" onchange="pselDistUpdate()">
+        <span class="psel-lbl">Baseline</span><span class="psel-sub">Monte Carlo</span>
+      </label>
+      <span class="psel-label" style="margin-left:12px;">PLOTS:</span>
+      <label class="psel-chk" id="pselChkPDF" title="PDF — Probability Density Function">
+        <input type="checkbox" id="pselPDF" onchange="pselUpdate()">
+        <span class="psel-lbl">PDF</span><span class="psel-sub">Density</span>
+      </label>
+      <label class="psel-chk" id="pselChkCDF" title="CDF — Cumulative Distribution Function">
+        <input type="checkbox" id="pselCDF" onchange="pselUpdate()">
+        <span class="psel-lbl">CDF</span><span class="psel-sub">Cumulative P</span>
+      </label>
+      <span style="font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;">1 plot = full width &middot; 2+ = side-by-side</span>
+    </div>
+
+    <!-- Plot selector bar: Compare curves tab -->
+    <div id="overlaySelBar">
+      <span class="psel-label">SHOW PLOTS:</span>
+      <label class="psel-chk checked" id="oselChkCDF" title="CDF — Cumulative P(finish &le; target) for all active strategies.">
+        <input type="checkbox" id="oselCDF" checked onchange="overlayPselUpdate()">
+        <span class="psel-lbl">CDF</span><span class="psel-sub">Cumulative P</span>
+      </label>
+      <label class="psel-chk" id="oselChkPDF" title="PDF — Probability Density showing how estimate mass shifts per strategy.">
+        <input type="checkbox" id="oselPDF" onchange="overlayPselUpdate()">
+        <span class="psel-lbl">PDF</span><span class="psel-sub">Density curve</span>
+      </label>
+      <label class="psel-chk" id="oselChkRadar" title="Radar — 7-axis spider chart comparing slider profiles across strategies.">
+        <input type="checkbox" id="oselRadar" onchange="overlayPselUpdate()">
+        <span class="psel-lbl">Radar</span><span class="psel-sub">Slider profile</span>
+      </label>
+      <label class="psel-chk" id="oselChkHypercube" title="Hypercube — rotating 3D projection of the 7-dimensional parameter space.">
+        <input type="checkbox" id="oselHypercube" onchange="overlayPselUpdate()">
+        <span class="psel-lbl">Hypercube</span><span class="psel-sub">3D space</span>
+      </label>
+      <label class="psel-chk" id="oselChkSaco" title="SACO 3D — 3D probability surface showing baseline vs strategy lift.">
+        <input type="checkbox" id="oselSaco" onchange="overlayPselUpdate()">
+        <span class="psel-lbl">SACO 3D</span><span class="psel-sub">Surface lift</span>
+      </label>
+      <label class="psel-chk" id="oselChkSphere" title="Sphere — spherical cap fill visualization mapping probability to fill height.">
+        <input type="checkbox" id="oselSphere" onchange="overlayPselUpdate()">
+        <span class="psel-lbl">Sphere</span><span class="psel-sub">Fill viz</span>
+      </label>
+    </div>
+
+    <!-- Main plot container -->
+    <div class="plot-container" id="plotContainer">
+      <div class="plot-main">
+        <div class="plots">
+          <div class="plot" style="position:relative;">
+            <div id="modeContextStrip" style="display:none; align-items:center; gap:6px; padding:2px 8px 4px; font-size:10px; color:#64748B; font-weight:600; letter-spacing:.03em; text-transform:uppercase; border-bottom:1px solid var(--line); margin-bottom:2px;">
+              <span id="modeContextBadge" style="padding:2px 7px; border-radius:10px; font-size:10px; font-weight:700;"></span>
+              <span id="modeContextLabel"></span>
+            </div>
+            <div style="display:flex; justify-content:flex-end; padding:0 4px 4px 0; gap:6px; align-items:center;">
+              <button class="plot-help-btn" data-help="distributions" title="What do these charts show?" style="position:static;">?</button>
+            </div>
+            <div id="distributionsHelpPopup" class="plot-help-popup"></div>
+            <div class="plot-inner" id="plotInner">
+              <div class="plot-pane" id="triWrap" style="display:none;">
+                <div class="plot-pane-hdr">Triangle Distribution</div>
+                <canvas id="triPlotCanvas"></canvas>
+              </div>
+              <div class="plot-pane" id="pdfWrap">
+                <div class="plot-pane-hdr" id="pdfPaneHdr" style="display:flex;align-items:center;gap:6px;">
+                  <span style="flex:1;">Probability Density (PDF)</span>
+                  <button id="zoomBtn_pdf" onclick="togglePlotZoom('pdf')" title="Toggle scroll-to-zoom / drag-to-pan on PDF chart" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+                </div>
+                <canvas id="pdfCanvas" title="Probability Density Function (PDF)"></canvas>
+              </div>
+              <div class="plot-pane" id="cdfWrap">
+                <div class="plot-pane-hdr" id="cdfPaneHdr" style="display:flex;align-items:center;gap:6px;">
+                  <span style="flex:1;">Cumulative Distribution (CDF)</span>
+                  <button id="zoomBtn_cdf" onclick="togglePlotZoom('cdf')" title="Toggle scroll-to-zoom / drag-to-pan on CDF chart" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+                </div>
+                <canvas id="cdfCanvas" title="Cumulative Distribution Function (CDF)"></canvas>
+              </div>
+              <div class="right-legend" id="rightLegend" aria-live="polite"></div>
+            </div>
+            <div class="legend" id="legendOverlay">
+              <span><span class="legend-dot dot-base"></span>Unoptimized Estimate</span>
+              <span><span class="legend-dot dot-man"></span>Your Scenario</span>
+              <span><span class="legend-dot dot-fix"></span>Optimized</span>
+              <span><span class="legend-dot dot-adp"></span>Guided</span>
+            </div>
+            <div class="legend" id="legendDistributions" style="display:flex;">
+              <span><span class="legend-dot dot-tri"></span>Triangle</span>
+              <span><span class="legend-dot dot-beta"></span>Beta-PERT</span>
+              <span><span class="legend-dot dot-base"></span>Unoptimized Estimate</span>
+            </div>
+            <div id="plotMsg" class="warn" style="display:none;"></div>
+            <div id="chartDesc" class="plot-desc" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div id="hypercubeSection">
+          <div id="radarCard" class="card" style="position:relative;">
+            <button class="plot-help-btn" data-help="radar" title="What does this chart show?">?</button>
+            <button id="zoomBtn_radar" onclick="togglePlotZoom('radar')" title="Toggle scroll-to-zoom / drag-to-pan on Slider Profile chart" style="position:absolute;top:8px;right:42px;font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;z-index:2;">Zoom</button>
+            <div id="radarHelpPopup" class="plot-help-popup"></div>
+            <div class="plot-title">Slider Profile</div>
+            <canvas id="hypercubeRadar"></canvas>
+            <div id="radarSubtitle" class="plot-subtitle"></div>
+            <div id="radarDesc" class="plot-desc" style="display:none;"></div>
+          </div>
+          <div id="hypercube3DCard" class="card" style="position:relative;">
+            <button class="plot-help-btn" data-help="hypercube" title="What does this chart show?">?</button>
+            <button id="zoomBtn_hypercube3d" onclick="togglePlotZoom('hypercube3d')" title="Toggle orbit controls on Parameter Space 3D" style="position:absolute;top:8px;right:42px;font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;z-index:2;">Zoom</button>
+            <div id="hypercubeHelpPopup" class="plot-help-popup"></div>
+            <div class="plot-title">Parameter Space (3D)</div>
+            <canvas id="hypercube3D"></canvas>
+            <div id="hypercubeSubtitle" class="plot-subtitle"></div>
+            <div id="hypercubeDesc" class="plot-desc" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div id="sacoVizSection" style="display:none; margin-top:12px;">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
+            <div id="saco3dOuterWrap" style="flex:3;min-width:0;">
+              <div class="card" style="padding:12px 14px;">
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+                  <div style="font-size:13px;font-weight:700;">SACO 3D Probability Surface</div>
+                  <div id="saco3dStratLabel" style="font-size:11px;color:var(--muted);margin-left:auto;"></div>
+                  <button id="zoomBtn_saco3d" onclick="togglePlotZoom('saco3d')" title="Toggle orbit controls — scroll to zoom, drag to rotate" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+                </div>
+                <div id="saco3dHud" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;font-size:11px;font-family:ui-monospace,monospace;">
+                  <div style="padding:4px 8px;border-radius:6px;background:#F3F4F6;border:1px solid var(--line);"><span style="color:var(--muted);">F₀(τ)</span>&nbsp;<strong id="hudF0">&ndash;</strong></div>
+                  <div style="padding:4px 8px;border-radius:6px;background:#EFF6FF;border:1px solid #93C5FD;"><span style="color:var(--muted);">F(τ)</span>&nbsp;<strong id="hudF" style="color:#3B82F6;">&ndash;</strong></div>
+                  <div style="padding:4px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;"><span style="color:var(--muted);">ΔP</span>&nbsp;<strong id="hudDeltaP" style="color:#16A34A;">&ndash;</strong></div>
+                  <div style="padding:4px 8px;border-radius:6px;background:#F9FAFB;border:1px solid var(--line);"><span style="color:var(--muted);">∫Δf</span>&nbsp;<strong id="hudIntDelta">&ndash;</strong></div>
+                </div>
+                <div id="saco3dStratRow" style="display:none; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:8px; font-size:10px; font-family:ui-monospace,monospace; padding:4px 0;">
+                  <span style="color:var(--muted); font-size:9px; letter-spacing:.04em; font-weight:600;">ALL ACTIVE AT τ:</span>
+                  <span id="saco3dChipBase"      style="display:none; padding:1px 6px; border-radius:10px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.45); font-weight:600;"></span>
+                  <span id="saco3dChipGuided"    style="display:none; padding:1px 6px; border-radius:10px; background:rgba(139,92,246,0.09); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600;"></span>
+                  <span id="saco3dChipOptimized" style="display:none; padding:1px 6px; border-radius:10px; background:rgba(59,130,246,0.09); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600;"></span>
+                  <span id="saco3dChipExplorer"  style="display:none; padding:1px 6px; border-radius:10px; background:rgba(16,185,129,0.09); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600;"></span>
+                </div>
+                <div id="saco3dContainer" style="width:100%;height:420px;border:1px solid var(--line);border-radius:8px;background:#F8FAFF;overflow:hidden;position:relative;"></div>
+                <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;"><strong>Gray ribbon</strong> = baseline f₀(x) &nbsp;&middot;&nbsp; <strong>Colored ribbon</strong> = active strategy with Δ heatmap &nbsp;&middot;&nbsp; <strong>Amber plane</strong> = target τ &nbsp;&middot;&nbsp; <strong>Ring</strong> = normalized slider profile. Drag to rotate.</div>
+              </div>
+            </div>
+            <div id="sphereOuterWrap" style="flex:0 0 400px;max-width:400px;">
+              <div class="card" style="padding:12px 14px;">
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                  <div style="font-size:13px;font-weight:700;">Probability Sphere</div>
+                  <div id="sphereStratLabel" style="font-size:11px;color:var(--muted);margin-left:auto;"></div>
+                  <button id="zoomBtn_sphere" onclick="togglePlotZoom('sphere')" title="Toggle orbit controls — scroll to zoom, drag to rotate" style="font-size:10px;padding:2px 7px;border:1.5px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;color:#6B7280;white-space:nowrap;">Zoom</button>
+                </div>
+                <div id="sphereContainer" style="width:100%;height:360px;border-radius:12px;overflow:hidden;background:#F0F4FA;border:1px solid rgba(140,170,220,0.35);margin-bottom:8px;"></div>
+                <div style="display:flex;gap:5px;font-family:ui-monospace,monospace;margin-bottom:6px;">
+                  <div style="flex:1;padding:6px 8px;border-radius:7px;background:#F3F4F6;border:1px solid var(--line);"><div style="color:var(--muted);font-size:9px;letter-spacing:.04em;margin-bottom:1px;">BASELINE P₀</div><div style="font-size:15px;font-weight:800;" id="sphereP0">&ndash;</div></div>
+                  <div style="flex:1;padding:6px 8px;border-radius:7px;background:#EFF6FF;border:1px solid #93C5FD;"><div style="color:var(--muted);font-size:9px;letter-spacing:.04em;margin-bottom:1px;">CURRENT P</div><div style="font-size:15px;font-weight:800;color:#3B82F6;" id="sphereP">&ndash;</div></div>
+                  <div style="flex:1;padding:6px 8px;border-radius:7px;background:#F0FDF4;border:1px solid #86EFAC;"><div style="color:var(--muted);font-size:9px;letter-spacing:.04em;margin-bottom:1px;">LIFT ΔP</div><div style="font-size:15px;font-weight:800;color:#16A34A;" id="sphereDeltaP">&ndash;</div></div>
+                </div>
+                <div id="sphereStratRow" style="display:none; flex-wrap:wrap; gap:4px; align-items:center; margin-top:8px; font-size:10px; font-family:ui-monospace,monospace; padding:6px 8px; background:rgba(248,250,255,0.95); border:1px solid rgba(148,163,184,0.25); border-radius:8px;">
+                  <span style="color:var(--muted); font-size:9px; letter-spacing:.04em; font-weight:600; width:100%; margin-bottom:3px;">ALL ACTIVE AT TARGET τ:</span>
+                  <span id="sphChipBase"      style="display:none; padding:2px 7px; border-radius:10px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.45); font-weight:600;"></span>
+                  <span id="sphChipGuided"    style="display:none; padding:2px 7px; border-radius:10px; background:rgba(139,92,246,0.09); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600;"></span>
+                  <span id="sphChipOptimized" style="display:none; padding:2px 7px; border-radius:10px; background:rgba(59,130,246,0.09); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600;"></span>
+                  <span id="sphChipExplorer"  style="display:none; padding:2px 7px; border-radius:10px; background:rgba(16,185,129,0.09); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600;"></span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;">Fill height h solves V(h)/V_sphere = P via spherical cap V(h)=πh²(3R−h)/3. Gray = baseline. Colored fill = active strategy lift above baseline.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="decisionReport" class="live-math" aria-live="polite" style="margin-top:8px;"></div>
+        <div id="overlayMath" class="live-math" aria-live="polite"></div>
+      </div>
+    </div><!-- /#plotContainer -->
+
+  </div><!-- /.stp2-charts-area -->
+</div><!-- /.stp2-charts-disclosure -->
+
+<!-- Wizard footer: step 2 -->
+<div class="pmc-wiz-footer">
+  <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">&#8249; Estimate</button>
+  <span class="pmc-wiz-spacer"></span>
+</div>
+</div><!-- /wizPanel2 -->
+
+<!-- TABS + KPI GROUP (ghost anchor — kept for legacy tab-observer; immediately follows /wizPanel2) -->
+<div class="tabs" id="tabs-legacy-anchor" style="display:none;" aria-hidden="true"><div class="tab" data-tab="overlay"></div></div>
+<!-- NOTE: real #tabs is now inside #stp2-charts-area above -->
+<div class="tabs" id="tabs-do-not-use" style="display:none;" aria-hidden="true">
   <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution, step by step.">How It's Built</div>
   <div class="tab" data-tab="overlay" title="Compare your estimate against Conservative Optimization, General Optimization, and Unconstrained Optimization scenarios to find the best strategy.">Compare Strategies</div>
   <div class="series-toggles" id="seriesToggles">
@@ -1690,12 +2677,6 @@
       <div class="val" style="color:var(--base);">Curve</div>
     </div>
   </div>
-</div>
-
-<!-- Progress tab description banner — shows under "How It's Built" tab -->
-<div id="progressDescBanner" class="rec-banner" style="display:none;border-left-color:var(--cdf);background:#EFF6FF;">
-  <div class="rec-statement" id="progressDescStatement"></div>
-  <div class="rec-context" id="progressDescContext"></div>
 </div>
 
 <!-- KPI tiles for overlay — ordered: Baseline → Adaptive (strictest) → Fixed (standard) → Manual (unconstrained) -->
@@ -1900,8 +2881,8 @@
   <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
 </div>
 
-<!-- Main plot container -->
-<div class="plot-container" id="plotContainer">
+<!-- DEAD DUPLICATE — plotContainer moved inside wizPanel2 stp2-charts-area; this is the old shell, kept for structural reference only -->
+<div class="plot-container" id="plotContainer-legacy" style="display:none;" aria-hidden="true">
 
   <!-- Main content area -->
   <div class="plot-main">
@@ -2130,7 +3111,6 @@
 <div class="pmc-wiz-footer">
   <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">‹ Estimate</button>
   <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="Set sliders manually for Unconstrained exploration">Explore Manually ›</button>
 </div>
 </div><!-- /wizPanel2 -->
 
@@ -2177,14 +3157,9 @@
       tabObserver.observe(tab, { attributes: true, attributeFilter: ['class'] });
     });
 
-    // ── Move sliderSidebar into wizard step 3 panel ──────────────────────
-    // sliderSidebar lives inside overlayKpis card. We relocate it to the
-    // step-3 placeholder so it's accessible before the user sees results.
-    (function moveSliderToWizard() {
-      var target = document.getElementById('sliderWizPanel');
-      var slider = document.getElementById('sliderSidebar');
-      if (target && slider) target.appendChild(slider);
-    })();
+    // sliderSidebar intentionally left in its original location (inside .stp2-kpi-backing,
+    // hidden offscreen). The real slider inputs are accessible there for sliderValues() and
+    // bindSliders(). Management conditions are now set inline in card D's stance section.
   </script>
 
   <!-- Slider help — centered modal -->
@@ -3515,6 +4490,31 @@
         writeVal(kOpt,  s.optimizedProb, vv.fixed && vv.fixed.loading);
         writeVal(kAda,  s.adaptiveProb, vv.adaptive && vv.adaptive.loading);
 
+        // Step 1 baseline result section
+        (function() {
+          var stp1Result = document.getElementById('stp1-baseline-result');
+          var stp1Prob   = document.getElementById('stp1-result-prob');
+          var stp1Lbl    = document.getElementById('stp1-result-prob-label');
+          if (!stp1Result) return;
+          var bp = s.baselineProb;
+          var tgt = s.target;
+          if (bp != null && !isNaN(bp)) {
+            stp1Result.style.display = '';
+            if (stp1Prob) stp1Prob.textContent = FMT.prob(bp);
+            if (stp1Lbl) {
+              var tgtLabel = '—';
+              if (tgt != null && !isNaN(tgt)) {
+                var abs = Math.abs(tgt);
+                if (abs >= 1e9)      tgtLabel = (tgt / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+                else if (abs >= 1e6) tgtLabel = (tgt / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+                else if (abs >= 1e3) tgtLabel = (tgt / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+                else                 tgtLabel = String(Math.round(tgt));
+              }
+              stp1Lbl.textContent = tgt != null ? 'at target ' + tgtLabel : 'at target';
+            }
+          }
+        })();
+
         var onOv = (s.tab==='overlay');
         if (kBase) { kBase.classList.toggle('active', onOv && !!s.overlay.baselineOn); kBase.classList.toggle('inactive', !(onOv && s.overlay.baselineOn)); }
         if (kAdj)  { kAdj.classList.toggle('active',  onOv && !!s.overlay.manualOn);  kAdj.classList.toggle('inactive', !(onOv && s.overlay.manualOn)); }
@@ -3535,6 +4535,11 @@
         var isGrpTile = window.TM && window.TM.mode === 'aggregate';
         if (triTile)  { triTile.style.display  = ''; triTile.classList.toggle('active',  !!s.progress.triOn); }
         if (betaTile) { betaTile.style.display = ''; betaTile.classList.toggle('active', !!s.progress.betaOn); }
+        // Sync plotSelBar Beta-PERT / Baseline checkboxes
+        var _pselBeta = document.getElementById('pselBeta'); if (_pselBeta) _pselBeta.checked = !!s.progress.betaOn;
+        var _pselBase = document.getElementById('pselBase'); if (_pselBase) _pselBase.checked = !!s.progress.baseOn;
+        var _lBeta = document.getElementById('pselChkBeta'); if (_lBeta) _lBeta.classList.toggle('checked', !!s.progress.betaOn);
+        var _lBase = document.getElementById('pselChkBase'); if (_lBase) _lBase.classList.toggle('checked', !!s.progress.baseOn);
         if (baseTile) {
           baseTile.style.display = '';
           baseTile.classList.toggle('active', !!s.progress.baseOn);
@@ -3546,13 +4551,18 @@
         if (typeof window.syncProbeUI === 'function') window.syncProbeUI();
         updateProgressDescription(s);
         updateRecommendation(s);
+        if (typeof stp2UpdateCards === 'function') stp2UpdateCards();
       };
 
       function updateProgressDescription(s) {
         var stmtEl = document.getElementById('progressDescStatement');
         var ctxEl = document.getElementById('progressDescContext');
+        // Step 1 "How it's built" targets (always populated when data available)
+        var stp1StmtEl = document.getElementById('stp1-how-built-stmt');
+        var stp1CtxEl  = document.getElementById('stp1-how-built-ctx');
         if (!stmtEl || !ctxEl) return;
-        if (s.tab !== 'progress') return;
+        // Only render progress tab description for the progress tab
+        var renderProgress = (s.tab === 'progress');
 
         var isGroupMode = window.TM && window.TM.mode === 'aggregate';
         if (isGroupMode) {
@@ -3565,7 +4575,7 @@
           var gP   = s.P != null ? Number(s.P).toFixed(1) : '?';
           var gPert = (s.O != null && s.M != null && s.P != null)
             ? ((s.O + 4 * s.M + s.P) / 6).toFixed(2) : '?';
-          stmtEl.innerHTML = '<strong>Group distribution</strong> \u2014 ' + nActive + ' task' + (nActive !== 1 ? 's' : '')
+          var gStmt = '<strong>Group distribution</strong> \u2014 ' + nActive + ' task' + (nActive !== 1 ? 's' : '')
             + ' modelled as combined 3-point estimate (O=' + gO + ', M=' + gM + ', P=' + gP + ')';
           var parts = [];
           parts.push(
@@ -3585,8 +4595,11 @@
           if (bp != null) {
             parts.push('At your current target of <strong>' + tgtG + '</strong>, there is a <strong>' + FMT.prob(bp) + '</strong> chance the group completes within that value.');
           }
-          parts.push('Strategy optimization (Conservative, General, Unconstrained) applies the same 7 project-level decision levers to the combined group estimate — switch to the <strong>Compare Strategies</strong> tab to activate them.');
-          ctxEl.innerHTML = parts.join(' ');
+          parts.push('Strategy optimization (Benchmarked, Unconstrained) applies the same 7 project-level decision levers to the combined group estimate — switch to the <strong>Optimize</strong> tab to activate them.');
+          var gCtx = parts.join(' ');
+          if (renderProgress) { stmtEl.innerHTML = gStmt; ctxEl.innerHTML = gCtx; }
+          if (stp1StmtEl) stp1StmtEl.innerHTML = gStmt;
+          if (stp1CtxEl)  stp1CtxEl.innerHTML  = gCtx;
           return;
         }
 
@@ -3630,12 +4643,14 @@
             'Your <strong>baseline</strong> (Monte Carlo, 10k simulations) gives <strong>' + FMT.prob(baseProb) + '</strong> at ' + tgt + '. ' +
             'This is the distribution the target panel above uses — it runs thousands of random draws from the Triangle distribution and smooths the result, ' +
             'so small differences from the analytical Triangle probability (' + FMT.prob(triProb) + ') are normal sampling variation. ' +
-            'This baseline is your reference for optimization in Compare Strategies.'
+            'This baseline is your reference for optimization — go to the Optimize tab to apply management conditions.'
           );
         }
 
-        stmtEl.innerHTML = stmt;
-        ctxEl.innerHTML = parts.join(' ');
+        var ctx = parts.join(' ');
+        if (renderProgress) { stmtEl.innerHTML = stmt; ctxEl.innerHTML = ctx; }
+        if (stp1StmtEl) stp1StmtEl.innerHTML = stmt;
+        if (stp1CtxEl)  stp1CtxEl.innerHTML  = ctx;
       }
 
       function updateRecommendation(s) {
@@ -3667,16 +4682,16 @@
         var candidates = [];
         var baselineName = isGroupMode
           ? ('Group Baseline (' + ((window.TM && window.TM.tasks ? window.TM.tasks.filter(function(t){return t.active;}).length : 0)) + ' tasks)')
-          : 'Your Estimate';
+          : 'Unoptimized Estimate';
         candidates.push({ name: baselineName, prob: bp, key: 'baseline' });
         // Strategies work in BOTH single and group modes.
         // In group mode, SACO optimises the summed O/M/P (= combined group estimate).
         if (s.overlay.adaptiveOn && s.adaptiveProb  != null && !isNaN(s.adaptiveProb))
-          candidates.push({ name: 'Conservative Opt. (L' + plvl + ')', prob: s.adaptiveProb,  key: 'adaptive' });
+          candidates.push({ name: 'Guided (L' + plvl + ')',  prob: s.adaptiveProb,  key: 'adaptive' });
         if (s.overlay.fixedOn    && s.optimizedProb != null && !isNaN(s.optimizedProb))
-          candidates.push({ name: 'General Opt.',                       prob: s.optimizedProb, key: 'fixed' });
+          candidates.push({ name: 'Optimized',               prob: s.optimizedProb, key: 'fixed' });
         if (s.overlay.manualOn   && s.adjustedProb  != null && !isNaN(s.adjustedProb))
-          candidates.push({ name: 'Unconstrained',                      prob: s.adjustedProb,  key: 'manual' });
+          candidates.push({ name: 'Your Scenario',           prob: s.adjustedProb,  key: 'manual' });
 
         candidates.sort(function(a, b) { return b.prob - a.prob; });
         var hasVariants = candidates.length > 1;
@@ -4141,9 +5156,9 @@
           var tri  = dsLine({ label: 'Triangle', data: triSeries, colorVar: '--tri',  z: 2, hidden: !showTri });
           var bet  = dsLine({ label: 'Beta-PERT', data: betSeries, colorVar: '--beta', z: 2, hidden: !showBet });
 
-          var man  = dsLine({ label: 'Unconstrained', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
-          var fix  = dsLine({ label: 'General Opt.', data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
-          var ada  = dsLine({ label: 'Conservative', data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
+          var man  = dsLine({ label: 'Your Scenario', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
+          var fix  = dsLine({ label: 'Optimized',    data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
+          var ada  = dsLine({ label: 'Guided',        data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
 
           var dotBase = onOverlay && s.overlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
           var dotAdj  = onOverlay && s.overlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
@@ -4496,21 +5511,21 @@
         if (guidEl) {
           if (ov.adaptiveOn && s.adaptiveProb != null && isFinite(s.adaptiveProb)) {
             var dPg = (s.adaptiveProb - P0) * 100;
-            guidEl.textContent = 'Conservative\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
+            guidEl.textContent = 'Guided\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
             guidEl.style.display = 'inline-block';
           } else { guidEl.style.display = 'none'; }
         }
         if (optEl) {
           if (ov.fixedOn && s.optimizedProb != null && isFinite(s.optimizedProb)) {
             var dPo = (s.optimizedProb - P0) * 100;
-            optEl.textContent = 'General\u202f' + FMT.prob(s.optimizedProb) + '\u202f(' + FMT.lift(dPo) + ')';
+            optEl.textContent = 'Optimized\u202f' + FMT.prob(s.optimizedProb) + '\u202f(' + FMT.lift(dPo) + ')';
             optEl.style.display = 'inline-block';
           } else { optEl.style.display = 'none'; }
         }
         if (expEl) {
           if (ov.manualOn && s.adjustedProb != null && isFinite(s.adjustedProb)) {
             var dPe = (s.adjustedProb - P0) * 100;
-            expEl.textContent = 'Unconstrained\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
+            expEl.textContent = 'Your Scenario\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
             expEl.style.display = 'inline-block';
           } else { expEl.style.display = 'none'; }
         }
@@ -4592,6 +5607,12 @@
         if (lPDF) lPDF.classList.toggle('checked', showPDF);
         if (lCDF) lCDF.classList.toggle('checked', showCDF);
 
+        // Also sync Beta-PERT and Baseline labels
+        var chkBeta = document.getElementById('pselBeta'); var lBeta = document.getElementById('pselChkBeta');
+        var chkBase = document.getElementById('pselBase'); var lBase = document.getElementById('pselChkBase');
+        if (lBeta && chkBeta) lBeta.classList.toggle('checked', chkBeta.checked);
+        if (lBase && chkBase) lBase.classList.toggle('checked', chkBase.checked);
+
         // Enforce at least 1
         var count = [showTri, showPDF, showCDF].filter(Boolean).length;
         if (count === 0) {
@@ -4633,6 +5654,35 @@
           if (s.pdfChart && typeof s.pdfChart.resize === 'function') s.pdfChart.resize();
           if (s.cdfChart && typeof s.cdfChart.resize === 'function') s.cdfChart.resize();
         }, 60);
+      };
+
+      // Toggle Beta-PERT / Baseline curve visibility within PDF/CDF charts
+      window.pselDistUpdate = function() {
+        var s = window.S || {};
+        s.progress = s.progress || {};
+        var chkBeta = document.getElementById('pselBeta');
+        var chkBase = document.getElementById('pselBase');
+        var lBeta   = document.getElementById('pselChkBeta');
+        var lBase   = document.getElementById('pselChkBase');
+        if (chkBeta) {
+          s.progress.betaOn = chkBeta.checked;
+          if (lBeta) lBeta.classList.toggle('checked', chkBeta.checked);
+        }
+        if (chkBase) {
+          s.progress.baseOn = chkBase.checked;
+          if (lBase) lBase.classList.toggle('checked', chkBase.checked);
+        }
+        // Ensure PDF pane is visible if either curve is on
+        if ((s.progress.betaOn || s.progress.baseOn)) {
+          var chkPDF = document.getElementById('pselPDF');
+          if (chkPDF && !chkPDF.checked) {
+            chkPDF.checked = true;
+            var lPDF = document.getElementById('pselChkPDF');
+            if (lPDF) lPDF.classList.add('checked');
+          }
+        }
+        if (typeof window.pselUpdate === 'function') window.pselUpdate();
+        if (window.scheduleUIRefresh) window.scheduleUIRefresh();
       };
 
       /* ── Overlay Plot Selector (Compare Strategies tab) ───────────────────────
@@ -5258,6 +6308,11 @@
               updateTargetDisplayText();
               scheduleUIRefresh();
               ensureProbeBox();
+              // If still on Step 1 (not in dashboard mode), show charts with progress tab
+              var _w = document.querySelector('.wrap');
+              if (_w && !_w.classList.contains('pmc-dashboard') && typeof _chartsToStep1 === 'function') {
+                _chartsToStep1();
+              }
             } catch(e) {
               fetch('/console',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'error',msg:'fetchData catch: '+e.message,stack:e.stack})}).catch(function(){});
               var msgEl = document.getElementById('plotMsg');
@@ -5288,9 +6343,175 @@
         s.betaPertPdf = []; s.betaPertCdf = [];
         s.basePdf = []; s.baseCdf = [];
         s.baselineProb = null;
+        // Invalidate all variant results — RCF changes shift every distribution
+        s.variantCache = {};
         // Reset fetching guard so a prior in-flight request doesn't block this refresh
         s.fetching = false;
+        // In Group mode fetchData returns immediately (guard); re-run the aggregate instead
+        if (window.TM && window.TM.mode === 'aggregate') {
+          if (typeof window.TM.saveAndRun === 'function') window.TM.saveAndRun();
+          return;
+        }
         fetchData(false);
+      };
+
+      // ── Export to Sheet ──────────────────────────────────────────────────
+      // Collect client state and call the GAS sheet-writer function.
+      window.pmcExportToSheet = function(mode) {
+        var s = WS();
+        if (!s) return;
+
+        // Invert a CDF array (sorted {x,y} points) to find x at probability p
+        function _invCdf(cdf, p) {
+          if (!cdf || !cdf.length) return null;
+          var sorted = cdf.slice().sort(function(a,b){ return a.x - b.x; });
+          var pp = Math.max(0, Math.min(1, Number(p)));
+          if (pp <= sorted[0].y) return sorted[0].x;
+          if (pp >= sorted[sorted.length-1].y) return sorted[sorted.length-1].x;
+          for (var i = 1; i < sorted.length; i++) {
+            var y0 = sorted[i-1].y, y1 = sorted[i].y;
+            if (pp >= y0 && pp <= y1) {
+              var x0 = sorted[i-1].x, x1 = sorted[i].x;
+              return x0 + (pp - y0) / ((y1 - y0) || 1) * (x1 - x0);
+            }
+          }
+          return sorted[sorted.length-1].x;
+        }
+
+        // Pre-compute percentiles client-side to keep payload small (no raw CDF arrays)
+        function _percentiles(cdf) {
+          return {
+            p10: _invCdf(cdf, 0.10), p25: _invCdf(cdf, 0.25),
+            p50: _invCdf(cdf, 0.50), p75: _invCdf(cdf, 0.75),
+            p80: _invCdf(cdf, 0.80), p90: _invCdf(cdf, 0.90),
+            p95: _invCdf(cdf, 0.95)
+          };
+        }
+
+        // Extract KL from an explain payload
+        function _kl(explain) {
+          if (!explain) return null;
+          var ex = explain.explain || explain;
+          return ex.klDivergence != null ? Number(ex.klDivergence) : null;
+        }
+
+        // Resolve top recommendation from explain payloads
+        function _topRec() {
+          var src = s.explainAdaptive || s.explainOpt || s.explainAdj;
+          if (!src) return null;
+          var reports = src.reports || (Array.isArray(src.results) ? src.results : null);
+          if (reports && reports.length && reports[0].recommendations && reports[0].recommendations.length) {
+            return reports[0].recommendations[0];
+          }
+          var ex = src.explain || src;
+          if (Array.isArray(ex.recommendations) && ex.recommendations.length) return ex.recommendations[0];
+          return null;
+        }
+
+        function _flags() {
+          var src = s.explainAdaptive || s.explainOpt || s.explainAdj;
+          if (!src) return [];
+          var reports = src.reports || (Array.isArray(src.results) ? src.results : null);
+          if (reports && reports.length && Array.isArray(reports[0].counterIntuition)) {
+            return reports[0].counterIntuition.map(function(c){ return typeof c === 'string' ? c : (c.message || JSON.stringify(c)); });
+          }
+          return [];
+        }
+
+        var rcf = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
+        var sliderVals = (typeof window.sliderValues === 'function') ? window.sliderValues() : null;
+
+        // Slider values for Benchmarked (adaptive) and Unconstrained (fixed)
+        var bmSliders  = s.explainAdaptive ? (typeof extractSliderVals === 'function' ? extractSliderVals(s.explainAdaptive) : null) : null;
+        var uncSliders = s.explainOpt      ? (typeof extractSliderVals === 'function' ? extractSliderVals(s.explainOpt)      : null) : null;
+
+        var basePct = _percentiles(s.baseCdf || []);
+
+        var payload = {
+          taskName:   s.task ? (s.task.task_name || s.task.task || '') : '',
+          mode:       (window.TM && window.TM.mode === 'aggregate') ? 'aggregate' : 'single',
+          taskCount:  (window.TM && Array.isArray(window.TM.tasks))
+                        ? window.TM.tasks.filter(function(t){ return t.active; }).length
+                        : 1,
+          O: s.O, M: s.M, P: s.P,
+          target: s.target,
+
+          // Probabilities
+          // Card B = Benchmarked = adaptiveOn/adaptiveProb
+          // Card C = Unconstrained = fixedOn/optimizedProb
+          // Card D = Your Conditions = manualOn/adjustedProb
+          baselineProb:       s.baselineProb       != null ? s.baselineProb       : null,
+          benchmarkedProb:    s.adaptiveProb        != null ? s.adaptiveProb        : null,
+          unconstrainedProb:  s.optimizedProb       != null ? s.optimizedProb       : null,
+          yourConditionsProb: s.adjustedProb        != null ? s.adjustedProb        : null,
+
+          // Pre-computed percentiles from baseline CDF
+          basePct: basePct,
+
+          // Slider conditions (internal 0-1 scale — server converts to display)
+          benchmarkedSliders:    bmSliders,
+          unconstrainedSliders:  uncSliders,
+          yourConditionsSliders: sliderVals
+            ? {
+                budgetFlexibility:       (sliderVals.budgetFlexibility       || 0) / 100,
+                scheduleFlexibility:     (sliderVals.scheduleFlexibility     || 0) / 100,
+                scopeCertainty:          (sliderVals.scopeCertainty          || 0) / 100,
+                scopeReductionAllowance: (sliderVals.scopeReductionAllowance || 0) / 100,
+                reworkPercentage:        (sliderVals.reworkPercentage        || 0) / 50,
+                riskTolerance:           (sliderVals.riskTolerance           || 0) / 100,
+                userConfidence:          (sliderVals.userConfidence          || 0) / 100
+              }
+            : null,
+
+          // KL divergence per strategy
+          benchmarkedKL:    _kl(s.explainAdaptive),
+          unconstrainedKL:  _kl(s.explainOpt),
+          yourConditionsKL: _kl(s.explainAdj),
+
+          // Reference Class Forecasting
+          rcfApplied:     !!(rcf && rcf.n > 0),
+          rcfN:           rcf ? rcf.n       : null,
+          rcfMeanOverrun: rcf ? rcf.meanOverrunFrac : null,
+
+          // Recommendations
+          playbookFlags:      _flags(),
+          topRecommendation:  _topRec()
+        };
+
+        // UI feedback — disable buttons and show spinner text during write
+        var btnSnap = document.getElementById('btnExportSnapshot');
+        var btnFull = document.getElementById('btnExportFull');
+        var hint    = document.getElementById('pmcExportHint');
+        var prevHint = hint ? hint.textContent : '';
+        if (btnSnap) btnSnap.disabled = true;
+        if (btnFull) btnFull.disabled = true;
+        if (hint) hint.textContent = 'Writing to sheet\u2026';
+
+        function _restore(msg) {
+          if (btnSnap) btnSnap.disabled = false;
+          if (btnFull) btnFull.disabled = false;
+          if (hint) hint.textContent = msg || prevHint;
+          // Reset hint text after 5 s
+          setTimeout(function(){ if (hint) hint.textContent = prevHint; }, 5000);
+        }
+
+        if (!window.google || !window.google.script || !window.google.script.run) {
+          _restore('Apps Script runtime required');
+          return;
+        }
+
+        window.google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.ok) {
+              _restore('Saved \u2713  \u2014  "' + res.tabName + '"');
+            } else {
+              _restore('Error: ' + (res && res.error ? res.error : 'Unknown'));
+            }
+          })
+          .withFailureHandler(function(err) {
+            _restore('Error: ' + (err && err.message ? err.message : String(err)));
+          })
+          .pmcWriteReportTab(payload, mode);
       };
 
       // ── Horizontal wizard navigation ──────────────────────────────────
@@ -5301,13 +6522,47 @@
       //                         nav becomes jump-to anchors, footers hidden,
       //                         Compare Strategies tab auto-activated.
       //   Step 3 (Explore)    → in dashboard: scrolls to panel 3.
+      // Move charts disclosure in/out of wizPanel2 based on step
+      function _chartsToStep1() {
+        var disc = document.getElementById('stp2-charts-disclosure');
+        var wiz1 = document.getElementById('wizPanel1');
+        if (!disc || !wiz1) return;
+        // Insert inside wizPanel1, before the footer — Optimize button stays at bottom
+        var footer1 = wiz1.querySelector('.pmc-wiz-footer');
+        if (footer1) {
+          wiz1.insertBefore(disc, footer1);
+        } else {
+          wiz1.appendChild(disc);
+        }
+        // Open charts area
+        var cArea = document.getElementById('stp2-charts-area');
+        if (cArea) cArea.classList.remove('stp2-charts-closed');
+        // Switch to progress tab (How It's Built)
+        var progTab = document.querySelector('#tabs .tab[data-tab="progress"]');
+        if (progTab && !progTab.classList.contains('active')) progTab.click();
+      }
+      function _chartsToStep2() {
+        var disc = document.getElementById('stp2-charts-disclosure');
+        var wiz2 = document.getElementById('wizPanel2');
+        if (!disc || !wiz2) return;
+        // Find wizard footer inside wizPanel2 to insert before it
+        var footer = wiz2.querySelector('.pmc-wiz-footer');
+        if (footer) {
+          wiz2.insertBefore(disc, footer);
+        } else {
+          wiz2.appendChild(disc);
+        }
+      }
+      window._chartsToStep1 = _chartsToStep1;
+      window._chartsToStep2 = _chartsToStep2;
+
       // "◀ Setup" (pmcWizGo(1)) always exits dashboard back to wizard step 1.
       window.pmcWizGo = function(step) {
         step = parseInt(step, 10);
         var wrap = document.querySelector('.wrap');
         var isDash = wrap && wrap.classList.contains('pmc-dashboard');
 
-        // ── Dashboard mode: clicks 2 & 3 just scroll ─────────────────────
+        // ── Dashboard mode: non-step-1 clicks just scroll to the panel ──────
         if (isDash && step !== 1) {
           var scrollTarget = document.getElementById('wizPanel' + step);
           if (scrollTarget) scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5324,10 +6579,22 @@
             t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 2);
             t.classList.remove('done');
           });
-          // Default to Compare Strategies tab so strategies are immediately visible
+          // Move charts back into Step 2 panel
+          _chartsToStep2();
+          // Set tab state to overlay immediately + fix selector bar visibility
+          var s = WS();
+          s.tab = 'overlay';
+          var _psb = document.getElementById('plotSelBar');
+          if (_psb) _psb.classList.remove('visible');
+          var _osb = document.getElementById('overlaySelBar');
+          if (_osb) _osb.classList.add('visible');
+          if (typeof window.overlayPselUpdate === 'function') window.overlayPselUpdate();
           setTimeout(function() {
             var overlayTab = document.querySelector('.tab[data-tab="overlay"]');
-            if (overlayTab && !overlayTab.classList.contains('active')) overlayTab.click();
+            if (overlayTab) {
+              document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+              overlayTab.classList.add('active');
+            }
           }, 50);
           // Scroll to Strategies panel
           var stratPanel = document.getElementById('wizPanel2');
@@ -5351,6 +6618,8 @@
         });
         var nav = document.getElementById('pmcWizNav');
         if (nav) nav.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Move charts to Step 1 (shows distribution plots inline)
+        _chartsToStep1();
       };
 
       function requestVariant(variant) {
@@ -5361,10 +6630,12 @@
         var vState = s.overlay && s.overlay.variants ? s.overlay.variants[variant] : null;
         if (!vState) return;
 
+        var _rcfKey = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
         var key = JSON.stringify({
           task: s.task.task, O: s.O, M: s.M, P: s.P, target: s.target,
           variant: variant,
-          probeLevel: (variant==='adaptive' ? (s.overlay?.probeLevel || 3) : undefined)
+          probeLevel: (variant==='adaptive' ? (s.overlay?.probeLevel || 3) : undefined),
+          rcf: _rcfKey ? (_rcfKey.n + '|' + (_rcfKey.meanOverrunFrac != null ? _rcfKey.meanOverrunFrac.toFixed(4) : '')) : null
         });
         var cached = s.variantCache && s.variantCache[key];
         if (cached) {
@@ -5471,6 +6742,10 @@
                 const fixedSliders = extractSliderVals(s.explainOpt);
                 setCompareValues('fixed', fixedSliders);
                 updateSliderSidebarState();
+                // Update card C stance bars with optimized slider values
+                if (typeof stp2RenderStanceBars === 'function') {
+                  stp2RenderStanceBars('stp2-stance-optimized', fixedSliders, 'stp2-stance-fill-fixed', false);
+                }
                 s.pendingVariants--;
                 if (s.pendingVariants === 0) { updateSliderComparisons(); }
 
@@ -5490,6 +6765,10 @@
                 const adaptiveSliders = extractSliderVals(s.explainAdaptive);
                 setCompareValues('adaptive', adaptiveSliders);
                 updateSliderSidebarState();
+                // Update card B stance bars with guided slider values
+                if (typeof stp2RenderStanceBars === 'function') {
+                  stp2RenderStanceBars('stp2-stance-guided', adaptiveSliders, 'stp2-stance-fill-guided', false);
+                }
                 s.pendingVariants--;
                 if (s.pendingVariants === 0) { updateSliderComparisons(); }
               }
@@ -5503,11 +6782,16 @@
               };
 
               vState.loading = false; vState.error = null;
+              // Update cards immediately (don't wait for scheduleUIRefresh debounce)
+              if (typeof stp2UpdateCards === 'function') stp2UpdateCards();
               if (window.PMCReport && typeof window.PMCReport.scheduleRender === 'function') window.PMCReport.scheduleRender();
               window.scheduleUIRefresh();
               updateSliderComparisons();
               setStatusLocal('Ready');
               ensureProbeBox();
+              // Auto-open charts area (no scroll — user stays at cards)
+              var _cArea = document.getElementById('stp2-charts-area');
+              if (_cArea) _cArea.classList.remove('stp2-charts-closed');
             } catch(e) {
               console.error('[PMC] Variant ' + variant + ' processing error:', e.message, e.stack);
               vState.loading = false; vState.error = e.message || 'Variant error';
@@ -5529,10 +6813,25 @@
           s.adjPdf = c.adjPdf || []; s.adjCdf = c.adjCdf || []; s.adjustedProb = (c.adjustedProb!=null ? c.adjustedProb : s.adjustedProb); s.explainAdj = (c.explainAdj!=null ? c.explainAdj : s.explainAdj);
         } else if (variant === 'fixed') {
           s.optPdfFixed = c.optPdfFixed || []; s.optCdfFixed = c.optCdfFixed || []; s.optimizedProb = (c.optimizedProb!=null ? c.optimizedProb : s.optimizedProb); s.explainOpt = (c.explainOpt!=null ? c.explainOpt : s.explainOpt);
+          // Populate and auto-expand Optimized stance bars
+          if (typeof stp2RenderStanceBars === 'function') {
+            var fSliders = typeof extractSliderVals === 'function' ? extractSliderVals(s.explainOpt || {}) : {};
+            stp2RenderStanceBars('stp2-stance-optimized', fSliders, 'stp2-stance-fill-fixed', false);
+            stp2ExpandConditions('stp2-cond-body-optimized', 'stp2-cond-toggle-optimized');
+          }
         } else if (variant === 'adaptive') {
           s.optPdfAdaptive = c.optPdfAdaptive || []; s.optCdfAdaptive = c.optCdfAdaptive || []; s.adaptiveProb = (c.adaptiveProb!=null ? c.adaptiveProb : s.adaptiveProb); s.explainAdaptive = (c.explainAdaptive!=null ? c.explainAdaptive : s.explainAdaptive);
+          // Populate and auto-expand Guided stance bars
+          if (typeof stp2RenderStanceBars === 'function') {
+            var aSliders = typeof extractSliderVals === 'function' ? extractSliderVals(s.explainAdaptive || {}) : {};
+            stp2RenderStanceBars('stp2-stance-guided', aSliders, 'stp2-stance-fill-guided', false);
+            stp2ExpandConditions('stp2-cond-body-guided', 'stp2-cond-toggle-guided');
+          }
         }
         if (c.lastPayload) s.lastPayload = c.lastPayload;
+        // Auto-open charts area (no scroll — user stays at cards)
+        var chartsArea = document.getElementById('stp2-charts-area');
+        if (chartsArea) chartsArea.classList.remove('stp2-charts-closed');
       }
 
       function loadTasks() {
@@ -5883,23 +7182,23 @@
 
         if (mode === 'manual') {
           setSlidersDisabled(false);
-          if (titleEl) titleEl.textContent = 'Unconstrained Optimization';
-          if (noteEl) noteEl.textContent = 'No constraints — drag freely to explore any parameter combination.';
-          showImpactBanner('Unconstrained', s.baselineProb, s.adjustedProb);
+          if (titleEl) titleEl.textContent = 'Your Scenario';
+          if (noteEl) noteEl.textContent = 'No constraints — drag freely to explore any management condition combination.';
+          showImpactBanner('Your Scenario', s.baselineProb, s.adjustedProb);
         } else if (mode === 'adaptive') {
           setSlidersDisabled(true);
           var lvl = s.overlay.probeLevel || 3;
-          if (titleEl) titleEl.textContent = 'Conservative Optimization (Level ' + lvl + ')';
-          if (noteEl) noteEl.textContent = 'Read-only — tightest best-practice constraints (level ' + lvl + ').';
-          showImpactBanner('Conservative', s.baselineProb, s.adaptiveProb);
+          if (titleEl) titleEl.textContent = 'Guided (Level ' + lvl + ')';
+          if (noteEl) noteEl.textContent = 'Read-only — tightest industry-aligned constraints (level ' + lvl + '). Most defensible for external reporting.';
+          showImpactBanner('Guided', s.baselineProb, s.adaptiveProb);
           var source = s.explainAdaptive;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
         } else if (mode === 'fixed') {
           setSlidersDisabled(true);
-          if (titleEl) titleEl.textContent = 'General Optimization';
-          if (noteEl) noteEl.textContent = 'Read-only — standard best-practice boundaries, wider search space than Conservative.';
-          showImpactBanner('General', s.baselineProb, s.optimizedProb);
+          if (titleEl) titleEl.textContent = 'Optimized';
+          if (noteEl) noteEl.textContent = 'Read-only — wider best-practice search space for maximum improvement opportunity.';
+          showImpactBanner('Optimized', s.baselineProb, s.optimizedProb);
           var source = s.explainOpt;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
@@ -5915,6 +7214,344 @@
           if (_s2.cdfChart && typeof _s2.cdfChart.resize === 'function') _s2.cdfChart.resize();
         }, 80);
       }
+
+      /* ─────────────────────────────────────────────────────────
+         STEP 2 — Strategies panel JS
+         ───────────────────────────────────────────────────────── */
+
+      function stp2ToggleCharts() {
+        var area  = document.getElementById('stp2-charts-area');
+        var caret = document.querySelector('.stp2-charts-caret');
+        var btn   = document.getElementById('stp2-charts-toggle');
+        if (!area) return;
+        var closed = area.classList.toggle('stp2-charts-closed');
+        if (caret) caret.classList.toggle('stp2-open', !closed);
+        if (btn)   btn.setAttribute('aria-expanded', closed ? 'false' : 'true');
+        // Resize charts after reveal
+        if (!closed) {
+          var _s = window.S || {};
+          setTimeout(function() {
+            if (_s.pdfChart && typeof _s.pdfChart.resize === 'function') _s.pdfChart.resize();
+            if (_s.cdfChart && typeof _s.cdfChart.resize === 'function') _s.cdfChart.resize();
+          }, 50);
+        }
+      }
+
+      function stp2UpdateRcfBanner() {
+        var banner = document.getElementById('stp2-rcf-banner');
+        if (!banner) return;
+        var s = WS();
+        var hasRcf = !!(s.referenceClass && s.referenceClass.active);
+        banner.classList.toggle('stp2-visible', hasRcf);
+      }
+
+      /* Read a probability value safely from WS() and format it */
+      function stp2Fmt(v) {
+        if (v == null || isNaN(v)) return '—';
+        return Math.round(v * 100) + '%';
+      }
+
+      /* Compute fill width (%) relative to best known probability */
+      function stp2FillPct(v, best) {
+        if (v == null || isNaN(v) || !best) return 0;
+        return Math.min(100, Math.round((v / best) * 100));
+      }
+
+      function stp2UpdateCards() {
+        var s  = WS();
+        var ov = s.overlay || {};
+
+        var pBase = s.baselineProb;
+        var pAda  = s.adaptiveProb;
+        var pOpt  = s.optimizedProb;
+        var pAdj  = s.adjustedProb;
+
+        // Best probability across all loaded variants (for bar scaling)
+        var loaded = [pBase, pAda, pOpt, pAdj].filter(function(v){ return v != null && !isNaN(v); });
+        var best   = loaded.length ? Math.max.apply(null, loaded) : 1;
+
+        // Format target value for display in card header (e.g. "1.2M", "850K", "420")
+        var tgt = s.target;
+        var tgtLabel = '—';
+        if (tgt != null && !isNaN(tgt)) {
+          var abs = Math.abs(tgt);
+          if (abs >= 1e9)      tgtLabel = (tgt / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+          else if (abs >= 1e6) tgtLabel = (tgt / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+          else if (abs >= 1e3) tgtLabel = (tgt / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+          else                 tgtLabel = String(Math.round(tgt));
+        }
+
+        var configs = [
+          { probId: 'stp2-prob-guided',    lblId: 'stp2-prob-lbl-guided',    deltaId: 'stp2-delta-guided',    labelId: 'stp2-delta-label-guided',    cardId: 'stp2-card-guided',    tglId: 'rowTglAdaptive', prob: pAda,  on: !!ov.adaptiveOn, loading: !!(ov.variants && ov.variants.adaptive && ov.variants.adaptive.loading), isBaseline: false, tglOnText: 'Strategy active',    tglOffText: 'Run this strategy',      tglLoadText: 'Running…' },
+          { probId: 'stp2-prob-optimized', lblId: 'stp2-prob-lbl-optimized', deltaId: 'stp2-delta-optimized', labelId: 'stp2-delta-label-optimized', cardId: 'stp2-card-optimized', tglId: 'rowTglFixed',    prob: pOpt,  on: !!ov.fixedOn,    loading: !!(ov.variants && ov.variants.fixed    && ov.variants.fixed.loading),    isBaseline: false, tglOnText: 'Strategy active',    tglOffText: 'Run this strategy',      tglLoadText: 'Running…' },
+          { probId: 'stp2-prob-scenario',  lblId: 'stp2-prob-lbl-scenario',  deltaId: 'stp2-delta-scenario',  labelId: 'stp2-delta-label-scenario',  cardId: 'stp2-card-scenario',  tglId: 'rowTglManual',   prob: pAdj,  on: !!ov.manualOn,   loading: !!(ov.variants && ov.variants.manual   && ov.variants.manual.loading),   isBaseline: false, tglOnText: 'Conditions active',  tglOffText: 'Evaluate my conditions', tglLoadText: 'Calculating…' }
+        ];
+
+        configs.forEach(function(cfg) {
+          var card    = document.getElementById(cfg.cardId);
+          var probEl  = document.getElementById(cfg.probId);
+          var fillEl  = document.getElementById(cfg.deltaId);
+          var labelEl = document.getElementById(cfg.labelId);
+          var tglEl   = document.getElementById(cfg.tglId);
+
+          // Card active border
+          if (card) card.classList.toggle('stp2-card-active', cfg.on);
+
+          // Toggle button text + loading class
+          if (tglEl) {
+            if (cfg.loading) {
+              tglEl.textContent = cfg.tglLoadText;
+              tglEl.classList.add('stp2-card-toggle-loading');
+              tglEl.setAttribute('aria-pressed', 'true');
+            } else {
+              tglEl.textContent = cfg.on ? cfg.tglOnText : cfg.tglOffText;
+              tglEl.classList.remove('stp2-card-toggle-loading');
+              tglEl.setAttribute('aria-pressed', cfg.on ? 'true' : 'false');
+            }
+          }
+
+          // Probability value + target label
+          var lblEl = document.getElementById(cfg.lblId);
+          if (probEl) {
+            if (cfg.loading) {
+              probEl.textContent = '…';
+              if (lblEl) lblEl.textContent = 'calculating…';
+            } else if (cfg.prob == null || isNaN(cfg.prob)) {
+              probEl.innerHTML = '&ndash;';
+              if (lblEl) lblEl.textContent = tgt != null ? 'Target: ' + tgtLabel : 'at target';
+            } else {
+              probEl.textContent = Math.round(cfg.prob * 100) + '%';
+              if (lblEl) lblEl.textContent = tgt != null ? 'at target ' + tgtLabel : 'at target';
+            }
+          }
+
+          // Delta bar fill
+          if (fillEl) {
+            var pct = (cfg.loading || cfg.prob == null || isNaN(cfg.prob)) ? 0
+                    : Math.min(100, Math.round((cfg.prob / best) * 100));
+            fillEl.style.width = pct + '%';
+          }
+
+          // Delta label
+          if (labelEl) {
+            if (cfg.loading) {
+              labelEl.textContent = 'calculating…';
+            } else if (cfg.prob == null || isNaN(cfg.prob)) {
+              labelEl.textContent = cfg.isBaseline ? 'run estimate first' : 'run to compare';
+            } else if (cfg.isBaseline) {
+              labelEl.textContent = Math.round(cfg.prob * 100) + '% — starting point';
+            } else {
+              var delta = Math.round((cfg.prob - (pBase || 0)) * 100);
+              labelEl.textContent = (delta > 0 ? '+' : '') + delta + 'pp vs baseline';
+            }
+          }
+        });
+
+        // Sync level pill active state with current probeLevel
+        var lvl = (s.overlay && s.overlay.probeLevel) ? s.overlay.probeLevel : 3;
+        var pills = document.querySelectorAll('.stp2-level-pill');
+        pills.forEach(function(p) {
+          p.classList.toggle('stp2-level-pill-active', Number(p.getAttribute('data-level')) === lvl);
+        });
+
+        // Ensure card A greyed-out bars are rendered (static, one-time)
+        var baseStance = document.getElementById('stp2-stance-baseline');
+        if (baseStance && !baseStance.children.length && typeof stp2RenderStanceBars === 'function') {
+          stp2RenderStanceBars('stp2-stance-baseline', {}, 'stp2-stance-fill-none', true);
+        }
+        // Ensure card B/C placeholder bars are rendered (0% until results arrive)
+        var guidedStance = document.getElementById('stp2-stance-guided');
+        if (guidedStance && !guidedStance.children.length && typeof stp2RenderStanceBars === 'function') {
+          stp2RenderStanceBars('stp2-stance-guided', {}, null, true);
+        }
+        var optStance = document.getElementById('stp2-stance-optimized');
+        if (optStance && !optStance.children.length && typeof stp2RenderStanceBars === 'function') {
+          stp2RenderStanceBars('stp2-stance-optimized', {}, null, true);
+        }
+        // Sync card D interactive sliders with current real slider values
+        if (typeof syncCardDSliders === 'function') syncCardDSliders();
+
+        stp2UpdateRcfBanner();
+      }
+
+      /* Expand a conditions body and update its toggle button */
+      function stp2ExpandConditions(bodyId, toggleId) {
+        var body = document.getElementById(bodyId);
+        if (body) body.setAttribute('aria-hidden', 'false');
+        var btn = document.getElementById(toggleId);
+        if (btn) { btn.textContent = 'Hide conditions \u25b2'; btn.setAttribute('aria-expanded', 'true'); }
+      }
+
+      var STP2_SLIDER_LABELS = {
+        budgetFlexibility:       'Budget Flex',
+        scheduleFlexibility:     'Schedule Flex',
+        scopeCertainty:          'Scope Certainty',
+        scopeReductionAllowance: 'Scope Reduction',
+        reworkPercentage:        'Rework %',
+        riskTolerance:           'Risk Tolerance',
+        userConfidence:          'User Confidence'
+      };
+
+      function stp2WriteConditionGrid(gridId, sliderVals) {
+        var grid = document.getElementById(gridId);
+        if (!grid) return;
+        if (!sliderVals || !Object.keys(sliderVals).length) {
+          grid.innerHTML = '<div class="stp2-cond-placeholder">No conditions available.</div>';
+          return;
+        }
+        var html = '';
+        Object.keys(STP2_SLIDER_LABELS).forEach(function(key) {
+          var v = sliderVals[key];
+          if (v == null) return;
+          var label = STP2_SLIDER_LABELS[key];
+          var pct   = typeof v === 'number' ? Math.round(v) + '%' : v;
+          html += '<div class="stp2-cond-row"><span class="stp2-cond-key">' +
+            label + '</span><span class="stp2-cond-val">' + pct + '</span></div>';
+        });
+        grid.innerHTML = html || '<div class="stp2-cond-placeholder">No conditions returned.</div>';
+      }
+
+      /* ── Management Stance — slider bars and interactive sliders ─────── */
+      var STP2_STANCE_META = [
+        { key: 'budgetFlexibility',       label: 'Budget Flex',     max: 100, realId: 's_budget'    },
+        { key: 'scheduleFlexibility',     label: 'Schedule Flex',   max: 100, realId: 's_schedule'  },
+        { key: 'scopeCertainty',          label: 'Scope Certainty', max: 100, realId: 's_scopeCert' },
+        { key: 'scopeReductionAllowance', label: 'Scope Reduction', max: 100, realId: 's_scopeRed'  },
+        { key: 'reworkPercentage',        label: 'Rework %',        max:  50, realId: 's_rework'    },
+        { key: 'riskTolerance',           label: 'Risk Tolerance',  max: 100, realId: 's_risk'      },
+        { key: 'userConfidence',          label: 'User Confidence', max: 100, realId: 's_userConf'  }
+      ];
+
+      /* Render read-only stance sliders (cards A, B, C) — disabled range inputs */
+      function stp2RenderStanceBars(containerId, vals, _unused, disabled) {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var html = '';
+        STP2_STANCE_META.forEach(function(m) {
+          var v   = (vals && vals[m.key] != null) ? Number(vals[m.key]) : 0;
+          var rowCls = disabled ? ' stp2-stance-disabled' : '';
+          html += '<div class="stp2-stance-row' + rowCls + '">' +
+            '<span class="stp2-stance-label">' + m.label + '</span>' +
+            '<input type="range" class="stp2-stance-range" min="0" max="' + m.max + '" step="1" value="' + Math.round(v) + '" disabled>' +
+            '<span class="stp2-stance-pct">' + Math.round(v) + '%</span>' +
+          '</div>';
+        });
+        container.innerHTML = html;
+      }
+
+      /* Render interactive sliders for card D (once, on init) */
+      var _stp2DSlidersBound = false;
+      function stp2RenderStanceInteractive(containerId) {
+        var container = document.getElementById(containerId);
+        if (!container || container.children.length) return; // already rendered
+        var html = '';
+        STP2_STANCE_META.forEach(function(m) {
+          var cid = 'stp2d_' + m.key;
+          html += '<div class="stp2-stance-row">' +
+            '<span class="stp2-stance-label">' + m.label + '</span>' +
+            '<input type="range" class="stp2-stance-range" id="' + cid + '" min="0" max="' + m.max + '" step="1" value="0" data-stancekey="' + m.key + '" data-realid="' + m.realId + '">' +
+            '<span class="stp2-stance-pct" id="' + cid + '_lbl">0%</span>' +
+          '</div>';
+        });
+        container.innerHTML = html;
+        // Bind once via delegation on container
+        if (!_stp2DSlidersBound) {
+          _stp2DSlidersBound = true;
+          container.addEventListener('input', function(e) {
+            var inp = e.target;
+            if (!inp.classList.contains('stp2-stance-range')) return;
+            var val    = inp.value;
+            var key    = inp.getAttribute('data-stancekey');
+            var realId = inp.getAttribute('data-realid');
+            var lbl    = document.getElementById(inp.id + '_lbl');
+            if (lbl) lbl.textContent = Math.round(val) + '%';
+            // Save to user cache so syncCardDSliders won't overwrite with algo values
+            var _sv = WS(); _sv.userManualSliders = _sv.userManualSliders || {};
+            _sv.userManualSliders[key] = val;
+            // Sync to real hidden slider and fire change so bindSliders runs
+            var realEl    = document.getElementById(realId);
+            var realRange = document.getElementById(realId + '_range');
+            if (realEl)    realEl.value = val;
+            if (realRange) realRange.value = val;
+            if (realEl)    realEl.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        }
+      }
+
+      /* Copy user-controlled slider values → card D interactive inputs.
+         Reads from s.userManualSliders (set by card D input events) to avoid
+         showing algo-filled values that updateSliderSidebarState writes to
+         the real hidden inputs when Guided/Optimized modes are active. */
+      function syncCardDSliders() {
+        var s = WS();
+        var manual = s.userManualSliders || null;
+        STP2_STANCE_META.forEach(function(m) {
+          var cardEl = document.getElementById('stp2d_' + m.key);
+          if (!cardEl) return;
+          // Use user cache if available; default to 0 (never read real inputs which may
+          // hold algo-filled values from updateSliderSidebarState's fillSlidersFromObject)
+          var val = (manual && manual[m.key] != null) ? manual[m.key] : 0;
+          if (cardEl.value !== String(val)) {
+            cardEl.value = val;
+            var lbl = document.getElementById('stp2d_' + m.key + '_lbl');
+            if (lbl) lbl.textContent = Math.round(+val) + '%';
+          }
+        });
+      }
+
+      /* Level pill click — sets probeLevel, activates and runs Guided immediately */
+      document.addEventListener('click', function(e) {
+        var pill = e.target.closest('.stp2-level-pill');
+        if (!pill) return;
+        var lvl = Number(pill.getAttribute('data-level'));
+        if (!lvl) return;
+
+        var s = WS();
+        s.overlay = s.overlay || {};
+
+        // Ensure tab state is correct (dashboard bypass)
+        var _wrap = document.querySelector('.wrap');
+        if (_wrap && _wrap.classList.contains('pmc-dashboard')) s.tab = 'overlay';
+        if (s.tab !== 'overlay') return;
+
+        s.overlay.probeLevel = lvl;
+
+        // Sync the hidden #probeSelect so the pipeline reads the correct level
+        var sel = document.getElementById('probeSelect');
+        if (sel) sel.value = String(lvl);
+
+        // Update active pill visual immediately
+        document.querySelectorAll('.stp2-level-pill').forEach(function(p) {
+          p.classList.toggle('stp2-level-pill-active', Number(p.getAttribute('data-level')) === lvl);
+        });
+
+        // Always activate and run Guided — clicking a pill IS an intent to run that level
+        s.overlay.adaptiveOn = true;
+        s.optPdfAdaptive = []; s.optCdfAdaptive = []; s.adaptiveProb = null;
+        s.pendingVariants = (s.pendingVariants || 0) + 1;
+        if (typeof requestVariant === 'function') requestVariant('adaptive');
+        if (typeof scheduleUIRefresh === 'function') scheduleUIRefresh();
+        if (typeof syncRowToggles === 'function') syncRowToggles();
+      });
+
+      /* Conditions expand/collapse toggle */
+      document.addEventListener('click', function(e) {
+        var toggle = e.target.closest('.stp2-conditions-toggle');
+        if (!toggle) return;
+        var bodyId = toggle.getAttribute('aria-controls');
+        var body   = bodyId ? document.getElementById(bodyId) : null;
+        if (!body) { body = toggle.closest('.stp2-card').querySelector('.stp2-conditions-body'); }
+        if (!body) return;
+        var open = body.getAttribute('aria-hidden') === 'false' ? true : false;
+        // toggle
+        open = !open;
+        body.setAttribute('aria-hidden', open ? 'false' : 'true');
+        var id = toggle.id || '';
+        var openLabel  = id.indexOf('scenario') >= 0 ? 'Management Stance \u25bc' : 'Management Stance \u25b2';
+        var closeLabel = 'Management Stance \u25b6';
+        toggle.textContent = open ? openLabel : closeLabel;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
 
       function syncRowToggles(){
         var s = WS();
@@ -5932,6 +7569,7 @@
         if (a) a.setAttribute('aria-pressed', _ov.adaptiveOn ? 'true' : 'false');
 
         ensureProbeBox();
+        if (typeof stp2UpdateCards === 'function') stp2UpdateCards();
       }
 
       function bindTabs() {
@@ -5951,6 +7589,9 @@
               if (_psb) _psb.classList.toggle('visible', s.tab === 'progress');
               var _osb = document.getElementById('overlaySelBar');
               if (_osb) _osb.classList.toggle('visible', s.tab === 'overlay');
+              // Immediately sync progress description banner visibility — don't wait for debounce
+              var _pdb = document.getElementById('progressDescBanner');
+              if (_pdb) _pdb.style.display = (s.tab === 'progress') ? '' : 'none';
               // Apply tab-specific plot layout immediately on switch
               if (s.tab === 'progress' && typeof window.pselUpdate === 'function') window.pselUpdate();
               if (s.tab === 'overlay'  && typeof window.overlayPselUpdate === 'function') window.overlayPselUpdate();
@@ -6054,6 +7695,8 @@
         var adaptiveEl= document.getElementById('kpiAdaptive');
 
         if (baseEl) baseEl.addEventListener('click', function(){
+          var _wrap = document.querySelector('.wrap');
+          if (_wrap && _wrap.classList.contains('pmc-dashboard')) s.tab = 'overlay';
           if (s.tab !== 'overlay') return;
           s.overlay.baselineOn = !s.overlay.baselineOn;
           scheduleUIRefresh();
@@ -6124,6 +7767,9 @@
           var el = document.getElementById(def.id);
           if (!el) return;
           el.addEventListener('click', function() {
+            // If in dashboard mode (step 2), auto-set tab state to overlay
+            var _wrap = document.querySelector('.wrap');
+            if (_wrap && _wrap.classList.contains('pmc-dashboard')) s.tab = 'overlay';
             if (s.tab !== 'overlay') return;
             s.overlay[def.key] = !s.overlay[def.key];
             if (s.overlay[def.key] && def.mode) {
@@ -6160,6 +7806,9 @@
           if (!numEl) return;
 
           var handler = function(){
+            // Dashboard bypass: in step 2/3 dashboard, ensure tab state is overlay
+            var _bWrap = document.querySelector('.wrap');
+            if (_bWrap && _bWrap.classList.contains('pmc-dashboard')) s.tab = 'overlay';
             if (s.tab !== 'overlay') return;
             if (!s.overlay.manualOn) {
               s.overlay.manualOn = true;
@@ -6296,6 +7945,8 @@
         try { bindTabs(); blogMsg('bindTabs OK'); } catch(e) { blogMsg('bindTabs error: ' + e.message); }
         try { bindKpiToggles(); blogMsg('bindKpiToggles OK'); } catch(e) { blogMsg('bindKpiToggles error: ' + e.message); }
         try { bindSliders(); blogMsg('bindSliders OK'); } catch(e) { blogMsg('bindSliders error: ' + e.message); }
+        // Initialize card D interactive stance sliders (once, after DOM ready)
+        try { stp2RenderStanceInteractive('stp2-stance-scenario'); blogMsg('stp2 stance interactive OK'); } catch(e) { blogMsg('stp2 stance interactive error: ' + e.message); }
         try { bindZoomReset(); blogMsg('bindZoomReset OK'); } catch(e) { blogMsg('bindZoomReset error: ' + e.message); }
 
         var s = WS();
@@ -6437,10 +8088,10 @@
           const manualProb = V.manual?.prob ?? S.adjustedProb;
 
           const candidates = [
-            { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Your Estimate', constrained: false },
-            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Unconstrained Optimization', constrained: false },
-            { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'General Optimization', constrained: true },
-            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Conservative Optimization (Level ${S.overlay?.probeLevel ?? 3})`, constrained: true }
+            { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Unoptimized Estimate', constrained: false },
+            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Your Scenario', constrained: false },
+            { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'Optimized', constrained: true },
+            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Guided (Level ${S.overlay?.probeLevel ?? 3})`, constrained: true }
           ].filter(c => c.prob != null);
 
           const best = candidates.length ? candidates.reduce((a, b) => a.prob > b.prob ? a : b) : { prob: null, explain: {}, label: '–' };
@@ -6491,10 +8142,10 @@
           // Build variant rows — ordered most conservative → least conservative
           const probeLvl = S.overlay?.probeLevel ?? 3;
           const variants = [
-            { key: 'baseline', label: 'Your Estimate', desc: 'Your original PERT estimate — no optimization applied. This is your starting point.', prob: baselineProb, sliders: KEYS.reduce((o,k)=>{o[k]=0;return o;},{}), constrained: false, constraintLvl: 'None', constraintNote: 'Unmodified three-point estimate', color: '#3B82F6', order: 0 },
-            { key: 'adaptive', label: 'Conservative Optimization (Lvl ' + probeLvl + ')', desc: 'Tightest constraint bounds — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
-            { key: 'fixed', label: 'General Optimization', desc: 'Standard boundaries — wider range allows more room for optimization, typically achieving higher probability than Conservative Optimization', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
-            { key: 'manual', label: 'Unconstrained Optimization', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
+            { key: 'baseline', label: 'Unoptimized Estimate', desc: 'Your original PERT estimate — no optimization applied. This is your starting point.', prob: baselineProb, sliders: KEYS.reduce((o,k)=>{o[k]=0;return o;},{}), constrained: false, constraintLvl: 'None', constraintNote: 'Unmodified three-point estimate', color: '#3B82F6', order: 0 },
+            { key: 'adaptive', label: 'Guided (Lvl ' + probeLvl + ')', desc: 'Tightest industry-aligned constraint bounds — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement.', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
+            { key: 'fixed', label: 'Optimized', desc: 'Wider best-practice boundaries — more room for the algorithm to explore, typically achieving higher probability than Guided.', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
+            { key: 'manual', label: 'Your Scenario', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
           ];
 
           // Ranked by probability for determining "best"
@@ -6557,9 +8208,9 @@
           html += 'Optimization finds lever settings that improve this probability. Strategies sorted by achieved probability (highest first):</p>';
           // Sort by probability descending so the display always reflects reality
           var optRows = [];
-          if (adaptiveProb != null) optRows.push({ label: 'Conservative Optimization (Level ' + probeLvl + ')', prob: adaptiveProb, lift: adaptiveLift, desc: 'Multi-pass SACO search with best-practice constraint bounds at level ' + probeLvl + '. <em>Most defensible</em> for external reporting.' });
-          if (fixedProb != null)    optRows.push({ label: 'General Optimization',                              prob: fixedProb,    lift: fixedLift,    desc: 'Single-pass grid search with wider slider bounds (level 1). Larger search space, standard constraints.' });
-          if (manualProb != null)   optRows.push({ label: 'Unconstrained Optimization',                        prob: manualProb,   lift: manualLift,   desc: '<strong>No constraints</strong> — user-defined values, no best-practice validation. Highest potential but not defensible.' });
+          if (adaptiveProb != null) optRows.push({ label: 'Benchmarked (Level ' + probeLvl + ')', prob: adaptiveProb, lift: adaptiveLift, desc: 'Multi-pass SACO search within PMBOK/CII-anchored bounds at level ' + probeLvl + '. <em>Most defensible</em> for external reporting.' });
+          if (fixedProb != null)    optRows.push({ label: 'Unconstrained',                        prob: fixedProb,    lift: fixedLift,    desc: 'Single-pass grid search with wider, non-benchmarked bounds. Larger search space, greater improvement potential.' });
+          if (manualProb != null)   optRows.push({ label: 'Your Conditions',                      prob: manualProb,   lift: manualLift,   desc: '<strong>No algorithm search</strong> — user-defined conditions evaluated as-is. Use for what-if analysis.' });
           optRows.sort(function(a,b){ return b.prob - a.prob; });
           html += '<ol style="margin:6px 0 10px;padding-left:18px;">';
           optRows.forEach(function(r) {
@@ -9724,7 +11375,8 @@ window.TM = {
       selectedTaskId:  selId,
       targetValue:     tau,
       confidenceLevel: conf,
-      settings:        this.settings
+      settings:        this.settings,
+      priorHistory:    (typeof window.getHistPrior === 'function') ? window.getHistPrior() : undefined
     };
 
     // Show loading in bar
@@ -9839,7 +11491,7 @@ window.TM = {
       if (!_s.progress) _s.progress = {};
       _s.progress.triOn  = true;   // show Triangle from groupO/M/P
       _s.progress.betaOn = false;  // Beta-PERT off by default (user can toggle)
-      _s.progress.baseOn = true;   // show MC aggregate baseline
+      _s.progress.baseOn = true;   // show MC aggregate baseline (group mode default)
       // Redraw triangle canvas with group O/M/P (client-side, no server call needed)
       if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
       // Update OMP bar elements (normally set by onTaskChange — must also set here for Group mode)
