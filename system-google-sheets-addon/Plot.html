@@ -28,9 +28,9 @@
 
       /* Series color constants */
       --base:#10B981;        /* Your Estimate (Baseline) */
-      --manual:#059669;      /* Unconstrained Optimization */
-      --fixed:#6D28D9;       /* General Optimization (Fixed) */
-      --adaptive:#F59E0B;    /* Conservative Optimization (Adaptive) */
+      --manual:#059669;      /* Your Conditions */
+      --fixed:#6D28D9;       /* Unconstrained Optimization (Fixed) */
+      --adaptive:#F59E0B;    /* Benchmarked Optimization (Adaptive) */
       --tri:#3B82F6;         /* Triangle */
       --beta:#7C3AED;        /* Beta-PERT */
 
@@ -1590,7 +1590,7 @@
     .stp2-node-box.chance  .stp2-node-label { color: #92400e; }
     .stp2-node-box.decision .stp2-node-label { color: #1D4ED8; }
 
-    /* Your Scenario zone */
+    /* Your Conditions zone */
     .stp2-scenario-zone {
       background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2);
       border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
@@ -2164,10 +2164,10 @@
           <div id="sliderImpactBanner" style="display:none;"></div>
         </div>
         <div class="slider-preset-row">
-          <span class="slider-preset-label">Your Scenario starting point:</span>
+          <span class="slider-preset-label">Your Conditions starting point:</span>
           <div class="slider-actions" style="margin-top:0;">
             <button id="resetBaseline" class="slider-btn" title="Reset all 7 Decision Sliders to zero">Reset to Zero</button>
-            <button id="matchOptimized" class="slider-btn primary" title="Copy the Optimized slider values into Your Scenario">Copy from Optimized</button>
+            <button id="matchOptimized" class="slider-btn primary" title="Copy the Optimized slider values into Your Conditions">Copy from Optimized</button>
           </div>
         </div>
         <div class="slider-cats">
@@ -2281,7 +2281,7 @@
     <div class="stp2-card-header">
       <div class="stp2-card-name-col">
         <span class="stp2-card-name"><span class="stp2-card-letter">(B)</span> Benchmarked Optimization</span>
-        <span class="stp2-card-clarifier">SACO searches conditions within PMBOK/CII-anchored bounds. More defensible for external reporting and stakeholder commitments.</span>
+        <span class="stp2-card-clarifier">SACO searches conditions within PMBOK/CII-anchored bounds. More defensible for external reporting and stakeholder commitments. Answers: <em>"What can I achieve while staying within industry-standard management benchmarks?"</em></span>
       </div>
       <div class="stp2-card-prob-col">
         <span class="stp2-card-prob stp2-card-prob-adaptive stp2-prob-pending" id="stp2-prob-guided">&ndash;</span>
@@ -2324,7 +2324,7 @@
     <div class="stp2-card-header">
       <div class="stp2-card-name-col">
         <span class="stp2-card-name"><span class="stp2-card-letter">(C)</span> Unconstrained Optimization</span>
-        <span class="stp2-card-clarifier">Same algorithm, wider search space — no external benchmark anchors. Typically finds higher probability. Best for internal planning and feasibility analysis.</span>
+        <span class="stp2-card-clarifier">Same algorithm, wider search space — no external benchmark anchors. Typically finds higher probability. Answers: <em>"How much improvement is possible in the best case?"</em></span>
       </div>
       <div class="stp2-card-prob-col">
         <span class="stp2-card-prob stp2-card-prob-fixed stp2-prob-pending" id="stp2-prob-optimized">&ndash;</span>
@@ -2353,7 +2353,7 @@
     <div class="stp2-card-header">
       <div class="stp2-card-name-col">
         <span class="stp2-card-name"><span class="stp2-card-letter">(D)</span> Your Conditions</span>
-        <span class="stp2-card-clarifier">You set all 7 conditions below. The algorithm evaluates the probability for your specific choices — it does not search for a better set.</span>
+        <span class="stp2-card-clarifier">You set all 7 conditions below. The algorithm evaluates the probability for your specific choices — it does not search for a better set. Answers: <em>"What probability do my actual management decisions produce?"</em></span>
       </div>
       <div class="stp2-card-prob-col">
         <span class="stp2-card-prob stp2-card-prob-manual stp2-prob-pending" id="stp2-prob-scenario">&ndash;</span>
@@ -2434,7 +2434,7 @@
         </div>
         <div class="toggle-group manual-group">
           <button class="tg" role="switch" aria-pressed="false">Optimized</button>
-          <button class="tg" role="switch" aria-pressed="false">Your Scenario</button>
+          <button class="tg" role="switch" aria-pressed="false">Your Conditions</button>
         </div>
       </div>
       <!-- distTiles: kept in DOM for JS, hidden visually -->
@@ -2543,7 +2543,7 @@
             </div>
             <div class="legend" id="legendOverlay">
               <span><span class="legend-dot dot-base"></span>Unoptimized Estimate</span>
-              <span><span class="legend-dot dot-man"></span>Your Scenario</span>
+              <span><span class="legend-dot dot-man"></span>Your Conditions</span>
               <span><span class="legend-dot dot-fix"></span>Optimized</span>
               <span><span class="legend-dot dot-adp"></span>Guided</span>
             </div>
@@ -2650,15 +2650,15 @@
 <!-- NOTE: real #tabs is now inside #stp2-charts-area above -->
 <div class="tabs" id="tabs-do-not-use" style="display:none;" aria-hidden="true">
   <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution, step by step.">How It's Built</div>
-  <div class="tab" data-tab="overlay" title="Compare your estimate against Conservative Optimization, General Optimization, and Unconstrained Optimization scenarios to find the best strategy.">Compare Strategies</div>
+  <div class="tab" data-tab="overlay" title="Compare your estimate against Benchmarked Optimization, Unconstrained Optimization, and Unconstrained Optimization scenarios to find the best strategy.">Compare Strategies</div>
   <div class="series-toggles" id="seriesToggles">
     <div class="toggle-group baseline-group">
       <button class="tg" id="rowTglBase" role="switch" aria-pressed="true" title="Toggle Your Estimate curve">Your Estimate</button>
-      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Conservative Optimization — tightest SACO constraints, most defensible">Conservative<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Benchmarked Optimization — tightest SACO constraints, most defensible">Benchmarked<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
     </div>
     <div class="toggle-group manual-group">
-      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="false" title="General Optimization — standard SACO constraints, wider search space">General<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
-      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Unconstrained Optimization — no bounds, drag sliders freely for what-if analysis">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="false" title="Unconstrained Optimization — wider search space, no benchmark anchors">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Your Conditions — drag sliders freely for what-if analysis">Your<br><span style="font-size:10px;font-weight:400;opacity:.75;">Conditions</span></button>
     </div>
 
   </div>
@@ -2692,13 +2692,13 @@
     <div class="kpi adaptive inactive" id="kpiAdaptive">
       <div class="ttl">
         Conservative Opt.
-        <span class="help-icon" data-title="Conservative Optimization" data-body="Finds the best probability improvement while staying within tight, industry best-practice constraints at your chosen Level (1–7). Both Conservative and General Optimization use the same SACO engine — the difference is constraint tightness. Conservative is the most defensible and standards-aligned strategy. Best for regulated projects or risk-averse stakeholders.">?</span>
+        <span class="help-icon" data-title="Benchmarked Optimization" data-body="Finds the best probability improvement while staying within tight, industry best-practice constraints at your chosen Level (1–7). Both Conservative and Unconstrained Optimization use the same SACO engine — the difference is constraint tightness. Conservative is the most defensible and standards-aligned strategy. Best for regulated projects or risk-averse stakeholders.">?</span>
       </div>
       <div class="val">–</div>
     </div>
     <div id="probeBox" class="chip" style="display:none; align-items:center; gap:6px; min-height:36px; padding:6px 10px;">
       <span style="font-weight:600;">Level:</span>
-      <span class="help-icon" data-title="Optimization Level (1–7)" data-body="Conservative Optimization constraint tightness. Level 1 = minimal constraints (wider exploration, more probability uplift). Level 7 = tightest best-practice constraints (most defensible, less uplift). Start at Level 3; increase for high-risk or regulated environments.">?</span>
+      <span class="help-icon" data-title="Optimization Level (1–7)" data-body="Benchmarked Optimization constraint tightness. Level 1 = minimal constraints (wider exploration, more probability uplift). Level 7 = tightest best-practice constraints (most defensible, less uplift). Start at Level 3; increase for high-risk or regulated environments.">?</span>
       <select id="probeSelect" style="font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:8px; height:28px;">
         <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
         <option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
@@ -2707,14 +2707,14 @@
     <div class="kpi optimized inactive" id="kpiOptimized">
       <div class="ttl">
         General Opt.
-        <span class="help-icon" data-title="General Optimization" data-body="Uses the same SACO engine as Conservative Optimization but with wider, standard-boundary constraints to find the maximum probability improvement. Typically shows higher probability than Conservative — but less defensible for external reporting. Best for internal planning and feasibility analysis.">?</span>
+        <span class="help-icon" data-title="Unconstrained Optimization" data-body="Uses the same SACO engine as Benchmarked Optimization but with wider, standard-boundary constraints to find the maximum probability improvement. Typically shows higher probability than Conservative — but less defensible for external reporting. Best for internal planning and feasibility analysis.">?</span>
       </div>
       <div class="val">–</div>
     </div>
     <div class="kpi adjusted inactive" id="kpiAdjusted">
       <div class="ttl">
         Unconstrained
-        <span class="help-icon" data-title="Unconstrained Optimization" data-body="No slider bounds — you control all 7 Decision Sliders freely to explore any combination beyond best-practice limits. Ideal for sensitivity analysis, stress-testing, and best-case planning. Not intended for external reporting.">?</span>
+        <span class="help-icon" data-title="Your Conditions" data-body="No slider bounds — you control all 7 management condition levers freely to explore any combination. Ideal for sensitivity analysis, stress-testing, and what-if planning. Answers: 'What probability do my actual management decisions produce?' Not intended for external reporting.">?</span>
       </div>
       <div class="val">–</div>
     </div>
@@ -2740,7 +2740,7 @@
         <span class="slider-preset-label">Unconstrained starting point:</span>
         <div class="slider-actions" style="margin-top:0;">
           <button id="resetBaseline" class="slider-btn" title="Reset all 7 Decision Sliders to zero — removes any manual adjustments">Reset Sliders To Zero</button>
-          <button id="matchOptimized" class="slider-btn primary" title="Copy the General Optimization slider values into your Unconstrained starting point">Reset Sliders To General Optimization</button>
+          <button id="matchOptimized" class="slider-btn primary" title="Copy the Unconstrained Optimization slider values into your Unconstrained starting point">Reset Sliders To Unconstrained Optimization</button>
         </div>
       </div>
 
@@ -4380,9 +4380,9 @@
                 '<p><strong>What you see:</strong> Your baseline overlaid with optimization strategies. Each curve shows a different approach to improving your probability of success.</p></div>';
               html += '<div class="help-section"><p><strong>Active strategies:</strong></p><ul>';
               if (s.overlay && s.overlay.baselineOn) html += '<li><strong>Your Estimate:</strong> <span class="help-stat">' + FMT.prob(s.baselineProb) + '</span> \u2014 starting point</li>';
-              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Conservative Optimization:</strong> <span class="help-stat">' + FMT.prob(s.adaptiveProb) + '</span> \u2014 tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
-              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>General Optimization:</strong> <span class="help-stat">' + FMT.prob(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
-              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Unconstrained Optimization:</strong> <span class="help-stat">' + FMT.prob(s.adjustedProb) + '</span> \u2014 your custom settings</li>';
+              if (s.overlay && s.overlay.adaptiveOn) html += '<li><strong>Benchmarked Optimization:</strong> <span class="help-stat">' + FMT.prob(s.adaptiveProb) + '</span> \u2014 tightest constraints (level ' + (s.overlay.probeLevel||3) + ')</li>';
+              if (s.overlay && s.overlay.fixedOn) html += '<li><strong>Unconstrained Optimization:</strong> <span class="help-stat">' + FMT.prob(s.optimizedProb) + '</span> \u2014 best within standard boundaries</li>';
+              if (s.overlay && s.overlay.manualOn) html += '<li><strong>Your Conditions:</strong> <span class="help-stat">' + FMT.prob(s.adjustedProb) + '</span> \u2014 your management decisions</li>';
               html += '</ul></div>';
               html += '<div class="help-section"><p><strong>How to read:</strong> On the CDF (right), a higher curve at your target = better probability. The gap between curves shows how much each strategy improves your chances.</p></div>';
               return html;
@@ -4687,11 +4687,11 @@
         // Strategies work in BOTH single and group modes.
         // In group mode, SACO optimises the summed O/M/P (= combined group estimate).
         if (s.overlay.adaptiveOn && s.adaptiveProb  != null && !isNaN(s.adaptiveProb))
-          candidates.push({ name: 'Guided (L' + plvl + ')',  prob: s.adaptiveProb,  key: 'adaptive' });
+          candidates.push({ name: 'Benchmarked (L' + plvl + ')',  prob: s.adaptiveProb,  key: 'adaptive' });
         if (s.overlay.fixedOn    && s.optimizedProb != null && !isNaN(s.optimizedProb))
-          candidates.push({ name: 'Optimized',               prob: s.optimizedProb, key: 'fixed' });
+          candidates.push({ name: 'Unconstrained',               prob: s.optimizedProb, key: 'fixed' });
         if (s.overlay.manualOn   && s.adjustedProb  != null && !isNaN(s.adjustedProb))
-          candidates.push({ name: 'Your Scenario',           prob: s.adjustedProb,  key: 'manual' });
+          candidates.push({ name: 'Your Conditions',           prob: s.adjustedProb,  key: 'manual' });
 
         candidates.sort(function(a, b) { return b.prob - a.prob; });
         var hasVariants = candidates.length > 1;
@@ -4805,12 +4805,12 @@
           if (guided) {
             var gGain = ((guided.prob - bp) * 100);
             if (gGain > 0) {
-              parts.push('<strong>Conservative Optimization</strong> (' + FMT.prob(guided.prob) + ', ' + FMT.lift(gGain) + '): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
+              parts.push('<strong>Benchmarked Optimization</strong> (' + FMT.prob(guided.prob) + ', ' + FMT.lift(gGain) + '): Applies industry-standard constraint bounds at probe level ' + plvl + '/7. '
                 + 'All 7 decision levers stay within validated project management boundaries — '
                 + 'the most defensible improvement because every assumption can be justified in a stakeholder review.'
                 + sliderHighlights('adaptive'));
             } else {
-              parts.push('<strong>Conservative Optimization</strong> (' + FMT.prob(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
+              parts.push('<strong>Benchmarked Optimization</strong> (' + FMT.prob(guided.prob) + '): At probe level ' + plvl + '/7 the constraints are too tight to beat the baseline. '
                 + 'The estimate range may require a looser constraint set — try increasing the probe level.'
                 + sliderHighlights('adaptive'));
             }
@@ -4818,14 +4818,14 @@
 
           if (optimized) {
             var oGain = ((optimized.prob - bp) * 100);
-            var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Conservative Optimization' : '';
+            var oRef  = guided ? ' — ' + ((optimized.prob - guided.prob) * 100).toFixed(1) + ' pp above Benchmarked Optimization' : '';
             if (oGain > 0) {
-              parts.push('<strong>General Optimization</strong> (' + FMT.prob(optimized.prob) + ', ' + FMT.lift(oGain) + oRef + '): '
+              parts.push('<strong>Unconstrained Optimization</strong> (' + FMT.prob(optimized.prob) + ', ' + FMT.lift(oGain) + oRef + '): '
                 + 'Searches the full standard parameter space, finding the highest probability within normal project limits. '
                 + 'Uses a wider slider range than the most constrained approach — verify each setting is feasible before presenting it.'
                 + sliderHighlights('fixed'));
             } else {
-              parts.push('<strong>General Optimization</strong> (' + FMT.prob(optimized.prob) + '): Could not beat the baseline within standard bounds. '
+              parts.push('<strong>Unconstrained Optimization</strong> (' + FMT.prob(optimized.prob) + '): Could not beat the baseline within standard bounds. '
                 + 'The target may be too ambitious for this estimate range.'
                 + sliderHighlights('fixed'));
             }
@@ -4857,25 +4857,25 @@
         if (!hasVariants) {
           // Same strategy suggestions for both single and group modes
           if (isGroupMode) {
-            steps.push({ action: 'Click <strong>Conservative Optimization</strong>', why: 'Applies industry-standard constraint bounds to the group\'s combined O/M/P at level ' + plvl + '/7. Shows the most defensible improvement for the programme as a whole.' });
-            steps.push({ action: 'Click <strong>General Optimization</strong>', why: 'Searches a wider parameter space across the full group estimate. Finds the best achievable combined probability within standard project management limits.' });
+            steps.push({ action: 'Click <strong>Benchmarked Optimization</strong>', why: 'Applies industry-standard constraint bounds to the group\'s combined O/M/P at level ' + plvl + '/7. Shows the most defensible improvement for the programme as a whole.' });
+            steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Searches a wider parameter space across the full group estimate. Finds the best achievable combined probability within standard project management limits.' });
             steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Reveals the theoretical ceiling for the group with no guardrails. If even Unconstrained can\'t move the needle, consider revising the target or individual task estimates.' });
           } else {
             // No strategies on yet — guide them through the logical sequence
-            steps.push({ action: 'Click <strong>Conservative Optimization</strong>', why: 'The safest starting point. Uses industry-standard constraint bounds at level ' + plvl + '/7 — every slider stays within validated project management limits, making the result easy to defend.' });
-            steps.push({ action: 'Click <strong>General Optimization</strong>', why: 'Searches a wider parameter space for the best achievable probability within standard limits. Gives you the most improvement possible while staying within reasonable assumptions.' });
+            steps.push({ action: 'Click <strong>Benchmarked Optimization</strong>', why: 'The safest starting point. Uses industry-standard constraint bounds at level ' + plvl + '/7 — every slider stays within validated project management limits, making the result easy to defend.' });
+            steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Searches a wider parameter space for the best achievable probability within standard limits. Gives you the most improvement possible while staying within reasonable assumptions.' });
             steps.push({ action: 'Click <strong>Unconstrained Optimization</strong>', why: 'Reveals the theoretical upper bound with no constraints. If even Unconstrained can\'t move the needle, the target needs to change — not the sliders.' });
           }
         } else if (best.key === 'baseline') {
           // Strategies active but none helped — diagnostics
           if (!noGuided && guided) {
-            steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Higher levels explore slightly looser constraint sets. Level 5–7 may find a feasible improvement path that level ' + plvl + ' missed.' });
+            steps.push({ action: 'Increase Benchmarked Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Higher levels explore slightly looser constraint sets. Level 5–7 may find a feasible improvement path that level ' + plvl + ' missed.' });
           }
           if (noOptimized) {
-            steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Uses a wider search space than Conservative Optimization. May find an improvement path that tighter constraints missed.' });
+            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'Uses a wider search space than Benchmarked Optimization. May find an improvement path that tighter constraints missed.' });
           }
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'If even Unconstrained (no constraints) can\'t improve over baseline, the target is likely unachievable for this estimate range.' });
+            steps.push({ action: 'Activate <strong>Your Conditions</strong>', why: 'If even Your Conditions (no constraints) can\'t improve over baseline, the target is likely unachievable for this estimate range.' });
           }
           if (!noExplorer && explorer && explorer.prob <= bp) {
             steps.push({ action: 'Reduce the target value using the slider', why: 'The theoretical ceiling with no constraints is still at or below baseline. The target is not achievable for this estimate — find a target where probability is acceptable, then decide whether to revise the estimate.' });
@@ -4883,61 +4883,61 @@
         } else if (best.prob >= 0.8) {
           // Great — 80%+ is achievable. Focus on validating and deciding which path to use.
           if (best.key === 'adaptive') {
-            steps.push({ action: 'Review Conservative Optimization\'s slider positions in the sidebar', why: 'These settings are industry-validated. Each slider value represents a specific project management lever — check that these assumptions are realistic for your project.' });
+            steps.push({ action: 'Review Benchmarked Optimization\'s slider positions in the sidebar', why: 'These settings are industry-validated. Each slider value represents a specific project management lever — check that these assumptions are realistic for your project.' });
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'See if a wider search can improve further beyond Conservative Optimization\'s ' + pct(guided.prob) + '. If General also hits 80%+, you have two independent validation paths.' });
+              steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'See if a wider search can improve further beyond Benchmarked Optimization\'s ' + pct(guided.prob) + '. If General also hits 80%+, you have two independent validation paths.' });
             }
           } else if (best.key === 'fixed') {
-            steps.push({ action: 'Review General Optimization\'s slider positions in the sidebar', why: 'General Optimization uses wider bounds — check each slider setting for feasibility. Some values may be more aggressive than your project can realistically absorb.' });
+            steps.push({ action: 'Review Unconstrained Optimization\'s slider positions in the sidebar', why: 'Unconstrained Optimization uses wider bounds — check each slider setting for feasibility. Some values may be more aggressive than your project can realistically absorb.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Check whether a more constrained path can also reach 80%+. If Conservative reaches close, that\'s a more defensible result for stakeholders.' });
+              steps.push({ action: 'Activate <strong>Benchmarked Optimization</strong>', why: 'Check whether a more constrained path can also reach 80%+. If Conservative reaches close, that\'s a more defensible result for stakeholders.' });
             } else if (guided && guided.prob < 0.8) {
-              steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Conservative Optimization reached ' + pct(guided.prob) + ' — close but not 80%. A higher probe level searches a slightly broader constraint set and may close the gap.' });
+              steps.push({ action: 'Increase Benchmarked Optimization\'s probe level (currently ' + plvl + '/7)', why: 'Benchmarked Optimization reached ' + pct(guided.prob) + ' — close but not 80%. A higher probe level searches a slightly broader constraint set and may close the gap.' });
             }
           } else if (best.key === 'manual') {
-            steps.push({ action: 'Check Unconstrained Optimization\'s slider positions in the sidebar', why: 'Unconstrained has no guardrails — identify which specific sliders are pushed to extreme values. These are the levers driving the improvement.' });
+            steps.push({ action: 'Check Your Conditions slider positions in the sidebar', why: 'Your Conditions has no guardrails — identify which specific management levers are pushed to extreme values. These are the conditions driving the improvement.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Unconstrained shows 80%+ is achievable — now find the most constrained, defensible path to that result.' });
+              steps.push({ action: 'Activate <strong>Benchmarked Optimization</strong>', why: 'Your Conditions shows 80%+ is achievable — now find the most constrained, defensible path to that result.' });
             }
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Get the best probability with standard constraints — the realistic middle ground between Conservative and Unconstrained Optimization.' });
+              steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'Get the best probability with standard constraints — the realistic middle ground between Benchmarked Optimization and Your Conditions.' });
             }
             if (guided || optimized) {
-              steps.push({ action: 'Compare sidebar sliders between Unconstrained Optimization and your best constrained strategy', why: 'The gap between Unconstrained (' + pct(explorer.prob) + ') and ' + best.name + ' (' + pct(best.prob) + ') shows the cost of staying within realistic bounds.' });
+              steps.push({ action: 'Compare management conditions between Your Conditions and your best constrained strategy', why: 'The gap between Your Conditions (' + pct(explorer.prob) + ') and ' + best.name + ' (' + pct(best.prob) + ') shows the cost of staying within realistic bounds.' });
             }
           }
         } else if (best.prob >= 0.5) {
           // Moderate — improvement but not at 80% yet
           if (noGuided) {
-            steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'The most constrained optimizer. If it can improve over your current best (' + pct(best.prob) + '), you have a defensible path. If it can\'t, that tells you something important about the estimate constraints.' });
+            steps.push({ action: 'Activate <strong>Benchmarked Optimization</strong>', why: 'The most constrained optimizer. If it can improve over your current best (' + pct(best.prob) + '), you have a defensible path. If it can\'t, that tells you something important about the estimate constraints.' });
           }
           if (noOptimized) {
-            steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Searches a wider parameter space than Conservative Optimization. May find a path to 80%+ that tighter constraints missed.' });
+            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'Searches a wider parameter space than Benchmarked Optimization. May find a path to 80%+ that tighter constraints missed.' });
           }
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'See the theoretical maximum. If Unconstrained can reach 80%, you know improvement to that level is possible — the question becomes which constraints to relax. If it can\'t, the target is too ambitious.' });
+            steps.push({ action: 'Activate <strong>Your Conditions</strong>', why: 'See the theoretical maximum. If Your Conditions can reach 80%, you know improvement to that level is possible — the question becomes which management levers to adjust. If it can\'t, the target is too ambitious.' });
           }
           // All active, none hit 80%
           if (!noGuided && !noOptimized && !noExplorer) {
             if (guided && ((guided.prob - bp) * 100) > 0 && plvl < 7) {
-              steps.push({ action: 'Increase Conservative Optimization\'s probe level (currently ' + plvl + '/7)', why: 'All three strategies are active and none reached 80%. Higher probe levels search slightly broader constraint sets — try level ' + Math.min(plvl + 2, 7) + ' as a next step.' });
+              steps.push({ action: 'Increase Benchmarked Optimization\'s probe level (currently ' + plvl + '/7)', why: 'All three strategies are active and none reached 80%. Higher probe levels search slightly broader constraint sets — try level ' + Math.min(plvl + 2, 7) + ' as a next step.' });
             }
             steps.push({ action: 'Adjust the target slider left to a more achievable value', why: 'All strategies have been explored and the ceiling is ' + pct(best.prob) + '. Find a target where at least Guided can reach 80%, then use that as your defensible commitment.' });
           }
         } else {
           // Low probability — significant challenge
           if (noExplorer) {
-            steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'First, establish whether improvement is theoretically possible at all. Unconstrained has no limits — if it can\'t reach 50%, the target fundamentally needs to change.' });
+            steps.push({ action: 'Activate <strong>Your Conditions</strong>', why: 'First, establish whether improvement is theoretically possible at all. Your Conditions has no limits — if it can\'t reach 50%, the target fundamentally needs to change.' });
           } else if (explorer && explorer.prob < 0.5) {
-            steps.push({ action: 'Move the target slider significantly left', why: 'Even with every slider at its most favorable value (Unconstrained Optimization), probability stays below 50%. The target is not achievable for this estimate. Find a target where confidence is acceptable (e.g., 70%) and use that as your planning baseline.' });
+            steps.push({ action: 'Move the target slider significantly left', why: 'Even with every management lever at its most favorable value (Your Conditions), probability stays below 50%. The target is not achievable for this estimate. Find a target where confidence is acceptable (e.g., 70%) and use that as your planning baseline.' });
           } else {
-            // Unconstrained can do it but constrained strategies can't
-            steps.push({ action: 'Check Unconstrained Optimization\'s slider positions in the sidebar', why: 'Unconstrained Optimization reaches ' + pct(explorer.prob) + ' — improvement is theoretically possible. Identify which sliders are doing the most work. These are the levers your project would need to move.' });
+            // Your Conditions can do it but constrained strategies can't
+            steps.push({ action: 'Check Your Conditions slider positions in the sidebar', why: 'Your Conditions reaches ' + pct(explorer.prob) + ' — improvement is theoretically possible. Identify which management levers are doing the most work. These are the conditions your project would need to achieve.' });
             if (noGuided) {
-              steps.push({ action: 'Activate <strong>Conservative Optimization</strong>', why: 'Find the most constrained, realistic path toward the target. It may not reach 80%, but it shows what is achievable within industry-standard limits.' });
+              steps.push({ action: 'Activate <strong>Benchmarked Optimization</strong>', why: 'Find the most constrained, realistic path toward the target. It may not reach 80%, but it shows what is achievable within industry-standard limits.' });
             }
             if (noOptimized) {
-              steps.push({ action: 'Activate <strong>General Optimization</strong>', why: 'Find the best probability with standard (not unconstrained) bounds — the realistic ceiling short of Unconstrained.' });
+              steps.push({ action: 'Activate <strong>Unconstrained Optimization</strong>', why: 'Find the best probability with standard (not unconstrained) bounds — the realistic ceiling short of Unconstrained.' });
             }
           }
         }
@@ -5005,9 +5005,9 @@
             rLines.push('Each axis represents a decision lever (budget flexibility, schedule flexibility, etc.). ');
             rLines.push('The dashed green line shows your baseline at 50% on all sliders. ');
             if (best && best.key === 'adaptive') {
-              rLines.push('Conservative Optimization (blue) stays close to baseline \u2014 its tight constraints limit how far sliders can move, producing the most defensible result.');
+              rLines.push('Benchmarked Optimization (blue) stays close to baseline \u2014 its tight constraints limit how far sliders can move, producing the most defensible result.');
             } else if (best && best.key === 'fixed') {
-              rLines.push('General Optimization pushes sliders further than Conservative within standard boundaries \u2014 wider reach means higher probability but more assumptions.');
+              rLines.push('Unconstrained Optimization pushes sliders further than Conservative within standard boundaries \u2014 wider reach means higher probability but more assumptions.');
             } else if (best && best.key === 'manual') {
               rLines.push('Unconstrained shows unconstrained slider positions \u2014 large deviations from baseline suggest assumptions that may not hold in practice.');
             }
@@ -5156,9 +5156,9 @@
           var tri  = dsLine({ label: 'Triangle', data: triSeries, colorVar: '--tri',  z: 2, hidden: !showTri });
           var bet  = dsLine({ label: 'Beta-PERT', data: betSeries, colorVar: '--beta', z: 2, hidden: !showBet });
 
-          var man  = dsLine({ label: 'Your Scenario', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
+          var man  = dsLine({ label: 'Your Conditions', data: manSeries, colorVar: '--manual', z: 4, hidden: !(onOverlay && s.overlay && s.overlay.manualOn) });
           var fix  = dsLine({ label: 'Optimized',    data: fixSeries, colorVar: '--fixed',  z: 4, hidden: !(onOverlay && s.overlay && s.overlay.fixedOn) });
-          var ada  = dsLine({ label: 'Guided',        data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
+          var ada  = dsLine({ label: 'Benchmarked',        data: adaSeries, colorVar: '--adaptive', z:4, hidden: !(onOverlay && s.overlay && s.overlay.adaptiveOn) });
 
           var dotBase = onOverlay && s.overlay && s.overlay.baselineOn ? dsTargetDot({ key:'baseline', x:(s.target), series: baseSeries, colorVar: '--base' }) : null;
           var dotAdj  = onOverlay && s.overlay && s.overlay.manualOn   ? dsTargetDot({ key:'adjusted', x:(s.target), series: manSeries,  colorVar:'--manual' }) : null;
@@ -5511,7 +5511,7 @@
         if (guidEl) {
           if (ov.adaptiveOn && s.adaptiveProb != null && isFinite(s.adaptiveProb)) {
             var dPg = (s.adaptiveProb - P0) * 100;
-            guidEl.textContent = 'Guided\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
+            guidEl.textContent = 'Benchmarked\u202f' + FMT.prob(s.adaptiveProb) + '\u202f(' + FMT.lift(dPg) + ')';
             guidEl.style.display = 'inline-block';
           } else { guidEl.style.display = 'none'; }
         }
@@ -5525,7 +5525,7 @@
         if (expEl) {
           if (ov.manualOn && s.adjustedProb != null && isFinite(s.adjustedProb)) {
             var dPe = (s.adjustedProb - P0) * 100;
-            expEl.textContent = 'Your Scenario\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
+            expEl.textContent = 'Your Conditions\u202f' + FMT.prob(s.adjustedProb) + '\u202f(' + FMT.lift(dPe) + ')';
             expEl.style.display = 'inline-block';
           } else { expEl.style.display = 'none'; }
         }
@@ -6631,10 +6631,12 @@
         if (!vState) return;
 
         var _rcfKey = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
+        var _manualSliders = (variant === 'manual' && typeof window.sliderValues === 'function') ? window.sliderValues() : undefined;
         var key = JSON.stringify({
           task: s.task.task, O: s.O, M: s.M, P: s.P, target: s.target,
           variant: variant,
           probeLevel: (variant==='adaptive' ? (s.overlay?.probeLevel || 3) : undefined),
+          sliders: _manualSliders,
           rcf: _rcfKey ? (_rcfKey.n + '|' + (_rcfKey.meanOverrunFrac != null ? _rcfKey.meanOverrunFrac.toFixed(4) : '')) : null
         });
         var cached = s.variantCache && s.variantCache[key];
@@ -7182,15 +7184,15 @@
 
         if (mode === 'manual') {
           setSlidersDisabled(false);
-          if (titleEl) titleEl.textContent = 'Your Scenario';
+          if (titleEl) titleEl.textContent = 'Your Conditions';
           if (noteEl) noteEl.textContent = 'No constraints — drag freely to explore any management condition combination.';
-          showImpactBanner('Your Scenario', s.baselineProb, s.adjustedProb);
+          showImpactBanner('Your Conditions', s.baselineProb, s.adjustedProb);
         } else if (mode === 'adaptive') {
           setSlidersDisabled(true);
           var lvl = s.overlay.probeLevel || 3;
-          if (titleEl) titleEl.textContent = 'Guided (Level ' + lvl + ')';
+          if (titleEl) titleEl.textContent = 'Benchmarked (Level ' + lvl + ')';
           if (noteEl) noteEl.textContent = 'Read-only — tightest industry-aligned constraints (level ' + lvl + '). Most defensible for external reporting.';
-          showImpactBanner('Guided', s.baselineProb, s.adaptiveProb);
+          showImpactBanner('Benchmarked', s.baselineProb, s.adaptiveProb);
           var source = s.explainAdaptive;
           var vals = extractSliderVals(source || {});
           fillSlidersFromObject(vals);
@@ -8089,9 +8091,9 @@
 
           const candidates = [
             { prob: baselineProb,  explain: B.lastPayload || {},       label: 'Unoptimized Estimate', constrained: false },
-            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Your Scenario', constrained: false },
+            { prob: manualProb,    explain: V.manual?.explain || {},   label: 'Your Conditions', constrained: false },
             { prob: fixedProb,     explain: V.fixed?.explain || {},    label: 'Optimized', constrained: true },
-            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Guided (Level ${S.overlay?.probeLevel ?? 3})`, constrained: true }
+            { prob: adaptiveProb,  explain: V.adaptive?.explain || {}, label: `Benchmarked (Level ${S.overlay?.probeLevel ?? 3})`, constrained: true }
           ].filter(c => c.prob != null);
 
           const best = candidates.length ? candidates.reduce((a, b) => a.prob > b.prob ? a : b) : { prob: null, explain: {}, label: '–' };
@@ -8143,9 +8145,9 @@
           const probeLvl = S.overlay?.probeLevel ?? 3;
           const variants = [
             { key: 'baseline', label: 'Unoptimized Estimate', desc: 'Your original PERT estimate — no optimization applied. This is your starting point.', prob: baselineProb, sliders: KEYS.reduce((o,k)=>{o[k]=0;return o;},{}), constrained: false, constraintLvl: 'None', constraintNote: 'Unmodified three-point estimate', color: '#3B82F6', order: 0 },
-            { key: 'adaptive', label: 'Guided (Lvl ' + probeLvl + ')', desc: 'Tightest industry-aligned constraint bounds — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement.', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
-            { key: 'fixed', label: 'Optimized', desc: 'Wider best-practice boundaries — more room for the algorithm to explore, typically achieving higher probability than Guided.', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
-            { key: 'manual', label: 'Your Scenario', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
+            { key: 'adaptive', label: 'Benchmarked (Lvl ' + probeLvl + ')', desc: 'Tightest industry-aligned constraint bounds — level ' + probeLvl + ' narrows each slider\'s feasible range, yielding the most defensible improvement.', prob: adaptiveProb, sliders: adaptiveSliders, constrained: true, constraintLvl: 'Strict', constraintNote: 'Level ' + probeLvl + ' — tightest bounds', color: '#0EA5E9', order: 1 },
+            { key: 'fixed', label: 'Unconstrained Optimization', desc: 'Wider best-practice boundaries — more room for the algorithm to explore, typically achieving higher probability than Guided.', prob: fixedProb, sliders: fixedSliders, constrained: true, constraintLvl: 'Standard', constraintNote: 'Level 1 — wider bounds', color: '#8B5CF6', order: 2 },
+            { key: 'manual', label: 'Your Conditions', desc: 'No constraints — you set any slider values freely. Highest potential but not validated against best practices. Full control for what-if analysis.', prob: manualProb, sliders: manualSliders, constrained: false, constraintLvl: 'Unconstrained', constraintNote: 'No limits', color: '#F59E0B', order: 3 }
           ];
 
           // Ranked by probability for determining "best"
@@ -8220,8 +8222,8 @@
         } else {
           html += 'The distribution is already well-positioned and optimization has limited room to improve.</p>';
           html += '<ul style="margin:6px 0 10px;padding-left:18px;">';
-          if (adaptiveProb != null) html += '<li><strong>Conservative Optimization:</strong> ' + ap + '</li>';
-          if (fixedProb != null)    html += '<li><strong>General Optimization:</strong> ' + fp + '</li>';
+          if (adaptiveProb != null) html += '<li><strong>Benchmarked Optimization:</strong> ' + ap + '</li>';
+          if (fixedProb != null)    html += '<li><strong>Unconstrained Optimization:</strong> ' + fp + '</li>';
           if (manualProb != null)   html += '<li><strong>Unconstrained Optimization:</strong> ' + mp + '</li>';
           html += '</ul>';
         }
@@ -8229,11 +8231,11 @@
         if (adaptiveProb != null && fixedProb != null) {
           html += '<div style="padding:8px 12px;border-radius:8px;background:#F5F3FF;border:1px solid #C4B5FD;margin:6px 0;font-size:12px;color:#5B21B6;line-height:1.6;">';
           if (adaptiveProb > fixedProb + 0.001) {
-            html += '<strong>Why does Conservative Optimization outperform General?</strong> Conservative uses a multi-pass SACO search algorithm that iteratively refines slider values — this can find better configurations than General\'s single-pass grid search, even with tighter constraint bounds at level ' + probeLvl + '. Conservative is both <em>more thorough in search</em> and <em>more defensible in output</em>.';
+            html += '<strong>Why does Benchmarked Optimization outperform General?</strong> Conservative uses a multi-pass SACO search algorithm that iteratively refines slider values — this can find better configurations than General\'s single-pass grid search, even with tighter constraint bounds at level ' + probeLvl + '. Conservative is both <em>more thorough in search</em> and <em>more defensible in output</em>.';
           } else if (fixedProb > adaptiveProb + 0.001) {
-            html += '<strong>Why does General Optimization outperform Conservative?</strong> General Optimization uses level 1 (widest boundaries), giving the optimizer the largest feasible region. Conservative Optimization at level ' + probeLvl + ' tightens those boundaries — each slider can move less. Tighter constraints = more conservative = lower probability, but <em>more defensible</em> in audit/governance contexts.';
+            html += '<strong>Why does Unconstrained Optimization outperform Conservative?</strong> Unconstrained Optimization uses level 1 (widest boundaries), giving the optimizer the largest feasible region. Benchmarked Optimization at level ' + probeLvl + ' tightens those boundaries — each slider can move less. Tighter constraints = more conservative = lower probability, but <em>more defensible</em> in audit/governance contexts.';
           } else {
-            html += 'Conservative and General Optimization achieve the same probability — the constraint level has no additional impact for this estimate.';
+            html += 'Conservative and Unconstrained Optimization achieve the same probability — the constraint level has no additional impact for this estimate.';
           }
           html += '</div>';
         }
@@ -8430,7 +8432,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
           }
 
           // Compute transforms for each active strategy
-          const guidedT = adaptiveProb != null ? computeTransform(adaptiveSliders, 'Guided') : null;
+          const guidedT = adaptiveProb != null ? computeTransform(adaptiveSliders, 'Benchmarked') : null;
           const optimizedT = fixedProb != null ? computeTransform(fixedSliders, 'Optimized') : null;
           const explorerT = manualProb != null ? computeTransform(manualSliders, 'Explorer') : null;
 
@@ -8581,10 +8583,10 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
           html += '<div class="rep-note" style="margin-bottom:10px;">Each strategy applies the SACO framework with different constraint boundaries. Below shows the actual slider values, computed moments, and resulting Beta parameters for each active strategy.</div>';
           html += '</div>';
 
-          // Conservative Optimization
+          // Benchmarked Optimization
           if (adaptiveProb != null) {
             html += strategySection(
-              'Conservative Optimization (Level ' + probeLvl + ')', '#0EA5E9', adaptiveProb, adaptiveSliders, guidedT, guidedKL,
+              'Benchmarked Optimization (Level ' + probeLvl + ')', '#0EA5E9', adaptiveProb, adaptiveSliders, guidedT, guidedKL,
               'Tightest best-practice constraints — Level ' + probeLvl + ' narrows each slider\'s feasible range. ' + (probeLvl >= 5 ? 'At this high level, constraints are very tight; if sliders show 0%, the optimizer found no improvement possible within these bounds.' : 'Lower levels allow more room for the optimizer.'),
               1
             );
@@ -8624,7 +8626,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
             html += '<tr><td style="font-weight:600;">Your Estimate</td><td class="mono" style="font-weight:700;">' + this.fmtPct(baselineProb) + '</td><td>—</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td><td>None (raw PERT)</td></tr>';
             if (adaptiveProb != null) {
               const aGain = baselineProb != null ? ((adaptiveProb - baselineProb)*100) : null;
-              html += '<tr style="background:#F0F9FF;"><td style="font-weight:600;"><span style="color:#0EA5E9;">●</span> Guided (Lvl ' + probeLvl + ')</td><td class="mono" style="font-weight:700;color:#0EA5E9;">' + this.fmtPct(adaptiveProb) + '</td><td class="mono" style="color:' + (aGain > 0 ? '#16A34A' : '#6B7280') + ';">' + (aGain != null ? (aGain>=0?'+':'') + aGain.toFixed(2) + ' pts' : '–') + '</td><td class="mono">' + (guidedT ? this.num(guidedT.m0,4) : '–') + '</td><td class="mono">' + (guidedT ? this.num(guidedT.m1,4) : '–') + '</td><td class="mono">' + (guidedKL != null ? this.num(guidedKL,4) : '–') + '</td><td>Strict (Lvl ' + probeLvl + ')</td></tr>';
+              html += '<tr style="background:#F0F9FF;"><td style="font-weight:600;"><span style="color:#0EA5E9;">●</span> Benchmarked (Lvl ' + probeLvl + ')</td><td class="mono" style="font-weight:700;color:#0EA5E9;">' + this.fmtPct(adaptiveProb) + '</td><td class="mono" style="color:' + (aGain > 0 ? '#16A34A' : '#6B7280') + ';">' + (aGain != null ? (aGain>=0?'+':'') + aGain.toFixed(2) + ' pts' : '–') + '</td><td class="mono">' + (guidedT ? this.num(guidedT.m0,4) : '–') + '</td><td class="mono">' + (guidedT ? this.num(guidedT.m1,4) : '–') + '</td><td class="mono">' + (guidedKL != null ? this.num(guidedKL,4) : '–') + '</td><td>Strict (Lvl ' + probeLvl + ')</td></tr>';
             }
             if (fixedProb != null) {
               const fGain = baselineProb != null ? ((fixedProb - baselineProb)*100) : null;
@@ -8960,7 +8962,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
             genContent += adjSummary(fixAdj, '#7C3AED');
             genContent += probResult(fixedProb, baselineProb, '#7C3AED', 'General');
           } else {
-            genContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "General Optimization" in the Compare Strategies tab to populate this node.</div>';
+            genContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Unconstrained Optimization" in the Compare Strategies tab to populate this node.</div>';
           }
           h2 += node('#7C3AED', '⑥', 'General (Unconstrained) Optimization', genContent, true) + arrow;
 
@@ -8981,9 +8983,9 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
             conContent += adjSummary(adaAdj, '#0EA5E9');
             conContent += probResult(adaptiveProb, baselineProb, '#0EA5E9', 'Conservative');
           } else {
-            conContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Conservative Optimization" in the Compare Strategies tab to populate this node.</div>';
+            conContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Benchmarked Optimization" in the Compare Strategies tab to populate this node.</div>';
           }
-          h2 += node('#0EA5E9', '⑦', 'Conservative Optimization (Probe ' + probeLvl + ')', conContent, false) + arrow;
+          h2 += node('#0EA5E9', '⑦', 'Benchmarked Optimization (Probe ' + probeLvl + ')', conContent, false) + arrow;
 
           // ── NODE 8: EXPLORER / MANUAL ──
           let expContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
@@ -9280,7 +9282,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       const overlay = S.overlay || {};
       // Prefer actual optimized distribution arrays from API
       if (overlay.adaptiveOn && S.optPdfAdaptive && S.optPdfAdaptive.length > 1)
-        return { pdf: S.optPdfAdaptive, source: 'Guided' };
+        return { pdf: S.optPdfAdaptive, source: 'Benchmarked' };
       if (overlay.fixedOn && S.optPdfFixed && S.optPdfFixed.length > 1)
         return { pdf: S.optPdfFixed, source: 'Optimized' };
       if (overlay.manualOn && S.adjPdf && S.adjPdf.length > 1)
@@ -9727,7 +9729,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       var P0 = S.baselineProb;
       var stratDefs = [
         { def: _ANN_DEFS[0], label: 'Baseline',   prob: P0,              show: true            },
-        { def: _ANN_DEFS[1], label: 'Guided',     prob: S.adaptiveProb,  show: ov.adaptiveOn   },
+        { def: _ANN_DEFS[1], label: 'Benchmarked',     prob: S.adaptiveProb,  show: ov.adaptiveOn   },
         { def: _ANN_DEFS[2], label: 'Optimized',  prob: S.optimizedProb, show: ov.fixedOn      },
         { def: _ANN_DEFS[3], label: 'Explorer',   prob: S.adjustedProb,  show: ov.manualOn     }
       ];
@@ -10163,7 +10165,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       }
       var rawCur = null, source = 'None';
       if (pm3d === 'adaptive' && overlay.adaptiveOn && S.optPdfAdaptive && S.optPdfAdaptive.length > 1) {
-        rawCur = S.optPdfAdaptive; source = 'Conservative Optimization (Level ' + (overlay.probeLevel || 3) + ')';
+        rawCur = S.optPdfAdaptive; source = 'Benchmarked Optimization (Level ' + (overlay.probeLevel || 3) + ')';
       } else if (pm3d === 'fixed' && overlay.fixedOn && S.optPdfFixed && S.optPdfFixed.length > 1) {
         rawCur = S.optPdfFixed; source = 'Optimized';
       } else if (pm3d === 'manual' && overlay.manualOn && S.adjPdf && S.adjPdf.length > 1) {
@@ -10188,7 +10190,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       // ── Non-primary active strategy PDFs for ghost ribbons + extra needles ─
       var nonPrimStrats = [];
       var _allStratDefs = [
-        { mode: 'adaptive', rawPdf: S.optPdfAdaptive, prob: S.adaptiveProb,  label: 'Guided',    hex: 0x8b5cf6 },
+        { mode: 'adaptive', rawPdf: S.optPdfAdaptive, prob: S.adaptiveProb,  label: 'Benchmarked',    hex: 0x8b5cf6 },
         { mode: 'fixed',    rawPdf: S.optPdfFixed,    prob: S.optimizedProb, label: 'Optimized', hex: 0x3b82f6 },
         { mode: 'manual',   rawPdf: S.adjPdf,         prob: S.adjustedProb,  label: 'Explorer',  hex: 0x10b981 }
       ];
@@ -10231,7 +10233,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
         } else { el.style.display = 'none'; }
       }
       _setChip('saco3dChipBase',      'Baseline',   P0base,           null);
-      _setChip('saco3dChipGuided',    overlay.adaptiveOn ? 'Guided'    : null, overlay.adaptiveOn ? S.adaptiveProb  : null, P0base);
+      _setChip('saco3dChipGuided',    overlay.adaptiveOn ? 'Benchmarked' : null, overlay.adaptiveOn ? S.adaptiveProb  : null, P0base);
       _setChip('saco3dChipOptimized', overlay.fixedOn    ? 'Optimized' : null, overlay.fixedOn    ? S.optimizedProb : null, P0base);
       _setChip('saco3dChipExplorer',  overlay.manualOn   ? 'Explorer'  : null, overlay.manualOn   ? S.adjustedProb  : null, P0base);
       var baseChip = document.getElementById('saco3dChipBase');
@@ -10389,7 +10391,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       // Per-strategy annotations: project waterline to 2D screen coords
       var stratDefs = [
         { id: 'sph-ann-base', label: 'Baseline',  prob: P0,             active: true,         fillIdx: -1 },
-        { id: 'sph-ann-g',    label: 'Guided',     prob: S.adaptiveProb, active: !!ov.adaptiveOn, fillIdx: 0 },
+        { id: 'sph-ann-g',    label: 'Benchmarked',     prob: S.adaptiveProb, active: !!ov.adaptiveOn, fillIdx: 0 },
         { id: 'sph-ann-o',    label: 'Optimized',  prob: S.optimizedProb,active: !!ov.fixedOn,    fillIdx: 1 },
         { id: 'sph-ann-e',    label: 'Explorer',   prob: S.adjustedProb, active: !!ov.manualOn,   fillIdx: 2 }
       ];
@@ -10666,8 +10668,8 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
         dpEl.style.color = dP > 0.005 ? '#16A34A' : dP < -0.005 ? '#DC2626' : '#6B7280';
       }
       if (stEl) {
-        stEl.textContent = pmSph === 'adaptive' && ov.adaptiveOn ? 'Conservative Optimization (Level ' + (ov.probeLevel || 3) + ')' :
-                           pmSph === 'fixed'    && ov.fixedOn    ? 'General Optimization' :
+        stEl.textContent = pmSph === 'adaptive' && ov.adaptiveOn ? 'Benchmarked Optimization (Level ' + (ov.probeLevel || 3) + ')' :
+                           pmSph === 'fixed'    && ov.fixedOn    ? 'Unconstrained Optimization' :
                            pmSph === 'manual'   && ov.manualOn   ? 'Unconstrained Optimization' : 'Baseline';
       }
       if (window.PMCMath && typeof window.PMCMath.validateLift === 'function')
@@ -10689,7 +10691,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
       }
       var sphP0 = S.baselineProb;
       _setSphChip('sphChipBase',      anyAct ? 'Baseline' : null,   sphP0,              null);
-      _setSphChip('sphChipGuided',    ov.adaptiveOn ? 'Guided'    : null, ov.adaptiveOn ? S.adaptiveProb  : null, sphP0);
+      _setSphChip('sphChipGuided',    ov.adaptiveOn ? 'Benchmarked' : null, ov.adaptiveOn ? S.adaptiveProb  : null, sphP0);
       _setSphChip('sphChipOptimized', ov.fixedOn    ? 'Optimized' : null, ov.fixedOn    ? S.optimizedProb : null, sphP0);
       _setSphChip('sphChipExplorer',  ov.manualOn   ? 'Explorer'  : null, ov.manualOn   ? S.adjustedProb  : null, sphP0);
     }
