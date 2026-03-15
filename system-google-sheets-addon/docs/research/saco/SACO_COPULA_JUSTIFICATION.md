@@ -398,7 +398,7 @@ z_correlated ~ N(0, BASE_R)  [7D normal with correlation BASE_R]
 
 ```javascript
 // Apply Gaussian copula transformation
-function applyGaussianCopula(sliders) {
+function computeCouplingSignal(sliders) {
   // Step 1: Inverse normal CDF (sliders → normal space)
   const z = sliders.map(s => Φ⁻¹(s))  // Φ⁻¹ is inverse normal CDF
 
@@ -501,7 +501,7 @@ function applyGaussianCopula(sliders) {
 **Reading Time:** 30 minutes
 **Word Count:** 2,500 words
 **Code References:**
-- `core/reshaping/copula-utils.gs:51-100` - applyGaussianCopula() implementation
+- `core/reshaping/copula-utils.gs:51-100` - computeCouplingSignal() implementation
 - `core/baseline/pert-points.gs:110-140` - Normal CDF/inverse approximations
 
 ---

@@ -3,7 +3,7 @@
 // Force sync - Jan 16 2026 - Node.js removed, all functions global for local execution
 // Update: cap reworkPercentage at 50 to match optimizer bounds (SACO domain-aware cap)
 
-console.log('validation.gs: Starting module initialization');
+Logger.log('validation.gs: Starting module initialization');
 
 function validateEstimates(optimistic, mostLikely, pessimistic) {
   if (!Number.isFinite(optimistic) || !Number.isFinite(mostLikely) || !Number.isFinite(pessimistic)) {
@@ -11,6 +11,9 @@ function validateEstimates(optimistic, mostLikely, pessimistic) {
   }
   if (optimistic > mostLikely || mostLikely > pessimistic) {
     return { valid: false, message: 'Estimates must satisfy optimistic <= mostLikely <= pessimistic' };
+  }
+  if (optimistic === pessimistic) {
+    return { valid: false, message: 'Degenerate estimate: optimistic equals pessimistic — no distribution range' };
   }
   return { valid: true, message: '' };
 }

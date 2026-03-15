@@ -1,0 +1,234 @@
+# QA Report — google-sheets-addon
+**Generated**: 2026-03-14 08:43:37  
+**Scope**: full  
+**Files scanned**: 17  
+**Static findings**: 140 FAIL · 84 WARN  
+
+---
+
+## Static Findings
+
+- **FAIL** `Plot.html` — id="overlayKpis" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiBaseline" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiAdaptive" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="probeBox" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="probeSelect" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiOptimized" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiAdjusted" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sliderResultsLink" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sliderSidebar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="slidersPanel" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sliderTitle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="optimizeNote" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sliderImpactBanner" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="resetBaseline" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="matchOptimized" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_budget_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_budget" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_budget_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_schedule_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_schedule" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_schedule_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeCert_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeCert" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeCert_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeRed_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeRed" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_scopeRed_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_rework_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_rework" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_rework_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_risk_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_risk" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_risk_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_userConf_range" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_userConf" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="s_userConf_marker" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="slidersNoteMissing" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sensitivityBars" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sensitivityContent" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="rowTglAdaptive" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="rowTglFixed" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="rowTglManual" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="recBanner" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="recActiveBar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="recStatement" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="recContext" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="recDetails" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="probSummaryBar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="psbTau" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="psbBase" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="psbGuided" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="psbOptimized" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="psbExplorer" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="seriesToggles" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="distTiles" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiTriangle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiBeta" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="kpiBaseDist" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="plotSelBar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselChkTriangle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselTriangle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselChkPDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselPDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselChkCDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pselCDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="overlaySelBar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkCDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselCDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkPDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselPDF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkRadar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselRadar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkHypercube" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselHypercube" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkSaco" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselSaco" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselChkSphere" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="oselSphere" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="modeContextStrip" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="modeContextBadge" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="modeContextLabel" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="distributionsHelpPopup" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="plotInner" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="triWrap" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="triPlotCanvas" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pdfWrap" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pdfPaneHdr" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_pdf" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="pdfCanvas" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="cdfWrap" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="cdfPaneHdr" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_cdf" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="cdfCanvas" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="rightLegend" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="legendOverlay" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="legendDistributions" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="plotMsg" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="chartDesc" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercubeSection" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="radarCard" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_radar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="radarHelpPopup" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercubeRadar" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="radarSubtitle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="radarDesc" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercube3DCard" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_hypercube3d" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercubeHelpPopup" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercube3D" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercubeSubtitle" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hypercubeDesc" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sacoVizSection" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dOuterWrap" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dStratLabel" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_saco3d" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dHud" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hudF0" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hudF" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hudDeltaP" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="hudIntDelta" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dStratRow" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dChipBase" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dChipGuided" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dChipOptimized" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dChipExplorer" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="saco3dContainer" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereOuterWrap" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereStratLabel" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="zoomBtn_sphere" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereContainer" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereP0" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereP" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereDeltaP" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphereStratRow" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphChipBase" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphChipGuided" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphChipOptimized" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="sphChipExplorer" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="decisionReport" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **FAIL** `Plot.html` — id="overlayMath" declared 2× — getElementById() returns only the first; event bindings on the duplicate are silently ignored.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run call has no withSuccessHandler — result is discarded silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — google.script.run has withSuccessHandler but no withFailureHandler — server-side errors will fail silently.
+- **WARN** `Plot.html` — Slider key 'pdf' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'adaptiveOn' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'adjusted' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'triangle' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'manualOn' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'fixed' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'baseline' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'fixedOn' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'betapert' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'manual' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'baselineOn' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'adaptive' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `Plot.html` — Slider key 'optimized' present in ['STP2_STANCE_META'] but missing from ['sliderIdMap', 'sliderValues()'].
+- **WARN** `coordinator.gs:3` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:17` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:78` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:92` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:115` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:147` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `coordinator.gs:150` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `pert-points.gs:73` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `pert-points.gs:96` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `pert-points.gs:106` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `pert-points.gs:148` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `pert-points.gs:188` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `monte-carlo-smoothed.gs:15` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `monte-carlo-smoothed.gs:91` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `monte-carlo-smoothed.gs:161` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `monte-carlo-smoothed.gs:235` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `monte-carlo-smoothed.gs:309` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `slider-adjustments.gs:659` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:23` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:29` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:33` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:43` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:65` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:130` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:134` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:150` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:153` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:163` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:170` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:259` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:293` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:390` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:496` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:517` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:518` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:569` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:575` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:584` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:596` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:599` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:603` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:610` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `optimizer.gs:677` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `validation.gs:6` — console.log() has no effect in Google Apps Script — use Logger.log().
+- **WARN** `Code.gs` — Public function pertRerunLastSheet() has no top-level try/catch — uncaught exceptions will surface as opaque GAS errors.
+- **WARN** `Code.gs` — Public function pertRunSelectedRows() has no top-level try/catch — uncaught exceptions will surface as opaque GAS errors.
+- **WARN** `Code.gs` — Public function pertRunAllRows() has no top-level try/catch — uncaught exceptions will surface as opaque GAS errors.
+- **WARN** `Code.gs` — Public function pertRunCheckedRows() has no top-level try/catch — uncaught exceptions will surface as opaque GAS errors.

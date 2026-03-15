@@ -145,7 +145,10 @@ const MOCK_SCRIPT = `
 // Error reporter — sends JS errors back to Node server AND shows on page
 window.onerror = function(msg, url, line, col, err) {
   var b = document.getElementById('errorBanner');
-  if (b) { b.style.display='block'; b.innerHTML += '<div>[ERROR] '+msg+' (line '+line+':'+col+')</div>'; }
+  if (b) {
+    var safe = String(msg).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    b.style.display='block'; b.innerHTML += '<div>[ERROR] '+safe+' (line '+line+':'+col+')</div>';
+  }
   fetch('/console', { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({type:'error',msg:msg,url:url,line:line,col:col,stack:err&&err.stack})
   }).catch(function(){});

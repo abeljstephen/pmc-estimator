@@ -52,10 +52,10 @@ class ClaudeProvider(BaseProvider):
         """
         Calculate Claude cost based on current pricing.
 
-        Pricing (as of Feb 2025):
-        - Claude 3.5 Opus: $3/$15 per MTok
-        - Claude 3.5 Sonnet: $3/$15 per MTok
-        - Claude 3 Haiku: $0.80/$4 per MTok
+        Pricing (as of Mar 2026):
+        - Claude Sonnet 4.6 (claude-sonnet-4-6): $3/$15 per MTok  ← current default
+        - Claude Opus 4.6  (claude-opus-4-6):    $15/$75 per MTok
+        - Claude Haiku 4.5 (claude-haiku-4-5):   $0.80/$4 per MTok
 
         Args:
             input_tokens: Input token count

@@ -121,7 +121,10 @@ function extractError(e) {
 }
 function clipPoints(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr.slice(0, MAX_POINTS);
+  if (arr.length <= MAX_POINTS) return arr;
+  // Subsample uniformly preserving first and last points so CDF endpoint = 1 is retained
+  const step = (arr.length - 1) / (MAX_POINTS - 1);
+  return Array.from({ length: MAX_POINTS }, function(_, i) { return arr[Math.round(i * step)]; });
 }
 function coercePercent01(x) {
   return Math.max(0, Math.min(1, Number(x)));
@@ -139,7 +142,7 @@ function to01FromUi(sliders) {
   out.scheduleFlexibility = Math.max(0, Math.min(1, (Number(sliders.scheduleFlexibility) || 0) / 100));
   out.scopeCertainty = Math.max(0, Math.min(1, (Number(sliders.scopeCertainty) || 0) / 100));
   out.scopeReductionAllowance = Math.max(0, Math.min(1, (Number(sliders.scopeReductionAllowance) || 0) / 100));
-  out.reworkPercentage = Math.max(0, Math.min(0.5, (Number(sliders.reworkPercentage) || 0) / 50));
+  out.reworkPercentage = Math.max(0, Math.min(1, (Number(sliders.reworkPercentage) || 0) / 50));
   out.riskTolerance = Math.max(0, Math.min(1, (Number(sliders.riskTolerance) || 0) / 100));
   const uc = sliders.userConfidence == null ? 100 : Number(sliders.userConfidence);
   out.userConfidence = Math.max(0, Math.min(1, (Number.isFinite(uc) ? uc : 100) / 100));
@@ -173,6 +176,7 @@ function processTask(task) {
       randomSeed = BUILD_INFO.randomSeed || Date.now().toString(),
       adaptive = true,
       probeLevel = 5,
+      manualBenchStrictness = 7,
       priorHistory = null
     } = task || {};
 
@@ -329,6 +333,32 @@ function processTask(task) {
           },
           explain: adjRes.explain || null
         };
+
+    // Benchmarked manual: user's slider values clamped to PMBOK/CII BENCH ceilings.
+    // Where the user exceeds a benchmark limit, the limit overrides. Where below, user value kept.
+    const BENCH_CEILING_UI = { budgetFlexibility: 75, scheduleFlexibility: 75, scopeCertainty: 60,
+      scopeReductionAllowance: 50, reworkPercentage: 25, riskTolerance: 50, userConfidence: 50 };
+    try {
+      if (hasTarget && adjustedBlock.status !== 'error') {
+        const benchStrict = Math.max(1, Math.min(7, Number(manualBenchStrictness) || 7)) / 7;
+        const benchSlidersUi = {};
+        for (const k of Object.keys(inputSliders)) {
+          const ceil = BENCH_CEILING_UI[k];
+          const userVal = Number(inputSliders[k]) || 0;
+          benchSlidersUi[k] = (ceil != null && userVal > ceil)
+            ? userVal - benchStrict * (userVal - ceil)
+            : userVal;
+        }
+        const benchRes = reshapeDistribution({
+          points: { pdfPoints: pdf, cdfPoints: cdf },
+          optimistic, mostLikely, pessimistic, targetValue,
+          sliderValues: benchSlidersUi, probeLevel: 1
+        });
+        if (benchRes && !benchRes.error) {
+          adjustedBlock.manualBenchmarkedProb = coercePercent01(benchRes.probability?.value);
+        }
+      }
+    } catch (_) {}
 
     const allZeroPassThrough =
       !!(adjustedBlock.explain &&
@@ -685,6 +715,9 @@ function processTask(task) {
       ? (response.adjusted?.probabilityAtTarget?.value ??
          response.baseline.probabilityAtTarget.value)
       : undefined;
+    if (hasTarget && adjustedBlock.manualBenchmarkedProb != null) {
+      response.targetProbability.value.manualBenchmarked = adjustedBlock.manualBenchmarkedProb;
+    }
     if (__tp_adjustedOptimized != null) {
       response.targetProbability.value.adjustedOptimized = __tp_adjustedOptimized;
     } else if (hasTarget) {

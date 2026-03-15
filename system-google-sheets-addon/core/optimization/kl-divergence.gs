@@ -2,20 +2,7 @@
 // Compute KL divergence between two PDFs using a shared grid. v1.9.24
 // Cleaned for pure Apps Script - global scope, no Node.js
 
-function trapezoidArea(points) {
-  let A = 0;
-  for (let i = 1; i < points.length; i++) {
-    A += 0.5 * (points[i - 1].y + points[i].y) * (points[i].x - points[i - 1].x);
-  }
-  return A;
-}
-
-function renormalizePdf(points) {
-  const A = trapezoidArea(points);
-  if (!Number.isFinite(A) || A <= 0) return false;
-  for (const p of points) p.y /= A;
-  return true;
-}
+// trapezoidArea and renormalizePdf defined in optimizer.gs (shared global scope)
 
 function computeKLDivergence(params) {
   try {

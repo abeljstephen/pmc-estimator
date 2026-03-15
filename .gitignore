@@ -119,3 +119,8 @@ system-google-cloud-functions-api/private_key/
 system-google-cloud-functions-api/test_scripts/*.json
 system-google-cloud-functions-api/*key*.json
 
+
+# --- Secrets / credentials (NEVER COMMIT) ---
+.env
+.env.*
+!.env.example

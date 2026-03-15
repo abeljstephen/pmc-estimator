@@ -247,10 +247,11 @@
   /* ------------------------------------------------------------------ */
 
   /**
-   * Apply Gaussian copula correlation to a 7-element array S01.
-   * Centers/scales → R-multiply → tanh squash back to (0,1).
+   * Correlation-weighted coupling signal (Patent Claim 2).
+   * Not a probit→Cholesky→Φ copula. Intentional design: z-scores → R·z → tanh sigmoid → U ∈ (0,1)^7.
+   * mean(U) = coupling scalar; t = clamp(0.3 + 0.4 × coupling) drives the linear/OR blend weight.
    */
-  function applyGaussianCopula(S01) {
+  function computeCouplingSignal(S01) {
     var n = SLIDER_KEYS.length;
     var R = psdJitter(BASE_R, 1e-6);
     var m = arrMean(S01);
@@ -298,7 +299,7 @@
       por = Math.max(0, Math.min(1, por));
 
       /* Blend linear & prob-OR via copula coupling */
-      var U = applyGaussianCopula(S01);
+      var U = computeCouplingSignal(S01);
       var coupling = arrMean(U);
       var t = Math.max(0, Math.min(1, 0.3 + 0.4 * coupling));
       var m0 = allZeroRaw ? 0 : Math.max(0, Math.min(1, (1 - t) * lin + t * por));
@@ -833,7 +834,7 @@
     computeKLDivergence: computeKLDivergence,
 
     /* Copula / moments */
-    applyGaussianCopula:    applyGaussianCopula,
+    computeCouplingSignal:  computeCouplingSignal,
     computeAdjustedMoments: computeAdjustedMoments,
 
     /* Beta refit */

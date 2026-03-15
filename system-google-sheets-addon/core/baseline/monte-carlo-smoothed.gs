@@ -12,7 +12,7 @@
  * Math: KDE h=range/63.3 (rule-of-thumb); renormalize ∫pdf=1 for exp(-KL) fidelity; Ch.6: erf-slack via clamp.
  */
 function generateMonteCarloSmoothedPoints(params) {
-  console.log('generateMonteCarloSmoothedPoints: Starting', {
+  Logger.log('generateMonteCarloSmoothedPoints: Starting', {
     params: { ...params, samples: Array.isArray(params?.samples) ? `(n=${params.samples.length})` : undefined }
   });
   console.time('generateMonteCarloSmoothedPoints');
@@ -88,7 +88,7 @@ function generateMonteCarloSmoothedPoints(params) {
       throw new Error('Invalid PDF/CDF points generated');
     }
 
-    console.log('generateMonteCarloSmoothedPoints: Completed', {
+    Logger.log('generateMonteCarloSmoothedPoints: Completed', {
       pdfPointsLength: nPdf.length, cdfPointsLength: cdf.length
     });
     console.timeEnd('generateMonteCarloSmoothedPoints');
@@ -158,7 +158,7 @@ function normalSampleGas() {
  * @returns {{ pdfPoints, cdfPoints, posteriorStats }} — posteriorStats for UI display
  */
 function generateMCMCSmoothedPoints(params) {
-  console.log('generateMCMCSmoothedPoints: Starting (MH-MCMC v2.0)', {
+  Logger.log('generateMCMCSmoothedPoints: Starting (MH-MCMC v2.0)', {
     params: { ...params, samples: Array.isArray(params?.samples) ? `(n=${params.samples.length})` : undefined }
   });
   console.time('generateMCMCSmoothedPoints');
@@ -232,7 +232,7 @@ function generateMCMCSmoothedPoints(params) {
     const chainStd   = Math.sqrt(Math.max(0, chainVar));
     const acceptRate = accepted / (nChain - burnIn);
 
-    console.log('generateMCMCSmoothedPoints: Chain stats', {
+    Logger.log('generateMCMCSmoothedPoints: Chain stats', {
       chainLength: chainSamples.length, chainMean, chainStd,
       acceptRate: acceptRate.toFixed(3), nHist
     });
@@ -306,7 +306,7 @@ function generateMCMCSmoothedPoints(params) {
       credibility: Math.min(1, nHist / 10)           // 0–1 signal strength indicator
     };
 
-    console.log('generateMCMCSmoothedPoints: Completed', {
+    Logger.log('generateMCMCSmoothedPoints: Completed', {
       pdfPointsLength: nPdf.length, cdfPointsLength: cdf.length, posteriorStats
     });
     console.timeEnd('generateMCMCSmoothedPoints');

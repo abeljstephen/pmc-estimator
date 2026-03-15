@@ -70,7 +70,7 @@ function betaPdf(u, alpha, beta) {
 
 // Canonical PERT (λ=4) mapping: (O, M, P) → (α, β)
 function computeBetaMoments(params) {
-  console.log('computeBetaMoments: Starting', { params });
+  Logger.log('computeBetaMoments: Starting', { params });
   try {
     const { optimistic: O, mostLikely: M, pessimistic: P } = params || {};
     if (![O, M, P].every(Number.isFinite)) {
@@ -93,7 +93,7 @@ function computeBetaMoments(params) {
     if (alpha < 1) alpha = 1 + EPS;
     if (beta  < 1) beta  = 1 + EPS;
 
-    console.log('computeBetaMoments: Completed', { alpha, beta, lambda });
+    Logger.log('computeBetaMoments: Completed', { alpha, beta, lambda });
     return { alpha, beta };
   } catch (error) {
     console.error('computeBetaMoments: Error', { message: error.message, stack: error.stack });
@@ -103,7 +103,7 @@ function computeBetaMoments(params) {
 
 // Generate (scaled) Beta PDF/CDF over [O,P] for PERT distribution
 function generatePertPoints(params) {
-  console.log('generatePertPoints: Starting', { params });
+  Logger.log('generatePertPoints: Starting', { params });
   try {
     const { optimistic, mostLikely, pessimistic, numSamples = 200 } = params;
 
@@ -136,8 +136,10 @@ function generatePertPoints(params) {
     const pdf = [];
     for (let i = 0; i < numSamples; i++) {
       const x = optimistic + i * step;
-      const u = (x - optimistic) / range; // map to [0,1]
-      const y = (u >= 0 && u <= 1) ? betaPdf(u, alpha, beta) / range : 0;
+      // Use ε at endpoints so betaPdf boundary guard (u≤0 or u≥1 → 0) doesn't suppress
+      // a true non-zero density when α=1 (M=O) or β=1 (M=P)
+      const u = i === 0 ? 1e-10 : (i === numSamples - 1 ? 1 - 1e-10 : (x - optimistic) / range);
+      const y = betaPdf(u, alpha, beta) / range;
       if (!Number.isFinite(y)) {
         console.warn('Invalid PDF value at x=' + x + ', u=' + u + ', y=' + y);
         continue; // skip bad point
@@ -145,7 +147,7 @@ function generatePertPoints(params) {
       pdf.push({ x, y });
     }
 
-    console.log('generatePertPoints: Generated ' + pdf.length + ' PDF points');
+    Logger.log('generatePertPoints: Generated ' + pdf.length + ' PDF points');
 
     // Normalize PDF (trapezoidal area = 1)
     let area = 0;
@@ -185,7 +187,7 @@ function generatePertPoints(params) {
     }
     if (cdf.length) cdf[cdf.length - 1].y = 1.0;
 
-    console.log('generatePertPoints: Completed', {
+    Logger.log('generatePertPoints: Completed', {
       pdfPointsLength: nPdf.length,
       cdfPointsLength: cdf.length
     });

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # PMC Estimator — Apps Script Limits Monitor
-# Run manually: bash agents/limits-monitor/check-limits.sh
+# Run manually: bash agents/gas-monitor-agent/check-limits.sh
 # Or let the Claude session cron call it automatically.
 # ============================================================
 

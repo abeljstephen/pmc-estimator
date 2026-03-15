@@ -18,19 +18,30 @@
 //        Fallback: If interpolation fails (rare edge case), use baseline prob (real data, not dummy)
 
 var CANON_SLIDERS = SLIDER_KEYS.slice(); // SLIDER_KEYS assumed global from reshaping/copula-utils.gs
-var W_MEAN = [-0.2, 0.1, 0.3, -0.15, -0.08, 0.25, 0.05];
-var PER_SLIDER_BOUNDS = W_MEAN.map(w => ({ lo: w < 0 ? 0.15 : 0, hi: w > 0 ? 0.7 : 1.0 }));
-console.log('OPTIMIZER v1.9.33 — SACO Geometry + Latin Hypercube');
+// W_MEAN is authoritative in copula-utils.gs (loads after this file alphabetically).
+// PER_SLIDER_BOUNDS pre-computed here from W_MEAN signs to avoid load-order dependency.
+// If W_MEAN changes in copula-utils.gs, update this table to match.
+// W_MEAN = [-0.2, 0.1, 0.3, -0.15, -0.08, 0.25, 0.05]
+var PER_SLIDER_BOUNDS = [
+  { lo: 0.15, hi: 1.0 },  // budgetFlexibility        w=-0.2
+  { lo: 0.0,  hi: 0.7 },  // scheduleFlexibility      w=+0.1
+  { lo: 0.0,  hi: 0.7 },  // scopeCertainty           w=+0.3
+  { lo: 0.15, hi: 1.0 },  // scopeReductionAllowance  w=-0.15
+  { lo: 0.15, hi: 1.0 },  // reworkPercentage         w=-0.08
+  { lo: 0.0,  hi: 0.7 },  // riskTolerance            w=+0.25
+  { lo: 0.0,  hi: 0.7 },  // userConfidence           w=+0.05
+];
+Logger.log('OPTIMIZER v1.9.33 — SACO Geometry + Latin Hypercube');
 
 // Placeholder SACO_GEOMETRY (prevents "not defined" errors)
 // Replace with real implementations from copula-utils.gs / kl-divergence.gs later
 var SACO_GEOMETRY = {
   baseline: function(params) {
-    console.log('SACO_GEOMETRY.baseline placeholder called:', params);
+    Logger.log('SACO_GEOMETRY.baseline placeholder called:', params);
     return { pdfPoints: [], cdfPoints: [] };
   },
   lhsSample: function(n, dims, seed = Date.now()) {
-    console.log('lhsSample placeholder: n=', n, 'dims=', dims);
+    Logger.log('lhsSample placeholder: n=', n, 'dims=', dims);
     const samples = Array.from({ length: n }, () => Array(dims).fill(0));
     for (let j = 0; j < dims; j++) {
       for (let i = 0; i < n; i++) {
@@ -40,7 +51,7 @@ var SACO_GEOMETRY = {
     return samples;
   },
   computeMoments: function(sliders100, scale, cv) {
-    console.log('computeMoments placeholder:', sliders100);
+    Logger.log('computeMoments placeholder:', sliders100);
     return { moments: [0, 0] };
   },
   betaRefit: function(o, m, p, moments) {
@@ -62,7 +73,7 @@ var SACO_GEOMETRY = {
     return { alpha, beta };
   },
   klDivergence: function(params) {
-    console.log('klDivergence placeholder:', params);
+    Logger.log('klDivergence placeholder:', params);
     return { 'triangle-monteCarloSmoothed': 0 };
   }
 };
@@ -124,50 +135,50 @@ function renormalizePdf(points) {
 function applyReshapeRules(x, mode, probeLevel = 1, seedBest = null, state = {}) {
   x = x.map((v, i) => {
     const bounds = PER_SLIDER_BOUNDS[i];
-    const hi = (i === 4) ? Math.min(0.5, bounds.hi) : bounds.hi;
+    const hi = bounds.hi;  // reworkPercentage now maps full [0,1] internally (to01FromUi fix)
     return Math.max(bounds.lo, Math.min(hi, v));
   });
-  console.log('RULES CLAMP: x post-clamp', x.map(v => v.toFixed(3)));
+  Logger.log('RULES CLAMP: x post-clamp', x.map(v => v.toFixed(3)));
 
   const { o, m, p, tau, p0, cv, skew, sigma } = state;
   if (!monotoneFeas(x, o, m, p, tau, p0, cv, skew, sigma)) {
-    console.log('RULES FEAS FAIL: Perturbing budget...');
+    Logger.log('RULES FEAS FAIL: Perturbing budget...');
     x[0] += 0.01 * Math.sign(W_MEAN[0]);
     x = x.map((v, i) => {
       const bounds = PER_SLIDER_BOUNDS[i];
-      const hi = (i === 4) ? Math.min(0.5, bounds.hi) : bounds.hi;
+      const hi = bounds.hi;  // reworkPercentage now maps full [0,1] internally (to01FromUi fix)
       return Math.max(bounds.lo, Math.min(hi, v));
     });
   }
 
   if (mode === 'adaptive' && seedBest && probeLevel > 1) {
-    let maxDiv = 0;
+    let maxAnchorDev = 0;
     for (let i = 0; i < 7; i++) {
-      const div = Math.abs(x[i] - seedBest[i]) / Math.max(seedBest[i] || 0.01, 1e-6);
-      maxDiv = Math.max(maxDiv, div);
-      if (div > 0.08) {
+      const dev = Math.abs(x[i] - seedBest[i]);  // absolute deviation in [0,1] slider space
+      maxAnchorDev = Math.max(maxAnchorDev, dev);
+      if (dev > 0.05) {
         x[i] = lerp(x[i], seedBest[i], 0.8);
-        console.log(`ANCHOR ADJUST: slider ${i} dev=${div.toFixed(3)} > 0.08 → lerped to seed`);
+        Logger.log(`ANCHOR ADJUST: slider ${i} dev=${dev.toFixed(3)} > 0.05 → lerped to seed`);
       }
     }
-    console.log('RULES ANCHOR: maxDiv=' + maxDiv.toFixed(3));
+    Logger.log('RULES ANCHOR: maxAnchorDev=' + maxAnchorDev.toFixed(3));
 
     const dampenFactor = seedBest ? 1.0 : Math.max(1 / probeLevel, 0.5);
     let xDamp = x.map(v => clamp01(v * dampenFactor));
     xDamp = xDamp.map((v, i) => {
       const bounds = PER_SLIDER_BOUNDS[i];
-      const hi = (i === 4) ? Math.min(0.5, bounds.hi) : bounds.hi;
+      const hi = bounds.hi;  // reworkPercentage now maps full [0,1] internally (to01FromUi fix)
       return Math.max(bounds.lo, Math.min(hi, v));
     });
     x = xDamp;
-    console.log('RULES DAMPEN: factor=' + dampenFactor.toFixed(3) + ' (seeded=' + !!seedBest + ')');
+    Logger.log('RULES DAMPEN: factor=' + dampenFactor.toFixed(3) + ' (seeded=' + !!seedBest + ')');
   }
   return x;
 }
 
 /* ---------------------------- Error helpers ---------------------------- */
 function stepLog(step, msg, extra) {
-  try { console.log(`// ${step} ${msg}${extra ? ' ' + JSON.stringify(extra).slice(0, 300) : ''}`); } catch (_) {}
+  try { Logger.log(`// ${step} ${msg}${extra ? ' ' + JSON.stringify(extra).slice(0, 300) : ''}`); } catch (_) {}
 }
 function logStepThrow(stepName, err) {
   console.error(`Optimizer Error at step ${stepName}:`, err?.message || err);
@@ -223,7 +234,7 @@ function monotoneFeas(x01, o, m, p, tau, p0, cv, skew, sigma) {
     x01[0] += 0.01 * Math.sign(W_MEAN[0]);
     x01 = x01.map((v, i) => {
       const bounds = PER_SLIDER_BOUNDS[i];
-      const hi = (i === 4) ? Math.min(0.5, bounds.hi) : bounds.hi;
+      const hi = bounds.hi;  // reworkPercentage now maps full [0,1] internally (to01FromUi fix)
       return Math.max(bounds.lo, Math.min(hi, v));
     });
     feasible = (adjO < adjM * slack && adjM < adjP * slack);
@@ -256,7 +267,7 @@ function sacoObjective(sliders01, o, m, p, tau, basePdf, baseCdf, bBias, adaptiv
         bb = 0.05 + 0.03 * mean(W_MEAN.map((w, i) => sliders01[i] * Math.sign(w)));
       }
     }
-    console.log('TAMING DEBUG:', { m1Before, m1After: m1, bBias: bb, p0, tauVsMu: tau > mu, probeLevel, tameFactor });
+    Logger.log('TAMING DEBUG:', { m1Before, m1After: m1, bBias: bb, p0, tauVsMu: tau > mu, probeLevel, tameFactor });
     const sigma = stdDev(basePdf);
     const skew = sigma > 0 ? (mu - tau) / sigma : 0;
     const cvLocal = sigma / mu;
@@ -290,7 +301,7 @@ function sacoObjective(sliders01, o, m, p, tau, basePdf, baseCdf, bBias, adaptiv
     const score = feasible ? Math.pow(pNew, 1 + bb) * Math.exp(-kl) * Math.exp(-leashPenalty) : -1e12;
     return { score, pNew, kl, refit, x: sliders01, leashPenalty, feasible };
   } catch (e) {
-    console.log('SACO Obj Error:', e.message);
+    Logger.log('SACO Obj Error:', e.message);
     return { score: 0, pNew: 0.5, x: sliders01, feasible: false };
   }
 }
@@ -387,7 +398,7 @@ function step1_baseline(state) {
   if (state.points && Array.isArray(state.points.pdfPoints) && state.points.pdfPoints.length > 0 &&
       Array.isArray(state.points.cdfPoints) && state.points.cdfPoints.length > 0) {
     base = state.points;
-    console.log('step1_baseline: Using pre-computed baseline points (PDF=' + base.pdfPoints.length + ', CDF=' + base.cdfPoints.length + ')');
+    Logger.log('step1_baseline: Using pre-computed baseline points (PDF=' + base.pdfPoints.length + ', CDF=' + base.cdfPoints.length + ')');
   } else {
     const baselineRaw = SACO_GEOMETRY.baseline({ optimistic: o, mostLikely: m, pessimistic: p, numSamples: state.numSamples || 200, samples: null });
     base = baselineRaw.pdfPoints && baselineRaw.cdfPoints ? baselineRaw : null;
@@ -493,7 +504,7 @@ function step6_robust(state) {
 }
 
 function step7_output(state) {
-  console.log('*** STEP7 v1.9.33 - CRASH-PROOF VERSION - ALL toFixed GUARDED ***');
+  Logger.log('*** STEP7 v1.9.33 - CRASH-PROOF VERSION - ALL toFixed GUARDED ***');
 
   const { result, o, m, p, tau, baseline, p0, adaptive, range, probeLevel, status: stepStatus } = state;
   let x = result?.x?.length === 7 ? result.x.slice() : Array(7).fill(0);
@@ -514,8 +525,8 @@ function step7_output(state) {
       }
     }
     if (reverted) {
-      console.log('ANCHOR DEBUG: Reverted sliders (max deviation exceeded 0.50)');
-      console.log('Reverted sliders:', x.map(v => v.toFixed(4)));
+      Logger.log('ANCHOR DEBUG: Reverted sliders (max deviation exceeded 0.50)');
+      Logger.log('Reverted sliders:', x.map(v => v.toFixed(4)));
     }
   }
 
@@ -566,13 +577,13 @@ function step7_output(state) {
       if (betaPts.pdfPoints?.length > 1) {
         reshapedPdf = betaPts.pdfPoints;
         reshapedCdf = betaPts.cdfPoints;
-        console.log('Step7: Successfully reshaped points after final sliders (revert handled)');
+        Logger.log('Step7: Successfully reshaped points after final sliders (revert handled)');
       }
     } catch (e) {
       console.warn('Step7: generateBetaPoints failed after revert', e.message);
     }
   } else {
-    console.log('Step7: No valid refit after revert — using baseline points');
+    Logger.log('Step7: No valid refit after revert — using baseline points');
   }
 
   // FIXED: Removed obsolete "Fallback to baseline points applied (revert case)" log — new points are always attached after reversion
@@ -581,7 +592,7 @@ function step7_output(state) {
   let finalProbRaw = interpolateCdf(reshapedCdf, tau);
   let finalProb = 0.5;
 
-  console.log('Step7: interpolateCdf raw output:', JSON.stringify(finalProbRaw));
+  Logger.log('Step7: interpolateCdf raw output:', JSON.stringify(finalProbRaw));
 
   if (finalProbRaw != null) {
     if (typeof finalProbRaw === 'object' && finalProbRaw !== null && Number.isFinite(finalProbRaw.value)) {
@@ -593,21 +604,21 @@ function step7_output(state) {
 
   if (!Number.isFinite(finalProb) || finalProb === 0) {
     finalProb = pctClamp01(interpolateCdf(baseline.cdfPoints, tau).value || 0.5);
-    console.log('Step7: Final prob fallback to baseline: ' + (Number.isFinite(finalProb) ? finalProb.toFixed(4) : 'INVALID'));
+    Logger.log('Step7: Final prob fallback to baseline: ' + (Number.isFinite(finalProb) ? finalProb.toFixed(4) : 'INVALID'));
   }
 
-  console.log('Step7: finalProb type =', typeof finalProb, 'value =', finalProb);
+  Logger.log('Step7: finalProb type =', typeof finalProb, 'value =', finalProb);
 
   // All .toFixed calls are now AFTER safe extraction and guarded
   const finalProbLog = Number.isFinite(finalProb) ? finalProb.toFixed(4) : 'INVALID';
-  console.log('Step7: Final prob recalculated after reshape/revert: ' + finalProbLog);
+  Logger.log('Step7: Final prob recalculated after reshape/revert: ' + finalProbLog);
 
   let lift = finalProb - p0;
 
   // GUARD: Never return a probability worse than baseline.
   // If optimization made things worse, fall back to baseline distribution with zero sliders.
   if (Number.isFinite(lift) && lift < -0.0001 && Number.isFinite(p0)) {
-    console.log('Step7: Optimization degraded probability (' + finalProb.toFixed(4) + ' < baseline ' + p0.toFixed(4) + '). Reverting to baseline.');
+    Logger.log('Step7: Optimization degraded probability (' + finalProb.toFixed(4) + ' < baseline ' + p0.toFixed(4) + '). Reverting to baseline.');
     finalProb = p0;
     lift = 0;
     reshapedPdf = baseline.pdfPoints;
@@ -674,7 +685,7 @@ function optimizeSliders(params) {
     fixedState = step2_hypercubeLhs(fixedState);
     fixedState = step3_warmStart(fixedState);
     fixedState = step4_search(fixedState);
-    console.log('Fixed Complete:', { bestGridBudget: fixedState.bestGridFull[0] * 100 });
+    Logger.log('Fixed Complete:', { bestGridBudget: fixedState.bestGridFull[0] * 100 });
     fixedState = step5_refine(fixedState);
     fixedState = step6_robust(fixedState);
     fixedState = step7_output(fixedState);

@@ -73,3 +73,15 @@ function pmc_estimator_shortcode( $atts ) {
     return ob_get_clean();
 }
 add_shortcode( 'pmc_estimator', 'pmc_estimator_shortcode' );
+
+/**
+ * Add Content-Security-Policy header on pages that use the [pmc_estimator] shortcode.
+ * estimator.html is a template fragment (no DOCTYPE) so CSP must be set at the HTTP level.
+ */
+function pmc_estimator_add_csp_header() {
+    if ( ! is_singular() ) return;
+    global $post;
+    if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'pmc_estimator' ) ) return;
+    header( "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'unsafe-inline' 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self'; font-src https://cdn.jsdelivr.net data:;" );
+}
+add_action( 'send_headers', 'pmc_estimator_add_csp_header' );

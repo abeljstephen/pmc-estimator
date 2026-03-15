@@ -251,7 +251,7 @@ var BASE_R = [
   // ... 7×7 correlation matrix
 ];
 
-function applyGaussianCopula(S01) {
+function computeCouplingSignal(S01) {
   const R = psdJitter(BASE_R, 1e-6);  // Add small diagonal jitter
 
   // Center & scale to z-scores
@@ -329,7 +329,7 @@ function computeAdjustedMoments(sliders100, scaleFactor = 1, cv = 0) {
   for (let i=0; i<n; i++) por = 1 - (1 - por) * (1 - 0.9*S01[i]);
 
   // Blend linear & prob-OR
-  const U = applyGaussianCopula(S01);
+  const U = computeCouplingSignal(S01);
   const coupling = mean(U);
   const t = Math.max(0, Math.min(1, 0.3 + 0.4 * coupling));  // 0.3 to 0.7
   const m0 = allZeroRaw ? 0 : (1 - t)*lin + t*por;

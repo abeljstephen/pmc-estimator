@@ -12,8 +12,8 @@ import json
 import argparse
 from pathlib import Path
 
-# Add config to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add system-google-sheets-addon to path (config_api symlinks to config-api for importability)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "system-google-sheets-addon"))
 
 from config.config_api import APIClient
 
@@ -67,7 +67,7 @@ def build_audit_prompt(rules, improvements, code_files, config):
     """Build the prompt for the mathematician auditor"""
 
     code_section = "\n".join(
-        [f"## File: {name}\n```\n{content[:2000]}\n```\n" for name, content in code_files.items()]
+        [f"## File: {name}\n```\n{content[:8000]}\n```\n" for name, content in code_files.items()]
     )
 
     prompt = f"""You are a Nobel Prize-winning mathematician specializing in probability theory and statistics, serving as a rigorous quality assurance auditor for a probabilistic estimation system.
@@ -179,7 +179,7 @@ def audit_files(file_paths, agent_dir=None, preferred_provider=None, interactive
             from config.config_api import ProviderFactory
             import json
 
-            config_path = project_root / "config/config-api/agency-config.json"
+            config_path = project_root / "system-google-sheets-addon/config/config-api/agency-config.json"
             with open(config_path) as f:
                 config = json.load(f)
 

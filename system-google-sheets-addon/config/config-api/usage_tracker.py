@@ -31,7 +31,11 @@ class UsageTracker:
             config: agency-config.json as dict
         """
         self.config = config
-        self.log_file = Path(config.get("usage_control", {}).get("track_file", "config/logs/api-usage.json"))
+        # Resolve log path relative to this file's directory (system-google-sheets-addon/config/config-api/)
+        # so it works regardless of the working directory the agent is launched from.
+        _base = Path(__file__).parent.parent.parent  # → system-google-sheets-addon/
+        relative = config.get("usage_control", {}).get("track_file", "config/logs/api-usage.json")
+        self.log_file = _base / relative
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
     def log_request(

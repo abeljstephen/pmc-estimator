@@ -1,6 +1,6 @@
 // baseline/coordinator.gs — Baseline generation (pure Apps Script - global)
 // Force sync - Jan 16 2026 - Node.js removed
-console.log('coordinator.gs: Starting module initialization');
+Logger.log('coordinator.gs: Starting module initialization');
 
 /**
  * Generates baseline distributions and metrics. v1.9.24 → v1.9.28 (added CI & KL surfacing)
@@ -14,7 +14,7 @@ console.log('coordinator.gs: Starting module initialization');
  * - NEW: Attaches KL divergence to triangle in monteCarloSmoothed block
  */
 function generateBaseline(params) {
-  console.log('generateBaseline: Starting', { params });
+  Logger.log('generateBaseline: Starting', { params });
   try {
     const {
       optimistic, mostLikely, pessimistic,
@@ -75,7 +75,7 @@ function generateBaseline(params) {
       }
       monteCarloRawPoints.cdfPoints = ensureSortedMonotoneCdf(monteCarloRawPoints.cdfPoints);
     } else {
-      console.log('generateBaseline: suppressOtherDistros=true (PERT/Beta/MC-raw skipped; Triangle kept)');
+      Logger.log('generateBaseline: suppressOtherDistros=true (PERT/Beta/MC-raw skipped; Triangle kept)');
     }
 
     // Monte Carlo smoothed (active baseline)
@@ -89,7 +89,7 @@ function generateBaseline(params) {
       Number.isFinite(params.priorHistory.meanOverrunFrac);
     if (hasPriorHistory) {
       smoothedParams.priorHistory = params.priorHistory;
-      console.log('generateBaseline: Using MCMC Bayesian baseline (priorHistory n=' + params.priorHistory.n + ')');
+      Logger.log('generateBaseline: Using MCMC Bayesian baseline (priorHistory n=' + params.priorHistory.n + ')');
     }
     const monteCarloSmoothedPoints = hasPriorHistory
       ? generateMCMCSmoothedPoints(smoothedParams)
@@ -112,7 +112,7 @@ function generateBaseline(params) {
       ciUpper = invertCdf(cdf, hiQ);
       // Attach directly to monteCarloSmoothedPoints for envelope
       monteCarloSmoothedPoints.ci = { lower: ciLower, upper: ciUpper };
-      console.log('generateBaseline: Added 95% CI → lower:', ciLower, 'upper:', ciUpper);
+      Logger.log('generateBaseline: Added 95% CI → lower:', ciLower, 'upper:', ciUpper);
     }
 
     // Metrics (PERT, CI, CV, etc.)
@@ -144,10 +144,10 @@ function generateBaseline(params) {
     // NEW: Attach KL directly to monteCarloSmoothedPoints so it reaches the envelope
     if (Number.isFinite(kld)) {
       monteCarloSmoothedPoints.klDivergenceToTriangle = kld;
-      console.log('generateBaseline: Attached KL divergence to triangle:', kld);
+      Logger.log('generateBaseline: Attached KL divergence to triangle:', kld);
     }
 
-    console.log('generateBaseline: Completed', {
+    Logger.log('generateBaseline: Completed', {
       ciLower, ciUpper, kld,
       mcPdf: monteCarloSmoothedPoints.pdfPoints.length,
       mcCdf: monteCarloSmoothedPoints.cdfPoints.length

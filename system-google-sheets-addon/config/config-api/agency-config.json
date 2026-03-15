@@ -11,8 +11,8 @@
       "enabled": true,
       "name": "Claude (Anthropic)",
       "api_key_env_var": "ANTHROPIC_API_KEY",
-      "model": "claude-opus-4-5-20251101",
-      "max_tokens": 4096,
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 8192,
       "temperature": 0,
       "billing": {
         "currency": "USD",
@@ -55,11 +55,11 @@
       "enabled": true,
       "provider": "claude",
       "fallback_providers": [],
-      "max_tokens": 4096,
+      "max_tokens": 8192,
       "temperature": 0,
       "rate_limit": {
         "requests_per_day": 100,
-        "tokens_per_day": 50000
+        "tokens_per_day": 200000
       },
       "metadata_tags": [
         "mathematical-qa",

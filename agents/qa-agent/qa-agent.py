@@ -32,6 +32,26 @@ from pathlib import Path
 
 import anthropic
 
+# ── Pricing constants (claude-opus-4-6) ──────────────────────────────────────
+_PRICE_IN_PER_MTOK  = 15.00   # USD per million input tokens
+_PRICE_OUT_PER_MTOK = 75.00   # USD per million output tokens
+
+# Approximate output tokens per phase
+_EST_OUT_TOKENS = {
+    "math":     4_000,
+    "research": 3_000,   # per question
+    "synth":    6_000,
+}
+
+# Overhead tokens added to each call (system prompt, framing, etc.)
+_CALL_OVERHEAD_TOKENS = 2_500
+
+# Path to the API usage log written by UsageTracker / APIClient
+_USAGE_LOG = (
+    Path(__file__).parent.parent.parent
+    / "system-google-sheets-addon" / "config" / "logs" / "api-usage.json"
+)
+
 AGENT_DIR  = Path(__file__).parent
 PROJECT_ROOT = AGENT_DIR.parent.parent
 REPORTS_DIR  = AGENT_DIR / "reports"
@@ -141,6 +161,190 @@ TARGETS = {
         ],
     },
 }
+
+# ── Cost gate helpers ────────────────────────────────────────────────────────
+
+def _file_tokens(path: Path) -> int:
+    """Estimate token count from file size (chars / 4)."""
+    try:
+        return max(1, len(path.read_text(encoding="utf-8")) // 4)
+    except Exception:
+        return 0
+
+
+def _usd(tokens_in: int, tokens_out: int) -> float:
+    return (tokens_in / 1_000_000) * _PRICE_IN_PER_MTOK + \
+           (tokens_out / 1_000_000) * _PRICE_OUT_PER_MTOK
+
+
+def read_current_usage() -> dict:
+    """
+    Return a dict with keys: total_cost, total_input_tokens, total_output_tokens,
+    total_requests. Falls back to zeros if log is missing or empty.
+    """
+    blank = {"total_cost": 0.0, "total_input_tokens": 0, "total_output_tokens": 0,
+             "total_requests": 0}
+    if not _USAGE_LOG.exists():
+        return blank
+    try:
+        data = json.loads(_USAGE_LOG.read_text(encoding="utf-8"))
+        if not data:
+            return blank
+        # The log is a list of request records
+        if isinstance(data, list):
+            total_cost = sum(r.get("cost_usd", 0.0) for r in data)
+            total_in   = sum(r.get("input_tokens", 0)  for r in data)
+            total_out  = sum(r.get("output_tokens", 0) for r in data)
+            return {
+                "total_cost":          total_cost,
+                "total_input_tokens":  total_in,
+                "total_output_tokens": total_out,
+                "total_requests":      len(data),
+            }
+        # Already aggregated dict
+        if isinstance(data, dict):
+            return {
+                "total_cost":          data.get("total_cost_usd", data.get("total_cost", 0.0)),
+                "total_input_tokens":  data.get("total_input_tokens", 0),
+                "total_output_tokens": data.get("total_output_tokens", 0),
+                "total_requests":      data.get("total_requests", 0),
+            }
+    except Exception:
+        pass
+    return blank
+
+
+def estimate_phase_costs(args, manifest: dict) -> list:
+    """
+    Returns a list of dicts:
+      { phase, label, files, tokens_in, tokens_out, cost_usd }
+    Only includes phases that will actually run given args.scope.
+    """
+    root = manifest["root"]
+    phases = []
+
+    if args.scope in ("full", "math"):
+        math_paths = [root / f for f in manifest.get("math_files", [])]
+        tok_in = sum(_file_tokens(p) for p in math_paths) + _CALL_OVERHEAD_TOKENS
+        tok_out = _EST_OUT_TOKENS["math"]
+        phases.append({
+            "phase": "math",
+            "label": "Math-agent audit",
+            "files": [p.name for p in math_paths if p.exists()],
+            "tokens_in":  tok_in,
+            "tokens_out": tok_out,
+            "cost_usd":   _usd(tok_in, tok_out),
+        })
+
+    if args.scope in ("full", "research"):
+        for label, question, rel_files in manifest.get("research_questions", []):
+            file_paths = [root / f for f in rel_files]
+            tok_in = sum(_file_tokens(p) for p in file_paths) + _CALL_OVERHEAD_TOKENS
+            tok_out = _EST_OUT_TOKENS["research"]
+            heavy = any(_file_tokens(p) > 50_000 for p in file_paths)
+            phases.append({
+                "phase": "research",
+                "label": f"Research: {label}",
+                "files": [p.name for p in file_paths if p.exists()],
+                "tokens_in":  tok_in,
+                "tokens_out": tok_out,
+                "cost_usd":   _usd(tok_in, tok_out),
+                "heavy": heavy,
+            })
+
+    if args.scope in ("full", "math", "research", "synth"):
+        # Synthesis input: static JSON (~5K) + sub-agent outputs (~6K each) + rules + prompt
+        n_sub = len(phases)
+        tok_in  = 5_000 + n_sub * 6_000 + 3_000 + _CALL_OVERHEAD_TOKENS
+        tok_out = _EST_OUT_TOKENS["synth"]
+        phases.append({
+            "phase": "synth",
+            "label": "Synthesis (Claude)",
+            "files": [],
+            "tokens_in":  tok_in,
+            "tokens_out": tok_out,
+            "cost_usd":   _usd(tok_in, tok_out),
+        })
+
+    return phases
+
+
+def cost_gate(args, manifest: dict, no_confirm: bool = False) -> bool:
+    """
+    Show current API usage, per-phase cost estimates, and prompt for approval.
+    Returns True if the user approves (or --no-confirm was passed).
+    Returns False if the user declines (caller should skip all API phases).
+    If no API phases will run (scope=static), returns True immediately.
+    """
+    phases = estimate_phase_costs(args, manifest)
+    if not phases:
+        # Static only — no API needed
+        return True
+
+    usage = read_current_usage()
+    total_est = sum(p["cost_usd"] for p in phases)
+    total_est_in  = sum(p["tokens_in"]  for p in phases)
+    total_est_out = sum(p["tokens_out"] for p in phases)
+
+    # ── Display ──────────────────────────────────────────────────────────────
+    print(f"\n{C.BOLD}{'─'*60}{C.RESET}")
+    print(f"{C.BOLD}  API Cost Gate{C.RESET}")
+    print(f"{'─'*60}")
+
+    # Current usage
+    if usage["total_requests"] > 0:
+        print(f"\n{C.BOLD}Current API usage (from log):{C.RESET}")
+        print(f"  Requests charged : {usage['total_requests']}")
+        print(f"  Input tokens     : {usage['total_input_tokens']:,}")
+        print(f"  Output tokens    : {usage['total_output_tokens']:,}")
+        print(f"  Total cost so far: {C.WARN}${usage['total_cost']:.4f}{C.RESET}")
+    else:
+        print(f"\n{C.INFO}Current API usage: $0.00 (no log entries found){C.RESET}")
+
+    # Per-phase estimates
+    print(f"\n{C.BOLD}Estimated cost for this run  (claude-opus-4-6, $15/$75 per MTok):{C.RESET}")
+    print(f"  {'Phase':<38} {'In tokens':>10} {'Out tokens':>10} {'Est. cost':>10}")
+    print(f"  {'─'*38} {'─'*10} {'─'*10} {'─'*10}")
+    for p in phases:
+        warn = f"  {C.WARN}[HEAVY — large file]{C.RESET}" if p.get("heavy") else ""
+        print(f"  {p['label']:<38} {p['tokens_in']:>10,} {p['tokens_out']:>10,}"
+              f"  {C.WARN}${p['cost_usd']:.3f}{C.RESET}{warn}")
+
+    print(f"  {'─'*38} {'─'*10} {'─'*10} {'─'*10}")
+    print(f"  {'ESTIMATED TOTAL':<38} {total_est_in:>10,} {total_est_out:>10,}"
+          f"  {C.FAIL}${total_est:.3f}{C.RESET}")
+
+    projected = usage["total_cost"] + total_est
+    print(f"\n  Projected total after this run: {C.BOLD}${projected:.4f}{C.RESET}")
+
+    # Warn about heavy files
+    heavy_phases = [p for p in phases if p.get("heavy")]
+    if heavy_phases:
+        print(f"\n  {C.WARN}WARNING:{C.RESET} {len(heavy_phases)} research question(s) include large files "
+              f"(Plot.html ~172K tokens) — each costs ~$2.50+ in input tokens alone.")
+
+    print(f"\n  Model  : claude-opus-4-6")
+    print(f"  Pricing: $15.00/MTok input · $75.00/MTok output")
+    print(f"  Note   : estimates are approximate (chars÷4 tokenisation)")
+
+    if no_confirm:
+        print(f"\n{C.INFO}  --no-confirm set — proceeding automatically{C.RESET}")
+        print(f"{'─'*60}\n")
+        return True
+
+    print(f"\n{'─'*60}")
+    try:
+        answer = input(f"  Proceed with API calls? [{C.BOLD}y{C.RESET}/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        answer = ""
+    print(f"{'─'*60}\n")
+
+    if answer in ("y", "yes"):
+        return True
+
+    print(f"{C.WARN}  API phases skipped — only static results will be reported.{C.RESET}\n")
+    return False
+
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 
@@ -522,6 +726,8 @@ def main():
                         help="Which checks to run")
     parser.add_argument("--output", default=None,
                         help="Directory to write report (default: agents/qa-agent/reports/)")
+    parser.add_argument("--no-confirm", action="store_true",
+                        help="Skip the API cost-gate prompt (for CI / automation)")
     args = parser.parse_args()
 
     manifest = TARGETS[args.target]
@@ -550,18 +756,22 @@ def main():
         print(f"  {_sev(f['severity'])}  {f['file']}  —  {f['message'][:100]}")
     print(f"  → {C.FAIL}{fails} FAIL{C.RESET}  {C.WARN}{warns} WARN{C.RESET}\n")
 
+    # ── API cost gate (shown before any API call is made) ────────────────────
+    api_approved = cost_gate(args, manifest, no_confirm=args.no_confirm)
+
     # ── Phase 2: Math agent ──────────────────────────────────────────────────
-    if args.scope in ("full", "math"):
+    if api_approved and args.scope in ("full", "math"):
         print(f"{C.BOLD}[2/4] Math-agent audit{C.RESET}")
         math_out = call_math_agent(math_files_abs)
         sub_agent_outputs["Math Agent Audit"] = math_out
         print(f"  → {len(math_out)} chars returned\n")
     else:
-        print(f"{C.INFO}[2/4] Math-agent skipped (scope={args.scope}){C.RESET}\n")
+        reason = "scope" if args.scope not in ("full", "math") else "not approved"
+        print(f"{C.INFO}[2/4] Math-agent skipped ({reason}){C.RESET}\n")
         sub_agent_outputs["Math Agent Audit"] = "(skipped)"
 
     # ── Phase 3: Research agent ──────────────────────────────────────────────
-    if args.scope in ("full", "research"):
+    if api_approved and args.scope in ("full", "research"):
         questions = manifest.get("research_questions", [])
         print(f"{C.BOLD}[3/4] Research-agent analysis{C.RESET}  ({len(questions)} questions)")
         for label, question, files in questions:
@@ -571,16 +781,19 @@ def main():
             print(f" {len(out)} chars")
         print()
     else:
-        print(f"{C.INFO}[3/4] Research-agent skipped (scope={args.scope}){C.RESET}\n")
+        reason = "scope" if args.scope not in ("full", "research") else "not approved"
+        print(f"{C.INFO}[3/4] Research-agent skipped ({reason}){C.RESET}\n")
         sub_agent_outputs["Research"] = "(skipped)"
 
     # ── Phase 4: Synthesis ───────────────────────────────────────────────────
-    if args.scope in ("full", "math", "research", "synth"):
+    if api_approved and args.scope in ("full", "math", "research", "synth"):
         print(f"{C.BOLD}[4/4] Synthesising report via Claude{C.RESET}")
         report_body = synthesize(static_findings, sub_agent_outputs, args.target)
     else:
-        # static-only: format findings as plain report
-        lines = [f"## Static Findings\n"]
+        # static-only or API not approved: format findings as plain report
+        if not api_approved:
+            print(f"{C.INFO}[4/4] Synthesis skipped (API not approved){C.RESET}\n")
+        lines = ["## Static Findings\n"]
         for f in static_findings:
             lines.append(f"- **{f['severity']}** `{f['file']}` — {f['message']}")
         report_body = "\n".join(lines)

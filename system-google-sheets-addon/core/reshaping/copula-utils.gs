@@ -36,13 +36,15 @@ var BASE_R = [
 function psdJitter(R, eps = 1e-3) {
   const out = R.map(row => row.slice());
   for (let i = 0; i < out.length; i++) {
-    out[i][i] = Math.min(1, Math.max(0.0, out[i][i] + eps));
+    out[i][i] = out[i][i] + eps;  // add eps to diagonal; no cap — diagonal > 1 is fine for PSD stability
   }
   return out;
 }
 
-// Simple correlated-uniforms transform (not a full Cholesky of normals → uniforms; adequate for weighting) [Step 2: Grid corr via BASE_R]
-function applyGaussianCopula(S01) {
+// Correlation-weighted coupling signal (Patent Claim 2).
+// Not a probit→Cholesky→Φ copula. Intentional design: z-scores → R·z → tanh sigmoid → U ∈ (0,1)^7.
+// mean(U) = coupling scalar; t = clamp(0.3 + 0.4 × coupling) drives the linear/OR blend weight.
+function computeCouplingSignal(S01) {
   const n = SLIDER_KEYS.length;
   const R = psdJitter(BASE_R, 1e-6);
 
@@ -120,7 +122,7 @@ function computeAdjustedMoments(sliders100, scaleFactor = 1, cv = 0) {
     por = Math.max(0, Math.min(1, por));
 
     // Blend linear & prob-OR depending on correlation “pressure”
-    const U = applyGaussianCopula(S01);
+    const U = computeCouplingSignal(S01);
     const coupling = mean(U); // higher means more joint “pressure”
     const t = Math.max(0, Math.min(1, 0.3 + 0.4 * coupling)); // 0.3..0.7 blend
     const m0 = allZeroRaw ? 0 : Math.max(0, Math.min(1, (1 - t)*lin + t*por));

@@ -130,11 +130,13 @@ function adaptResponse(core) {
     // Manual / adjusted path:
     //  - reshapedPoints / probabilityAtTarget from computeSliderProbability (SACO manual).
     //  - manualSliders01 exposed for UI slider state (raw 0–1; frontend handles %).
+    //  - manualBenchmarkedProb: probability when user sliders are clamped to BENCH ceilings.
     adjusted: {
       ...adjusted,
       reshapedPoints: { pdfPoints: adjPdf, cdfPoints: adjCdf },
       probabilityAtTarget: { value: tpAdjustedManual },
-      manualSliders01: manualSliders01 || null
+      manualSliders01: manualSliders01 || null,
+      manualBenchmarkedProb: asNum(adjusted.manualBenchmarkedProb) ?? null
     },
 
     // Optimized (fixed/adaptive) path:
@@ -152,7 +154,8 @@ function adaptResponse(core) {
         original: tpOriginal,
         adjusted: (tpAdjustedManual ?? tpOriginal),
         adjustedOptimized: (tpAdjustedOptimized ?? tpAdjustedManual ?? tpOriginal),
-        adaptiveOptimized: tpAdaptiveOptimized
+        adaptiveOptimized: tpAdaptiveOptimized,
+        manualBenchmarked: asNum(adjusted.manualBenchmarkedProb) ?? null
       }
     },
 

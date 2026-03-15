@@ -656,7 +656,7 @@ function computeSliderProbability({
   if (!Number.isFinite(finalProb)) finalProb = 0.5;
 
   try {
-    console.log('RESHAPE OUTPUT:', JSON.stringify({
+    Logger.log('RESHAPE OUTPUT:', JSON.stringify({
       baseLen: baseCdf.length,
       newCdfLen: newCdf.length,
       newPdfLen: newPdf.length,
