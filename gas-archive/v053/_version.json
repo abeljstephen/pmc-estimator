@@ -1,0 +1,6 @@
+{
+  "versionNumber": 53,
+  "description": "PMC Estimator API v1.0 \u2014 HTTP endpoint for Custom GPT integration. Handles trial requests, estimation calls (SACO engine), and quota checks. All auth and CRM managed via WordPress PMC CRM plugin at icarenow.io.",
+  "createTime": "2026-03-16T23:23:01.238Z",
+  "fileCount": 29
+}
