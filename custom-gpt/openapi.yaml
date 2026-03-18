@@ -1,0 +1,520 @@
+openapi: 3.1.0
+info:
+  title: PMC Estimator API
+  description: >
+    Probability-based project cost and schedule estimation using the SACO engine
+    (Shape-Adaptive Copula Optimization) by iCareNOW.
+  version: 1.0.0
+
+servers:
+  - url: https://script.google.com
+
+paths:
+
+  /macros/s/AKfycbwiOq86Xx8-yFdnTWG6QSrYkGIR0A47CD7YydiGeTLB8hHS0jS6012Z7RBBCACu_b9S/exec:
+    post:
+      operationId: callPMCEstimator
+      summary: Call the PMC Estimator API
+      description: >
+        All PMC Estimator operations via the "action" field:
+        request_trial (email → free trial key),
+        call_api (key + tasks → P10/P50/P90 SACO results),
+        check_quota (key → credit balance).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [request_trial, call_api, check_quota, save_session, load_sessions]
+                  description: >
+                    request_trial: get a free trial key by email.
+                    call_api: run SACO estimation on tasks (requires key + tasks).
+                    check_quota: get credit balance (requires key).
+                    save_session: save estimation results and context for later (requires key + email + session).
+                    load_sessions: load last 5 saved sessions for a user (requires key + email).
+                email:
+                  type: string
+                  format: email
+                  description: Required for request_trial, save_session, and load_sessions. The user's email address.
+                promo:
+                  type: string
+                  description: >
+                    Optional promo code for request_trial. If valid, overrides default trial credits and/or duration.
+                    Ask the user if they have a promo code before requesting a trial.
+                key:
+                  type: string
+                  description: Required for call_api, check_quota, save_session, and load_sessions. The user's API key.
+                session:
+                  type: object
+                  description: >
+                    Required for save_session. Arbitrary JSON object representing the session state
+                    (task inputs, results summary, notes). Must be under 50 KB.
+                operationType:
+                  type: string
+                  enum: [baseline_only, full_saco, saco_explain]
+                  default: full_saco
+                  description: >
+                    baseline_only (1 credit): basic distribution only.
+                    full_saco (2 credits): full SACO optimization (default).
+                    saco_explain (4 credits): full analysis with explanation.
+                tasks:
+                  type: array
+                  minItems: 1
+                  description: Required for call_api. One or more tasks to estimate.
+                  items:
+                    type: object
+                    required: [task, optimistic, mostLikely, pessimistic]
+                    properties:
+                      task:
+                        type: string
+                        description: Name or description of the task
+                      optimistic:
+                        type: number
+                        description: Best-case estimate (must be ≤ mostLikely)
+                      mostLikely:
+                        type: number
+                        description: Most realistic estimate
+                      pessimistic:
+                        type: number
+                        description: Worst-case estimate (must be ≥ mostLikely)
+                      targetValue:
+                        type: number
+                        description: Optional target to calculate probability of hitting
+                      confidenceTarget:
+                        type: number
+                        minimum: 1
+                        maximum: 99
+                        description: >
+                          Optional. When provided, the API returns the value at this confidence
+                          percentile in results[i].targetAtConfidence. Example: 80 → "what value
+                          gives me 80% probability of completion at or below?"
+                      parallel:
+                        type: boolean
+                        description: >
+                          Optional. When true, this task is treated as running in parallel with
+                          other parallel tasks in _portfolio — the critical path contribution (max
+                          mean + max variance) is used instead of PERT sum. Default: false (sequential).
+                      scenarios:
+                        type: array
+                        maxItems: 5
+                        description: >
+                          Optional. Up to 5 "what-if" scenarios to evaluate alongside the main
+                          estimate. Each scenario overrides sliderValues and/or targetValue. Results
+                          appear in results[i].scenarios.
+                        items:
+                          type: object
+                          required: [name]
+                          properties:
+                            name:
+                              type: string
+                              description: Short label for this scenario (e.g. "Locked scope", "2 extra weeks")
+                            targetValue:
+                              type: number
+                              description: Override target for this scenario. If omitted, uses the task's targetValue.
+                            sliderValues:
+                              type: object
+                              description: Override sliders for this scenario. Omitted sliders keep the task's values.
+                              additionalProperties:
+                                type: number
+                      sliderValues:
+                        type: object
+                        description: >
+                          Optional project context sliders. When provided, the engine runs a
+                          manual adjusted path (baseline → your context → SACO optimized),
+                          enabling a three-way probability comparison. All values are in UI
+                          units. Omit any slider to use the engine default (50).
+                        properties:
+                          scheduleFlexibility:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              How much schedule buffer exists. 0 = hard deadline with no slip
+                              tolerance. 100 = fully flexible timeline.
+                          budgetFlexibility:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              Available contingency budget. 0 = zero contingency. 100 = large
+                              reserves that can absorb significant overruns.
+                          scopeCertainty:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              How well-defined the requirements are. 0 = requirements are
+                              unclear and likely to change. 100 = fully locked scope.
+                          scopeReductionAllowance:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              Ability to cut scope to hit the deadline. 0 = all deliverables
+                              are mandatory. 100 = scope can be freely reduced.
+                          reworkPercentage:
+                            type: number
+                            minimum: 0
+                            maximum: 50
+                            description: >
+                              Expected rework or revision cycles as a percentage of effort.
+                              0 = no rework expected. 50 = heavy revision cycles anticipated.
+                          riskTolerance:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              Team and stakeholder comfort with uncertainty. 0 = very
+                              risk-averse. 100 = comfortable operating under high uncertainty.
+                          userConfidence:
+                            type: number
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              Confidence in the O/M/P estimates. 0 = rough guesses with no
+                              historical basis. 100 = estimates based on solid historical data.
+      responses:
+        "200":
+          description: API response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  key:
+                    type: string
+                  expiry:
+                    type: string
+                  credits:
+                    type: integer
+                  plan:
+                    type: string
+                  message:
+                    type: string
+                  results:
+                    type: array
+                    description: Per-task estimation results. One entry per input task.
+                    items:
+                      type: object
+                      properties:
+                        percentiles:
+                          type: object
+                          description: >
+                            Full P5–P95 percentile table interpolated from the baseline CDF. Present
+                            when baseline CDF is available (full_saco and saco_explain).
+                          properties:
+                            p5:
+                              type: number
+                              description: 5th percentile
+                            p10:
+                              type: number
+                              description: 10th percentile — optimistic bound
+                            p20:
+                              type: number
+                            p30:
+                              type: number
+                            p40:
+                              type: number
+                            p50:
+                              type: number
+                              description: 50th percentile — median outcome
+                            p60:
+                              type: number
+                            p70:
+                              type: number
+                            p80:
+                              type: number
+                            p90:
+                              type: number
+                              description: 90th percentile — conservative bound (use for commitments)
+                            p95:
+                              type: number
+                              description: 95th percentile — extreme conservative bound
+                        sensitivity:
+                          type: object
+                          description: >
+                            Sensitivity of P(X ≤ target) to each slider at the current slider settings.
+                            Only present when targetValue was supplied. Shows which sliders have the
+                            most leverage to improve the outcome.
+                          properties:
+                            baselineProbability:
+                              type: number
+                              description: P(X ≤ target) at current slider settings (0–1)
+                            sliders:
+                              type: array
+                              description: Per-slider sensitivity, sorted by |gain| descending.
+                              items:
+                                type: object
+                                properties:
+                                  slider:
+                                    type: string
+                                    description: Slider name (e.g. scheduleFlexibility)
+                                  gain:
+                                    type: number
+                                    description: dP/dSlider — change in probability per 1 UI unit increase
+                                  direction:
+                                    type: string
+                                    enum: [positive, negative, neutral]
+                                    description: >
+                                      positive = increasing this slider raises P(hit target).
+                                      negative = increasing it lowers P.
+                                      neutral = no meaningful effect.
+                        scenarios:
+                          type: array
+                          description: >
+                            Results for each what-if scenario defined in the task. One entry per
+                            requested scenario. Absent if no scenarios were requested.
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              targetValue:
+                                type: number
+                              probability:
+                                type: number
+                                description: P(X ≤ targetValue) for this scenario (0–1)
+                              note:
+                                type: string
+                                description: Present when scenario cannot be expressed as probability
+                              error:
+                                type: string
+                                description: Present when scenario computation failed
+                        feasibilityScore:
+                          type: integer
+                          minimum: 0
+                          maximum: 100
+                          description: >
+                            Composite 0–100 score: P(SACO-optimized) × tail-risk discount.
+                            Tail risk = (P90−P50)/P50; values above 0.5 reduce the score by up
+                            to 20 points. Only present when targetValue was supplied.
+                            Lead with this number when summarising results to stakeholders.
+                        optimizedPercentiles:
+                          type: object
+                          description: >
+                            P10/P50/P90 of the SACO-optimized (reshaped) distribution. Compare
+                            against percentiles (baseline) to see how SACO shifts the range.
+                            Only present when the optimize path produced a reshaped CDF.
+                          properties:
+                            p10:
+                              type: number
+                            p50:
+                              type: number
+                            p90:
+                              type: number
+                        sliderDelta:
+                          type: object
+                          description: >
+                            Per-slider difference: SACO winningSliders minus user's input
+                            sliderValues (UI units). Only sliders with |delta| ≥ 1 are included.
+                            Positive = SACO raised this lever; negative = lowered it.
+                            Absent if SACO made no meaningful changes or no sliders were sent.
+                          additionalProperties:
+                            type: number
+                        sensitivitySkipped:
+                          type: boolean
+                          description: >
+                            True when sensitivity was omitted for this task because it is task 6
+                            or higher in the request — capped at 5 tasks to prevent GAS timeout.
+                        _reportUrl:
+                          type: string
+                          description: >
+                            Per-task shareable report URL. Present for every task (vs. the
+                            top-level _reportUrl which is only task[0] for backward compatibility).
+                        targetAtConfidence:
+                          type: object
+                          description: >
+                            Only present when confidenceTarget was supplied in the task AND the
+                            baseline CDF is available. Returns the distribution value at the
+                            requested confidence level.
+                          properties:
+                            confidence:
+                              type: number
+                              description: The requested confidence level (1–99)
+                            value:
+                              type: number
+                              description: Distribution value at that confidence level
+                        targetProbability:
+                          type: object
+                          description: Three-way probability comparison for the task target.
+                          properties:
+                            value:
+                              type: object
+                              properties:
+                                original:
+                                  type: number
+                                  description: Baseline probability (no slider adjustments)
+                                adjusted:
+                                  type: number
+                                  description: Probability with user-supplied sliderValues context
+                                adjustedOptimized:
+                                  type: number
+                                  description: Probability after SACO optimization
+                                adaptiveOptimized:
+                                  type: number
+                                  description: Adaptive SACO path probability (may equal adjustedOptimized)
+                        decisionReports:
+                          type: array
+                          description: >
+                            SACO diagnostic outputs. Typically 1–2 items (Adjusted and/or
+                            Optimize mode). Contains slider recommendations, counter-intuition
+                            warnings, and actionable recommendations.
+                          items:
+                            type: object
+                            properties:
+                              mode:
+                                type: string
+                                description: Which SACO path produced this report (Adjusted or Optimize)
+                              winningSliders:
+                                type: object
+                                description: >
+                                  SACO-recommended slider settings in UI units (0–100 scale,
+                                  except reworkPercentage which is 0–50).
+                                additionalProperties:
+                                  type: number
+                              counterIntuition:
+                                type: array
+                                description: >
+                                  Cases where conventional PM intuition is counter-productive
+                                  for this distribution. Each item has pattern, because, suggest.
+                                items:
+                                  type: object
+                                  properties:
+                                    pattern:
+                                      type: string
+                                    because:
+                                      type: string
+                                    suggest:
+                                      type: string
+                              recommendations:
+                                type: array
+                                description: Ranked actionable recommendations to improve probability.
+                                items:
+                                  type: string
+                              diagnostics:
+                                type: object
+                                properties:
+                                  monotonicityAtTarget:
+                                    type: string
+                                    description: Pass or Warn — flags irregular distribution shape near target
+                                  allZeroSlidersPassThrough:
+                                    type: boolean
+                                  winnerHasSliders:
+                                    type: boolean
+                                  chainingDrift:
+                                    description: Distribution drift across optimizer iterations
+                              finalProbability:
+                                type: number
+                              baselineProbability:
+                                type: number
+                              liftPoints:
+                                type: number
+                                description: Probability gain over baseline (finalProbability - baselineProbability)
+                              narrative:
+                                type: string
+                                description: Human-readable summary of this SACO result block
+                  _portfolio:
+                    type: object
+                    description: >
+                      Project-level P10/P50/P90 aggregated across all tasks using the PERT sum
+                      method (independent task assumption, CLT normal approximation). Only present
+                      when 2 or more tasks were submitted.
+                    properties:
+                      taskCount:
+                        type: integer
+                        description: Number of tasks included in the aggregation
+                      p10:
+                        type: number
+                        description: 10th percentile of the project total
+                      p50:
+                        type: number
+                        description: 50th percentile (median) of the project total
+                      p90:
+                        type: number
+                        description: 90th percentile of the project total — use for commitments
+                      method:
+                        type: string
+                        description: >
+                          pert_sum — all tasks sequential (PERT mean/variance aggregation).
+                          pert_critical_path — one or more tasks marked parallel:true; critical path
+                          (max of parallel means/variances) used for those tasks.
+                  _reportUrl:
+                    type: string
+                    description: >
+                      Shareable URL to a standalone HTML report containing task name,
+                      O/M/P, target, P10/P50/P90, and probability outcomes. Null if
+                      report building failed.
+                  _quota:
+                    type: object
+                    properties:
+                      plan:
+                        type: string
+                      credits_remaining:
+                        type: integer
+                      credits_total:
+                        type: integer
+                      credits_this_call:
+                        type: integer
+                      bar:
+                        type: string
+                        description: Visual credit usage bar (Unicode block characters)
+                      expires:
+                        type: string
+                      operation:
+                        type: string
+                  _charts:
+                    type: object
+                    properties:
+                      distribution:
+                        type: string
+                        description: QuickChart.io URL for probability distribution chart (PNG)
+                      probabilities:
+                        type: string
+                        description: QuickChart.io URL for baseline vs. optimized probability bar chart (PNG)
+                  remaining:
+                    type: integer
+                    description: Credits remaining (check_quota response)
+                  total:
+                    type: integer
+                  used:
+                    type: integer
+                  status:
+                    type: string
+                  bar:
+                    type: string
+                  session_id:
+                    type: string
+                    description: Unique ID for the saved session (save_session response)
+                  saved_at:
+                    type: string
+                    description: MySQL datetime when session was saved
+                  sessions:
+                    type: array
+                    description: List of saved sessions (load_sessions response)
+                    items:
+                      type: object
+                      properties:
+                        session_id:
+                          type: string
+                        saved_at:
+                          type: string
+                        project:
+                          type: string
+                          description: Project name from saved session data
+                        task_count:
+                          type: integer
+                          description: Number of tasks in the saved session
+                  count:
+                    type: integer
+                    description: Number of sessions returned (load_sessions response)
+                  error:
+                    type: string
+                  upgrade_url:
+                    type: string

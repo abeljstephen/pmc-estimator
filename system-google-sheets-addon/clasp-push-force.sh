@@ -34,9 +34,8 @@ ALLOWED_PUSH_ITEMS=(
   "$PROJECT_ROOT/appsscript.json"
   "$PROJECT_ROOT/Code.gs"
   "$PROJECT_ROOT/Plot.html"
+  "$PROJECT_ROOT/webapp.gs"           # Custom GPT web app entry point
   "$PROJECT_ROOT/core"                # pushes entire core/ folder + all subfiles
-  # Add more root-level files if needed, e.g.:
-  # "$PROJECT_ROOT/some-other-file.gs"
 )
 
 # ────────────────────────────────────────────────

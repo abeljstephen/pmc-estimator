@@ -37,6 +37,25 @@ and codebase research into a single actionable QA report.
 - Gaussian copula matrix: must be positive semi-definite; verify with Cholesky decomposition
 - Slider blend weights: must sum to ≤ 1 per constraint block
 
+## Standards for WordPress Plugin PHP
+- Every PHP file included by WordPress must begin with `defined('ABSPATH') || exit;` as the first executable line
+- All output rendered into HTML must be escaped with `esc_html()`, `esc_attr()`, or `esc_url()` as appropriate; raw `echo` of user-supplied or database-sourced data is a XSS vector
+- All `$wpdb` queries with external input must use `$wpdb->prepare()` with `%s`/`%d` placeholders; string interpolation in SQL is a SQL injection vector
+- All POST handlers must verify a nonce with `wp_verify_nonce()` before processing; missing nonce verification allows CSRF
+- `$wpdb->insert()`, `$wpdb->update()`, `$wpdb->delete()` return `false` on error; return values must be checked before assuming success
+- Schema changes (new tables, new columns) require a `PMC_CRM_VERSION` bump so `pmc_maybe_upgrade()` fires on existing installs; a schema change without a version bump means the new table/column never gets created on production
+- `dbDelta()` is idempotent and safe to call on every activation; use it for all table creation and migration
+- REST endpoint callbacks must check `current_user_can()` or verify an API key before returning sensitive data
+- Stripe webhook handlers must verify the `Stripe-Signature` header before processing any payload; unverified webhooks allow replay or forged event attacks
+
+## Standards for Custom GPT Contract
+- Every action in `openapi.yaml` that the GPT instructions reference by name must exist in the schema; undefined actions silently fail
+- Slider key names in `instructions.md` must exactly match the `SLIDER_KEYS` constant in `copula-utils.gs`; drift causes sliders to be silently ignored
+- Credit costs stated in `instructions.md` must match the costs enforced in the WordPress REST API `deduct` handler; a discrepancy means users are told wrong costs
+- The `reworkPercentage` slider must be documented with domain 0–50 (not 0–100) everywhere it appears; mixing domains causes the copula to receive out-of-range inputs
+- Promo code behaviour described in `instructions.md` must reflect the actual promo logic in the REST API; discrepancy creates user-facing lies
+- All response fields that `instructions.md` directs the GPT to read must exist in the `adaptResponse()` output schema; a missing field produces silent undefined
+
 ## Report Format Rules
 - Every finding must cite a file name; line numbers wherever possible
 - Do not duplicate the same finding under multiple headings

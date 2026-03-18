@@ -434,12 +434,191 @@
 - **phase**: dependency
 - **sub_agent**: research-agent
 - **severity**: HIGH
-- **enabled**: false
+- **enabled**: true
 - **description**: For the same (O, M, P, target, sliders) input, the WordPress browser engine
   (saco.js) and the GAS engine (main.gs) must produce probabilities within ±0.5pp of each other.
   Divergence indicates the port has drifted from the reference implementation.
 - **pass_when**: |GAS_prob - WP_prob| < 0.005 for a standard test vector
 - **files**: core/main/main.gs, wordpress-plugin/pmc-estimator/assets/js/engine/saco.js
+
+---
+
+## Phase 7 — WordPress CRM PHP Static Checks
+> Static analysis of the pmc-crm WordPress plugin. No API calls. Runs when target = wordpress-crm.
+
+### QA-070
+- **title**: All PHP files begin with ABSPATH guard
+- **phase**: static
+- **severity**: FAIL
+- **enabled**: true
+- **description**: Every PHP file included by the plugin must have `defined('ABSPATH') || exit;` as
+  the first executable line. Without this guard, the file can be accessed directly via HTTP and
+  exposes internal logic, credentials, and database queries.
+- **pass_when**: Zero PHP files lack the ABSPATH guard
+- **files**: includes/*.php, includes/admin/*.php, includes/email/*.php
+
+### QA-071
+- **title**: All HTML output is escaped (esc_html / esc_attr / esc_url)
+- **phase**: static
+- **severity**: HIGH
+- **enabled**: true
+- **description**: Every `echo` statement that outputs user-supplied, database-sourced, or
+  plugin-computed data must be wrapped in `esc_html()`, `esc_attr()`, or `esc_url()` as
+  appropriate. Raw echo of unescaped data is a stored XSS vector.
+- **pass_when**: Zero unescaped echo statements on non-literal values in admin/*.php and rest-api.php
+- **files**: includes/admin/*.php, includes/rest-api.php
+
+### QA-072
+- **title**: All $wpdb queries use prepare() for external input
+- **phase**: static
+- **severity**: CRITICAL
+- **enabled**: true
+- **description**: Any `$wpdb->query()`, `$wpdb->get_var()`, `$wpdb->get_results()` call that
+  incorporates a variable must use `$wpdb->prepare()` with `%s`/`%d`/`%f` placeholders.
+  String interpolation in SQL is a SQL injection vector.
+- **pass_when**: Zero direct string-interpolated variables in wpdb query calls
+- **files**: includes/*.php, includes/admin/*.php
+
+### QA-073
+- **title**: All POST handlers verify a nonce before processing
+- **phase**: static
+- **severity**: HIGH
+- **enabled**: true
+- **description**: Every handler that reads `$_POST` data must call `wp_verify_nonce()` (or
+  `check_admin_referer()`) before taking any action. A missing nonce check allows CSRF attacks
+  that can modify user data, grant credits, or regenerate keys.
+- **pass_when**: Every $_POST handler has a wp_verify_nonce() or check_admin_referer() call
+- **files**: includes/admin/*.php
+
+### QA-074
+- **title**: $wpdb return values checked for failure
+- **phase**: static
+- **severity**: MEDIUM
+- **enabled**: true
+- **description**: `$wpdb->insert()`, `$wpdb->update()`, and `$wpdb->delete()` return `false`
+  on error and an integer (possibly 0) on success. Code must not assume success; critical
+  writes (key issuance, credit deduction, payment logging) must check the return value.
+- **pass_when**: All wpdb->insert/update/delete calls on critical paths check the return value
+- **files**: includes/stripe.php, includes/rest-api.php, includes/admin/user-detail.php
+
+### QA-075
+- **title**: PMC_CRM_VERSION bumped when schema changes
+- **phase**: static
+- **severity**: FAIL
+- **enabled**: true
+- **description**: Detect whether schema.php contains table definitions that would not have
+  existed in `PMC_CRM_VERSION == '2.0.0'` (specifically `wp_pmc_payments`). If the version
+  is still `2.0.0`, `pmc_maybe_upgrade()` will never fire on existing installs and the new
+  table will not be created. The version must be at least `2.1.0` when `wp_pmc_payments` is
+  present in schema.php.
+- **pass_when**: PMC_CRM_VERSION >= 2.1.0 when wp_pmc_payments is in schema.php
+- **files**: pmc-crm.php, includes/schema.php
+
+### QA-076
+- **title**: Cross-system contract — GAS deduct payload matches WP REST handler
+- **phase**: research
+- **sub_agent**: research-agent
+- **severity**: HIGH
+- **enabled**: true
+- **description**: The GAS webapp.gs posts a JSON payload to the WordPress `/deduct` REST
+  endpoint. Verify that every field GAS sends is consumed by the WP handler, and every
+  required field the WP handler expects is sent by GAS. Silent contract drift means fields
+  arrive as null without error, corrupting activity logs and credit accounting.
+- **pass_when**: Every field in the GAS deduct payload maps to a consumed field in wp rest-api.php deduct handler; no required field is absent from either side
+- **files**: system-google-sheets-addon/webapp.gs, wordpress-plugin/pmc-crm/includes/rest-api.php
+
+---
+
+## Phase 8 — Custom GPT Contract Checks
+> Static and research checks for the Custom GPT definition. Runs when target = custom-gpt.
+
+### QA-080
+- **title**: All slider key names match SLIDER_KEYS canonical set
+- **phase**: static
+- **severity**: HIGH
+- **enabled**: true
+- **description**: Every slider key name appearing in instructions.md or openapi.yaml must
+  exactly match one of the 7 canonical keys: `budgetFlexibility`, `scheduleFlexibility`,
+  `scopeCertainty`, `scopeReductionAllowance`, `reworkPercentage`, `riskTolerance`,
+  `userConfidence`. Any deviation (typo, camelCase mismatch, underscore variant) causes that
+  slider to be silently ignored by the copula.
+- **pass_when**: Zero slider key names in GPT files that are not in the canonical set
+- **files**: custom-gpt/instructions.md, custom-gpt/openapi.yaml
+
+### QA-081
+- **title**: All GPT-referenced actions exist in openapi.yaml
+- **phase**: static
+- **severity**: FAIL
+- **enabled**: true
+- **description**: Every action name that instructions.md directs the GPT to call must be
+  defined as an operationId or path in openapi.yaml. An action mentioned in instructions but
+  absent from the schema will silently fail — the GPT will attempt the call and receive an
+  error with no useful feedback to the user.
+- **pass_when**: Zero action names in instructions.md that are not defined in openapi.yaml
+- **files**: custom-gpt/instructions.md, custom-gpt/openapi.yaml
+
+### QA-082
+- **title**: reworkPercentage domain is 0–50, not 0–100
+- **phase**: static
+- **severity**: HIGH
+- **enabled**: true
+- **description**: The `reworkPercentage` slider has a UI domain of 0–50 (not 0–100). The
+  `to01FromUi()` function divides by 50 for this slider. If instructions.md or openapi.yaml
+  document its range as 0–100, users will supply values up to 100 and the copula will receive
+  inputs > 1 after normalization, producing undefined results.
+- **pass_when**: reworkPercentage is documented as 0–50 (or equivalent) in all GPT files
+- **files**: custom-gpt/instructions.md, custom-gpt/openapi.yaml
+
+### QA-083
+- **title**: Credit costs in instructions.md match REST API deduct handler
+- **phase**: research
+- **sub_agent**: research-agent
+- **severity**: HIGH
+- **enabled**: true
+- **description**: The credit cost for each operation type (`baseline_only`=1, `full_saco`=2,
+  `saco_explain`=4) must be stated consistently in instructions.md and enforced by the
+  WordPress REST API deduct endpoint. If they diverge, the GPT tells users incorrect costs
+  or over/under-charges without surfacing an error.
+- **pass_when**: Credit costs for all three operation types match between instructions.md and rest-api.php
+- **files**: custom-gpt/instructions.md, wordpress-plugin/pmc-crm/includes/rest-api.php
+
+### QA-084
+- **title**: All response fields read by GPT exist in adaptResponse() output
+- **phase**: research
+- **sub_agent**: research-agent
+- **severity**: HIGH
+- **enabled**: true
+- **description**: For each field that instructions.md tells the GPT to extract from the API
+  response (e.g. `probability`, `p10`, `p90`, `mean`, slider blocks), verify that
+  `adaptResponse()` in adapter.gs guarantees that field in its output. A field the GPT reads
+  but the API doesn't guarantee will arrive as undefined, producing silent wrong output.
+- **pass_when**: Every response field referenced in instructions.md is present in adaptResponse() output schema
+- **files**: custom-gpt/instructions.md, system-google-sheets-addon/core/variable_map/adapter.gs
+
+### QA-085
+- **title**: Promo code behaviour in instructions.md reflects REST API logic
+- **phase**: research
+- **sub_agent**: research-agent
+- **severity**: MEDIUM
+- **enabled**: true
+- **description**: If instructions.md describes promo code behaviour (e.g. what happens when
+  a code is applied, credit overrides, plan overrides), verify this matches the actual promo
+  logic in rest-api.php `/trial` handler. Discrepancy means the GPT gives users incorrect
+  information about what a promo code does.
+- **pass_when**: Promo code effects described in instructions.md match the REST API /trial promo logic
+- **files**: custom-gpt/instructions.md, wordpress-plugin/pmc-crm/includes/rest-api.php
+
+### QA-086
+- **title**: openapi.yaml request/response schemas are internally consistent
+- **phase**: static
+- **severity**: MEDIUM
+- **enabled**: true
+- **description**: In openapi.yaml, verify that: (1) every request body field matches its
+  described type (string, integer, number); (2) required fields are marked as required; (3)
+  enum values for `operation_type` include exactly `baseline_only`, `full_saco`, `saco_explain`;
+  (4) no field is defined with conflicting types across different operations.
+- **pass_when**: openapi.yaml passes schema self-consistency checks; enum values match the three canonical operation types
+- **files**: custom-gpt/openapi.yaml
 
 ---
 

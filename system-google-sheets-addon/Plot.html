@@ -2850,28 +2850,28 @@
 <div class="tabs" id="tabs-do-not-use" style="display:none;" aria-hidden="true">
   <div class="tab active" data-tab="progress" title="See how your 3-point estimate builds into a probability distribution, step by step.">How It's Built</div>
   <div class="tab" data-tab="overlay" title="Compare your estimate against Benchmarked Optimization, Unconstrained Optimization, and Unconstrained Optimization scenarios to find the best strategy.">Compare Strategies</div>
-  <div class="series-toggles" id="seriesToggles">
+  <div class="series-toggles">
     <div class="toggle-group baseline-group">
       <button class="tg" id="rowTglBase" role="switch" aria-pressed="true" title="Toggle Your Estimate curve">Your Estimate</button>
-      <button class="tg" id="rowTglAdaptive" role="switch" aria-pressed="false" title="Benchmarked Optimization — tightest SACO constraints, most defensible">Benchmarked<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" role="switch" aria-pressed="false" title="Benchmarked Optimization — tightest SACO constraints, most defensible">Benchmarked<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
     </div>
     <div class="toggle-group manual-group">
-      <button class="tg" id="rowTglFixed" role="switch" aria-pressed="false" title="Unconstrained Optimization — wider search space, no benchmark anchors">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
-      <button class="tg" id="rowTglManual" role="switch" aria-pressed="false" title="Your Conditions — drag sliders freely for what-if analysis">Your<br><span style="font-size:10px;font-weight:400;opacity:.75;">Conditions</span></button>
+      <button class="tg" role="switch" aria-pressed="false" title="Unconstrained Optimization — wider search space, no benchmark anchors">Unconstrained<br><span style="font-size:10px;font-weight:400;opacity:.75;">Optimization</span></button>
+      <button class="tg" role="switch" aria-pressed="false" title="Your Conditions — drag sliders freely for what-if analysis">Your<br><span style="font-size:10px;font-weight:400;opacity:.75;">Conditions</span></button>
     </div>
 
   </div>
 
-  <div class="kpi-group" id="distTiles" style="display:flex; margin-left:auto;">
-    <div class="kpi" id="kpiTriangle" title="Triangle">
+  <div class="kpi-group" style="display:flex; margin-left:auto;">
+    <div class="kpi" title="Triangle">
       <div class="ttl">Triangle</div>
       <div class="val" style="color:var(--tri);">Curve</div>
     </div>
-    <div class="kpi" id="kpiBeta" title="Beta-PERT">
+    <div class="kpi" title="Beta-PERT">
       <div class="ttl">Beta-PERT</div>
       <div class="val" style="color:var(--beta);">Curve</div>
     </div>
-    <div class="kpi baseline" id="kpiBaseDist" title="Baseline (Monte Carlo)">
+    <div class="kpi baseline" title="Baseline (Monte Carlo)">
       <div class="ttl">Baseline</div>
       <div class="val" style="color:var(--base);">Curve</div>
     </div>
@@ -8201,8 +8201,11 @@
               var rangeEl = document.getElementById(id + '_range'); if (rangeEl) rangeEl.value = 0;
             });
             if (s.overlay && s.overlay.manualOn) {
-              var key = JSON.stringify({ task: s.task && s.task.task, O: s.O, M: s.M, P: s.P, target: s.target, variant: 'manual' });
-              if (s.variantCache) delete s.variantCache[key];
+              if (s.variantCache) {
+                Object.keys(s.variantCache).forEach(function(k) {
+                  try { if (JSON.parse(k).variant === 'manual') delete s.variantCache[k]; } catch(e) {}
+                });
+              }
               requestVariant('manual');
             }
             scheduleUIRefresh();
@@ -8227,8 +8230,11 @@
               var numEl = document.getElementById(id); if (numEl) numEl.value = val;
               var rangeEl = document.getElementById(id + '_range'); if (rangeEl) rangeEl.value = val;
             });
-            var key = JSON.stringify({ task: s.task && s.task.task, O: s.O, M: s.M, P: s.P, target: s.target, variant: 'manual' });
-            if (s.variantCache) delete s.variantCache[key];
+            if (s.variantCache) {
+              Object.keys(s.variantCache).forEach(function(k) {
+                try { if (JSON.parse(k).variant === 'manual') delete s.variantCache[k]; } catch(e) {}
+              });
+            }
             requestVariant('manual');
             scheduleUIRefresh();
             updateSliderComparisons();
