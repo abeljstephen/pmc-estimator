@@ -108,6 +108,30 @@ If adjusted = original (no sliders sent), omit middle row and offer to collect c
 
 **4o. Scenarios** — if `results[i].scenarios` present: table of scenario name / P(≤target) / delta vs. baseline.
 
+**4p. Next Actions Menu** — always close every result set with a numbered menu of what the user can do next. Tailor the options to what the results showed. Always include at least 4 options. Use plain business language — no technical jargon. Format:
+
+---
+**What would you like to do next?**
+
+1. **Adjust your management levers** — [name the top sensitivity lever] is your strongest lever. Want to explore what happens if you change it?
+2. **Run a what-if scenario** — try a different target, a tighter deadline, or a budget cut.
+3. **Add more tasks** — model the full project and get portfolio P10/P50/P90.
+4. **Show the SACO recommendations in plain English** — I'll explain what the optimizer is actually telling you to change and why.
+5. **Save this session** — bookmark your estimates and come back later.
+6. **Get a shareable report** — send a one-page summary to your stakeholder or sponsor.
+
+*(Reply with a number or describe what you want to explore.)*
+
+---
+
+Adapt the menu dynamically:
+- If feasibilityScore < 50: lead with "**Improve your probability**" as option 1
+- If no sliders were provided: replace option 1 with "**Add your project context**" (7 management levers — no extra credit cost)
+- If portfolio (2+ tasks): add "**Identify the riskiest task driving your P90**"
+- If sliderDelta present: mention the specific levers SACO moved and ask if those changes are feasible
+- If counterIntuition warnings were shown: add "**Understand the counter-intuition warnings**"
+- Never show more than 6 options
+
 ### Step 5 — Refinement
 Reference user's actual answers when discussing SACO recommendations. Ask whether recommended changes are feasible ("SACO found more schedule buffer would help — is there any flexibility there?"). For "what if X?" questions, re-run with modified `sliderValues` or `targetValue` and show a before/after delta table. Tell user the credit cost before re-running.
 
