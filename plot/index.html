@@ -7155,6 +7155,19 @@
         var sel = document.getElementById('taskSel');
         if (!sel) { setStatusLocal('UI init failed: taskSel not found'); return; }
 
+        // Initialize overlay state if not yet done (required before first access)
+        if (!s.overlay) {
+          s.overlay = {
+            baselineOn: true, manualOn: false, fixedOn: false, adaptiveOn: false,
+            sidebarMode: null, probeLevel: 3,
+            variants: {
+              manual:   { loading: false, error: null, token: 0 },
+              fixed:    { loading: false, error: null, token: 0 },
+              adaptive: { loading: false, error: null, token: 0 }
+            }
+          };
+        }
+
         var idx = +sel.value;
         var t = s.tasks[idx];
         if (!t) { setStatusLocal('No valid task'); return; }
