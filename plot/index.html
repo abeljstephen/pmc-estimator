@@ -5,7 +5,7 @@
   <title>PMC Estimator — Live Plot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- CSP: allow CDN scripts + icarenow.io for session polling -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io; font-src https://cdn.jsdelivr.net data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://abeljstephen.github.io; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io; font-src https://cdn.jsdelivr.net data:;" />
 
   <!-- URL param bootstrap — runs before any other JS -->
   <script>
@@ -46,31 +46,31 @@
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
   <!-- SACO computation engine — load order matters -->
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/helpers/rng.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/helpers/validation.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/helpers/metrics.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/utilis.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/triangle-points.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/beta-points.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/pert-points.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/monte-carlo-raw.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/monte-carlo-smoothed.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/baseline/coordinator.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/optimization/kl-divergence.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/optimization/matrix-utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/reshaping/copula-utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/reshaping/slider-normalization.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/reshaping/slider-adjustments.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/optimization/sensitivity-analysis.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/optimization/optimizer.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/reshaping/outcome-summary.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/variable_map/adapter.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/report/playbooks.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/report/reshaping_report.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/visuals/annotations.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/visuals/heatmap-data.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/visuals/sankey-flow.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/abeljstephen/pmc-estimator@main/saco-engine/main.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/helpers/rng.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/helpers/validation.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/helpers/metrics.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/utilis.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/triangle-points.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/beta-points.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/pert-points.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/monte-carlo-raw.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/monte-carlo-smoothed.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/baseline/coordinator.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/optimization/kl-divergence.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/optimization/matrix-utils.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/reshaping/copula-utils.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/reshaping/slider-normalization.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/reshaping/slider-adjustments.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/optimization/sensitivity-analysis.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/optimization/optimizer.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/reshaping/outcome-summary.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/variable_map/adapter.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/report/playbooks.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/report/reshaping_report.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/visuals/annotations.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/visuals/heatmap-data.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/visuals/sankey-flow.js"></script>
+  <script src="https://abeljstephen.github.io/pmc-estimator/saco-engine/main.js"></script>
 
   <style>
     :root {
