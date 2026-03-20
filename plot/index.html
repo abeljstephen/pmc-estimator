@@ -7062,8 +7062,49 @@
         // google.script.run is not available here.
         var s = WS();
 
+        // Normalise a raw task object (from bootstrap or session) into legacy {task,optimistic,mostLikely,pessimistic} format.
+        // Exposed on window so _populateFromTaskList (once registered) can be called from global scope.
+        // Also carries through scalar result fields (targetProbability, percentiles, etc.) for KPI display.
+        function _normaliseTask(t, idx) {
+          return {
+            task:                 t.task || t.taskName || t.task_name || ('Task ' + (idx + 1)),
+            optimistic:           Number(t.optimistic  != null ? t.optimistic  : (t.O  != null ? t.O  : (t.best_case   || 0))),
+            mostLikely:           Number(t.mostLikely  != null ? t.mostLikely  : (t.M  != null ? t.M  : (t.most_likely || 0))),
+            pessimistic:          Number(t.pessimistic != null ? t.pessimistic : (t.P  != null ? t.P  : (t.worst_case  || 0))),
+            target:               t.target != null ? Number(t.target) : (t.targetValue != null ? Number(t.targetValue) : undefined),
+            // Carry through scalar results for per-task KPI display after task switch
+            targetProbability:    t.targetProbability    || null,
+            percentiles:          t.percentiles          || null,
+            optimizedPercentiles: t.optimizedPercentiles || null,
+            feasibilityScore:     t.feasibilityScore     != null ? t.feasibilityScore : null,
+            winningSliders:       t.winningSliders       || null
+          };
+        }
+
         function _populateFromTaskList(taskList) {
-          s.tasks = taskList;
+          // Expose on window so applySessionPayload (global scope) can call it
+          window._populateFromTaskList = _populateFromTaskList;
+          // Normalise all tasks to legacy format
+          s.tasks = taskList.map(_normaliseTask);
+
+          // Seed TM.tasks so Group mode and task count display work without google.script.run
+          if (window.TM) {
+            window.TM.tasks = s.tasks.map(function(t, i) {
+              return {
+                id:          'tid_boot_' + i,
+                task_name:   t.task,
+                best_case:   t.optimistic,
+                most_likely: t.mostLikely,
+                worst_case:  t.pessimistic,
+                risk_weight: 1.0,
+                active:      true,
+                notes:       ''
+              };
+            });
+            window.TM.initialized = true;
+            if (typeof window.TM._updateBar === 'function') window.TM._updateBar();
+          }
+
           var sel = document.getElementById('taskSel');
           if (!sel) { setStatusLocal('UI init failed: taskSel not found'); return; }
           sel.innerHTML = '';
@@ -7083,13 +7124,12 @@
           onTaskChange();
           var _pl = document.getElementById('pageLoader');
           if (_pl) _pl.style.display = 'none';
-          // Re-sync TM with newly loaded tasks
-          if (window.TM && typeof window.TM.init === 'function') window.TM.init();
         }
 
         if (window._pmcBootstrap) {
           var b = window._pmcBootstrap;
-          // Bootstrap may be a single task object or an array of tasks
+          // New multi-task format: {tasks:[...], portfolio:...}
+          // Legacy formats: array of tasks, or single-task object with O/M/P fields
           var taskList = [];
           if (Array.isArray(b)) {
             taskList = b;
@@ -7097,31 +7137,16 @@
             taskList = b.tasks;
           } else if (b.optimistic != null || b.mostLikely != null || b.pessimistic != null
                      || b.O != null || b.M != null || b.P != null) {
-            // Single-task bootstrap (accepts both long-form and O/M/P short-form from buildPlotUrl)
-            taskList = [{
-              task:        b.task || b.taskName || 'Estimation',
-              optimistic:  Number(b.optimistic  != null ? b.optimistic  : (b.O || 0)),
-              mostLikely:  Number(b.mostLikely  != null ? b.mostLikely  : (b.M || 0)),
-              pessimistic: Number(b.pessimistic != null ? b.pessimistic : (b.P || 0))
-            }];
+            taskList = [b]; // single-task — _normaliseTask handles field mapping
           }
           if (taskList.length > 0) {
-            // If bootstrap includes a target value, set it (accepts targetValue or target)
-            if (b.targetValue != null) {
-              s.target = Number(b.targetValue);
-            } else if (b.target != null) {
-              s.target = Number(b.target);
-            }
-            // If bootstrap includes slider values, store them for pre-population
-            if (b.sliderValues) {
-              window._pmcBootstrapSliders = b.sliderValues;
-            }
+            // Portfolio data from top-level bootstrap
+            if (b.portfolio) s.portfolio = b.portfolio;
+            // If bootstrap includes slider values (single-task legacy path)
+            if (b.sliderValues) window._pmcBootstrapSliders = b.sliderValues;
             _populateFromTaskList(taskList);
             setStatusLocal('Ready');
-            // Start session polling if token present
-            if (window._pmcSession) {
-              startSessionPoll(window._pmcSession);
-            }
+            if (window._pmcSession) startSessionPoll(window._pmcSession);
             return;
           }
         }
@@ -8539,6 +8564,8 @@
           if (payload.saved_at && payload.saved_at !== lastSavedAt) {
             lastSavedAt = payload.saved_at;
             _setBadge('Live', '');
+            // Cache the full payload so task-switch handler can re-apply per-task arrays
+            window._pmcSessionData = payload.data;
             try { applySessionPayload(payload.data); } catch(e) { console.warn('[PMC] applySessionPayload error', e); }
           }
           setTimeout(poll, 3000);
@@ -8556,7 +8583,22 @@
     if (!data) return;
     var s = window.S || (window.S = {});
 
-    // If there is a task definition, inject it and reload
+    // New multi-task session format: { tasks: [...], portfolio: {...} }
+    // Each task in the array has full arrays (basePdf, baseCdf, etc.) plus scalars.
+    if (data.tasks && Array.isArray(data.tasks) && data.tasks.length > 0) {
+      if (typeof window._populateFromTaskList === 'function') {
+        window._populateFromTaskList(data.tasks);
+      }
+      if (data.portfolio) s.portfolio = data.portfolio;
+      // Apply arrays for the currently-selected task (index 0 on first poll)
+      var sel = document.getElementById('taskSel');
+      var idx = sel ? (parseInt(sel.value, 10) || 0) : 0;
+      var td = data.tasks[idx] || data.tasks[0];
+      if (td) applySessionPayload(td); // recurse into single-task path
+      return;
+    }
+
+    // Single-task path below (also used by multi-task recursion above)
     // Accepts both long-form (optimistic/mostLikely/pessimistic) and short-form (O/M/P) from buildPlotData
     if (data.task || data.taskName || data.optimistic != null || data.O != null) {
       var newTask = {

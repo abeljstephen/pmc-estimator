@@ -407,13 +407,21 @@ function handleCallApi(body) {
   //    Must happen BEFORE slimResult() which strips the PDF/CDF arrays.
   if (tasks.length > 0 && result.results && result.results[0]) {
     try {
-      var plotData = buildPlotData(result.results[0], tasks[0], result._portfolio || null);
-      var plotUrl  = buildPlotUrl(plotData, sessionToken);
+      // Build per-task plot data for ALL tasks (full arrays for session poll)
+      var allPlotData = tasks.map(function(task, i) {
+        return buildPlotData(result.results[i] || result.results[0], task, result._portfolio || null);
+      });
+      // URL encodes slim scalars for ALL tasks so the plot page populates the full dropdown
+      var plotUrl = buildPlotUrl(allPlotData, tasks, sessionToken, result._portfolio || null);
       result._plotUrl      = plotUrl;
       result._sessionToken = sessionToken;
-      // Save to WordPress (non-fatal — GPT still gets _plotUrl with static data param)
+      // Save to WordPress: store all tasks so session poll can deliver full arrays per task
+      var sessionPayload = {
+        tasks:     allPlotData,
+        portfolio: result._portfolio || null
+      };
       try {
-        wpPost('/pmc/v1/plot-data/save', { token: sessionToken, data: plotData });
+        wpPost('/pmc/v1/plot-data/save', { token: sessionToken, data: sessionPayload });
       } catch (saveErr) {
         console.error('[PMC webapp] plot-data save failed:', saveErr.message);
       }
@@ -694,20 +702,30 @@ function safeVal(res, block, key) {
 }
 
 // Builds the GitHub Pages plot URL.
-// URL data param = slim scalars only (no arrays) for instant KPI render on page load.
-// Full arrays are fetched via the session poll on first poll cycle.
-function buildPlotUrl(pd, token) {
+// Encodes slim scalars for ALL tasks so the plot page populates the full task dropdown.
+// Full PDF/CDF arrays are fetched via the session poll.
+// allPlotData: array of objects from buildPlotData (one per task).
+// tasks: original task input array (for fallback field access).
+function buildPlotUrl(allPlotData, tasks, token, portfolio) {
   try {
+    var slimTasks = allPlotData.map(function(pd, i) {
+      return {
+        task:                 pd.taskName || (tasks[i] && tasks[i].task) || ('Task ' + (i + 1)),
+        O:                    pd.O,
+        M:                    pd.M,
+        P:                    pd.P,
+        target:               pd.target,
+        targetProbability:    pd.targetProbability,
+        percentiles:          pd.percentiles,
+        optimizedPercentiles: pd.optimizedPercentiles,
+        feasibilityScore:     pd.feasibilityScore,
+        winningSliders:       pd.winningSliders
+      };
+    });
     var slim = {
-      schemaVersion: pd.schemaVersion,
-      taskName: pd.taskName,
-      O: pd.O, M: pd.M, P: pd.P, target: pd.target,
-      targetProbability:    pd.targetProbability,
-      percentiles:          pd.percentiles,
-      optimizedPercentiles: pd.optimizedPercentiles,
-      feasibilityScore:     pd.feasibilityScore,
-      winningSliders:       pd.winningSliders,
-      portfolio:            pd.portfolio
+      schemaVersion: 1,
+      tasks:     slimTasks,
+      portfolio: portfolio || null
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(slim)));
     return 'https://abeljstephen.github.io/pmc-estimator/plot/?data=' + encoded + '&session=' + token;
