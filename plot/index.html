@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMC Estimator — Live Plot</title>
+  <link rel="stylesheet" href="plot.css">
+  <!-- Visualization libraries -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <!-- SACO computation engine (order-dependent) -->
+  <script src="https://icarenow.io/wp-content/plugins/pmc-estimator/assets/js/engine/baseline.js" onerror="window._engineMissing=true"></script>
+  <script src="https://icarenow.io/wp-content/plugins/pmc-estimator/assets/js/engine/copula.js"   onerror="window._engineMissing=true"></script>
+  <script src="https://icarenow.io/wp-content/plugins/pmc-estimator/assets/js/engine/optimizer.js" onerror="window._engineMissing=true"></script>
+  <script src="https://icarenow.io/wp-content/plugins/pmc-estimator/assets/js/engine/saco.js"      onerror="window._engineMissing=true"></script>
+  <script src="plot.js" defer></script>
+</head>
+<body class="pmc-plot">
+
+  <!-- Update banner (shown when new ChatGPT data arrives while slider is custom) -->
+  <div id="pmc-update-banner">
+    New results from ChatGPT available.
+    <a id="pmc-apply-update">Apply update</a>
+  </div>
+
+  <!-- Header -->
+  <div id="pmc-header">
+    <div>
+      <div id="pmc-task-title">PMC Estimator</div>
+      <div id="pmc-omp"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="pmc-feasibility-badge" class="pmc-feasibility-badge badge-grey">–</span>
+      <div id="pmc-live-badge">
+        <span class="live-dot" id="pmc-live-dot"></span>
+        <span id="pmc-live-label">Static</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skeleton (shown before data arrives in session-only mode) -->
+  <div id="pmc-skeleton" class="pmc-hidden">
+    <p>Waiting for estimation data from ChatGPT&hellip;</p>
+    <p style="font-size:12px;margin-top:8px;color:#9ca3af">This page will update automatically when results are ready.</p>
+  </div>
+
+  <!-- Main content (hidden until data available) -->
+  <div id="pmc-main" class="pmc-hidden">
+
+    <!-- Probability trio -->
+    <div class="pmc-card" id="pmc-prob-card">
+      <h2>Probability of Meeting Target</h2>
+      <div id="pmc-prob-trio">
+        <div class="trio-item">
+          <div class="trio-label">Baseline</div>
+          <div class="trio-value v-base" id="trio-base">–</div>
+          <div class="trio-delta" id="trio-base-delta"></div>
+        </div>
+        <div class="trio-item">
+          <div class="trio-label">With Context</div>
+          <div class="trio-value v-adj" id="trio-adj">–</div>
+          <div class="trio-delta pos" id="trio-adj-delta"></div>
+        </div>
+        <div class="trio-item">
+          <div class="trio-label">SACO Optimized</div>
+          <div class="trio-value v-opt" id="trio-opt">–</div>
+          <div class="trio-delta pos" id="trio-opt-delta"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Distribution overlay (PDF/CDF) -->
+    <div class="pmc-card">
+      <h2>Distribution</h2>
+      <div class="chart-tabs">
+        <button class="chart-tab active" id="tab-pdf" onclick="PlotApp.switchDistTab('pdf')">PDF</button>
+        <button class="chart-tab" id="tab-cdf" onclick="PlotApp.switchDistTab('cdf')">CDF</button>
+      </div>
+      <div class="series-toggles" id="pmc-series-toggles"></div>
+      <div id="pmc-pdf-wrap"><canvas id="pmc-pdf-chart" height="220"></canvas></div>
+      <div id="pmc-cdf-wrap" class="pmc-hidden"><canvas id="pmc-cdf-chart" height="220"></canvas></div>
+    </div>
+
+    <!-- 3D surface + Sensitivity side by side -->
+    <div class="pmc-grid-2">
+      <div class="pmc-card">
+        <h2>3D Distribution Surface</h2>
+        <div id="pmc-3d-surface" style="height:320px"></div>
+      </div>
+      <div class="pmc-card">
+        <h2>Slider Sensitivity</h2>
+        <canvas id="pmc-tornado-chart" height="300"></canvas>
+      </div>
+    </div>
+
+    <!-- Percentile table -->
+    <div class="pmc-card">
+      <h2>Percentiles</h2>
+      <div style="overflow-x:auto">
+        <table id="pmc-pct-table">
+          <thead>
+            <tr>
+              <th style="text-align:left">Series</th>
+              <th>P5</th><th>P10</th><th>P20</th><th>P30</th><th>P40</th>
+              <th>P50</th><th>P60</th><th>P70</th><th>P80</th><th>P90</th><th>P95</th>
+            </tr>
+          </thead>
+          <tbody id="pmc-pct-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Radar + Slider panel -->
+    <div class="pmc-grid-2">
+      <div class="pmc-card">
+        <h2>Slider Space (Radar)</h2>
+        <canvas id="pmc-radar-chart" height="280"></canvas>
+      </div>
+      <div class="pmc-card" id="pmc-slider-panel">
+        <h2>Explore Sliders</h2>
+        <label>Budget Flexibility <span class="slider-val" id="sv-budget">50</span></label>
+        <input type="range" min="0" max="100" value="50" id="sl-budget" oninput="PlotApp.onSlider('budgetFlexibility',this.value)">
+
+        <label>Schedule Flexibility <span class="slider-val" id="sv-schedule">50</span></label>
+        <input type="range" min="0" max="100" value="50" id="sl-schedule" oninput="PlotApp.onSlider('scheduleFlexibility',this.value)">
+
+        <label>Scope Certainty <span class="slider-val" id="sv-scopecert">50</span></label>
+        <input type="range" min="0" max="100" value="50" id="sl-scopecert" oninput="PlotApp.onSlider('scopeCertainty',this.value)">
+
+        <label>Scope Reduction <span class="slider-val" id="sv-scopered">50</span></label>
+        <input type="range" min="0" max="100" value="50" id="sl-scopered" oninput="PlotApp.onSlider('scopeReductionAllowance',this.value)">
+
+        <label>Rework % <span class="slider-val" id="sv-rework">25</span></label>
+        <input type="range" min="0" max="50" value="25" id="sl-rework" oninput="PlotApp.onSlider('reworkPercentage',this.value)">
+
+        <label>Risk Tolerance <span class="slider-val" id="sv-risk">50</span></label>
+        <input type="range" min="0" max="100" value="50" id="sl-risk" oninput="PlotApp.onSlider('riskTolerance',this.value)">
+
+        <label>User Confidence <span class="slider-val" id="sv-userconf">75</span></label>
+        <input type="range" min="0" max="100" value="75" id="sl-userconf" oninput="PlotApp.onSlider('userConfidence',this.value)">
+
+        <div>
+          <button class="pmc-btn pmc-btn-primary" id="pmc-recompute-btn" onclick="PlotApp.recomputeSACO()">Recompute SACO</button>
+          <button class="pmc-btn pmc-btn-secondary" onclick="PlotApp.resetToSACO()">Reset to SACO</button>
+        </div>
+        <div id="pmc-recompute-status" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
+    <!-- Scenario table (conditional) -->
+    <div class="pmc-card pmc-hidden" id="pmc-scenario-card">
+      <h2>Scenario Comparison</h2>
+      <table id="pmc-scenario-table">
+        <thead>
+          <tr><th>Scenario</th><th>Target</th><th>Probability</th><th>vs Baseline</th></tr>
+        </thead>
+        <tbody id="pmc-scenario-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Decision narrative -->
+    <div class="pmc-card pmc-hidden" id="pmc-decision-card">
+      <h2>Recommendations</h2>
+      <ul id="pmc-recommendations-list"></ul>
+      <ul id="pmc-counter-intuition-list" style="margin-top:10px"></ul>
+      <p id="pmc-narrative-text"></p>
+    </div>
+
+    <!-- Portfolio (conditional) -->
+    <div class="pmc-card pmc-hidden" id="pmc-portfolio-card">
+      <h2>Portfolio Summary</h2>
+      <div id="pmc-portfolio-bar"></div>
+    </div>
+
+  </div><!-- #pmc-main -->
+
+</body>
+</html>
