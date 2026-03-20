@@ -5,7 +5,7 @@
 
 var NO_IMPROVEMENT_EPS = 1e-4;
 
-function _os__os_pct(v) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : 'N/A'; }
+function _os_pct(v) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : 'N/A'; }
 
 // Renamed to avoid conflict with global num() in Code.gs
 function outcomeNum(v, d = 2) { return Number.isFinite(v) ? Number(v).toFixed(d) : 'N/A'; }

@@ -3,21 +3,21 @@
 // Slider-based reshaping and manual adjustment
 // Cleaned for pure Apps Script - global scope, no Node.js
 
-function isValidPdfArray(arr) {
+function _sa_isValidPdfArray(arr) {
   return Array.isArray(arr) && arr.length >= 2 &&
     arr.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y));
 }
 
-function isValidCdfArray(arr) {
+function _sa_isValidCdfArray(arr) {
   return Array.isArray(arr) && arr.length >= 2 &&
     arr.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y));
 }
 
-function clamp01(v) {
+function _sa_clamp01(v) {
   return Math.max(0, Math.min(1, Number(v)));
 }
 
-function asPointsArray(maybe) {
+function _sa_asPointsArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
   if (maybe && Array.isArray(maybe.value)) return maybe.value;
   return [];
@@ -118,15 +118,15 @@ function betaRefit(optimistic, mostLikely, pessimistic, m0, m1) {
   const range = Math.max(1e-9, p - o);
 
   // Mean and variance adjustments bounded to avoid degenerate shapes
-  let mu1 = mu0 * (1 - clamp01(m0) * 0.2);
+  let mu1 = mu0 * (1 - _sa_clamp01(m0) * 0.2);
   mu1 = Math.max(o * 1.01, mu1); // keep mean safely above optimistic bound
 
   const var1 = Math.max(
     1e-12,
-    Math.min(var0, var0 * (1 - clamp01(m1) * 0.5))
+    Math.min(var0, var0 * (1 - _sa_clamp01(m1) * 0.5))
   );
 
-  const mu01 = clamp01((mu1 - o) / range);
+  const mu01 = _sa_clamp01((mu1 - o) / range);
   const var01 = Math.max(1e-12, var1 / (range ** 2));
 
   const denom = mu01 * (1 - mu01) / var01 - 1;
@@ -153,10 +153,10 @@ function computeSliderProbability({
   sliderValues,
   probeLevel = 0
 }) {
-  const basePdf = asPointsArray(points?.pdfPoints);
-  const baseCdf = asPointsArray(points?.cdfPoints);
+  const basePdf = _sa_asPointsArray(points?.pdfPoints);
+  const baseCdf = _sa_asPointsArray(points?.cdfPoints);
 
-  if (!isValidCdfArray(baseCdf) || !isValidPdfArray(basePdf)) {
+  if (!_sa_isValidCdfArray(baseCdf) || !_sa_isValidPdfArray(basePdf)) {
     return {
       probability: { value: null },
       reshapedPoints: { pdfPoints: basePdf, cdfPoints: baseCdf },
@@ -173,7 +173,7 @@ function computeSliderProbability({
 
   const tau = Number.isFinite(targetValue) ? Number(targetValue) : mostLikely;
   const baseProb = Number.isFinite(tau)
-    ? clamp01(interpolateCdf(baseCdf, tau).value)
+    ? _sa_clamp01(interpolateCdf(baseCdf, tau).value)
     : null;
 
   // Slider values in UI units
@@ -235,13 +235,13 @@ function computeSliderProbability({
 
   // Normalized sliders for diagnostics (0–1; rework in 0–0.5 band)
   const normalized01 = {
-    budgetFlexibility: clamp01((sv.budgetFlexibility || 0) / 100),
-    scheduleFlexibility: clamp01((sv.scheduleFlexibility || 0) / 100),
-    scopeCertainty: clamp01((sv.scopeCertainty || 0) / 100),
-    scopeReductionAllowance: clamp01((sv.scopeReductionAllowance || 0) / 100),
-    reworkPercentage: clamp01((sv.reworkPercentage || 0) / 50),
-    riskTolerance: clamp01((sv.riskTolerance || 0) / 100),
-    userConfidence: clamp01((sv.userConfidence != null ? sv.userConfidence : 100) / 100)
+    budgetFlexibility: _sa_clamp01((sv.budgetFlexibility || 0) / 100),
+    scheduleFlexibility: _sa_clamp01((sv.scheduleFlexibility || 0) / 100),
+    scopeCertainty: _sa_clamp01((sv.scopeCertainty || 0) / 100),
+    scopeReductionAllowance: _sa_clamp01((sv.scopeReductionAllowance || 0) / 100),
+    reworkPercentage: _sa_clamp01((sv.reworkPercentage || 0) / 50),
+    riskTolerance: _sa_clamp01((sv.riskTolerance || 0) / 100),
+    userConfidence: _sa_clamp01((sv.userConfidence != null ? sv.userConfidence : 100) / 100)
   };
 
   // Sliders in percent units for computeAdjustedMoments (copula geometry)
@@ -283,13 +283,13 @@ function computeSliderProbability({
           beta: refit.beta
         });
 
-        if (isValidPdfArray(betaPts.pdfPoints) && isValidCdfArray(betaPts.cdfPoints)) {
+        if (_sa_isValidPdfArray(betaPts.pdfPoints) && _sa_isValidCdfArray(betaPts.cdfPoints)) {
           newPdf = betaPts.pdfPoints;
           newCdf = betaPts.cdfPoints;
           usedBeta = true;
 
           if (Number.isFinite(tau)) {
-            finalProb = clamp01(interpolateCdf(newCdf, tau).value);
+            finalProb = _sa_clamp01(interpolateCdf(newCdf, tau).value);
           }
 
           const safeRange = Math.max(1e-9, range);
@@ -326,7 +326,7 @@ function computeSliderProbability({
     }
 
     // If refit failed or points invalid, fall back to a gentle "lift" on the CDF
-    if (!usedBeta || !isValidPdfArray(newPdf) || !isValidCdfArray(newCdf)) {
+    if (!usedBeta || !_sa_isValidPdfArray(newPdf) || !_sa_isValidCdfArray(newCdf)) {
       const w = {
         budgetFlexibility: 0.20,
         scheduleFlexibility: 0.20,
@@ -348,8 +348,8 @@ function computeSliderProbability({
 
       const baseCdfSorted = baseCdf.slice().sort((a, b) => a.x - b.x);
       const liftedCdf = baseCdfSorted.map(p => {
-        const F = clamp01(Number(p.y));
-        const lifted = clamp01(F + gain * (1 - F));
+        const F = _sa_clamp01(Number(p.y));
+        const lifted = _sa_clamp01(F + gain * (1 - F));
         return { x: Number(p.x), y: lifted };
       });
 
@@ -358,7 +358,7 @@ function computeSliderProbability({
       const derivedPdf = [{ x: newCdf[0].x, y: 0 }];
       for (let i = 1; i < newCdf.length; i++) {
         const dx = Math.max(1e-12, newCdf[i].x - newCdf[i - 1].x);
-        const dy = clamp01(newCdf[i].y) - clamp01(newCdf[i - 1].y);
+        const dy = _sa_clamp01(newCdf[i].y) - _sa_clamp01(newCdf[i - 1].y);
         const dens = Math.max(0, dy / dx);
         const midX = newCdf[i - 1].x + dx / 2;
         derivedPdf.push({ x: midX, y: dens });
@@ -367,7 +367,7 @@ function computeSliderProbability({
       newPdf = derivedPdf;
 
       if (Number.isFinite(tau)) {
-        finalProb = clamp01(interpolateCdf(newCdf, tau).value);
+        finalProb = _sa_clamp01(interpolateCdf(newCdf, tau).value);
       }
       kl = 0;
     }
@@ -458,13 +458,13 @@ function computeSliderProbability({
         beta: betaNew
       });
 
-      if (isValidCdfArray(newPoints.cdfPoints) && isValidPdfArray(newPoints.pdfPoints)) {
+      if (_sa_isValidCdfArray(newPoints.cdfPoints) && _sa_isValidPdfArray(newPoints.pdfPoints)) {
         newCdf = newPoints.cdfPoints || baseCdf;
         newPdf = newPoints.pdfPoints || basePdf;
         usedRefit = true;
 
         finalProb = Number.isFinite(tau)
-          ? clamp01(interpolateCdf(newCdf, tau).value)
+          ? _sa_clamp01(interpolateCdf(newCdf, tau).value)
           : null;
 
         const safeRange = Math.max(1e-9, range);
@@ -522,8 +522,8 @@ function computeSliderProbability({
 
       const baseCdfSorted = baseCdf.slice().sort((a, b) => a.x - b.x);
       const liftedCdf = baseCdfSorted.map(p => {
-        const F = clamp01(Number(p.y));
-        const lifted = clamp01(F + gain * (1 - F));
+        const F = _sa_clamp01(Number(p.y));
+        const lifted = _sa_clamp01(F + gain * (1 - F));
         return { x: Number(p.x), y: lifted };
       });
 
@@ -532,7 +532,7 @@ function computeSliderProbability({
       const derivedPdf = [{ x: newCdf[0].x, y: 0 }];
       for (let i = 1; i < newCdf.length; i++) {
         const dx = Math.max(1e-12, newCdf[i].x - newCdf[i - 1].x);
-        const dy = clamp01(newCdf[i].y) - clamp01(newCdf[i - 1].y);
+        const dy = _sa_clamp01(newCdf[i].y) - _sa_clamp01(newCdf[i - 1].y);
         const dens = Math.max(0, dy / dx);
         const midX = newCdf[i - 1].x + dx / 2;
         derivedPdf.push({ x: midX, y: dens });
@@ -541,7 +541,7 @@ function computeSliderProbability({
       newPdf = derivedPdf;
 
       finalProb = Number.isFinite(tau)
-        ? clamp01(interpolateCdf(newCdf, tau).value)
+        ? _sa_clamp01(interpolateCdf(newCdf, tau).value)
         : null;
     }
 
@@ -557,8 +557,8 @@ function computeSliderProbability({
         key === 'riskTolerance' ? 0.07 : 0.03
       );
       const value01 = key === 'reworkPercentage'
-        ? clamp01(val / 50)
-        : clamp01(val / 100);
+        ? _sa_clamp01(val / 50)
+        : _sa_clamp01(val / 100);
 
       const lamPart = weight * value01;
       return {
@@ -621,7 +621,7 @@ function computeSliderProbability({
       klDivergence: typeof kl !== 'undefined' ? kl : 0,
       momentsBreakdown: momentsObj && momentsObj.moments
         ? Object.keys(sliders100).reduce((acc, key) => {
-            const S01 = clamp01(
+            const S01 = _sa_clamp01(
               sliders100[key] /
               (key === 'reworkPercentage' ? 50 : 100)
             );
@@ -672,7 +672,7 @@ function computeSliderProbability({
     // logging is best-effort only
   }
 
-  if (!isValidPdfArray(newPdf) || !isValidCdfArray(newCdf)) {
+  if (!_sa_isValidPdfArray(newPdf) || !_sa_isValidCdfArray(newCdf)) {
     console.warn('RESHAPE: output points invalid; falling back to baseline.');
     return {
       probability: { value: baseProb },

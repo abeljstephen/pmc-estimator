@@ -23,7 +23,7 @@ function getModeBadge(mode, hasSeed = false) {
 }
 
 var _pb_pct = (v) => (Number.isFinite(v) ? (v * 100) : null);
-var clamp01 = (x) => Math.max(0, Math.min(1, Number(x)));
+var _pb_clamp01 = (x) => Math.max(0, Math.min(1, Number(x)));
 var round = (v, d=2) => Number.isFinite(v) ? Number(v.toFixed(d)) : v;
 
 function bandOf01(v) {
@@ -36,7 +36,7 @@ function bandOf01(v) {
   return '76–100';
 }
 
-function asArray(x) { return Array.isArray(x) ? x : []; }
+function _pb_asArray(x) { return Array.isArray(x) ? x : []; }
 function byAbsDesc(a, b) { return Math.abs((b || 0)) - Math.abs((a || 0)); }
 
 function coalesceCategory(s) {
@@ -49,8 +49,8 @@ function coalesceCategory(s) {
 }
 
 function summarizeSliders(sliders) {
-  const rows = asArray(sliders).map(s => {
-    const v = clamp01(s?.value ?? 0);
+  const rows = _pb_asArray(sliders).map(s => {
+    const v = _pb_clamp01(s?.value ?? 0);
     const cat = coalesceCategory(s?.category || s?.slider);
     const dRaw  = Number(s?.contribution?.deltaTargetProbFromRaw ?? 0);
     const dProj = Number(s?.contribution?.shareOfProjectionLift ?? 0);

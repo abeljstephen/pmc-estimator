@@ -130,7 +130,7 @@ function clipPoints(arr) {
 function coercePercent01(x) {
   return Math.max(0, Math.min(1, Number(x)));
 }
-function asPointsArray(maybe) {
+function _mn_asPointsArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
   if (maybe && Array.isArray(maybe.value)) return maybe.value;
   return [];
@@ -221,8 +221,8 @@ function processTask(task) {
       baselineRaw?.distributions?.monteCarloSmoothed ||
       null;
 
-    const pdf = asPointsArray(mcBlock?.pdfPoints) || asPointsArray(mcBlock?.pdf);
-    const cdf = asPointsArray(mcBlock?.cdfPoints) || asPointsArray(mcBlock?.cdf);
+    const pdf = _mn_asPointsArray(mcBlock?.pdfPoints) || _mn_asPointsArray(mcBlock?.pdf);
+    const cdf = _mn_asPointsArray(mcBlock?.cdfPoints) || _mn_asPointsArray(mcBlock?.cdf);
 
     if (!isValidPdfArray(pdf) || !isValidCdfArray(cdf)) {
       raise('Invalid MC-smoothed points', {
@@ -235,10 +235,10 @@ function processTask(task) {
     const triangleBlock = baselineRaw.trianglePoints || baselineRaw.triangle || baselineRaw?.distributions?.triangle;
     const betaPertBlock = baselineRaw.pertPoints || baselineRaw.betaPert || baselineRaw?.distributions?.betaPert;
 
-    const trianglePdfPoints = asPointsArray(triangleBlock?.pdfPoints) || asPointsArray(triangleBlock?.pdf);
-    const triangleCdfPoints = asPointsArray(triangleBlock?.cdfPoints) || asPointsArray(triangleBlock?.cdf);
-    const betaPertPdfPoints = asPointsArray(betaPertBlock?.pdfPoints) || asPointsArray(betaPertBlock?.pdf);
-    const betaPertCdfPoints = asPointsArray(betaPertBlock?.cdfPoints) || asPointsArray(betaPertBlock?.cdf);
+    const trianglePdfPoints = _mn_asPointsArray(triangleBlock?.pdfPoints) || _mn_asPointsArray(triangleBlock?.pdf);
+    const triangleCdfPoints = _mn_asPointsArray(triangleBlock?.cdfPoints) || _mn_asPointsArray(triangleBlock?.cdf);
+    const betaPertPdfPoints = _mn_asPointsArray(betaPertBlock?.pdfPoints) || _mn_asPointsArray(betaPertBlock?.pdf);
+    const betaPertCdfPoints = _mn_asPointsArray(betaPertBlock?.cdfPoints) || _mn_asPointsArray(betaPertBlock?.cdf);
 
     // Metrics (PERT, CI, CV, etc.)
     const metrics = calculateMetrics({
@@ -473,10 +473,10 @@ function processTask(task) {
                          optRes?.optimizedResult?.reshapedPoints ||
                          null;
 
-        let optPdf = asPointsArray(reshaped?.monteCarloSmoothed?.pdfPoints) ||
-                     asPointsArray(reshaped?.pdfPoints);
-        let optCdf = asPointsArray(reshaped?.monteCarloSmoothed?.cdfPoints) ||
-                     asPointsArray(reshaped?.cdfPoints);
+        let optPdf = _mn_asPointsArray(reshaped?.monteCarloSmoothed?.pdfPoints) ||
+                     _mn_asPointsArray(reshaped?.pdfPoints);
+        let optCdf = _mn_asPointsArray(reshaped?.monteCarloSmoothed?.cdfPoints) ||
+                     _mn_asPointsArray(reshaped?.cdfPoints);
 
         let adjProb = Number(optRes?.finalProb);
 

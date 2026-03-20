@@ -3,13 +3,15 @@
 // Deterministic, monotone copula + moments for slider aggregation.
 // Cleaned for pure Apps Script - global scope, no Node.js
 
-function clamp01(x) { return Math.max(0, Math.min(1, x)); }
-function to01(x) { const v = Number(x); if (!Number.isFinite(v)) return 0; return clamp01(v / 100); }
-function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] || 0) * (b[i] || 0); return s; }
-function l2(a) { return Math.sqrt(dot(a, a)); }
-function mix(a, b, t) { return a.map((ai, i) => (1 - t) * ai + t * (b[i] || 0)); }
-function mean(a) { if (!a.length) return 0; return a.reduce((s, v) => s + v, 0) / a.length; }
-function stdev(a) { const m = mean(a); const v = mean(a.map(x => (x - m) * (x - m))); return Math.sqrt(Math.max(0, v)); }
+function _cu_clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function _cu_to01(x) { const v = Number(x); if (!Number.isFinite(v)) return 0; return _cu_clamp01(v / 100); }
+function _cu_dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] || 0) * (b[i] || 0); return s; }
+function _cu_l2(a) { return Math.sqrt(_cu_dot(a, a)); }
+function _cu_mix(a, b, t) { return a.map((ai, i) => (1 - t) * ai + t * (b[i] || 0)); }
+function _cu_mean(a) { if (!a.length) return 0; return a.reduce((s, v) => s + v, 0) / a.length; }
+function _cu_stdev(a) { const m = _cu_mean(a); const v = _cu_mean(a.map(x => (x - m) * (x - m))); return Math.sqrt(Math.max(0, v)); }
+// Aliases for backward compatibility with internal callers that use the old names
+var to01 = _cu_to01;
 
 var SLIDER_KEYS = [
   'budgetFlexibility',
@@ -50,8 +52,8 @@ function computeCouplingSignal(S01) {
   const R = psdJitter(BASE_R, 1e-6);
 
   // Center & scale S to z-scores proxy (avoid zero variance collapse)
-  const m = mean(S01);
-  const sd = Math.max(1e-6, stdev(S01));
+  const m = _cu_mean(S01);
+  const sd = Math.max(1e-6, _cu_stdev(S01));
   const z = S01.map(s => (s - m) / sd);
 
   // Correlate via R (matrix-vector multiply)
@@ -63,7 +65,7 @@ function computeCouplingSignal(S01) {
   }
 
   // Squash back to (0,1) via smooth sigmoid-ish map
-  const U = zc.map(v => clamp01(0.5 + 0.2 * Math.tanh(v)));
+  const U = zc.map(v => _cu_clamp01(0.5 + 0.2 * Math.tanh(v)));
   return U;
 }
 
@@ -96,7 +98,7 @@ function computeAdjustedMoments(sliders100, scaleFactor = 1, cv = 0) {
       if (sliders100[key] !== undefined) return sliders100[key];
       return Array.isArray(sliders100) ? (sliders100[i] || 0) : 0;
     });
-    const raw01 = vals.map(to01);
+    const raw01 = vals.map(_cu_to01);
     // FIX: Check degenerate on raw (before invert) for coherent m0=0
     const sumRaw = raw01.reduce((s,v)=>s+v,0);
     const allZeroRaw = sumRaw < 1e-9;
@@ -111,11 +113,11 @@ function computeAdjustedMoments(sliders100, scaleFactor = 1, cv = 0) {
     // S01.forEach((s, i) => S01[i] = s / scaleFactor); // REMOVED: Caused m0~1e-5 → no refit lift
 
     const sum = S01.reduce((s,v)=>s+v,0);
-    const flat = stdev(S01) < 1e-6;
+    const flat = _cu_stdev(S01) < 1e-6;
 
     // Weighted linear mean (capacity & certainty emphasized; SACO v1.2: No * scaleFactor—fixed=1 for no saturation)
     const W = [0.20,0.20,0.18,0.15,0.10,0.09,0.08]; // sums to 1.0; scaleFactor=1 implicit (absolute % effect)
-    const lin = Math.max(0, Math.min(1, dot(W, S01)));
+    const lin = Math.max(0, Math.min(1, _cu_dot(W, S01)));
 
     // Prob-OR for diminishing returns
     let por = 0;
@@ -124,7 +126,7 @@ function computeAdjustedMoments(sliders100, scaleFactor = 1, cv = 0) {
 
     // Blend linear & prob-OR depending on correlation "pressure"
     const U = computeCouplingSignal(S01);
-    const coupling = mean(U); // higher means more joint "pressure"
+    const coupling = _cu_mean(U); // higher means more joint "pressure"
     const t = Math.max(0, Math.min(1, 0.3 + 0.4 * coupling)); // 0.3..0.7 blend
     const m0 = allZeroRaw ? 0 : Math.max(0, Math.min(1, (1 - t)*lin + t*por));
 

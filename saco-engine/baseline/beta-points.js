@@ -3,29 +3,29 @@
 // Force sync - Jan 16 2026 - Node.js removed
 
 // Lanczos coefficients for log-gamma (double-precision accuracy)
-var LANCZOS_COEFFS = [
+var _bp_LANCZOS_COEFFS = [
   676.5203681218851,   -1259.1392167224028,
   771.32342877765313,  -176.61502916214059,
   12.507343278686905,  -0.13857109526572012,
   9.9843695780195716e-6, 1.5056327351493116e-7
 ];
 
-// logGamma function (log of gamma function)
-function logGamma(z) {
+// _bp_logGamma function (log of gamma function)
+function _bp_logGamma(z) {
   if (z < 0.5) {
-    return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - logGamma(1 - z);
+    return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - _bp_logGamma(1 - z);
   }
   z -= 1;
   let x = 0.99999999999980993;
-  for (let i = 0; i < LANCZOS_COEFFS.length; i++) {
-    x += LANCZOS_COEFFS[i] / (z + i + 1);
+  for (let i = 0; i < _bp_LANCZOS_COEFFS.length; i++) {
+    x += _bp_LANCZOS_COEFFS[i] / (z + i + 1);
   }
-  const t = z + LANCZOS_COEFFS.length - 0.5;
+  const t = z + _bp_LANCZOS_COEFFS.length - 0.5;
   return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
 }
 
 // Gamma sampler (Marsaglia–Tsang method)
-function gammaSample(shape) {
+function _bp_gammaSample(shape) {
   if (shape <= 0) return NaN;
   if (shape > 1) {
     const d = shape - 1 / 3;
@@ -48,28 +48,28 @@ function gammaSample(shape) {
     }
   }
   const u = Math.random();
-  return gammaSample(shape + 1) * Math.pow(u, 1 / shape);
+  return _bp_gammaSample(shape + 1) * Math.pow(u, 1 / shape);
 }
 
 // Beta sampler
-function betaSample(alpha, beta) {
-  const ga = gammaSample(alpha);
-  const gb = gammaSample(beta);
+function _bp_betaSample(alpha, beta) {
+  const ga = _bp_gammaSample(alpha);
+  const gb = _bp_gammaSample(beta);
   const s = ga + gb;
   return (ga > 0 && s > 0) ? (ga / s) : NaN;
 }
 
 // Beta PDF (unit interval [0,1])
-function betaPdf(u, alpha, beta) {
+function _bp_betaPdf(u, alpha, beta) {
   if (u <= 0 || u >= 1 || alpha <= 0 || beta <= 0) return 0;
   const logNum = (alpha - 1) * Math.log(u) + (beta - 1) * Math.log(1 - u);
-  const logDen = logGamma(alpha) + logGamma(beta) - logGamma(alpha + beta);
+  const logDen = _bp_logGamma(alpha) + _bp_logGamma(beta) - _bp_logGamma(alpha + beta);
   return Math.exp(logNum - logDen);
 }
 
 // Canonical PERT (λ=4) mapping: (O, M, P) → (α, β)
-function computeBetaMoments(params) {
-  console.log('computeBetaMoments: Starting', { params });
+function _bp_computeBetaMoments(params) {
+  console.log('_bp_computeBetaMoments: Starting', { params });
   try {
     const { optimistic: O, mostLikely: M, pessimistic: P } = params || {};
     if (![O, M, P].every(Number.isFinite)) {
@@ -92,10 +92,10 @@ function computeBetaMoments(params) {
     if (alpha < 1) alpha = 1 + EPS;
     if (beta  < 1) beta  = 1 + EPS;
 
-    console.log('computeBetaMoments: Completed', { alpha, beta, lambda });
+    console.log('_bp_computeBetaMoments: Completed', { alpha, beta, lambda });
     return { alpha, beta };
   } catch (error) {
-    console.error('computeBetaMoments: Error', { message: error.message, stack: error.stack });
+    console.error('_bp_computeBetaMoments: Error', { message: error.message, stack: error.stack });
     return { alpha: null, beta: null, error: error.message };
   }
 }
@@ -124,7 +124,7 @@ function generateBetaPoints(params) {
     for (let i = 0; i < numSamples; i++) {
       const x = O + i * step;
       const u = (x - O) / r;
-      const y = betaPdf(u, alpha, beta) / r;
+      const y = _bp_betaPdf(u, alpha, beta) / r;
       if (!Number.isFinite(y) || y < 0) {
         throw new Error(`Invalid PDF value at x=${x}, u=${u}, y=${y}`);
       }

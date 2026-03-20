@@ -4,7 +4,7 @@
 // Cleaned for pure Apps Script - global scope, no Node.js
 
 // ---------- helpers ----------
-function asArray(x) {
+function _ad_asArray(x) {
   if (Array.isArray(x)) return x;
   if (x && Array.isArray(x.value)) return x.value;
   return [];
@@ -67,19 +67,19 @@ function adaptResponse(core) {
   const manualSliders01 = normalizeSliderBlock01(rawManualSliders01);
 
   // Baseline arrays
-  const basePdf = asArray(baseline.monteCarloSmoothed?.pdfPoints);
-  const baseCdf = asArray(baseline.monteCarloSmoothed?.cdfPoints);
+  const basePdf = _ad_asArray(baseline.monteCarloSmoothed?.pdfPoints);
+  const baseCdf = _ad_asArray(baseline.monteCarloSmoothed?.cdfPoints);
 
   // Adjusted arrays (pass-through if all-zero)
   const zeroPass = !!flags.allZeroPassThrough;
-  const adjPdfRaw = asArray(adjusted.reshapedPoints?.pdfPoints);
-  const adjCdfRaw = asArray(adjusted.reshapedPoints?.cdfPoints);
+  const adjPdfRaw = _ad_asArray(adjusted.reshapedPoints?.pdfPoints);
+  const adjCdfRaw = _ad_asArray(adjusted.reshapedPoints?.cdfPoints);
   const adjPdf = zeroPass ? basePdf : adjPdfRaw;
   const adjCdf = zeroPass ? baseCdf : adjCdfRaw;
 
   // Optimized arrays
-  const optPdf = asArray(optimized.reshapedPoints?.pdfPoints);
-  const optCdf = asArray(optimized.reshapedPoints?.cdfPoints);
+  const optPdf = _ad_asArray(optimized.reshapedPoints?.pdfPoints);
+  const optCdf = _ad_asArray(optimized.reshapedPoints?.cdfPoints);
 
   // Probabilities
   const tpOriginal = asNum(baseline.probabilityAtTarget?.value);
@@ -160,10 +160,10 @@ function adaptResponse(core) {
       }
     },
 
-    trianglePdf:  { value: asArray(core.trianglePdf?.value) },
-    triangleCdf:  { value: asArray(core.triangleCdf?.value) },
-    betaPertPdf:  { value: asArray(core.betaPertPdf?.value) },
-    betaPertCdf:  { value: asArray(core.betaPertCdf?.value) },
+    trianglePdf:  { value: _ad_asArray(core.trianglePdf?.value) },
+    triangleCdf:  { value: _ad_asArray(core.triangleCdf?.value) },
+    betaPertPdf:  { value: _ad_asArray(core.betaPertPdf?.value) },
+    betaPertCdf:  { value: _ad_asArray(core.betaPertCdf?.value) },
 
     targetProbabilityOriginalPdf: { value: basePdf },
     targetProbabilityOriginalCdf: { value: baseCdf },
@@ -229,8 +229,8 @@ function adaptResponse(core) {
         asNum(core?.mostLikely);
 
       const series = {
-        triangle: { pdf: asArray(out?.trianglePdf?.value),  cdf: asArray(out?.triangleCdf?.value) },
-        betaPert: { pdf: asArray(out?.betaPertPdf?.value),  cdf: asArray(out?.betaPertCdf?.value) },
+        triangle: { pdf: _ad_asArray(out?.trianglePdf?.value),  cdf: _ad_asArray(out?.triangleCdf?.value) },
+        betaPert: { pdf: _ad_asArray(out?.betaPertPdf?.value),  cdf: _ad_asArray(out?.betaPertCdf?.value) },
         baseline: { pdf: basePdf,                            cdf: baseCdf },
         adjusted: { pdf: adjPdf,                             cdf: adjCdf },
         optimized:{ pdf: optPdf,                             cdf: optCdf }

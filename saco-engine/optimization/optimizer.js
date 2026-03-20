@@ -60,10 +60,10 @@ var SACO_GEOMETRY = {
     const mu0 = (o + 4 * m + p) / 6;
     const var0 = ((p - o) / 6) ** 2;
     const range = Math.max(1e-9, p - o);
-    let mu1 = mu0 * (1 - clamp01(m0) * 0.2);
+    let mu1 = mu0 * (1 - _op_clamp01(m0) * 0.2);
     mu1 = Math.max(o * 1.01, mu1);
-    const var1 = Math.max(1e-12, Math.min(var0, var0 * (1 - clamp01(m1) * 0.5)));
-    const mu01 = clamp01((mu1 - o) / range);
+    const var1 = Math.max(1e-12, Math.min(var0, var0 * (1 - _op_clamp01(m1) * 0.5)));
+    const mu01 = _op_clamp01((mu1 - o) / range);
     const var01 = Math.max(1e-12, var1 / (range ** 2));
     const denom = mu01 * (1 - mu01) / var01 - 1;
     const alpha = mu01 * denom;
@@ -80,19 +80,19 @@ var SACO_GEOMETRY = {
 };
 
 /* --------------------------- Utilities --------------------------- */
-function clamp01(v) {
+function _op_clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 function safeNumber(x, d = 0) {
   return Number.isFinite(x) ? Number(x) : d;
 }
 function pctClamp01(n) {
-  return clamp01(safeNumber(n));  // returns number 0–1 — renamed to avoid collision with outcome-summary.js pct()
+  return _op_clamp01(safeNumber(n));  // returns number 0–1 — renamed to avoid collision with outcome-summary.js pct()
 }
 function lerp(a, b, t) {
   return (1 - t) * a + t * b;
 }
-function mean(a) {
+function _op_mean(a) {
   return a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
 }
 function stdDev(pdfOrSamples) {
@@ -165,7 +165,7 @@ function applyReshapeRules(x, mode, probeLevel = 1, seedBest = null, state = {})
     console.log('RULES ANCHOR: maxAnchorDev=' + maxAnchorDev.toFixed(3));
 
     const dampenFactor = seedBest ? 1.0 : Math.max(1 / probeLevel, 0.5);
-    let xDamp = x.map(v => clamp01(v * dampenFactor));
+    let xDamp = x.map(v => _op_clamp01(v * dampenFactor));
     xDamp = xDamp.map((v, i) => {
       const bounds = PER_SLIDER_BOUNDS[i];
       const hi = bounds.hi;  // reworkPercentage now maps full [0,1] internally (to01FromUi fix)
@@ -187,7 +187,7 @@ function logStepThrow(stepName, err) {
 }
 
 /* --------------------------- KL alignment util -------------------------- */
-function alignPoints(p, q) {
+function _op_alignPoints(p, q) {
   if (!Array.isArray(p) || !Array.isArray(q) || p.length < 2 || q.length < 2) return [p || [], q || []];
   const xMin = Math.min(p[0].x, q[0].x);
   const xMax = Math.max(p[p.length - 1].x, q[q.length - 1].x);
@@ -265,7 +265,7 @@ function sacoObjective(sliders01, o, m, p, tau, basePdf, baseCdf, bBias, adaptiv
         bb = 0;
       } else {
         m1 *= tameFactor;
-        bb = 0.05 + 0.03 * mean(W_MEAN.map((w, i) => sliders01[i] * Math.sign(w)));
+        bb = 0.05 + 0.03 * _op_mean(W_MEAN.map((w, i) => sliders01[i] * Math.sign(w)));
       }
     }
     console.log('TAMING DEBUG:', { m1Before, m1After: m1, bBias: bb, p0, tauVsMu: tau > mu, probeLevel, tameFactor });
@@ -438,7 +438,7 @@ function step2_hypercubeLhs(state) {
       const scale = hi - lo;
       for (let i = 0; i < samples.length; i++) {
         samples[i][j] = lo + scale * samples[i][j] + bias * scale;
-        samples[i][j] = clamp01(samples[i][j]);
+        samples[i][j] = _op_clamp01(samples[i][j]);
       }
     }
   }
@@ -521,7 +521,7 @@ function step7_output(state) {
       const div = Math.abs(x[i] - seedBest[i]) / Math.max(seedBest[i] || 0.01, 1e-6);
       if (div > 0.50) {
         x[i] = seedBest[i] + 0.10 * (2 * Math.random() - 1);
-        x[i] = clamp01(x[i]);
+        x[i] = _op_clamp01(x[i]);
         reverted = true;
       }
     }
@@ -651,7 +651,7 @@ function step7_output(state) {
     baselineProb: p0,
     finalProb: finalProb,
     winningSliders: { ...scaledSliders },
-    chainingDrift: seedBest && adaptive ? (Object.keys(sliders).reduce((s, k) => s + Math.abs(sliders[k] - seedBest[SLIDER_KEYS.indexOf(k)]), 0) / 7 / mean(seedBest) * 100) : null
+    chainingDrift: seedBest && adaptive ? (Object.keys(sliders).reduce((s, k) => s + Math.abs(sliders[k] - seedBest[SLIDER_KEYS.indexOf(k)]), 0) / 7 / _op_mean(seedBest) * 100) : null
   };
 
   const status = (lift >= 0.0001 || stepStatus === 'promote') ? 'ok' : 'no-optimize';

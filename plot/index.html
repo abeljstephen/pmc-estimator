@@ -1980,6 +1980,28 @@
       text-decoration: none; border: none; cursor: pointer;
     }
     #pmcNoDataOverlay .nd-btn:hover { background: #374151; }
+    #pmcNoDataOverlay .nd-form {
+      display: flex; flex-direction: column; gap: 12px;
+      width: 100%; max-width: 380px; text-align: left;
+      background: #F9FAFB; border: 1px solid #E5E7EB;
+      border-radius: 12px; padding: 20px;
+    }
+    #pmcNoDataOverlay .nd-form label {
+      font-size: 12px; font-weight: 600; color: #374151; text-transform: uppercase;
+      letter-spacing: .04em; margin-bottom: 2px; display: block;
+    }
+    #pmcNoDataOverlay .nd-form input[type=text],
+    #pmcNoDataOverlay .nd-form input[type=number] {
+      width: 100%; box-sizing: border-box;
+      padding: 8px 10px; border: 1px solid #D1D5DB; border-radius: 7px;
+      font-size: 15px; background: #fff; color: #111827;
+      outline: none;
+    }
+    #pmcNoDataOverlay .nd-form input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px #BFDBFE; }
+    #pmcNoDataOverlay .nd-row3 { display: flex; gap: 8px; }
+    #pmcNoDataOverlay .nd-row3 > div { flex: 1; }
+    #pmcNoDataOverlay .nd-err { color: #DC2626; font-size: 12px; display: none; }
+    #pmcNoDataOverlay .nd-hint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
 
     /* Help button + modal */
     #pmcHelpBtn {
@@ -2035,9 +2057,33 @@
 
   <!-- No-data overlay (shown when page opened without params) -->
   <div id="pmcNoDataOverlay">
-    <div class="nd-title">PMC Estimator — Live Plot</div>
-    <div class="nd-sub">This visualization is generated from a ChatGPT PMC Estimator session. To get your live chart, ask the PMC Estimator GPT for an estimate.</div>
-    <a class="nd-btn" href="https://chatgpt.com/g/#" target="_blank" rel="noopener">Open PMC Estimator &rarr;</a>
+    <div class="nd-title">PMC Estimator</div>
+    <div class="nd-sub">Enter your three-point estimate to get started. All computation runs locally in your browser — no data is sent anywhere.</div>
+    <div class="nd-form">
+      <div>
+        <label for="nd_task">Task name</label>
+        <input type="text" id="nd_task" placeholder="e.g. Design Phase" value="My Estimate" />
+      </div>
+      <div class="nd-row3">
+        <div>
+          <label for="nd_O">Optimistic (O)</label>
+          <input type="number" id="nd_O" placeholder="e.g. 8" step="any" />
+          <div class="nd-hint">Best case</div>
+        </div>
+        <div>
+          <label for="nd_M">Most Likely (M)</label>
+          <input type="number" id="nd_M" placeholder="e.g. 12" step="any" />
+          <div class="nd-hint">Most likely</div>
+        </div>
+        <div>
+          <label for="nd_P">Pessimistic (P)</label>
+          <input type="number" id="nd_P" placeholder="e.g. 20" step="any" />
+          <div class="nd-hint">Worst case</div>
+        </div>
+      </div>
+      <div class="nd-err" id="nd_err"></div>
+      <button class="nd-btn" id="nd_run" onclick="pmcRunFromForm()" style="width:100%; justify-content:center;">Run Estimate</button>
+    </div>
   </div>
 
   <!-- How to use help button -->
@@ -6495,6 +6541,7 @@
 
       window.requestVariant = requestVariant;
       window.onTaskChange = onTaskChange;
+      window.loadTasks = loadTasks;
 
       // Lightweight baseline refresh — clears only baseline cache/data, preserves
       // sliders and overlay state. Called when Reference Class data changes.
@@ -7138,7 +7185,7 @@
         setText('pVal', s.P);
         setText('pertVal', (s.O != null && s.M != null && s.P != null) ? ((s.O + 4*s.M + s.P)/6) : null);
 
-        updateTargetSlider();
+        if (typeof window.updateTargetSlider === 'function') window.updateTargetSlider();
 
         s.overlay.baselineOn = true;
         s.overlay.manualOn = false;
@@ -8578,13 +8625,98 @@
     }
   }
 
-  /* Show no-data overlay */
+  /* Show no-data overlay (input form) */
   function showNoDataMessage() {
     var overlay = document.getElementById('pmcNoDataOverlay');
     if (overlay) overlay.classList.add('visible');
     var pl = document.getElementById('pageLoader');
     if (pl) pl.style.display = 'none';
+    // Pre-fill inputs from URL params if present (O, M, P, task)
+    var params = new URLSearchParams(window.location.search);
+    var pO = params.get('O') || params.get('o') || params.get('optimistic');
+    var pM = params.get('M') || params.get('m') || params.get('mostLikely');
+    var pP = params.get('P') || params.get('p') || params.get('pessimistic');
+    var pT = params.get('task') || params.get('t');
+    if (pO) { var el = document.getElementById('nd_O'); if (el) el.value = pO; }
+    if (pM) { var el = document.getElementById('nd_M'); if (el) el.value = pM; }
+    if (pP) { var el = document.getElementById('nd_P'); if (el) el.value = pP; }
+    if (pT) { var el = document.getElementById('nd_task'); if (el) el.value = pT; }
   }
+
+  /* Run estimate from the no-data input form */
+  function pmcRunFromForm() {
+    var taskEl = document.getElementById('nd_task');
+    var oEl    = document.getElementById('nd_O');
+    var mEl    = document.getElementById('nd_M');
+    var pEl    = document.getElementById('nd_P');
+    var errEl  = document.getElementById('nd_err');
+
+    var task = (taskEl && taskEl.value.trim()) || 'My Estimate';
+    var O = Number(oEl && oEl.value);
+    var M = Number(mEl && mEl.value);
+    var P = Number(pEl && pEl.value);
+
+    if (errEl) errEl.style.display = 'none';
+
+    if (!Number.isFinite(O) || !Number.isFinite(M) || !Number.isFinite(P)) {
+      if (errEl) { errEl.textContent = 'Please enter valid numbers for O, M, and P.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (O > M || M > P) {
+      if (errEl) { errEl.textContent = 'Values must satisfy O \u2264 M \u2264 P.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (O === P) {
+      if (errEl) { errEl.textContent = 'O and P cannot be equal (no range to estimate).'; errEl.style.display = 'block'; }
+      return;
+    }
+
+    // Inject as a bootstrap task list and call the existing loader
+    window._pmcBootstrap = {
+      tasks: [{
+        task:        task,
+        optimistic:  O,
+        mostLikely:  M,
+        pessimistic: P
+      }]
+    };
+    window._pmcNoData = false;
+
+    // Hide overlay
+    var overlay = document.getElementById('pmcNoDataOverlay');
+    if (overlay) overlay.classList.remove('visible');
+
+    // Use the existing loadTasks machinery
+    if (typeof window.loadTasks === 'function') {
+      window.loadTasks();
+    } else {
+      // Fallback: directly call onTaskChange path via TM
+      var s = window.S || {};
+      s.tasks = window._pmcBootstrap.tasks;
+      var sel = document.getElementById('taskSel');
+      if (sel) {
+        sel.innerHTML = '';
+        s.tasks.forEach(function(t, i) {
+          var opt = document.createElement('option');
+          opt.value = i; opt.textContent = t.task;
+          sel.appendChild(opt);
+        });
+        sel.selectedIndex = 0;
+      }
+      if (typeof window.onTaskChange === 'function') window.onTaskChange();
+    }
+  }
+  window.pmcRunFromForm = pmcRunFromForm;
+
+  // Allow Enter key in form inputs to trigger run
+  document.addEventListener('DOMContentLoaded', function() {
+    ['nd_task','nd_O','nd_M','nd_P'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); pmcRunFromForm(); }
+      });
+    });
+  });
 
   /* Help modal open/close */
   function pmcShowHelp() {

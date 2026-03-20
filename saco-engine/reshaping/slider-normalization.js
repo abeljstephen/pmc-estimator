@@ -30,7 +30,7 @@ var DEFAULTS = {
   maxLiftScale: 0.50
 };
 
-function clamp01(x) { return Math.max(0, Math.min(1, Number(x))); }
+function _sn_clamp01(x) { return Math.max(0, Math.min(1, Number(x))); }
 
 /**
  * Map raw slider ∈ ℝ to normalized influence ∈ [0,1] with exponent gamma≥0.5.
@@ -38,7 +38,7 @@ function clamp01(x) { return Math.max(0, Math.min(1, Number(x))); }
  */
 function normalizeSlider(value, gamma = 1.0) {
   if (!Number.isFinite(value)) return 0;
-  const v01 = value > 1 ? clamp01(value / 100) : clamp01(value);
+  const v01 = value > 1 ? _sn_clamp01(value / 100) : _sn_clamp01(value);
   const g = Math.max(0.5, Number(gamma) || 1);
   return Math.pow(v01, g);
 }
