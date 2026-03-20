@@ -1954,14 +1954,8 @@
     /* ── GitHub Pages additions ─────────────────────────────────────── */
     /* Hide Google Sheets-only controls */
     #pmcExportBar,
-    #btnManageTasks,
-    #btnTMSettings,
     #btnSaveRun,
-    #btnDiscard,
-    #tmFirstRunBackdrop,
-    #tmManagerBackdrop,
-    #tmSettingsBackdrop,
-    .tm-modal-backdrop { display: none !important; }
+    #btnDiscard { display: none !important; }
 
     /* No-data overlay */
     #pmcNoDataOverlay {
@@ -7089,6 +7083,8 @@
           onTaskChange();
           var _pl = document.getElementById('pageLoader');
           if (_pl) _pl.style.display = 'none';
+          // Re-sync TM with newly loaded tasks
+          if (window.TM && typeof window.TM.init === 'function') window.TM.init();
         }
 
         if (window._pmcBootstrap) {
@@ -12018,7 +12014,7 @@ window.TM = {
 
     if (!info) return;
     if (total === 0) {
-      info.textContent = 'No tasks — click Data Source to add some.';
+      info.textContent = 'No tasks — click Manage tasks to add one.';
     } else if (this.mode === 'aggregate') {
       if (this._lastAggResult) {
         info.textContent = active + ' of ' + total + ' task' + (total !== 1 ? 's' : '') +
@@ -12312,7 +12308,7 @@ window.TM = {
     var active = this.tasks.filter(function(t) { return t.active; }).length;
     if (countEl) countEl.textContent = active + ' / ' + this.tasks.length + ' selected';
     if (this.tasks.length === 0) {
-      list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px 8px;">No tasks yet — click Data Source to add some.</div>';
+      list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px 8px;">No tasks yet — click Manage tasks to add some.</div>';
       return;
     }
     var html = '';
