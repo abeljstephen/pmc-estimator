@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SACO Engine — Browser Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0d1117; color: #e6edf3; padding: 24px; }
+    h1 { font-size: 1.3rem; color: #58a6ff; margin-bottom: 6px; letter-spacing: 0.04em; }
+    .subtitle { font-size: 0.78rem; color: #8b949e; margin-bottom: 20px; }
+    .summary-bar {
+      display: flex; gap: 20px; align-items: center;
+      background: #161b22; border: 1px solid #30363d;
+      padding: 12px 18px; border-radius: 6px; margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+    .summary-bar .total { color: #e6edf3; font-weight: bold; }
+    .summary-bar .passed { color: #3fb950; font-weight: bold; }
+    .summary-bar .failed { color: #f85149; font-weight: bold; }
+    .summary-bar .skipped { color: #8b949e; }
+    .test-block { margin-bottom: 28px; }
+    .test-block h2 {
+      font-size: 0.88rem; color: #e6edf3;
+      background: #161b22; border: 1px solid #30363d; border-bottom: none;
+      padding: 8px 14px; border-radius: 6px 6px 0 0;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #21262d; }
+    thead th {
+      text-align: left; padding: 7px 12px;
+      font-size: 0.75rem; color: #8b949e;
+      border-bottom: 1px solid #30363d;
+    }
+    tbody tr { border-bottom: 1px solid #21262d; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 7px 12px; font-size: 0.78rem; vertical-align: top; }
+    td.assertion { color: #c9d1d9; max-width: 340px; }
+    td.actual { color: #8b949e; max-width: 340px; word-break: break-all; font-size: 0.73rem; }
+    td.pass { color: #3fb950; font-weight: bold; }
+    td.fail { color: #f85149; font-weight: bold; }
+    .test-table-wrap {
+      border: 1px solid #30363d; border-radius: 0 0 6px 6px; overflow: hidden;
+    }
+    .exception-row td { color: #ff7b72; background: #1f1419; }
+    .console-section {
+      margin-top: 28px;
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 6px; padding: 14px 18px;
+    }
+    .console-section h3 { color: #8b949e; font-size: 0.82rem; margin-bottom: 10px; }
+    .console-entry { font-size: 0.73rem; margin-bottom: 3px; }
+    .console-entry.warn { color: #d29922; }
+    .console-entry.error { color: #f85149; }
+    .console-entry.log { color: #8b949e; }
+    .loading { color: #58a6ff; font-size: 0.85rem; padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>SACO Engine — Browser Test Suite</h1>
+  <div class="subtitle">saco-engine/test.html &mdash; file:// protocol, no network required</div>
+
+  <div id="summary-bar" class="summary-bar">
+    <span class="total" id="total-label">Loading&hellip;</span>
+  </div>
+
+  <div id="results">
+    <div class="loading">Initializing engine&hellip;</div>
+  </div>
+
+  <div class="console-section">
+    <h3>Captured console output</h3>
+    <div id="console-log"></div>
+  </div>
+
+  <!-- ================================================================
+       Engine scripts — loaded in dependency order, all relative paths
+       ================================================================ -->
+  <script src="helpers/rng.js"></script>
+  <script src="helpers/validation.js"></script>
+  <script src="helpers/metrics.js"></script>
+  <script src="baseline/utilis.js"></script>
+  <script src="baseline/triangle-points.js"></script>
+  <script src="baseline/beta-points.js"></script>
+  <script src="baseline/pert-points.js"></script>
+  <script src="baseline/monte-carlo-raw.js"></script>
+  <script src="baseline/monte-carlo-smoothed.js"></script>
+  <script src="baseline/coordinator.js"></script>
+  <script src="optimization/kl-divergence.js"></script>
+  <script src="optimization/matrix-utils.js"></script>
+  <script src="reshaping/copula-utils.js"></script>
+  <script src="reshaping/slider-normalization.js"></script>
+  <script src="reshaping/slider-adjustments.js"></script>
+  <script src="optimization/sensitivity-analysis.js"></script>
+  <script src="optimization/optimizer.js"></script>
+  <script src="reshaping/outcome-summary.js"></script>
+  <script src="variable_map/adapter.js"></script>
+  <script src="report/playbooks.js"></script>
+  <script src="report/reshaping_report.js"></script>
+  <script src="visuals/annotations.js"></script>
+  <script src="visuals/heatmap-data.js"></script>
+  <script src="visuals/sankey-flow.js"></script>
+  <script src="main.js"></script>
+
+  <!-- ================================================================
+       Test harness
+       ================================================================ -->
+  <script>
+    // ----------------------------------------------------------------
+    // Console capture — must run before engine logs anything at
+    // module-init time. We set this up inline so it is ready when the
+    // engine scripts execute (they log on parse).
+    // ----------------------------------------------------------------
+    const capturedLogs = [];
+    (function patchConsole() {
+      const methods = ['log', 'warn', 'error', 'info'];
+      methods.forEach(function(m) {
+        const orig = console[m].bind(console);
+        console[m] = function() {
+          const msg = Array.from(arguments).map(function(a) {
+            try { return (typeof a === 'object') ? JSON.stringify(a) : String(a); }
+            catch (_) { return String(a); }
+          }).join(' ');
+          capturedLogs.push({ level: m, msg: msg });
+          orig.apply(console, arguments);
+        };
+      });
+    })();
+  </script>
+
+  <script>
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+    function isNumber(v) { return typeof v === 'number' && Number.isFinite(v); }
+    function isArray(v)  { return Array.isArray(v); }
+    function isObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+    function safeStr(v) {
+      if (v === undefined) return 'undefined';
+      if (v === null)      return 'null';
+      try {
+        if (typeof v === 'object') {
+          const s = JSON.stringify(v);
+          return s.length > 120 ? s.slice(0, 117) + '...' : s;
+        }
+        return String(v);
+      } catch (_) { return '[unserializable]'; }
+    }
+
+    // ----------------------------------------------------------------
+    // Test runner
+    // ----------------------------------------------------------------
+    var allResults = []; // { testName, assertion, pass, actual }
+
+    function runTest(testName, fn) {
+      var assertions = [];
+      try {
+        fn(function assert(description, pass, actual) {
+          assertions.push({
+            testName:  testName,
+            assertion: description,
+            pass:      !!pass,
+            actual:    safeStr(actual)
+          });
+        });
+      } catch (err) {
+        assertions.push({
+          testName:  testName,
+          assertion: 'UNCAUGHT EXCEPTION',
+          pass:      false,
+          actual:    (err && err.message ? err.message : String(err)) +
+                     (err && err.stack ? ' | ' + err.stack.split('\n').slice(0,3).join(' ') : '')
+        });
+      }
+      allResults = allResults.concat(assertions);
+      return assertions;
+    }
+
+    // ----------------------------------------------------------------
+    // Test definitions
+    // ----------------------------------------------------------------
+
+    /* ------ Test 1: Basic call — no sliders, no target ------------ */
+    var t1 = runTest('Test 1: Basic call — no sliders, no target', function(assert) {
+      var resp = pmcEstimatorAPI([{
+        optimistic: 5, mostLikely: 10, pessimistic: 20
+      }]);
+
+      assert('Response has results array', isArray(resp.results), resp.results);
+      assert('results.length === 1', isArray(resp.results) && resp.results.length === 1,
+             isArray(resp.results) ? resp.results.length : resp.results);
+
+      var r = isArray(resp.results) ? resp.results[0] : null;
+
+      assert('No top-level error on response', !resp.error, resp.error);
+      assert('Result has no error field', r && !r.error, r ? r.error : 'null result');
+
+      var pdf = r && r.baseline && r.baseline.monteCarloSmoothed && r.baseline.monteCarloSmoothed.pdfPoints;
+      var cdf = r && r.baseline && r.baseline.monteCarloSmoothed && r.baseline.monteCarloSmoothed.cdfPoints;
+
+      assert('baseline.monteCarloSmoothed.pdfPoints is array with length > 0',
+             isArray(pdf) && pdf.length > 0,
+             isArray(pdf) ? 'length=' + pdf.length : pdf);
+
+      assert('baseline.monteCarloSmoothed.cdfPoints is array with length > 0',
+             isArray(cdf) && cdf.length > 0,
+             isArray(cdf) ? 'length=' + cdf.length : cdf);
+
+      var pertMean = r && r.baseline && r.baseline.pert && r.baseline.pert.value;
+      assert('baseline.pert.value (PERT mean) is between 5 and 20',
+             isNumber(pertMean) && pertMean >= 5 && pertMean <= 20,
+             pertMean);
+
+      // p50 via CDF inversion: find x where cdf.y >= 0.50
+      var p50 = NaN;
+      if (isArray(cdf) && cdf.length > 0) {
+        for (var i = 0; i < cdf.length; i++) {
+          if (cdf[i].y >= 0.5) { p50 = cdf[i].x; break; }
+        }
+        if (!Number.isFinite(p50)) p50 = cdf[cdf.length - 1].x;
+      }
+      assert('P50 (x where CDF >= 0.5) is between 5 and 20',
+             isNumber(p50) && p50 >= 5 && p50 <= 20,
+             p50);
+
+      assert('schemaVersion is present', r && typeof r.schemaVersion === 'string', r && r.schemaVersion);
+    });
+
+    /* ------ Test 2: With target and sliders ----------------------- */
+    var t2 = runTest('Test 2: With target and sliders', function(assert) {
+      var resp = pmcEstimatorAPI([{
+        optimistic: 5, mostLikely: 10, pessimistic: 20,
+        targetValue: 12,
+        sliderValues: {
+          budgetFlexibility:       70,
+          scheduleFlexibility:     50,
+          scopeCertainty:          60,
+          scopeReductionAllowance: 40,
+          reworkPercentage:        20,
+          riskTolerance:           50,
+          userConfidence:          75
+        }
+      }]);
+
+      var r = isArray(resp.results) ? resp.results[0] : null;
+      assert('No error on result', r && !r.error, r ? r.error : 'null result');
+
+      // targetProbability.value.original = P(X <= 12) on baseline
+      var tpOrig = r && r.targetProbability && r.targetProbability.value && r.targetProbability.value.original;
+      assert('targetProbability.value.original is between 0 and 1',
+             isNumber(tpOrig) && tpOrig >= 0 && tpOrig <= 1,
+             tpOrig);
+
+      // adjustedOptimized = probability after optimization
+      var tpOpt = r && r.targetProbability && r.targetProbability.value && r.targetProbability.value.adjustedOptimized;
+      assert('targetProbability.value.adjustedOptimized is between 0 and 1',
+             isNumber(tpOpt) && tpOpt >= 0 && tpOpt <= 1,
+             tpOpt);
+
+      assert('targetProbability.value.adjustedOptimized > 0',
+             isNumber(tpOpt) && tpOpt > 0,
+             tpOpt);
+
+      // optimize.sliders01 — 7-key object
+      var sliders01 = r && r.optimize && r.optimize.sliders01;
+      var sliderKeys = sliders01 ? Object.keys(sliders01) : [];
+      assert('optimize.sliders01 is an object with 7 keys',
+             isObject(sliders01) && sliderKeys.length === 7,
+             sliders01 ? 'keys=' + sliderKeys.join(',') : sliders01);
+
+      // targetProbability.value.original acts as feasibility proxy: 0–1 maps to 0–100
+      var feas = isNumber(tpOrig) ? tpOrig * 100 : NaN;
+      assert('targetProbability.value.original * 100 is between 0 and 100',
+             isNumber(feas) && feas >= 0 && feas <= 100,
+             feas);
+
+      // baseline pdf/cdf present
+      var pdf = r && r.baseline && r.baseline.monteCarloSmoothed && r.baseline.monteCarloSmoothed.pdfPoints;
+      assert('baseline.monteCarloSmoothed.pdfPoints length > 0',
+             isArray(pdf) && pdf.length > 0,
+             isArray(pdf) ? 'length=' + pdf.length : pdf);
+    });
+
+    /* ------ Test 3: Multi-task (2 tasks) -------------------------- */
+    var t3 = runTest('Test 3: Multi-task (2 tasks)', function(assert) {
+      var resp = pmcEstimatorAPI([
+        { optimistic: 2,  mostLikely: 5,  pessimistic: 10, targetValue: 6  },
+        { optimistic: 8,  mostLikely: 15, pessimistic: 25, targetValue: 18 }
+      ]);
+
+      assert('Response has results array', isArray(resp.results), resp.results);
+      assert('results.length === 2',
+             isArray(resp.results) && resp.results.length === 2,
+             isArray(resp.results) ? resp.results.length : resp.results);
+
+      var r0 = isArray(resp.results) ? resp.results[0] : null;
+      var r1 = isArray(resp.results) ? resp.results[1] : null;
+
+      assert('result[0] has no error', r0 && !r0.error, r0 ? r0.error : 'null');
+      assert('result[1] has no error', r1 && !r1.error, r1 ? r1.error : 'null');
+
+      var tp0 = r0 && r0.targetProbability && r0.targetProbability.value && r0.targetProbability.value.original;
+      var tp1 = r1 && r1.targetProbability && r1.targetProbability.value && r1.targetProbability.value.original;
+
+      assert('result[0].targetProbability.value.original is between 0 and 1',
+             isNumber(tp0) && tp0 >= 0 && tp0 <= 1,
+             tp0);
+
+      assert('result[1].targetProbability.value.original is between 0 and 1',
+             isNumber(tp1) && tp1 >= 0 && tp1 <= 1,
+             tp1);
+
+      var pdf0 = r0 && r0.baseline && r0.baseline.monteCarloSmoothed && r0.baseline.monteCarloSmoothed.pdfPoints;
+      var pdf1 = r1 && r1.baseline && r1.baseline.monteCarloSmoothed && r1.baseline.monteCarloSmoothed.pdfPoints;
+
+      assert('result[0] baseline pdf length > 0',
+             isArray(pdf0) && pdf0.length > 0,
+             isArray(pdf0) ? 'length=' + pdf0.length : pdf0);
+
+      assert('result[1] baseline pdf length > 0',
+             isArray(pdf1) && pdf1.length > 0,
+             isArray(pdf1) ? 'length=' + pdf1.length : pdf1);
+
+      // Each result has decisionReports (array) or null — just verify presence
+      assert('result[0] has decisionReports field',
+             r0 && 'decisionReports' in r0,
+             r0 ? safeStr(r0.decisionReports) : 'null');
+
+      assert('result[1] has decisionReports field',
+             r1 && 'decisionReports' in r1,
+             r1 ? safeStr(r1.decisionReports) : 'null');
+
+      // feedbackMessages present on envelope
+      assert('feedbackMessages array present on response',
+             isArray(resp.feedbackMessages),
+             resp.feedbackMessages);
+    });
+
+    /* ------ Test 4: Validation — invalid input (O > P) ------------ */
+    var t4 = runTest('Test 4: Validation — invalid input (optimistic > pessimistic)', function(assert) {
+      var threw = false;
+      var resp;
+      try {
+        resp = pmcEstimatorAPI([{ optimistic: 20, mostLikely: 10, pessimistic: 5 }]);
+      } catch (err) {
+        threw = true;
+        assert('pmcEstimatorAPI must NOT throw — it should return gracefully',
+               false,
+               'THREW: ' + (err && err.message ? err.message : String(err)));
+        return;
+      }
+
+      assert('pmcEstimatorAPI did not throw (graceful failure)', !threw, 'threw=' + threw);
+
+      // Either top-level error, or result[0].error
+      var topErr = resp && resp.error;
+      var r = isArray(resp && resp.results) ? resp.results[0] : null;
+      var resultErr = r && r.error;
+
+      assert('Response carries an error (top-level or result[0].error)',
+             !!(topErr || resultErr),
+             'top-level error=' + safeStr(topErr) + ', result[0].error=' + safeStr(resultErr));
+
+      // Must NOT return any pdfPoints when input is invalid
+      var pdf = r && r.baseline && r.baseline.monteCarloSmoothed && r.baseline.monteCarloSmoothed.pdfPoints;
+      var validPdf = isArray(pdf) && pdf.length > 0;
+      // If there IS a result error, we don't expect valid pdf — check consistency
+      if (resultErr) {
+        assert('When result has error, baseline pdf should be absent or empty',
+               !validPdf,
+               isArray(pdf) ? 'length=' + pdf.length : pdf);
+      } else {
+        assert('Top-level error is a non-empty string',
+               typeof topErr === 'string' && topErr.length > 0,
+               topErr);
+      }
+    });
+
+    // ----------------------------------------------------------------
+    // Render results
+    // ----------------------------------------------------------------
+    (function render() {
+      var container = document.getElementById('results');
+      container.innerHTML = '';
+
+      var totalPass = 0, totalFail = 0;
+      var testGroups = {};
+      allResults.forEach(function(r) {
+        if (!testGroups[r.testName]) testGroups[r.testName] = [];
+        testGroups[r.testName].push(r);
+        if (r.pass) totalPass++; else totalFail++;
+      });
+
+      Object.keys(testGroups).forEach(function(testName) {
+        var rows = testGroups[testName];
+        var passCount = rows.filter(function(r) { return r.pass; }).length;
+        var failCount = rows.length - passCount;
+        var badge = failCount === 0 ? ' ✓' : ' ✗ (' + failCount + ' failed)';
+
+        var block = document.createElement('div');
+        block.className = 'test-block';
+
+        var h2 = document.createElement('h2');
+        h2.textContent = testName + '  [' + passCount + '/' + rows.length + ']' + badge;
+        block.appendChild(h2);
+
+        var wrap = document.createElement('div');
+        wrap.className = 'test-table-wrap';
+
+        var table = document.createElement('table');
+        var thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>#</th><th>Assertion</th><th>Result</th><th>Actual value</th></tr>';
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        rows.forEach(function(r, idx) {
+          var tr = document.createElement('tr');
+          if (r.assertion === 'UNCAUGHT EXCEPTION') tr.className = 'exception-row';
+          tr.innerHTML =
+            '<td>' + (idx + 1) + '</td>' +
+            '<td class="assertion">' + escHtml(r.assertion) + '</td>' +
+            '<td class="' + (r.pass ? 'pass' : 'fail') + '">' + (r.pass ? 'PASS' : 'FAIL') + '</td>' +
+            '<td class="actual">' + escHtml(r.actual) + '</td>';
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        block.appendChild(wrap);
+        container.appendChild(block);
+      });
+
+      // Summary bar
+      var total = totalPass + totalFail;
+      var summaryBar = document.getElementById('summary-bar');
+      summaryBar.innerHTML =
+        '<span class="total">Total: ' + total + '</span>' +
+        '<span class="passed">Passed: ' + totalPass + '</span>' +
+        '<span class="failed">Failed: ' + totalFail + '</span>' +
+        (totalFail === 0
+          ? '<span style="color:#3fb950">All tests passed</span>'
+          : '<span style="color:#f85149">' + totalFail + ' assertion(s) failed</span>');
+
+      // Console log
+      var logContainer = document.getElementById('console-log');
+      if (capturedLogs.length === 0) {
+        logContainer.innerHTML = '<span style="color:#8b949e;font-size:0.75rem;">No console output captured.</span>';
+      } else {
+        capturedLogs.forEach(function(entry) {
+          var div = document.createElement('div');
+          div.className = 'console-entry ' + entry.level;
+          div.textContent = '[' + entry.level.toUpperCase() + '] ' + entry.msg;
+          logContainer.appendChild(div);
+        });
+      }
+    })();
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
