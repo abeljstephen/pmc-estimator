@@ -4456,6 +4456,7 @@
         var betaTile = document.getElementById('kpiBeta');
         var baseTile = document.getElementById('kpiBaseDist');
         var isGrpTile = window.TM && window.TM.mode === 'aggregate';
+        if (!s.progress) s.progress = { triOn: true, betaOn: false, baseOn: false };
         if (triTile)  { triTile.style.display  = ''; triTile.classList.toggle('active',  !!s.progress.triOn); }
         if (betaTile) { betaTile.style.display = ''; betaTile.classList.toggle('active', !!s.progress.betaOn); }
         // Sync plotSelBar Beta-PERT / Baseline checkboxes
