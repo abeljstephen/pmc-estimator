@@ -67,6 +67,14 @@ function handleCallApi(body) {
   var key = (body.key || '').trim();
   if (!key) return jsonOut({ error: 'API key is required' });
 
+  // Session token — stable for the life of one conversation.
+  // GPT omits it on first call; GAS generates one and returns it.
+  // GPT stores and re-sends it on all subsequent calls so plot.html can live-update.
+  var sessionToken = (body.session_token || '').trim();
+  if (!/^[a-f0-9]{32,64}$/.test(sessionToken)) {
+    sessionToken = Utilities.getUuid().replace(/-/g, '');  // 32-char lowercase hex
+  }
+
   // 1. Validate key + get quota from WordPress CRM
   var auth = wpPost('/pmc/v1/validate', { key: key });
   if (!auth.valid) return jsonOut({ error: auth.error, upgrade_url: auth.upgrade_url });
@@ -395,7 +403,27 @@ function handleCallApi(body) {
     bar:               bar
   };
 
-  // 9. Strip large point arrays so response stays under GPT's ~100 KB limit
+  // 9. Build plot data and save to WordPress for live visualization polling.
+  //    Must happen BEFORE slimResult() which strips the PDF/CDF arrays.
+  if (tasks.length > 0 && result.results && result.results[0]) {
+    try {
+      var plotData = buildPlotData(result.results[0], tasks[0], result._portfolio || null);
+      var plotUrl  = buildPlotUrl(plotData, sessionToken);
+      result._plotUrl      = plotUrl;
+      result._sessionToken = sessionToken;
+      // Save to WordPress (non-fatal — GPT still gets _plotUrl with static data param)
+      try {
+        wpPost('/pmc/v1/plot-data/save', { token: sessionToken, data: plotData });
+      } catch (saveErr) {
+        console.error('[PMC webapp] plot-data save failed:', saveErr.message);
+      }
+    } catch (plotErr) {
+      console.error('[PMC webapp] buildPlotData error:', plotErr.message);
+      result._sessionToken = sessionToken;
+    }
+  }
+
+  // 10. Strip large point arrays so response stays under GPT's ~100 KB limit
   result = slimResult(result);
 
   return jsonOut(result);
@@ -425,16 +453,9 @@ function wpPost(path, payload) {
   }
 
   // Guard against SSRF — WP_URL must be icarenow.io over HTTPS.
-  // Uses URL constructor to handle encoding, IPv6, and userinfo edge cases.
-  try {
-    var urlObj   = new URL(wpUrl);
-    var hostname = urlObj.hostname.toLowerCase();
-    if (urlObj.protocol !== 'https:' ||
-        (hostname !== 'icarenow.io' && hostname !== 'www.icarenow.io')) {
-      console.error('[PMC webapp] WP_URL rejected: ' + wpUrl);
-      return { error: 'WordPress connection misconfigured' };
-    }
-  } catch (_) {
+  var _allowed = ['https://icarenow.io', 'https://www.icarenow.io'];
+  if (_allowed.indexOf(wpUrl.toLowerCase().replace(/\/$/, '')) === -1) {
+    console.error('[PMC webapp] WP_URL rejected: ' + wpUrl);
     return { error: 'WordPress connection misconfigured' };
   }
 
@@ -608,6 +629,90 @@ function buildReportUrl(res, task) {
     return 'https://abeljstephen.github.io/pmc-estimator/report/?data=' + encoded;
   } catch(e) {
     return null;
+  }
+}
+
+// ── PLOT DATA BUILDER ─────────────────────────────────────────────────────────
+// Assembles the full data object for plot.html — includes complete PDF/CDF arrays
+// (before slimResult strips them) plus all scalar enrichment fields.
+function buildPlotData(res, task, portfolio) {
+  // Extract winning sliders and narrative from last decisionReport
+  var winSliders = null, narrative = null, recommendations = [], counterIntuition = [];
+  var rReports = res.decisionReports;
+  if (Array.isArray(rReports)) {
+    for (var ri = rReports.length - 1; ri >= 0; ri--) {
+      var rr = rReports[ri];
+      if (!rr) continue;
+      if (!winSliders && rr.winningSliders) winSliders = rr.winningSliders;
+      if (!narrative  && rr.narrative)     narrative  = rr.narrative;
+      if (!recommendations.length && Array.isArray(rr.recommendations)) recommendations = rr.recommendations;
+      if (!counterIntuition.length && Array.isArray(rr.counterIntuition)) counterIntuition = rr.counterIntuition;
+      if (winSliders && narrative) break;
+    }
+  }
+
+  return {
+    schemaVersion: 1,
+    taskName:  task.task,
+    O: task.optimistic, M: task.mostLikely, P: task.pessimistic,
+    target: task.targetValue != null ? task.targetValue : null,
+    // Full distribution arrays (200 points per series)
+    basePdf:  safePoints(res, 'baseline', 'monteCarloSmoothed', 'pdfPoints'),
+    baseCdf:  safePoints(res, 'baseline', 'monteCarloSmoothed', 'cdfPoints'),
+    adjPdf:   safeReshapedPoints(res, 'adjusted', 'pdfPoints'),
+    adjCdf:   safeReshapedPoints(res, 'adjusted', 'cdfPoints'),
+    optPdf:   safeReshapedPoints(res, 'optimize', 'pdfPoints'),
+    optCdf:   safeReshapedPoints(res, 'optimize', 'cdfPoints'),
+    triPdf:   safeVal(res, 'trianglePdf', 'value') || [],
+    triCdf:   safeVal(res, 'triangleCdf', 'value') || [],
+    pertPdf:  safeVal(res, 'betaPertPdf', 'value') || [],
+    pertCdf:  safeVal(res, 'betaPertCdf', 'value') || [],
+    // Scalars
+    targetProbability:    (res.targetProbability && res.targetProbability.value) || {},
+    percentiles:          res.percentiles           || {},
+    optimizedPercentiles: res.optimizedPercentiles  || {},
+    feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
+    sensitivity:          res.sensitivity           || null,
+    scenarios:            res.scenarios             || [],
+    sliderDelta:          res.sliderDelta           || {},
+    winningSliders:       winSliders,
+    narrative:            narrative,
+    recommendations:      recommendations,
+    counterIntuition:     counterIntuition,
+    portfolio:            portfolio || null
+  };
+}
+
+function safePoints(res, block, sub, key) {
+  try { return res[block][sub][key] || []; } catch(e) { return []; }
+}
+function safeReshapedPoints(res, block, key) {
+  try { return res[block].reshapedPoints[key] || []; } catch(e) { return []; }
+}
+function safeVal(res, block, key) {
+  try { return res[block][key]; } catch(e) { return null; }
+}
+
+// Builds the GitHub Pages plot URL.
+// URL data param = slim scalars only (no arrays) for instant KPI render on page load.
+// Full arrays are fetched via the session poll on first poll cycle.
+function buildPlotUrl(pd, token) {
+  try {
+    var slim = {
+      schemaVersion: pd.schemaVersion,
+      taskName: pd.taskName,
+      O: pd.O, M: pd.M, P: pd.P, target: pd.target,
+      targetProbability:    pd.targetProbability,
+      percentiles:          pd.percentiles,
+      optimizedPercentiles: pd.optimizedPercentiles,
+      feasibilityScore:     pd.feasibilityScore,
+      winningSliders:       pd.winningSliders,
+      portfolio:            pd.portfolio
+    };
+    var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(slim)));
+    return 'https://abeljstephen.github.io/pmc-estimator/plot/?data=' + encoded + '&session=' + token;
+  } catch (e) {
+    return 'https://abeljstephen.github.io/pmc-estimator/plot/?session=' + token;
   }
 }
 
