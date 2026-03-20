@@ -352,7 +352,7 @@ function pmc_render_users_list(): void {
                 </span>
             </div>
 
-            <table class="widefat striped" style="border-radius:6px;overflow:hidden">
+            <table class="widefat striped" style="border-radius:6px">
                 <thead>
                     <tr>
                         <th style="width:28px"><input type="checkbox" id="pmc-check-all"></th>
@@ -360,7 +360,7 @@ function pmc_render_users_list(): void {
                         <th><a href="<?php echo esc_url($sort_url('plan')); ?>" style="text-decoration:none;color:inherit">Plan<?php echo $sort_ind('plan'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('key_status')); ?>" style="text-decoration:none;color:inherit">Status<?php echo $sort_ind('key_status'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('key_expires')); ?>" style="text-decoration:none;color:inherit">Expires<?php echo $sort_ind('key_expires'); ?></a></th>
-                        <th><a href="<?php echo esc_url($sort_url('credits_remaining')); ?>" style="text-decoration:none;color:inherit">Credits<?php echo $sort_ind('credits_remaining'); ?></a></th>
+                        <th><a href="<?php echo esc_url($sort_url('credits_remaining')); ?>" style="text-decoration:none;color:inherit">Credits Remaining<?php echo $sort_ind('credits_remaining'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('last_estimation')); ?>" style="text-decoration:none;color:inherit">Last Used<?php echo $sort_ind('last_estimation'); ?></a></th>
                         <th>Source</th>
                         <th><a href="<?php echo esc_url($sort_url('created_at')); ?>" style="text-decoration:none;color:inherit">Joined<?php echo $sort_ind('created_at'); ?></a></th>
