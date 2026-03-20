@@ -22,7 +22,7 @@ function getModeBadge(mode, hasSeed = false) {
   return sacoPrefix + label.replace(/,/g, ';') + chainSuffix;
 }
 
-var pct = (v) => (Number.isFinite(v) ? (v * 100) : null);
+var _pb_pct = (v) => (Number.isFinite(v) ? (v * 100) : null);
 var clamp01 = (x) => Math.max(0, Math.min(1, Number(x)));
 var round = (v, d=2) => Number.isFinite(v) ? Number(v.toFixed(d)) : v;
 
@@ -130,7 +130,7 @@ function counterIntuitionBlock(ctx, rollup) {
   const lift = Number.isFinite(base) && Number.isFinite(fin) ? (fin - base) : null;
 
   const big = rollup.rows.filter(r => r.valuePct >= 76);
-  if (big.length && Number.isFinite(lift) && pct(lift) <= 3) {
+  if (big.length && Number.isFinite(lift) && _pb_pct(lift) <= 3) {
     out.push({
       pattern: 'High slider settings with minimal improvement',
       because: 'Multiple sliders in the 76–100 band but the final probability barely moved.',
@@ -147,7 +147,7 @@ function counterIntuitionBlock(ctx, rollup) {
   }
 
   const risk = rollup.rows.find(r => /risk/i.test(r.name));
-  if (risk && risk.valuePct >= 76 && Number.isFinite(lift) && pct(lift) < 5) {
+  if (risk && risk.valuePct >= 76 && Number.isFinite(lift) && _pb_pct(lift) < 5) {
     out.push({
       pattern: 'High risk tolerance with limited pay-off',
       because: 'Risk↑ expected bigger right-tail gains at τ; lift < 5 pts indicates weak coupling.',
@@ -194,7 +194,7 @@ function recommendationsBlock(ctx, rollup) {
   const fin  = ctx?.finalProbability;
   const lift = Number.isFinite(base) && Number.isFinite(fin) ? (fin - base) : 0;
 
-  if (pct(lift) < 5) {
+  if (_pb_pct(lift) < 5) {
     recs.push('Raise capacity/process levers first (staffing, automation, QA gates) before fine-tuning behavioral knobs.');
   }
 
@@ -241,8 +241,8 @@ function recommendationsBlock(ctx, rollup) {
 }
 
 function narrativeLine(ctx, rollup) {
-  const base = Number.isFinite(ctx?.baselineProbability) ? round(pct(ctx.baselineProbability), 2) : null;
-  const fin  = Number.isFinite(ctx?.finalProbability) ? round(pct(ctx.finalProbability), 2) : null;
+  const base = Number.isFinite(ctx?.baselineProbability) ? round(_pb_pct(ctx.baselineProbability), 2) : null;
+  const fin  = Number.isFinite(ctx?.finalProbability) ? round(_pb_pct(ctx.finalProbability), 2) : null;
   const lift = (base != null && fin != null) ? round(fin - base, 2) : null;
   const lam  = Number.isFinite(ctx?.lambda) ? round(ctx.lambda, 4) : null;
 
