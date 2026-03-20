@@ -11,7 +11,7 @@ servers:
 
 paths:
 
-  /macros/s/AKfycbwiOq86Xx8-yFdnTWG6QSrYkGIR0A47CD7YydiGeTLB8hHS0jS6012Z7RBBCACu_b9S/exec:
+  /macros/s/AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp/exec:
     post:
       operationId: callPMCEstimator
       summary: Call the PMC Estimator API
@@ -49,6 +49,14 @@ paths:
                 key:
                   type: string
                   description: Required for call_api, check_quota, save_session, and load_sessions. The user's API key.
+                session_token:
+                  type: string
+                  pattern: '^[a-f0-9]{32,64}$'
+                  description: >
+                    Stable conversation token for the live plot. Omit on the first call_api call — GAS
+                    generates and returns one in _sessionToken. Pass the returned _sessionToken value
+                    on every subsequent call_api call in the same conversation so the same plot URL
+                    stays live and updates in place.
                 session:
                   type: object
                   description: >
@@ -451,6 +459,20 @@ paths:
                       Shareable URL to a standalone HTML report containing task name,
                       O/M/P, target, P10/P50/P90, and probability outcomes. Null if
                       report building failed.
+                  _plotUrl:
+                    type: string
+                    description: >
+                      Interactive live visualization URL (GitHub Pages). Opens immediately with
+                      KPI tiles from URL params; auto-updates when the same session_token is used
+                      on subsequent calls. Open once per conversation — the plot re-renders in place.
+                      Show this after every estimation as "Open your live visualization: [link]".
+                  _sessionToken:
+                    type: string
+                    description: >
+                      32-char hex token identifying this conversation's live plot session. Store this
+                      in context and pass as session_token on every subsequent call_api call in the
+                      same conversation. Do NOT generate a new plot link on re-runs — the same URL
+                      updates automatically.
                   _quota:
                     type: object
                     properties:

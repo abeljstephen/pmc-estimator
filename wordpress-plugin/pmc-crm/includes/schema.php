@@ -26,6 +26,8 @@ function pmc_create_tables(): void {
         ip_address      VARCHAR(64)  NOT NULL DEFAULT '',
         source          VARCHAR(32)  NOT NULL DEFAULT 'trial',
         notes           TEXT             NULL,
+        auto_rotate_key       TINYINT(1)   NOT NULL DEFAULT 0,
+        rate_limit_multiplier FLOAT        NOT NULL DEFAULT 1,
         created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
@@ -125,6 +127,23 @@ function pmc_create_tables(): void {
         KEY idx_created_at (created_at)
     ) $charset;";
 
+    // API key history — one row per key issued per user
+    $sql[] = "CREATE TABLE {$p}api_keys (
+        id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id         BIGINT UNSIGNED NOT NULL,
+        email           VARCHAR(191) NOT NULL DEFAULT '',
+        api_key         VARCHAR(191) NOT NULL DEFAULT '',
+        status          VARCHAR(32)  NOT NULL DEFAULT 'active',
+        created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        revoked_at      DATETIME         NULL DEFAULT NULL,
+        notes           VARCHAR(255)     NULL DEFAULT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_api_key   (api_key),
+        KEY idx_user_id         (user_id),
+        KEY idx_status          (status),
+        KEY idx_created_at      (created_at)
+    ) $charset;";
+
     // Payments — full Stripe financial audit trail
     $sql[] = "CREATE TABLE {$p}payments (
         id                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -152,6 +171,31 @@ function pmc_create_tables(): void {
         KEY idx_user_id    (user_id),
         KEY idx_created_at (created_at),
         KEY idx_type       (type)
+    ) $charset;";
+
+    // Plot data — live visualization session storage (upsert by token)
+    $sql[] = "CREATE TABLE {$p}plot_data (
+        id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        token      VARCHAR(64)  NOT NULL,
+        data       MEDIUMTEXT   NOT NULL,
+        saved_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_token (token),
+        KEY idx_saved_at (saved_at)
+    ) $charset;";
+
+    // Settings audit log
+    $sql[] = "CREATE TABLE {$p}settings_log (
+        id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_login  VARCHAR(60)  NOT NULL DEFAULT '',
+        field       VARCHAR(64)  NOT NULL DEFAULT '',
+        old_value   TEXT             NULL,
+        new_value   TEXT             NULL,
+        created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_created_at (created_at),
+        KEY idx_field (field)
     ) $charset;";
 
     foreach ($sql as $query) {

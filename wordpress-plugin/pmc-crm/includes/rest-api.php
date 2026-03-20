@@ -11,6 +11,11 @@ add_action('rest_api_init', function () {
         'permission_callback' => '__return_true']);
     register_rest_route('pmc/v1', '/session/save', ['methods' => 'POST', 'callback' => 'pmc_rest_session_save'] + $auth);
     register_rest_route('pmc/v1', '/session/load', ['methods' => 'POST', 'callback' => 'pmc_rest_session_load'] + $auth);
+    register_rest_route('pmc/v1', '/plot-data/save',
+        ['methods' => 'POST', 'callback' => 'pmc_rest_plot_data_save'] + $auth);
+    register_rest_route('pmc/v1', '/plot-data/(?P<token>[a-f0-9]{32,64})',
+        ['methods' => 'GET', 'callback' => 'pmc_rest_plot_data_read',
+         'permission_callback' => '__return_true']);
 });
 
 /**
@@ -105,6 +110,10 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
         pmc_use_promo((int) $promo_result['promo']->id);
     }
 
+    // Record key in history table (supersede any previous active key first)
+    pmc_revoke_user_keys($user_id, 'superseded', 'trial re-issued');
+    pmc_create_api_key($user_id, $email, $key, 'trial issued');
+
     pmc_log_activity([
         'user_id'        => $user_id,
         'email'          => $email,
@@ -161,6 +170,22 @@ function pmc_rest_validate(WP_REST_Request $req): WP_REST_Response {
 
     $user = pmc_get_user_by_key($key);
     if (!$user) {
+        // Check if key exists in history (superseded/revoked) for a better message
+        global $wpdb;
+        $hist = $wpdb->get_row($wpdb->prepare(
+            "SELECT k.status, u.email FROM `{$wpdb->prefix}pmc_api_keys` k
+             JOIN `{$wpdb->prefix}pmc_users` u ON u.id = k.user_id
+             WHERE k.api_key = %s LIMIT 1",
+            $key
+        ));
+        if ($hist) {
+            pmc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(),
+                'email' => $hist->email, 'notes' => 'key ' . $hist->status]);
+            $msg = $hist->status === 'superseded'
+                ? 'This key has been replaced. Check your inbox for your latest key.'
+                : 'This key has been revoked. Subscribe for access.';
+            return rest_ensure_response(['valid' => false, 'error' => $msg, 'upgrade_url' => pmc_stripe_link()]);
+        }
         error_log('[PMC CRM] Invalid key attempt from ' . pmc_get_ip());
         pmc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(), 'notes' => 'invalid key']);
         return rest_ensure_response(['valid' => false, 'error' => 'Invalid key']);
@@ -460,4 +485,72 @@ function pmc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
         'sessions' => $sessions,
         'count'    => count($sessions),
     ]);
+}
+
+// ── PLOT DATA SAVE ─────────────────────────────────────────────────────────────
+// Called by GAS after each call_api. Upserts full distribution data by token.
+// Auth: X-PMC-Secret (server-to-server from GAS only).
+function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
+    $token = sanitize_text_field($req->get_param('token') ?? '');
+    if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+        return rest_ensure_response(['error' => 'Invalid token format']);
+    }
+
+    $data = $req->get_param('data');
+    if (!is_array($data) && !is_object($data)) {
+        return rest_ensure_response(['error' => 'data must be a JSON object']);
+    }
+
+    $json = wp_json_encode($data);
+    if (strlen($json) > 204800) { // 200 KB limit
+        return rest_ensure_response(['error' => 'Plot data too large (max 200 KB)']);
+    }
+
+    global $wpdb;
+    $table    = $wpdb->prefix . 'pmc_plot_data';
+    $saved_at = current_time('mysql');
+
+    $result = $wpdb->query($wpdb->prepare(
+        "INSERT INTO `{$table}` (token, data, saved_at, created_at)
+         VALUES (%s, %s, %s, %s)
+         ON DUPLICATE KEY UPDATE data = VALUES(data), saved_at = VALUES(saved_at)",
+        $token, $json, $saved_at, $saved_at
+    ));
+
+    if ($result === false) {
+        error_log('[PMC CRM] plot_data save failed: ' . $wpdb->last_error);
+        return rest_ensure_response(['error' => 'Storage error']);
+    }
+
+    return rest_ensure_response(['success' => true, 'token' => $token, 'saved_at' => $saved_at]);
+}
+
+// ── PLOT DATA READ ─────────────────────────────────────────────────────────────
+// Public GET — called by plot.html polling loop. Token is the secret.
+// Returns the latest data for a token, or {"status":"not_found"}.
+function pmc_rest_plot_data_read(WP_REST_Request $req): WP_REST_Response {
+    $token = sanitize_text_field($req->get_param('token') ?? '');
+    if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+        return rest_ensure_response(['status' => 'not_found']);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'pmc_plot_data';
+    $row   = $wpdb->get_row($wpdb->prepare(
+        "SELECT data, saved_at FROM `{$table}` WHERE token = %s LIMIT 1",
+        $token
+    ));
+
+    $response = rest_ensure_response(
+        $row
+            ? ['data' => json_decode($row->data, true), 'saved_at' => $row->saved_at]
+            : ['status' => 'not_found']
+    );
+
+    // CORS for GitHub Pages polling
+    $response->header('Access-Control-Allow-Origin', 'https://abeljstephen.github.io');
+    $response->header('Access-Control-Allow-Methods', 'GET');
+    $response->header('Cache-Control', 'no-store');
+
+    return $response;
 }

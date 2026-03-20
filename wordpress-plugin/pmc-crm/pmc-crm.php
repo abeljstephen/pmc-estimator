@@ -4,7 +4,7 @@
  * Plugin URI:   https://icarenow.io
  * Description:  Complete API key management, quota tracking, credit system, email automation,
  *               analytics, and GAS monitoring for the PMC Estimator GPT. No external CRM required.
- * Version:      2.1.0
+ * Version:      2.3.0
  * Author:       iCareNOW
  * Author URI:   https://icarenow.io
  * License:      Proprietary
@@ -12,7 +12,7 @@
 
 defined('ABSPATH') || exit;
 
-define('PMC_CRM_VERSION', '2.1.0');
+define('PMC_CRM_VERSION', '2.3.0');
 define('PMC_CRM_DIR',     plugin_dir_path(__FILE__));
 define('PMC_CRM_URL',     plugin_dir_url(__FILE__));
 
@@ -44,6 +44,7 @@ if (is_admin()) {
     require_once PMC_CRM_DIR . 'includes/admin/gas-status.php';
     require_once PMC_CRM_DIR . 'includes/admin/settings.php';
     require_once PMC_CRM_DIR . 'includes/admin/tools.php';
+    require_once PMC_CRM_DIR . 'includes/admin/bulk-email.php';
     require_once PMC_CRM_DIR . 'includes/admin/help.php';
 }
 
@@ -60,6 +61,8 @@ register_deactivation_hook(__FILE__, 'pmc_deactivate');
 function pmc_deactivate(): void {
     wp_clear_scheduled_hook('pmc_expire_keys_cron');
     wp_clear_scheduled_hook('pmc_daily_digest_cron');
+    wp_clear_scheduled_hook('pmc_auto_rotate_cron');
+    wp_clear_scheduled_hook('pmc_plot_cleanup_cron');
 }
 
 // ── UPGRADE PATH ──────────────────────────────────────────────────────────────
@@ -86,6 +89,12 @@ function pmc_schedule_crons(): void {
     if (!wp_next_scheduled('pmc_daily_digest_cron')) {
         wp_schedule_event(strtotime('tomorrow midnight'), 'daily', 'pmc_daily_digest_cron');
     }
+    if (!wp_next_scheduled('pmc_auto_rotate_cron')) {
+        wp_schedule_event(time(), 'hourly', 'pmc_auto_rotate_cron');
+    }
+    if (!wp_next_scheduled('pmc_plot_cleanup_cron')) {
+        wp_schedule_event(strtotime('tomorrow midnight'), 'daily', 'pmc_plot_cleanup_cron');
+    }
 }
 
 // ── KEY EXPIRY CRON ───────────────────────────────────────────────────────────
@@ -104,6 +113,59 @@ function pmc_run_expire_keys(): void {
     ));
     if ($updated > 0) {
         error_log('[PMC CRM] Expired ' . $updated . ' key(s) via hourly cron');
+    }
+}
+
+// ── AUTO-ROTATE KEYS CRON ─────────────────────────────────────────────────────
+// Runs hourly — for users with auto_rotate_key=1 expiring today,
+// generates a new key, emails it, and resets expiry for 35 more days.
+add_action('pmc_auto_rotate_cron', 'pmc_run_auto_rotate_keys');
+function pmc_run_auto_rotate_keys(): void {
+    global $wpdb;
+    $table = $wpdb->prefix . 'pmc_users';
+    $today = current_time('Y-m-d');
+
+    $candidates = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM `{$table}` WHERE auto_rotate_key=1 AND key_status='active'
+         AND key_expires IS NOT NULL AND key_expires <= %s",
+        $today
+    )) ?: [];
+
+    foreach ($candidates as $user) {
+        $new_key  = bin2hex(random_bytes(32));
+        $new_exp  = date('Y-m-d', strtotime('+35 days'));
+        pmc_revoke_user_keys((int) $user->id, 'superseded', 'auto-rotate on expiry');
+        pmc_update_user((int) $user->id, [
+            'api_key'    => $new_key,
+            'key_expires'=> $new_exp,
+            'key_status' => 'active',
+            'credits_used' => 0,
+        ]);
+        pmc_create_api_key((int) $user->id, $user->email, $new_key, 'auto-rotate on expiry');
+        pmc_send_email($user->email, 'key_regen', [
+            'email'  => $user->email,
+            'key'    => $new_key,
+            'plan'   => $user->plan,
+            'expiry' => $new_exp,
+        ]);
+        pmc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
+            'action' => 'key_regen', 'result' => 'success',
+            'notes'  => 'Auto-rotated key on expiry. New expiry: ' . $new_exp]);
+        error_log('[PMC CRM] Auto-rotated key for ' . $user->email);
+    }
+}
+
+// ── PLOT DATA CLEANUP CRON ────────────────────────────────────────────────────
+// Runs daily — deletes plot_data rows older than 7 days (tokens are conversation-scoped).
+add_action('pmc_plot_cleanup_cron', 'pmc_run_plot_cleanup');
+function pmc_run_plot_cleanup(): void {
+    global $wpdb;
+    $table   = $wpdb->prefix . 'pmc_plot_data';
+    $deleted = $wpdb->query(
+        "DELETE FROM `{$table}` WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
+    );
+    if ($deleted > 0) {
+        error_log('[PMC CRM] Cleaned up ' . $deleted . ' expired plot_data row(s)');
     }
 }
 

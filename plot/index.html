@@ -7095,19 +7095,22 @@
             taskList = b;
           } else if (b.tasks && Array.isArray(b.tasks)) {
             taskList = b.tasks;
-          } else if (b.optimistic != null || b.mostLikely != null || b.pessimistic != null) {
-            // Single-task bootstrap
+          } else if (b.optimistic != null || b.mostLikely != null || b.pessimistic != null
+                     || b.O != null || b.M != null || b.P != null) {
+            // Single-task bootstrap (accepts both long-form and O/M/P short-form from buildPlotUrl)
             taskList = [{
               task:        b.task || b.taskName || 'Estimation',
-              optimistic:  Number(b.optimistic  || b.O || 0),
-              mostLikely:  Number(b.mostLikely  || b.M || 0),
-              pessimistic: Number(b.pessimistic || b.P || 0)
+              optimistic:  Number(b.optimistic  != null ? b.optimistic  : (b.O || 0)),
+              mostLikely:  Number(b.mostLikely  != null ? b.mostLikely  : (b.M || 0)),
+              pessimistic: Number(b.pessimistic != null ? b.pessimistic : (b.P || 0))
             }];
           }
           if (taskList.length > 0) {
-            // If bootstrap includes a target value, set it
+            // If bootstrap includes a target value, set it (accepts targetValue or target)
             if (b.targetValue != null) {
               s.target = Number(b.targetValue);
+            } else if (b.target != null) {
+              s.target = Number(b.target);
             }
             // If bootstrap includes slider values, store them for pre-population
             if (b.sliderValues) {
@@ -8554,12 +8557,13 @@
     var s = window.S || (window.S = {});
 
     // If there is a task definition, inject it and reload
-    if (data.task || data.optimistic != null) {
+    // Accepts both long-form (optimistic/mostLikely/pessimistic) and short-form (O/M/P) from buildPlotData
+    if (data.task || data.taskName || data.optimistic != null || data.O != null) {
       var newTask = {
         task:        data.task || data.taskName || 'Estimation',
-        optimistic:  Number(data.optimistic  || data.O || s.O || 0),
-        mostLikely:  Number(data.mostLikely  || data.M || s.M || 0),
-        pessimistic: Number(data.pessimistic || data.P || s.P || 0)
+        optimistic:  Number(data.optimistic  != null ? data.optimistic  : (data.O  != null ? data.O  : (s.O || 0))),
+        mostLikely:  Number(data.mostLikely  != null ? data.mostLikely  : (data.M  != null ? data.M  : (s.M || 0))),
+        pessimistic: Number(data.pessimistic != null ? data.pessimistic : (data.P  != null ? data.P  : (s.P || 0)))
       };
       if (!s.tasks) s.tasks = [];
       // Replace or insert
@@ -8583,9 +8587,11 @@
       s.task = newTask;
     }
 
-    // If target value supplied, update
+    // If target value supplied, update (accepts targetValue or target from buildPlotData)
     if (data.targetValue != null) {
       s.target = Number(data.targetValue);
+    } else if (data.target != null) {
+      s.target = Number(data.target);
     }
 
     // Pre-inject PDF/CDF arrays if provided
@@ -8602,17 +8608,30 @@
     }
     if (data.basePdf)      s.basePdf      = _norm(data.basePdf, true);
     if (data.baseCdf)      s.baseCdf      = _norm(data.baseCdf, false);
-    if (data.trianglePdf)  s.trianglePdf  = _norm(data.trianglePdf, true);
-    if (data.triangleCdf)  s.triangleCdf  = _norm(data.triangleCdf, false);
-    if (data.betaPertPdf)  s.betaPertPdf  = _norm(data.betaPertPdf, true);
-    if (data.betaPertCdf)  s.betaPertCdf  = _norm(data.betaPertCdf, false);
-    if (data.adjPdf)       s.adjPdf       = _norm(data.adjPdf, true);
-    if (data.adjCdf)       s.adjCdf       = _norm(data.adjCdf, false);
-    if (data.optPdfFixed)  s.optPdfFixed  = _norm(data.optPdfFixed, true);
-    if (data.optCdfFixed)  s.optCdfFixed  = _norm(data.optCdfFixed, false);
-    if (data.baselineProb != null)  s.baselineProb  = Number(data.baselineProb);
-    if (data.adjustedProb != null)  s.adjustedProb  = Number(data.adjustedProb);
-    if (data.optimizedProb != null) s.optimizedProb = Number(data.optimizedProb);
+    // Accept both canonical names and short aliases from buildPlotData (triPdf, pertPdf, optPdf)
+    var _triPdf  = data.trianglePdf  || data.triPdf;
+    var _triCdf  = data.triangleCdf  || data.triCdf;
+    var _pertPdf = data.betaPertPdf  || data.pertPdf;
+    var _pertCdf = data.betaPertCdf  || data.pertCdf;
+    var _optPdf  = data.optPdfFixed  || data.optPdf;
+    var _optCdf  = data.optCdfFixed  || data.optCdf;
+    if (_triPdf)  s.trianglePdf  = _norm(_triPdf, true);
+    if (_triCdf)  s.triangleCdf  = _norm(_triCdf, false);
+    if (_pertPdf) s.betaPertPdf  = _norm(_pertPdf, true);
+    if (_pertCdf) s.betaPertCdf  = _norm(_pertCdf, false);
+    if (data.adjPdf)  s.adjPdf      = _norm(data.adjPdf, true);
+    if (data.adjCdf)  s.adjCdf      = _norm(data.adjCdf, false);
+    if (_optPdf)  s.optPdfFixed  = _norm(_optPdf, true);
+    if (_optCdf)  s.optCdfFixed  = _norm(_optCdf, false);
+    // Accept both flat prob fields and nested targetProbability from buildPlotData
+    var _tp = data.targetProbability && data.targetProbability.value ? data.targetProbability.value
+              : (data.targetProbability || {});
+    var _bProb = data.baselineProb  != null ? data.baselineProb  : (_tp.original           != null ? _tp.original           : null);
+    var _aProb = data.adjustedProb  != null ? data.adjustedProb  : (_tp.adjusted           != null ? _tp.adjusted           : null);
+    var _oProb = data.optimizedProb != null ? data.optimizedProb : (_tp.adjustedOptimized  != null ? _tp.adjustedOptimized  : null);
+    if (_bProb != null) s.baselineProb  = Number(_bProb);
+    if (_aProb != null) s.adjustedProb  = Number(_aProb);
+    if (_oProb != null) s.optimizedProb = Number(_oProb);
 
     // Clear cache so fresh data is used
     s.baselineCache = {};
