@@ -403,30 +403,47 @@ function handleCallApi(body) {
     bar:               bar
   };
 
-  // 9. Build plot data and save to WordPress for live visualization polling.
-  //    Must happen BEFORE slimResult() which strips the PDF/CDF arrays.
+  // 9. Build plot URL and save slim scalars to WordPress session poll.
+  //    Uses slim-only data (no full PDF/CDF arrays) to avoid serialization latency
+  //    that could push 3-task execution over the 30-second GAS web app timeout.
+  //    The browser-side SACO engine recomputes full arrays on load.
   if (tasks.length > 0 && result.results && result.results[0]) {
     try {
-      // Build per-task plot data for ALL tasks (full arrays for session poll)
-      var allPlotData = tasks.map(function(task, i) {
-        return buildPlotData(result.results[i] || result.results[0], task, result._portfolio || null);
+      // Build slim scalars for each task (no arrays — fast to serialize)
+      var slimTasks = tasks.map(function(task, i) {
+        var res = result.results[i] || result.results[0];
+        var winSliders = null;
+        var rReports = res.decisionReports;
+        if (Array.isArray(rReports)) {
+          for (var ri = rReports.length - 1; ri >= 0; ri--) {
+            if (rReports[ri] && rReports[ri].winningSliders) { winSliders = rReports[ri].winningSliders; break; }
+          }
+        }
+        return {
+          task:                 task.task,
+          O:                    task.optimistic,
+          M:                    task.mostLikely,
+          P:                    task.pessimistic,
+          target:               task.targetValue != null ? task.targetValue : null,
+          targetProbability:    (res.targetProbability && res.targetProbability.value) || {},
+          percentiles:          res.percentiles           || {},
+          optimizedPercentiles: res.optimizedPercentiles  || {},
+          feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
+          winningSliders:       winSliders
+        };
       });
-      // URL encodes slim scalars for ALL tasks so the plot page populates the full dropdown
-      var plotUrl = buildPlotUrl(allPlotData, tasks, sessionToken, result._portfolio || null);
+      var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
+      var plotUrl = buildPlotUrl(slimTasks, tasks, sessionToken, result._portfolio || null);
       result._plotUrl      = plotUrl;
       result._sessionToken = sessionToken;
-      // Save to WordPress: store all tasks so session poll can deliver full arrays per task
-      var sessionPayload = {
-        tasks:     allPlotData,
-        portfolio: result._portfolio || null
-      };
+      // Save slim payload to WordPress for live-update polling (non-fatal)
       try {
         wpPost('/pmc/v1/plot-data/save', { token: sessionToken, data: sessionPayload });
       } catch (saveErr) {
         console.error('[PMC webapp] plot-data save failed:', saveErr.message);
       }
     } catch (plotErr) {
-      console.error('[PMC webapp] buildPlotData error:', plotErr.message);
+      console.error('[PMC webapp] buildPlotUrl error:', plotErr.message);
       result._sessionToken = sessionToken;
     }
   }
@@ -640,88 +657,12 @@ function buildReportUrl(res, task) {
   }
 }
 
-// ── PLOT DATA BUILDER ─────────────────────────────────────────────────────────
-// Assembles the full data object for plot.html — includes complete PDF/CDF arrays
-// (before slimResult strips them) plus all scalar enrichment fields.
-function buildPlotData(res, task, portfolio) {
-  // Extract winning sliders and narrative from last decisionReport
-  var winSliders = null, narrative = null, recommendations = [], counterIntuition = [];
-  var rReports = res.decisionReports;
-  if (Array.isArray(rReports)) {
-    for (var ri = rReports.length - 1; ri >= 0; ri--) {
-      var rr = rReports[ri];
-      if (!rr) continue;
-      if (!winSliders && rr.winningSliders) winSliders = rr.winningSliders;
-      if (!narrative  && rr.narrative)     narrative  = rr.narrative;
-      if (!recommendations.length && Array.isArray(rr.recommendations)) recommendations = rr.recommendations;
-      if (!counterIntuition.length && Array.isArray(rr.counterIntuition)) counterIntuition = rr.counterIntuition;
-      if (winSliders && narrative) break;
-    }
-  }
-
-  return {
-    schemaVersion: 1,
-    taskName:  task.task,
-    O: task.optimistic, M: task.mostLikely, P: task.pessimistic,
-    target: task.targetValue != null ? task.targetValue : null,
-    // Full distribution arrays (200 points per series)
-    basePdf:  safePoints(res, 'baseline', 'monteCarloSmoothed', 'pdfPoints'),
-    baseCdf:  safePoints(res, 'baseline', 'monteCarloSmoothed', 'cdfPoints'),
-    adjPdf:   safeReshapedPoints(res, 'adjusted', 'pdfPoints'),
-    adjCdf:   safeReshapedPoints(res, 'adjusted', 'cdfPoints'),
-    optPdf:   safeReshapedPoints(res, 'optimize', 'pdfPoints'),
-    optCdf:   safeReshapedPoints(res, 'optimize', 'cdfPoints'),
-    triPdf:   safeVal(res, 'trianglePdf', 'value') || [],
-    triCdf:   safeVal(res, 'triangleCdf', 'value') || [],
-    pertPdf:  safeVal(res, 'betaPertPdf', 'value') || [],
-    pertCdf:  safeVal(res, 'betaPertCdf', 'value') || [],
-    // Scalars
-    targetProbability:    (res.targetProbability && res.targetProbability.value) || {},
-    percentiles:          res.percentiles           || {},
-    optimizedPercentiles: res.optimizedPercentiles  || {},
-    feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
-    sensitivity:          res.sensitivity           || null,
-    scenarios:            res.scenarios             || [],
-    sliderDelta:          res.sliderDelta           || {},
-    winningSliders:       winSliders,
-    narrative:            narrative,
-    recommendations:      recommendations,
-    counterIntuition:     counterIntuition,
-    portfolio:            portfolio || null
-  };
-}
-
-function safePoints(res, block, sub, key) {
-  try { return res[block][sub][key] || []; } catch(e) { return []; }
-}
-function safeReshapedPoints(res, block, key) {
-  try { return res[block].reshapedPoints[key] || []; } catch(e) { return []; }
-}
-function safeVal(res, block, key) {
-  try { return res[block][key]; } catch(e) { return null; }
-}
 
 // Builds the GitHub Pages plot URL.
-// Encodes slim scalars for ALL tasks so the plot page populates the full task dropdown.
-// Full PDF/CDF arrays are fetched via the session poll.
-// allPlotData: array of objects from buildPlotData (one per task).
-// tasks: original task input array (for fallback field access).
-function buildPlotUrl(allPlotData, tasks, token, portfolio) {
+// slimTasks: already-built slim scalar array (one object per task, no arrays).
+// tasks: original task input array (unused here, kept for signature clarity).
+function buildPlotUrl(slimTasks, tasks, token, portfolio) {
   try {
-    var slimTasks = allPlotData.map(function(pd, i) {
-      return {
-        task:                 pd.taskName || (tasks[i] && tasks[i].task) || ('Task ' + (i + 1)),
-        O:                    pd.O,
-        M:                    pd.M,
-        P:                    pd.P,
-        target:               pd.target,
-        targetProbability:    pd.targetProbability,
-        percentiles:          pd.percentiles,
-        optimizedPercentiles: pd.optimizedPercentiles,
-        feasibilityScore:     pd.feasibilityScore,
-        winningSliders:       pd.winningSliders
-      };
-    });
     var slim = {
       schemaVersion: 1,
       tasks:     slimTasks,
