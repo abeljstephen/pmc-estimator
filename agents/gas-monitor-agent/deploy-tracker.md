@@ -1,4 +1,4 @@
-# PMC Estimator — Deploy Tracker
+# ProjectCare — Deploy Tracker
 
 > Last checked: 2026-03-28 (manually updated)
 
@@ -7,7 +7,7 @@
 | Resource     | Used | Limit | % Used | Status |
 |-------------|------|-------|--------|--------|
 | Deployments | 3    | 20     | 15%     | OK      |
-| Versions    | 74   | 100    | 74%     | OK      |
+| Versions    | 77   | 100    | 77%     | WATCH   |
 
 ## Rules
 - `clasp push` → updates HEAD only. **No slots consumed. Push freely.**
@@ -18,28 +18,27 @@
 ```
 Found 3 deployments.
 - AKfycbzoO42SACRrzX8N1nnLPTqth4MX4Rgpsce0TIciCWE @HEAD
-- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @74 - PMC Estimator API v1.9.32 — userSliders in slim payload, CPM S-curve fix, CPM pre-slim  ← PRODUCTION API
-- AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL @51 - PMC Estimator Addon v3.2 — Report tabs, pipeline view, slider fixes  ← ADDON
+- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @76 - ProjectCare API v1.0.0 — universal API launch  ← PRODUCTION API
+- AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL @77 - ProjectCare Free v1.0.0 — unified brand launch  ← ADDON
 ```
 
 ## Deploy Commands (authoritative)
 ```bash
 # API (production):
 clasp deploy --deploymentId AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp \
-  --description "PMC Estimator API vX.Y.Z — <summary>"
-# Note: description MUST start with "PMC Estimator API"
+  --description "ProjectCare API vX.Y.Z — <summary>"
 
 # Addon:
 clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL \
-  --description "PMC Estimator Addon vX.Y — <summary>"
+  --description "ProjectCare Free vX.Y — <summary>"
 ```
 
 ## Recent Versions (last 5)
 ```
-64 - (archived)
-65 - (archived)
-67 - (archived)
 68 - PMC Estimator API v1.9.38 — slim-only session payload, fix multi-task plot URL
+75 - (version snapshot pre-deploy)
+76 - (API deploy version)
+77 - (Addon deploy version)
 ```
 
 ## Tasks for This Agent
@@ -51,5 +50,5 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 
 ## History (last 10 checks)
 <!-- Updated automatically by check-limits.sh -->
-- 2026-03-28 — Deployments: 3/20  Versions: 68/100  [OK / OK]  (manual update — tracker was stale at v51)
+- 2026-03-28 — Deployments: 3/20  Versions: 77/100  [OK / WATCH]  ProjectCare v1.0.0 launch — API @76, Addon @77
 - 2026-03-09 15:45 — Deployments: 3/20  Versions: 51/100  [OK / OK]
