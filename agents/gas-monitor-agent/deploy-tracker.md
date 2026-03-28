@@ -7,7 +7,7 @@
 | Resource     | Used | Limit | % Used | Status |
 |-------------|------|-------|--------|--------|
 | Deployments | 3    | 20     | 15%     | OK      |
-| Versions    | 68   | 100    | 68%     | OK      |
+| Versions    | 74   | 100    | 74%     | OK      |
 
 ## Rules
 - `clasp push` → updates HEAD only. **No slots consumed. Push freely.**
@@ -18,7 +18,7 @@
 ```
 Found 3 deployments.
 - AKfycbzoO42SACRrzX8N1nnLPTqth4MX4Rgpsce0TIciCWE @HEAD
-- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @68 - PMC Estimator API v1.9.38 — slim-only session payload, fix multi-task plot URL  ← PRODUCTION API
+- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @74 - PMC Estimator API v1.9.32 — userSliders in slim payload, CPM S-curve fix, CPM pre-slim  ← PRODUCTION API
 - AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL @51 - PMC Estimator Addon v3.2 — Report tabs, pipeline view, slider fixes  ← ADDON
 ```
 

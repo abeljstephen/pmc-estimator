@@ -7077,7 +7077,10 @@
             percentiles:          t.percentiles          || null,
             optimizedPercentiles: t.optimizedPercentiles || null,
             feasibilityScore:     t.feasibilityScore     != null ? t.feasibilityScore : null,
-            winningSliders:       t.winningSliders       || null
+            winningSliders:       t.winningSliders       || null,
+            // userSliders: the exact slider values the user gave GPT (UI units). null if not given.
+            userSliders:          (t.userSliders && typeof t.userSliders === 'object' &&
+                                   Object.keys(t.userSliders).length > 0) ? t.userSliders : null
           };
         }
 
@@ -7198,6 +7201,8 @@
 
         s.task = t;
         s.O = t.optimistic; s.M = t.mostLikely; s.P = t.pessimistic;
+        // Seed target from bootstrap task data so baselineProb is computed against the right value
+        if (t.target != null) s.target = Number(t.target);
         // Refresh triangle plot if visible
         if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
         // Clear ALL stale data from previous task
@@ -7253,6 +7258,93 @@
         s.variantCache = {};
 
         fetchData(false);
+        // ── Bootstrap SACO injection ─────────────────────────────────────────────────────────
+        // Pre-populate KPI results from the GAS slim payload so the user sees computed values
+        // immediately on the overlay tab, without having to click Optimize again.
+        //
+        // Scenario rules (target = s.task.target, sliders = s.task.userSliders):
+        //
+        //  target  sliders  │ action
+        //  ────────────────────────────────────────────────────────────────────────────────────
+        //  null    null     │ s.target = pertMean (updateTargetSlider default)
+        //                   │ inject optimizedProb + adaptiveProb from tp
+        //                   │ bg: fixed + adaptive variants
+        //  ────────────────────────────────────────────────────────────────────────────────────
+        //  given   null     │ s.target = target (set above before fetchData)
+        //                   │ inject optimizedProb + adaptiveProb from tp
+        //                   │ bg: fixed + adaptive variants
+        //  ────────────────────────────────────────────────────────────────────────────────────
+        //  null    given    │ s.target = pertMean (updateTargetSlider default)
+        //                   │ inject optimizedProb + adaptiveProb from tp
+        //                   │ seed slider UI with userSliders
+        //                   │ bg: fixed + adaptive + manual variants
+        //                   │ (tp.adjusted not set by GAS when no target; manual variant
+        //                   │  computes adjustedProb browser-side vs pertMean)
+        //  ────────────────────────────────────────────────────────────────────────────────────
+        //  given   given    │ s.target = target
+        //                   │ inject optimizedProb + adaptiveProb from tp
+        //                   │ inject adjustedProb from tp.adjusted (GAS computed, target given)
+        //                   │ seed slider UI with userSliders
+        //                   │ bg: fixed + adaptive + manual variants
+        //  ────────────────────────────────────────────────────────────────────────────────────
+        (function _applyBootstrapSACO() {
+          var t  = s.task;
+          if (!t) return;
+          var tp  = t.targetProbability || {};
+          var us  = t.userSliders;        // null or {budgetFlexibility:..., ...} in UI units
+          var hasTarget  = t.target != null;
+          var hasSliders = us && typeof us === 'object' && Object.keys(us).length > 0;
+          var hasOpt = tp.adjustedOptimized != null;
+          var hasAdp = tp.adaptiveOptimized != null;
+          // tp.adjusted only meaningful when GAS had a target AND user gave sliders
+          var hasAdj = hasTarget && hasSliders && tp.adjusted != null;
+
+          if (!hasOpt && !hasAdp && !hasAdj) return;
+
+          // ── Inject scalar probabilities ────────────────────────────────────────────────────
+          if (hasOpt) { s.optimizedProb = Number(tp.adjustedOptimized); s.overlay.fixedOn    = true; }
+          if (hasAdp) { s.adaptiveProb  = Number(tp.adaptiveOptimized); s.overlay.adaptiveOn = true; }
+          if (hasAdj) { s.adjustedProb  = Number(tp.adjusted);          s.overlay.manualOn   = true; }
+
+          // ── Seed slider UI with user's GPT slider values ───────────────────────────────────
+          // Maps API key names to DOM element IDs used by sliderValues() and requestVariant().
+          var SLIDER_ID = {
+            budgetFlexibility:       's_budget',
+            scheduleFlexibility:     's_schedule',
+            scopeCertainty:          's_scopeCert',
+            scopeReductionAllowance: 's_scopeRed',
+            reworkPercentage:        's_rework',
+            riskTolerance:           's_risk',
+            userConfidence:          's_userConf'
+          };
+          if (hasSliders) {
+            Object.keys(SLIDER_ID).forEach(function(key) {
+              var val = us[key];
+              if (val == null) return;
+              var id = SLIDER_ID[key];
+              var numEl   = document.getElementById(id);
+              var rangeEl = document.getElementById(id + '_range');
+              if (numEl)   numEl.value   = val;
+              if (rangeEl) rangeEl.value = val;
+            });
+            if (typeof window.setSlidersDisabled === 'function') window.setSlidersDisabled(false);
+            s.overlay.manualOn = true;
+          }
+
+          // ── Background variant runs — populate overlay PDF/CDF curves ──────────────────────
+          // setTimeout(0) ensures the baseline render (from fetchData above) completes first.
+          // s.tab is temporarily set to 'overlay' to pass requestVariant's tab guard, then
+          // restored so the progress-tab render is unaffected (scheduleUIRefresh is debounced).
+          setTimeout(function() {
+            var savedTab = s.tab;
+            s.tab = 'overlay';
+            if (typeof requestVariant !== 'function') { s.tab = savedTab; return; }
+            if (hasOpt)     requestVariant('fixed');
+            if (hasAdp)     requestVariant('adaptive');
+            if (hasSliders) requestVariant('manual');
+            s.tab = savedTab;
+          }, 0);
+        })();
         safe(function(){ window.renderRightLegend(); });
         safe(function(){ window.renderKPIs(); });
         updateSliderComparisons();

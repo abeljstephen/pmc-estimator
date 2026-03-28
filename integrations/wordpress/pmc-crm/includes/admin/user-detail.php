@@ -44,10 +44,17 @@ function pmc_render_user_detail(int $user_id): void {
         if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_quick_nonce'])), 'pmc_quick_action_' . $user_id)) {
             switch ($action) {
                 case 'reset':
-                    pmc_update_user($user_id, ['credits_used' => 0, 'key_status' => 'active']);
+                    $reset_updates = ['credits_used' => 0, 'key_status' => 'active'];
+                    $reset_exp_ts = $user->key_expires ? strtotime($user->key_expires) : false;
+                    if (!$reset_exp_ts || $reset_exp_ts < time()) {
+                        $reset_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
+                    }
+                    pmc_update_user($user_id, $reset_updates);
                     pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
-                        'result' => 'success', 'notes' => 'Reset usage + reactivated']);
-                    $notice = 'Usage reset and key reactivated.';
+                        'result' => 'success', 'notes' => 'Reset usage + activated'
+                            . (isset($reset_updates['key_expires']) ? ' + extended to ' . $reset_updates['key_expires'] : '')]);
+                    $notice = 'Usage reset and key activated.'
+                        . (isset($reset_updates['key_expires']) ? ' Extended to ' . $reset_updates['key_expires'] . '.' : '');
                     break;
                 case 'extend7':
                     $new_exp = date('Y-m-d', strtotime(($user->key_expires ?: 'now') . ' +7 days'));
@@ -75,28 +82,47 @@ function pmc_render_user_detail(int $user_id): void {
                         'result' => 'success', 'notes' => 'Manual grant +' . $amt . ' credits']);
                     $notice = 'Granted +' . $amt . ' credits. New total: ' . $new_total;
                     break;
+                case 'activate':
+                    $act_updates = ['key_status' => 'active'];
+                    $exp_ts = $user->key_expires ? strtotime($user->key_expires) : false;
+                    if (!$exp_ts || $exp_ts < time()) {
+                        $act_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
+                    }
+                    pmc_update_user($user_id, $act_updates);
+                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
+                        'result' => 'success', 'notes' => 'Admin activated key'
+                            . (isset($act_updates['key_expires']) ? ' + extended to ' . $act_updates['key_expires'] : '')]);
+                    $notice = isset($act_updates['key_expires'])
+                        ? 'Key activated and extended to ' . $act_updates['key_expires'] . '.'
+                        : 'Key activated.';
+                    break;
+                case 'deactivate':
+                    pmc_update_user($user_id, ['key_status' => 'inactive']);
+                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
+                        'result' => 'success', 'notes' => 'Admin deactivated key']);
+                    $notice = 'Key deactivated.';
+                    break;
                 case 'suspend':
                     pmc_update_user($user_id, ['key_status' => 'suspended']);
                     pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'suspension',
                         'result' => 'success', 'notes' => 'Admin suspended key']);
                     $notice = 'Key suspended.';
                     break;
-                case 'reactivate':
-                    pmc_update_user($user_id, ['key_status' => 'active']);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
-                        'result' => 'success', 'notes' => 'Admin reactivated key']);
-                    $notice = 'Key reactivated.';
-                    break;
                 case 'regen_key':
                     $new_key = bin2hex(random_bytes(32));
-                    pmc_update_user($user_id, ['api_key' => $new_key, 'key_status' => 'active']);
+                    $regen_updates = ['api_key' => $new_key, 'key_status' => 'active'];
+                    $regen_exp_ts = $user->key_expires ? strtotime($user->key_expires) : false;
+                    if (!$regen_exp_ts || $regen_exp_ts < time()) {
+                        $regen_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
+                    }
+                    pmc_update_user($user_id, $regen_updates);
                     pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'key_regen',
                         'result' => 'success', 'notes' => 'Admin regenerated API key']);
                     pmc_send_email($user->email, 'key_regen', [
                         'email'  => $user->email,
                         'key'    => $new_key,
                         'plan'   => $user->plan,
-                        'expiry' => $user->key_expires,
+                        'expiry' => $regen_updates['key_expires'] ?? $user->key_expires,
                     ]);
                     $notice = 'Key regenerated and email sent.';
                     break;
@@ -306,14 +332,15 @@ function pmc_render_user_detail(int $user_id): void {
                     <div style="display:flex;flex-wrap:wrap;gap:8px">
                         <?php
                         $quick_actions = [
-                            ['reset',      'Reset Usage + Reactivate',  false],
+                            ['activate',   'Activate',                   false],
+                            ['deactivate', 'Deactivate',                 true],
+                            ['suspend',    'Suspend',                    true],
+                            ['reset',      'Reset Usage',                false],
                             ['extend7',    'Extend +7 Days',             false],
                             ['extend30',   'Extend +30 Days',            false],
                             ['grant10',    'Grant +10 Credits',          false],
                             ['grant25',    'Grant +25 Credits',          false],
                             ['grant50',    'Grant +50 Credits',          false],
-                            ['suspend',    'Suspend',                    true],
-                            ['reactivate', 'Reactivate',                 false],
                         ];
                         foreach ($quick_actions as [$act, $lbl, $danger]):
                             $onclick = $danger ? ' onclick="return confirm(\'Are you sure?\')"' : '';

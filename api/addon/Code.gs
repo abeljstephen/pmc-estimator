@@ -398,6 +398,8 @@ function onOpen() {
     .addSeparator()
     .addItem('Export Run Log', 'writeLogsToSheet');
   const settings = ui.createMenu('Settings')
+    .addItem('Select Data Tab',            'pmcSelectDataTab')
+    .addSeparator()
     .addItem('Add "Run?" Checkbox Column', 'pmcAddCheckboxColumn')
     .addItem('Clear Validation Highlights', 'pmcClearHighlights');
   ui.createMenu('PMC')
@@ -926,6 +928,38 @@ function preflight_(sheet, colMap, startRow, endRow) {
   return { valid: valid, invalid: invalid };
 }
 
+// Lets the user pin which tab contains their task data.
+// Saves the choice to document properties; getSourceSheet_() reads it on every run.
+function pmcSelectDataTab() {
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const ui     = SpreadsheetApp.getUi();
+  const sheets = ss.getSheets();
+
+  if (sheets.length === 0) { safeAlert_('No sheets found.'); return; }
+
+  // Build numbered list; mark auto-detected task-data sheets with (*)
+  const lines = sheets.map(function(s, i) {
+    const mark = looksLikeTaskData_(s) ? ' (*)' : '';
+    return (i + 1) + ')  ' + s.getName() + mark;
+  });
+
+  const current = PropertiesService.getDocumentProperties().getProperty('pmc_last_src_sheet') || '(not set)';
+  const prompt  = 'Current: ' + current + '\n\n' + lines.join('\n') + '\n\n(*) = detected task-data columns\n\nEnter number:';
+
+  const response = ui.prompt('Select Data Tab', prompt, ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const idx = parseInt(response.getResponseText().trim(), 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= sheets.length) {
+    safeAlert_('Invalid selection. Enter a number between 1 and ' + sheets.length + '.');
+    return;
+  }
+
+  const selected = sheets[idx].getName();
+  PropertiesService.getDocumentProperties().setProperty('pmc_last_src_sheet', selected);
+  toast_('Settings', 'Data tab set to: "' + selected + '". All Rows will use this tab.', 5);
+}
+
 // Clears red validation highlights from the entire source sheet data area.
 function pmcClearHighlights() {
   const ss     = SpreadsheetApp.getActiveSpreadsheet();
@@ -1176,7 +1210,7 @@ function getTargetProbabilityData(params) {
  ************************************************************/
 function rematerializeSelection() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const out = ss.getSheetByName(CFG.OUT_SHEET_NAME);
+  const out = ss.getSheets().find(function(sh) { return sh.getName().indexOf(CFG.OUT_SHEET_NAME) === 0; }) || null;
   if (!out) { safeAlert_('No output sheet found.'); return; }
   const sel = out.getActiveRange();
   if (!sel) { safeAlert_('Select rows in the output sheet first.'); return; }
@@ -1522,11 +1556,21 @@ function pmcAddCheckboxColumn() {
 }
 
 function runTasks_(tasks, mode, skippedRows) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let out = ss.getSheetByName(CFG.OUT_SHEET_NAME);
+  const ss      = SpreadsheetApp.getActiveSpreadsheet();
+  const tz      = ss.getSpreadsheetTimeZone();
+  const dateStr = Utilities.formatDate(new Date(), tz, 'MMM d, yyyy');
+  const tabName = CFG.OUT_SHEET_NAME + ' \u2014 ' + dateStr;
 
+  // Re-use today's tab if it already exists (second run same day); otherwise create fresh.
+  let out = ss.getSheetByName(tabName);
   if (!out) {
-    out = ss.insertSheet(CFG.OUT_SHEET_NAME);
+    // Remove any previous Estimate Calculations tab (any date) to keep the sheet list clean.
+    ss.getSheets().forEach(function(sh) {
+      if (sh.getName().indexOf(CFG.OUT_SHEET_NAME) === 0) {
+        try { ss.deleteSheet(sh); } catch(_) {}
+      }
+    });
+    out = ss.insertSheet(tabName);
   }
   if (out.getLastRow() > 1) {
     // Clear only up to the sheet's actual column count — avoids "out of bounds" error
@@ -1541,6 +1585,7 @@ function runTasks_(tasks, mode, skippedRows) {
   const startRow = 2;
 
   let ok = 0, err = 0, partial = 0;
+  const reportPayloads = [];
   const startTime = Date.now();
   toast_(mode, `Found ${tasks.length} task(s) — starting...`, 4);
   logSheet.appendRow([tsMsg(`${mode}: Starting ${tasks.length} tasks`)]);
@@ -1568,6 +1613,10 @@ function runTasks_(tasks, mode, skippedRows) {
       SpreadsheetApp.flush();
 
       const res = doSingleTask_(task, row, out, logSheet);
+      if (res && res.payload) {
+        res.payload.taskCount = tasks.length;
+        reportPayloads.push(res.payload);
+      }
       if (res && res.ok) {
         out.getRange(row, statusCol).setValue(tsMsg('OK'));
         SpreadsheetApp.flush();
@@ -1618,6 +1667,57 @@ function runTasks_(tasks, mode, skippedRows) {
   const msg = `Done (${tasks.length} tasks): ${ok} OK, ${partial} partial, ${err} errors${skipNote} in ${elapsed}s`;
   toast_(mode, msg, 10);
   logSheet.appendRow([tsMsg(msg)]);
+
+  // Write Full Report + Snapshot tabs — user lands on Snapshot (concise summary)
+  if (reportPayloads.length > 0) {
+    const batchDate = new Date();
+    try {
+      pmcWriteBatchReportTab_(reportPayloads, tasks.length, batchDate);
+    } catch(e) {
+      logSheet.appendRow([tsMsg('Batch full report write failed: ' + e.message)]);
+    }
+    try {
+      pmcWriteBatchSnapshotTab_(reportPayloads, tasks.length, batchDate);
+    } catch(e) {
+      logSheet.appendRow([tsMsg('Batch snapshot write failed: ' + e.message)]);
+    }
+  }
+}
+
+function extractTopRec_(body) {
+  if (!body) return '';
+  try {
+    var reports = body.decisionReports;
+    if (!Array.isArray(reports)) return '';
+    for (var i = 0; i < reports.length; i++) {
+      var recs = reports[i].recommendations;
+      if (Array.isArray(recs) && recs.length > 0) {
+        var r = recs[0];
+        return typeof r === 'string' ? r : (r.text || r.recommendation || r.action || '');
+      }
+    }
+  } catch(_) {}
+  return '';
+}
+
+function extractPlaybookFlags_(body) {
+  if (!body) return [];
+  try {
+    var reports = body.decisionReports;
+    if (!Array.isArray(reports)) return [];
+    var flags = [];
+    for (var i = 0; i < reports.length; i++) {
+      var ci = reports[i].counterIntuition;
+      if (Array.isArray(ci)) {
+        ci.forEach(function(item) {
+          var label = typeof item === 'string' ? item : (item.flag || item.label || item.message || '');
+          if (label) flags.push(label);
+        });
+      }
+    }
+    return flags;
+  } catch(_) {}
+  return [];
 }
 
 function doSingleTask_(task, row, out, logSheet) {
@@ -1702,6 +1802,7 @@ function doSingleTask_(task, row, out, logSheet) {
   }
 
   let hasOpt = false;
+  let reportPayload = null;
   if (isNumber(pertForOpt)) {
     try {
       const strong = CFG.P2_STRONG_RETRY;
@@ -1804,6 +1905,22 @@ function doSingleTask_(task, row, out, logSheet) {
           hasOpt = true;
         }
 
+        // Build payload for batch report (sliders in raw 0-1 from adapter, not UI-scaled)
+        reportPayload = {
+          taskName:           task.task,
+          O: task.optimistic, M: task.mostLikely, P: task.pessimistic,
+          target:             pertForOpt,
+          baselineProb:       isNumber(baseParsed.baseProb) ? baseParsed.baseProb : null,
+          baseCdf:            baseParsed.baseCDF || [],
+          unconstrainedProb:  isNumber(optParsed.optProb) ? optParsed.optProb : null,
+          unconstrainedSliders: (body && body.optimize && typeof body.optimize.sliders === 'object')
+                                  ? body.optimize.sliders : null,
+          unconstrainedKL:    isNumber(baseParsed.kld) ? baseParsed.kld : null,
+          topRecommendation:  extractTopRec_(body),
+          playbookFlags:      extractPlaybookFlags_(body),
+          rcfApplied:         false
+        };
+
         Logger.log(`Optimize processing complete for row ${row}: Prob=${optPct || 'N/A'}, Sliders written=${optParsed.sliders ? 'YES' : 'NO'}`);
       } else {
         logSheet.appendRow([tsMsg(`Task "${task.task}": Opt call failed - ${optRes.error}`)]);
@@ -1817,9 +1934,9 @@ function doSingleTask_(task, row, out, logSheet) {
   }
 
   if (hasBaseline && hasOpt) {
-    return { ok: true };
+    return { ok: true, payload: reportPayload };
   } else if (hasBaseline || hasOpt) {
-    return { partial: true };
+    return { partial: true, payload: reportPayload };
   } else {
     return { ok: false, error: 'Both baseline and opt failed' };
   }

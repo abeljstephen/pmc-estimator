@@ -536,6 +536,265 @@ function _pmcWriteFullReport_(sheet, p, runDate) {
   ]);
 }
 
+// ── Batch Snapshot (15-col condensed, one row per task) ──────────────────────
+function pmcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
+  if (!Array.isArray(payloads) || payloads.length === 0) return;
+  try {
+    var ss      = SpreadsheetApp.getActiveSpreadsheet();
+    var tz      = ss.getSpreadsheetTimeZone();
+    var now     = runDate || new Date();
+    var dateStr = Utilities.formatDate(now, tz, 'MMM d, yyyy  HH:mm');
+    var tabName = 'PMC Estimator \u2014 Batch Snapshot \u2014 ' + dateStr;
+
+    var existing = ss.getSheetByName(tabName);
+    if (existing) { try { ss.deleteSheet(existing); } catch(_) {} }
+    var sheet = ss.insertSheet(tabName);
+
+    var totalCols = 15;
+    var sections = [
+      { label: 'RUN CONTEXT',           col:  1, span: 3, key: 'context'     },
+      { label: 'INPUTS',                col:  4, span: 4, key: 'inputs'      },
+      { label: 'PERT DISTRIBUTION',     col:  8, span: 2, key: 'pert'        },
+      { label: 'P90 CONFIDENCE',        col: 10, span: 2, key: 'percentiles' },
+      { label: 'PROBABILITY AT TARGET', col: 12, span: 3, key: 'probability' },
+      { label: 'RECOMMENDATION',        col: 15, span: 1, key: 'recommend'   }
+    ];
+    var headers = [
+      'Run Date', 'Task Name', 'Mode',
+      'O  Optimistic', 'M  Most Likely', 'P  Pessimistic', 'Target Value',
+      'PERT Mean', 'PERT Std Dev',
+      'P90 Value', 'P90 Headroom\n(P90 \u2212 Target)',
+      'Baseline\nP(\u2264 Target)', 'Best Strategy', 'Probability Gain',
+      'Top Recommendation'
+    ];
+    var C = SW_COLOURS_.data;
+    var bgPerCol = [
+      C.context, C.context, C.context,
+      C.inputs,  C.inputs,  C.inputs,  C.inputs,
+      C.pert,    C.pert,
+      C.percentiles, C.percentiles,
+      C.probability, C.probability, C.probability,
+      C.recommend
+    ];
+
+    // Row 1: title
+    swApplyTitle_(sheet, totalCols,
+      'PMC Estimator \u2014 Batch Snapshot   |   ' +
+      payloads.length + ' task' + (payloads.length !== 1 ? 's' : '') +
+      '   |   ' + dateStr);
+
+    // Row 2: section bands
+    sheet.getRange(2, 1, 1, totalCols).setBackground('#E2E8F0');
+    for (var s = 0; s < sections.length; s++) {
+      var sec = sections[s];
+      var sc  = SW_COLOURS_.section[sec.key] || SW_COLOURS_.section.context;
+      sheet.getRange(2, sec.col, 1, sec.span)
+           .merge()
+           .setValue(sec.label)
+           .setBackground(sc.bg).setFontColor(sc.fg)
+           .setFontWeight('bold').setFontSize(8)
+           .setHorizontalAlignment('left').setVerticalAlignment('middle');
+    }
+    sheet.setRowHeight(2, 18);
+
+    // Row 3: headers
+    swApplyHeaderRow_(sheet, 3, headers, null, bgPerCol);
+
+    // Rows 4+: one row per task
+    for (var t = 0; t < payloads.length; t++) {
+      var p    = payloads[t];
+      var pct  = p.basePct || swPercentiles_(p.baseCdf || []);
+      var best = swBestStrategy_(p.benchmarkedProb, p.unconstrainedProb, p.yourConditionsProb);
+      var p90  = pct.p90;
+      var p90h = (p90 != null && p.target != null) ? (p90 - p.target) : null;
+      var gain = (best.prob != null && p.baselineProb != null) ? (best.prob - p.baselineProb) : null;
+      var pertMean = ((p.O || 0) + 4*(p.M || 0) + (p.P || 0)) / 6;
+      var pertStd  = ((p.P || 0) - (p.O || 0)) / 6;
+
+      var values = [
+        swDate_(now.toISOString()), p.taskName || '', 'Batch',
+        swFmt_(p.O, 2), swFmt_(p.M, 2), swFmt_(p.P, 2),
+        p.target != null ? swFmt_(p.target, 2) : '',
+        swFmt_(pertMean, 2), swFmt_(pertStd, 2),
+        p90  != null ? swFmt_(p90, 2)  : '',
+        p90h != null ? swFmt_(p90h, 2) : '',
+        p.baselineProb != null ? swPct_(p.baselineProb) : '',
+        best.name || '',
+        gain != null ? swPct_(gain) : '',
+        p.topRecommendation || ''
+      ];
+
+      var rowBg = (t % 2 === 0) ? bgPerCol : bgPerCol.map(function() { return SW_COLOURS_.altRow; });
+      swApplyDataRow_(sheet, 4 + t, values, rowBg);
+    }
+
+    swFinishSheet_(sheet, totalCols, [120, 160, 65, 70, 70, 70, 75, 82, 82, 75, 95, 78, 150, 80, 240]);
+
+    ss.setActiveSheet(sheet);
+    return { ok: true, tabName: tabName };
+  } catch(e) {
+    Logger.log('pmcWriteBatchSnapshotTab_ error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Batch Full Report (multi-row, one tab for all tasks from a batch run) ────
+// Called by runTasks_() in Code.gs after all tasks complete.
+// payloads: array of report payload objects (one per task).
+// Each payload must have: taskName, O, M, P, target, baselineProb, baseCdf,
+//   unconstrainedProb, unconstrainedSliders (0-1), unconstrainedKL,
+//   topRecommendation, playbookFlags, taskCount.
+function pmcWriteBatchReportTab_(payloads, taskCount, runDate) {
+  if (!Array.isArray(payloads) || payloads.length === 0) return;
+  try {
+    var ss      = SpreadsheetApp.getActiveSpreadsheet();
+    var tz      = ss.getSpreadsheetTimeZone();
+    var now     = runDate || new Date();
+    var dateStr = Utilities.formatDate(now, tz, 'MMM d, yyyy  HH:mm');
+    var tabName = 'PMC Estimator \u2014 Batch Report \u2014 ' + dateStr;
+
+    var existing = ss.getSheetByName(tabName);
+    if (existing) { try { ss.deleteSheet(existing); } catch(_) {} }
+    var sheet = ss.insertSheet(tabName);
+
+    var totalCols = 38;
+    var sections = [
+      { label: 'RUN CONTEXT',              col:  1, span:  4, key: 'context'     },
+      { label: 'INPUTS',                   col:  5, span:  4, key: 'inputs'      },
+      { label: 'PERT DISTRIBUTION',        col:  9, span:  3, key: 'pert'        },
+      { label: 'PROBABILITY AT TARGET',    col: 12, span:  6, key: 'probability' },
+      { label: 'DISTRIBUTION PERCENTILES', col: 18, span:  8, key: 'percentiles' },
+      { label: 'MANAGEMENT CONDITIONS',    col: 26, span:  7, key: 'conditions'  },
+      { label: 'MODEL DIAGNOSTICS',        col: 33, span:  4, key: 'diagnostics' },
+      { label: 'RECOMMENDATIONS',          col: 37, span:  2, key: 'recommend'   }
+    ];
+    var headers = [
+      'Run Date', 'Mode', 'Task Count', 'Task Name',
+      'O  Optimistic', 'M  Most Likely', 'P  Pessimistic', 'Target Value',
+      'PERT Mean', 'PERT Std Dev', 'PERT Range\n(P \u2212 O)',
+      'Baseline\nP(\u2264 Target)',
+      'Benchmarked Opt\nP(\u2264 Target)', 'Unconstrained Opt\nP(\u2264 Target)',
+      'Your Conditions\nP(\u2264 Target)', 'Best Strategy', 'Probability Gain',
+      'P10', 'P25', 'P50\nMedian', 'P75', 'P80', 'P90',
+      'P90 Headroom\n(P90 \u2212 Target)', 'P95',
+      'Budget\nFlexibility', 'Schedule\nFlexibility', 'Scope\nCertainty',
+      'Scope Reduction\nAllowance', 'Rework %', 'Risk\nTolerance', 'User\nConfidence',
+      'KL Divergence', 'RCF Applied', 'RCF  n\n(# Projects)', 'RCF Mean\nOverrun',
+      'Playbook Flags', 'Top Recommendation'
+    ];
+    var C = SW_COLOURS_.data;
+    var bgPerCol = [
+      C.context, C.context, C.context, C.context,
+      C.inputs,  C.inputs,  C.inputs,  C.inputs,
+      C.pert,    C.pert,    C.pert,
+      C.probability, C.probability, C.probability,
+      C.probability, C.probability, C.probability,
+      C.percentiles, C.percentiles, C.percentiles, C.percentiles,
+      C.percentiles, C.percentiles, C.percentiles, C.percentiles,
+      C.conditions, C.conditions, C.conditions, C.conditions,
+      C.conditions, C.conditions, C.conditions,
+      C.diagnostics, C.diagnostics, C.diagnostics, C.diagnostics,
+      C.recommend, C.recommend
+    ];
+
+    // Row 1: title
+    swApplyTitle_(sheet, totalCols,
+      'PMC Estimator \u2014 Batch Report   |   ' +
+      payloads.length + ' task' + (payloads.length !== 1 ? 's' : '') +
+      '   |   ' + dateStr);
+
+    // Row 2: section bands
+    sheet.getRange(2, 1, 1, totalCols).setBackground('#E2E8F0');
+    for (var s = 0; s < sections.length; s++) {
+      var sec = sections[s];
+      var sc = SW_COLOURS_.section[sec.key] || SW_COLOURS_.section.context;
+      sheet.getRange(2, sec.col, 1, sec.span)
+           .merge()
+           .setValue(sec.label)
+           .setBackground(sc.bg).setFontColor(sc.fg)
+           .setFontWeight('bold').setFontSize(8)
+           .setHorizontalAlignment('left').setVerticalAlignment('middle');
+    }
+    sheet.setRowHeight(2, 18);
+
+    // Row 3: column headers
+    swApplyHeaderRow_(sheet, 3, headers, null, bgPerCol);
+
+    // Rows 4+: one data row per task
+    for (var t = 0; t < payloads.length; t++) {
+      var p    = payloads[t];
+      var pct  = p.basePct || swPercentiles_(p.baseCdf || []);
+      var best = swBestStrategy_(p.benchmarkedProb, p.unconstrainedProb, p.yourConditionsProb);
+      var p90  = pct.p90;
+      var p90h = (p90 != null && p.target != null) ? (p90 - p.target) : null;
+      var gain = (best.prob != null && p.baselineProb != null) ? (best.prob - p.baselineProb) : null;
+      var pertMean  = ((p.O || 0) + 4*(p.M || 0) + (p.P || 0)) / 6;
+      var pertStd   = ((p.P || 0) - (p.O || 0)) / 6;
+      var pertRange = (p.P || 0) - (p.O || 0);
+
+      var bestSliders = null;
+      if      (best.name === 'Unconstrained Optimization') bestSliders = p.unconstrainedSliders;
+      else if (best.name === 'Benchmarked Optimization')   bestSliders = p.benchmarkedSliders;
+      else if (best.name === 'Your Conditions')             bestSliders = p.yourConditionsSliders;
+
+      var bestKL       = p.unconstrainedKL || p.benchmarkedKL || null;
+      var playbookText = Array.isArray(p.playbookFlags) ? p.playbookFlags.join('; ') : (p.playbookFlags || '');
+
+      var values = [
+        swDate_(now.toISOString()), 'Batch', taskCount || payloads.length, p.taskName || '',
+        swFmt_(p.O, 2), swFmt_(p.M, 2), swFmt_(p.P, 2),
+        p.target != null ? swFmt_(p.target, 2) : '',
+        swFmt_(pertMean, 2), swFmt_(pertStd, 2), swFmt_(pertRange, 2),
+        p.baselineProb      != null ? swPct_(p.baselineProb)      : '',
+        p.benchmarkedProb   != null ? swPct_(p.benchmarkedProb)   : '',
+        p.unconstrainedProb != null ? swPct_(p.unconstrainedProb) : '',
+        p.yourConditionsProb!= null ? swPct_(p.yourConditionsProb): '',
+        best.name || '', gain != null ? swPct_(gain) : '',
+        pct.p10 != null ? swFmt_(pct.p10, 2) : '',
+        pct.p25 != null ? swFmt_(pct.p25, 2) : '',
+        pct.p50 != null ? swFmt_(pct.p50, 2) : '',
+        pct.p75 != null ? swFmt_(pct.p75, 2) : '',
+        pct.p80 != null ? swFmt_(pct.p80, 2) : '',
+        p90     != null ? swFmt_(p90, 2)      : '',
+        p90h    != null ? swFmt_(p90h, 2)     : '',
+        pct.p95 != null ? swFmt_(pct.p95, 2)  : '',
+        swSlider_(bestSliders, 'budgetFlexibility'),
+        swSlider_(bestSliders, 'scheduleFlexibility'),
+        swSlider_(bestSliders, 'scopeCertainty'),
+        swSlider_(bestSliders, 'scopeReductionAllowance'),
+        swSlider_(bestSliders, 'reworkPercentage'),
+        swSlider_(bestSliders, 'riskTolerance'),
+        swSlider_(bestSliders, 'userConfidence'),
+        bestKL          != null ? swFmt_(bestKL, 4)          : '',
+        p.rcfApplied    ? 'Yes' : 'No',
+        p.rcfN          != null ? p.rcfN                     : '',
+        p.rcfMeanOverrun!= null ? swPct_(p.rcfMeanOverrun)   : '',
+        playbookText, p.topRecommendation || ''
+      ];
+
+      var rowBg = (t % 2 === 0) ? bgPerCol : bgPerCol.map(function() { return SW_COLOURS_.altRow; });
+      swApplyDataRow_(sheet, 4 + t, values, rowBg);
+    }
+
+    swFinishSheet_(sheet, totalCols, [
+      120, 65, 55, 160,
+      68, 68, 68, 80,
+      80, 80, 75,
+      80, 90, 95, 90, 145, 80,
+      68, 68, 68, 68, 68, 68, 95, 68,
+      72, 72, 72, 90, 68, 68, 68,
+      85, 75, 75, 85,
+      220, 280
+    ]);
+
+    ss.setActiveSheet(sheet);
+    return { ok: true, tabName: tabName };
+  } catch(e) {
+    Logger.log('pmcWriteBatchReportTab_ error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 // ── Public entry point ───────────────────────────────────────────────────────
 function pmcWriteReportTab(payload, mode) {
   try {

@@ -419,6 +419,12 @@ function handleCallApi(body) {
             if (rReports[ri] && rReports[ri].winningSliders) { winSliders = rReports[ri].winningSliders; break; }
           }
         }
+        // userSliders: the slider values the user explicitly passed in this GPT call (UI units:
+        // 0–100 for all sliders, 0–50 for reworkPercentage). null when no sliders were given.
+        // Required by the plot page to pre-populate the manual overlay and run the manual variant.
+        var uSliders = (task.sliderValues && typeof task.sliderValues === 'object' &&
+                        Object.keys(task.sliderValues).length > 0)
+                       ? task.sliderValues : null;
         return {
           task:                 task.task,
           O:                    task.optimistic,
@@ -429,7 +435,8 @@ function handleCallApi(body) {
           percentiles:          res.percentiles           || {},
           optimizedPercentiles: res.optimizedPercentiles  || {},
           feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
-          winningSliders:       winSliders
+          winningSliders:       winSliders,
+          userSliders:          uSliders
         };
       });
       var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
@@ -448,7 +455,48 @@ function handleCallApi(body) {
     }
   }
 
-  // 10. Strip large point arrays so response stays under GPT's ~100 KB limit
+  // 10. Pre-slim cpEngine arrays before deepSlim runs its >10-element strip rule.
+  //     sCurve is always 25 points (> 10 limit) → downsample to 9 key percentile points.
+  //     tornado and criticalPath are kept as-is (usually short; cap at 10 for safety).
+  if (result.cpEngine && result.cpEngine.status === 'ok') {
+    var cpe = result.cpEngine;
+    if (cpe.stochastic && cpe.stochastic.status === 'ok') {
+      // Downsample sCurve to 9 key CDF points: P10 P20 P30 P40 P50 P60 P70 P80 P90
+      var rawSC = cpe.stochastic.sCurve;
+      if (Array.isArray(rawSC) && rawSC.length > 1) {
+        var targets = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
+        cpe.stochastic.sCurve = targets.map(function(p) {
+          // Find the point where cumulative probability first reaches p
+          for (var si = 0; si < rawSC.length; si++) {
+            if (rawSC[si].y >= p) return { x: rawSC[si].x, y: rawSC[si].y };
+          }
+          return rawSC[rawSC.length - 1]; // fallback: last point
+        });
+      }
+      // Cap tornado at top 10 (sorted by SSI desc — already sorted by engine)
+      if (Array.isArray(cpe.stochastic.tornado) && cpe.stochastic.tornado.length > 10) {
+        cpe.stochastic.tornado = cpe.stochastic.tornado.slice(0, 10);
+      }
+    }
+    // criticalPath and nearCriticalTasks are usually short; cap defensively
+    if (cpe.deterministic) {
+      if (Array.isArray(cpe.deterministic.criticalPath) && cpe.deterministic.criticalPath.length > 10) {
+        cpe.deterministic.criticalPath = cpe.deterministic.criticalPath.slice(0, 10);
+      }
+      if (Array.isArray(cpe.deterministic.nearCriticalTasks) && cpe.deterministic.nearCriticalTasks.length > 10) {
+        cpe.deterministic.nearCriticalTasks = cpe.deterministic.nearCriticalTasks.slice(0, 10);
+      }
+      // topologicalOrder is internal — not needed by GPT; drop it to save payload space
+      delete cpe.deterministic.topologicalOrder;
+      delete cpe.deterministic.sources;
+      delete cpe.deterministic.sinks;
+      delete cpe.deterministic.orphanGroups;
+    }
+    // ssi is a raw object redundant with tornado; drop to save space
+    if (cpe.stochastic) delete cpe.stochastic.ssi;
+  }
+
+  // 11. Strip large point arrays so response stays under GPT's ~100 KB limit
   result = slimResult(result);
 
   return jsonOut(result);

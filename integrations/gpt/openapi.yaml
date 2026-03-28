@@ -101,6 +101,76 @@ paths:
                           Optional. When provided, the API returns the value at this confidence
                           percentile in results[i].targetAtConfidence. Example: 80 → "what value
                           gives me 80% probability of completion at or below?"
+                      id:
+                        type: string
+                        description: >
+                          Optional stable identifier for this task, used by the CPM engine to
+                          resolve predecessor references. Defaults to the task name if omitted.
+                          Must be unique within the request when predecessors are used.
+                      predecessors:
+                        type: array
+                        description: >
+                          Optional. List of predecessor tasks for critical path analysis. When any
+                          task includes this field, the CPM engine runs automatically after SACO and
+                          returns a `cpEngine` block with the critical path, float values, and schedule
+                          health score. Each entry is either a string task id/name (implies FS with
+                          lag 0) or an object with `id`, `type` (FS/SS/FF/SF), and `lag`.
+                        items:
+                          oneOf:
+                            - type: string
+                              description: Predecessor task id or name (Finish-to-Start, lag 0)
+                            - type: object
+                              required: [id]
+                              properties:
+                                id:
+                                  type: string
+                                  description: Predecessor task id or name
+                                type:
+                                  type: string
+                                  enum: [FS, SS, FF, SF]
+                                  default: FS
+                                  description: >
+                                    Dependency type: FS=Finish-to-Start (default), SS=Start-to-Start,
+                                    FF=Finish-to-Finish, SF=Start-to-Finish
+                                lag:
+                                  type: number
+                                  description: >
+                                    Lead (negative) or lag (positive) in the same units as the task
+                                    estimates. Default 0.
+                      cpmOptions:
+                        type: object
+                        description: >
+                          Optional CPM engine settings. Place on any one task; settings apply to
+                          the whole network. Omit to use defaults.
+                        properties:
+                          cpmPercentile:
+                            type: number
+                            minimum: 0.01
+                            maximum: 0.99
+                            default: 0.80
+                            description: >
+                              SACO CDF percentile used for deterministic task durations. Default 0.80
+                              (P80 — conservative). Use 0.50 for median (optimistic schedule).
+                          stochastic:
+                            type: boolean
+                            default: true
+                            description: >
+                              Whether to run Monte Carlo stochastic CPM (criticality indices, S-curve,
+                              tornado chart). Default true. Set false to skip if speed is critical.
+                          stochasticN:
+                            type: integer
+                            minimum: 100
+                            maximum: 5000
+                            description: >
+                              Number of Monte Carlo iterations for stochastic CPM. Default 500.
+                          nearCriticalThreshold:
+                            type: number
+                            minimum: 0
+                            maximum: 1
+                            default: 0.10
+                            description: >
+                              Fraction of project duration below which a task is flagged as
+                              near-critical (float < threshold × projectDuration). Default 0.10.
                       parallel:
                         type: boolean
                         description: >
@@ -453,6 +523,203 @@ paths:
                           pert_sum — all tasks sequential (PERT mean/variance aggregation).
                           pert_critical_path — one or more tasks marked parallel:true; critical path
                           (max of parallel means/variances) used for those tasks.
+                  cpEngine:
+                    type: object
+                    description: >
+                      Critical path analysis results. Present only when at least one input task
+                      included a `predecessors` array. Contains deterministic CPM (forward/backward
+                      pass, float values), optional stochastic CPM (Monte Carlo criticality), and
+                      a schedule health score.
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok, error]
+                      message:
+                        type: string
+                        description: Error message (only when status = error)
+                      deterministic:
+                        type: object
+                        description: Deterministic CPM results
+                        properties:
+                          status:
+                            type: string
+                          projectDuration:
+                            type: number
+                            description: >
+                              Total project duration at the chosen cpmPercentile (default P80).
+                              In the same units as the task estimates.
+                          cpmPercentile:
+                            type: number
+                            description: Percentile used for duration extraction (0–1)
+                          criticalPath:
+                            type: array
+                            items:
+                              type: string
+                            description: Ordered list of task ids on the critical path (zero float)
+                          nearCriticalTasks:
+                            type: array
+                            items:
+                              type: string
+                            description: Tasks with float < nearCriticalThreshold × projectDuration
+                          tasks:
+                            type: object
+                            description: Per-task CPM details keyed by task id
+                            additionalProperties:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                name:
+                                  type: string
+                                duration:
+                                  type: number
+                                durationSource:
+                                  type: string
+                                  description: >
+                                    How the duration was extracted: saco_p80, pert_mean_or_raw, etc.
+                                earlyStart:
+                                  type: number
+                                earlyFinish:
+                                  type: number
+                                lateStart:
+                                  type: number
+                                lateFinish:
+                                  type: number
+                                totalFloat:
+                                  type: number
+                                  description: >
+                                    Total float (slack). 0 = on critical path. Negative = behind schedule.
+                                freeFloat:
+                                  type: number
+                                interferingFloat:
+                                  type: number
+                                independentFloat:
+                                  type: number
+                                onCriticalPath:
+                                  type: boolean
+                                tippingPoint:
+                                  type: number
+                                  description: >
+                                    Duration at which this task would join the critical path. Null if
+                                    already on it.
+                                tippingSeverity:
+                                  type: string
+                                  description: low / medium / high / critical
+                          graphMetrics:
+                            type: object
+                            properties:
+                              nodeCount:
+                                type: integer
+                              edgeCount:
+                                type: integer
+                              density:
+                                type: number
+                              convergenceCount:
+                                type: integer
+                                description: Number of merge points (tasks with 2+ predecessors)
+                          mergePointBiasWarning:
+                            type: string
+                            description: >
+                              Present when convergence nodes exist. Warns that deterministic CPM
+                              underestimates project duration; recommends stochastic analysis.
+                          validationErrors:
+                            type: array
+                            items:
+                              type: string
+                      stochastic:
+                        type: object
+                        description: >
+                          Monte Carlo stochastic CPM results. Present when stochastic: true (default).
+                        properties:
+                          status:
+                            type: string
+                          iterations:
+                            type: integer
+                          projectDuration:
+                            type: object
+                            description: Stochastic project duration statistics
+                            properties:
+                              mean:
+                                type: number
+                              p50:
+                                type: number
+                              p80:
+                                type: number
+                              p90:
+                                type: number
+                              sigma:
+                                type: number
+                              min:
+                                type: number
+                              max:
+                                type: number
+                          criticalityIndex:
+                            type: object
+                            description: >
+                              Per-task fraction of MC iterations where the task was on the critical
+                              path (0–1). Keyed by task id. High values = schedule risk drivers.
+                            additionalProperties:
+                              type: number
+                          tornado:
+                            type: array
+                            description: Tasks sorted by Schedule Sensitivity Index descending
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                name:
+                                  type: string
+                                ssi:
+                                  type: number
+                                  description: Schedule Sensitivity Index (0–1)
+                                criticalityIndex:
+                                  type: number
+                          sCurve:
+                            type: array
+                            description: >
+                              Project completion S-curve: 25 evenly-spaced (duration, cumulative_probability)
+                              pairs. Use to read off "P(complete by date X)".
+                            items:
+                              type: object
+                              properties:
+                                x:
+                                  type: number
+                                  description: Project duration value
+                                y:
+                                  type: number
+                                  description: Cumulative probability (0–1)
+                      healthScore:
+                        type: object
+                        description: Schedule health score (0–100) and grade (A–F)
+                        properties:
+                          score:
+                            type: integer
+                            minimum: 0
+                            maximum: 100
+                            description: >
+                              Composite schedule health: 100 = low risk, 0 = very high risk.
+                              Penalises near-critical fraction, convergence density, graph density,
+                              criticality spread, and negative float.
+                          grade:
+                            type: string
+                            enum: [A, B, C, D, F]
+                          interpretation:
+                            type: string
+                            description: One-sentence human-readable health summary
+                          factors:
+                            type: object
+                            properties:
+                              nearCriticalFraction:
+                                type: number
+                              convergenceDensity:
+                                type: number
+                              graphDensity:
+                                type: number
+                              criticalitySpread:
+                                type: number
+                              hasNegativeFloat:
+                                type: boolean
                   _reportUrl:
                     type: string
                     description: >
