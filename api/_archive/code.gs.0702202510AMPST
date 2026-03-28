@@ -1,0 +1,63 @@
+/**
+ * Calls your Cloud Function API with an array of estimates.
+ */
+function callEstimator(estimatesArray) {
+  var url = "https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI";
+  var response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(estimatesArray)
+  });
+  return JSON.parse(response.getContentText());
+}
+
+/**
+ * Creates (or updates) the Estimate Calculations sheet for multiple rows.
+ */
+function createEstimateSheet(results) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Estimate Calculations");
+  if (sheet) {
+    sheet.clear();
+  } else {
+    sheet = ss.insertSheet("Estimate Calculations");
+  }
+
+  // Headers
+  sheet.getRange("A1").setValue("Best Case");
+  sheet.getRange("B1").setValue("Most Likely");
+  sheet.getRange("C1").setValue("Worst Case");
+  sheet.getRange("D1").setValue("Expected Value");
+
+  // Fill each result row
+  results.forEach(function(result, index) {
+    var row = index + 2;
+    sheet.getRange("A" + row).setValue(result.estimates.bestCase);
+    sheet.getRange("B" + row).setValue(result.estimates.mostLikely);
+    sheet.getRange("C" + row).setValue(result.estimates.worstCase);
+    sheet.getRange("D" + row).setValue(result.expectedValue);
+  });
+}
+
+/**
+ * Master function to call from submit.html or test manually.
+ */
+function estimateAndSave(estimatesArray) {
+  var response = callEstimator(estimatesArray);
+  createEstimateSheet(response.results);
+  return response;
+}
+
+/**
+ * Test function: calls the estimator with 3 sample rows.
+ */
+function testEstimatorBatch() {
+  var estimatesArray = [
+    { bestCase: 2, mostLikely: 4, worstCase: 6 },
+    { bestCase: 3, mostLikely: 6, worstCase: 9 },
+    { bestCase: 5, mostLikely: 8, worstCase: 12 }
+  ];
+  var response = estimateAndSave(estimatesArray);
+  Logger.log(JSON.stringify(response, null, 2));
+}
+

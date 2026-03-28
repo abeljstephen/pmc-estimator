@@ -7,7 +7,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-ADDON_DIR="$REPO_ROOT/system-google-sheets-addon"
+ADDON_DIR="$REPO_ROOT/api"
 TRACKER="$SCRIPT_DIR/deploy-tracker.md"
 
 # ── Limits (Google Apps Script as of 2024) ─────────────────

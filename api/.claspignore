@@ -1,0 +1,25 @@
+# ── Files excluded from clasp push (production deployment) ──────────────────
+# Clasp pushes .gs / .html / .json / .js by default.
+# Everything listed here is kept LOCAL only.
+
+# Old versions / archived builds
+_archive/**
+
+# Local development tools and agents (docs/ moved to repo-root docs/ — no longer in addon dir)
+agents/**
+config/**
+
+# Test files
+tests/**
+
+# Shell scripts and editor workspace files
+*.sh
+*.code-workspace
+
+# Timestamped local backups (e.g. optimizer.gs_01222026_120PMPST)
+**/*.gs_*
+**/*.html_*
+
+# macOS filesystem metadata
+.DS_Store
+**/.DS_Store

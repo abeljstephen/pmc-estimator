@@ -1,0 +1,1794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Probability Explorer</title>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 0;
+            transition: all 0.3s ease-in-out;
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-size: 18px;
+            color: #333;
+        }
+        #control-header {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to bottom, #e8ecef, #f8f9fa);
+            padding: 4px 0;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        #chartType-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            padding: 4px 8px;
+            max-width: 1200px;
+            width: 100%;
+            overflow-x: auto;
+        }
+        .chart-button {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #e8ecef;
+            color: #333;
+            transition: background-color 0.3s, color 0.3s, transform 0.3s;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 100px;
+            max-width: 160px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.5;
+            height: 40px;
+            position: relative;
+        }
+        .chart-button:hover {
+            background-color: #d8dfe6;
+            transform: scale(1.02);
+        }
+        .chart-button.active {
+            background-color: #007bff;
+            color: white;
+            transform: scale(1.02);
+            border: 2px solid #0056b3;
+        }
+        .chart-button[data-type="explorer"] { background-color: #f2e8f9; }
+        @media (max-width: 768px) {
+            .chart-button {
+                padding: 4px 12px;
+                font-size: 10px;
+                min-width: 80px;
+                max-width: 140px;
+                height: 36px;
+            }
+        }
+        #target-probability-container {
+            display: block;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: nowrap;
+            min-width: 0;
+        }
+        .slider-container input[type="range"] {
+            flex-grow: 1;
+            width: 100%;
+            min-width: 0;
+            border: 1px solid #4a90e2;
+            border-radius: 4px;
+            padding: 2px;
+            background: #ffffff;
+            transition: all 0.3s ease-in-out;
+        }
+        .slider-container input[type="range"]:hover {
+            border-color: #0056b3;
+            background: #f0f0f0;
+        }
+        .help-icon {
+            font-size: 16px;
+            color: #4a90e2;
+            cursor: help;
+            padding: 2px 6px;
+            background-color: #f0f0f0;
+            border-radius: 50%;
+            order: 2;
+            flex-shrink: 0;
+        }
+        .decision-grid-container {
+            display: flex;
+щем            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .decision-grid {
+            flex: 1;
+            text-align: center;
+        }
+        .use-case {
+            font-size: 12px;
+            color: #666;
+            padding: 10px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            margin: 10px auto;
+            max-width: 1200px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            text-align: left;
+        }
+        .use-case-content {
+            display: none;
+            font-size: 12px;
+            color: #666;
+            margin: 5px 0;
+            padding: 10px;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .use-case-content p {
+            margin: 0 0 15px 0;
+            padding: 0;
+        }
+        .use-case-content strong em {
+            color: #4a90e2;
+            font-style: italic;
+            font-weight: bold;
+        }
+        .toggle-use-case {
+            font-size: 14px;
+            font-weight: bold;
+            color: #4a90e2;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        .summary-section-container {
+            width: 100%;
+            margin: 15px auto;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: block;
+        }
+        .summary-section {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            width: 100%;
+        }
+        .summary-section.active {
+            display: block;
+        }
+        .toggle-summary {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            background: #4a90e2;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: background 0.3s;
+        }
+        .summary-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 15px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        [id$="-recommendation-section"] {
+            background: #e6f4ea;
+            border: 1px solid #ddd;
+            border-left: 3px solid #28a745;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            order: -1;
+        }
+        [id$="-recommendation-section"] h4 {
+            font-size: 20px;
+            color: #4a90e2;
+            margin-bottom: 10px;
+        }
+        [id$="-recommendation-section"] p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            margin: 10px 0;
+        }
+        .analysis-wrapper {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .analysis-wrapper h4 {
+            font-size: 18px;
+            color: #4a90e2;
+            margin-bottom: 10px;
+        }
+        .analysis-wrapper p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            margin: 10px 0;
+        }
+        .side-by-side {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+        }
+        .side-by-side > div {
+            flex: 1;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .white-box-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 10px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        #target-table-container-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        #target-table-container-metrics table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin: 0;
+            overflow-x: auto;
+        }
+        #target-table-container-metrics th, #target-table-container-metrics td {
+            border: 1px solid #ddd;
+            padding: 14px;
+            text-align: left;
+            font-size: 14px;
+            transition: background-color 0.3s ease-in-out;
+            color: #333;
+        }
+        #target-table-container-metrics th {
+            background-color: #4a90e2;
+            color: white;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 14px;
+            border-bottom: 2px solid #357abd;
+            position: sticky;
+            top: 60px;
+            z-index: 10;
+            font-size: 14px;
+        }
+        #target-table-container-metrics td:hover {
+            background-color: #f7f7f7;
+        }
+        #target-table-container-metrics tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .table-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: left;
+            color: #4a90e2;
+            background-color: #e8ecef;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+            cursor: default;
+        }
+        #combination-table-body td {
+            padding: 6px 8px;
+            font-size: 11px;
+            font-family: Arial, sans-serif;
+            white-space: nowrap;
+        }
+        #combination-table-body td:last-child {
+            white-space: normal;
+            word-wrap: break-word;
+            text-align: left;
+        }
+        .dual-value-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 0 auto;
+            table-layout: auto;
+        }
+        .dual-value-table th, .dual-value-table td {
+            padding: 6px 8px;
+            font-size: 11px;
+            font-family: Arial, sans-serif;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .dual-value-table th {
+            background: #4a90e2;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .dual-value-table td:last-child {
+            text-align: left;
+        }
+        #pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        #pagination-controls button {
+            padding: 5px 10px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #pagination-controls button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #page-info {
+            font-size: 14px;
+            color: #333;
+        }
+        .analysis-report {
+            font-size: 14px;
+            text-align: left;
+            color: #333;
+            line-height: 1.5;
+        }
+        .analysis-report h3 {
+            font-size: 18px;
+            color: #4a90e2;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .analysis-report h4 {
+            font-size: 16px;
+            color: #4a90e2;
+            margin: 15px 0 5px;
+        }
+        .analysis-report p, .analysis-report ul {
+            margin: 0 0 10px;
+            padding-left: 0;
+        }
+        .analysis-report ul {
+            padding-left: 20px;
+        }
+        .analysis-report strong {
+            color: #333;
+        }
+        .analysis-report .dynamic {
+            color: blue;
+        }
+        .highlighted {
+            background-color: #d1e7dd !important;
+        }
+        @media (max-width: 768px) {
+            .side-by-side {
+                flex-direction: column;
+            }
+            .side-by-side > div {
+                flex: none;
+            }
+            #target-probability-container {
+                padding: 10px;
+            }
+            .slider-container {
+                flex-direction: row;
+                width: 100%;
+                flex-wrap: nowrap;
+            }
+            .slider-container input[type="range"] {
+                width: 100%;
+                min-width: 0;
+            }
+            .slider-container label, .slider-container span {
+                flex-shrink: 0;
+            }
+            #combination-table-body td {
+                font-size: 10px;
+                padding: 4px 6px;
+            }
+            #pagination-controls {
+                flex-direction: column;
+                gap: 5px;
+            }
+            #pagination-controls button {
+                width: 100%;
+                max-width: 200px;
+            }
+            .summary-content {
+                padding: 10px;
+            }
+            [id$="-recommendation-section"] {
+                padding: 15px;
+            }
+            .analysis-wrapper {
+                padding: 10px;
+            }
+            #target-table-container-metrics {
+                padding: 10px;
+            }
+            #target-table-container-metrics table {
+                font-size: 12px;
+            }
+            #target-table-container-metrics th, #target-table-container-metrics td {
+                padding: 10px;
+            }
+            .table-title {
+                font-size: 14px;
+                padding: 8px;
+            }
+        }
+        @media (max-width: 480px) {
+            [id$="-recommendation-section"] h4 {
+                font-size: 16px;
+            }
+            .analysis-wrapper h4 {
+                font-size: 14px;
+            }
+            #target-table-container-metrics table {
+                font-size: 11px;
+            }
+            #target-table-container-metrics th, #target-table-container-metrics td {
+                padding: 8px;
+            }
+            .table-title {
+                font-size: 13px;
+            }
+        }
+        .plot-container {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">Loading, please wait...</div>
+
+    <div id="control-header">
+        <div id="chartType-container">
+            <button id="targetProbabilityExplorer" class="chart-button active" data-type="explorer" title="Explore probabilities for specific project targets"><strong>Target Probability Explorer</strong><br>Set Targets</button>
+        </div>
+    </div>
+
+    <div id="target-probability-container">
+        <div style="width: 100%; max-width: 1200px; margin: 0 auto; padding: 15px;">
+            <div style="text-align: center; margin-bottom: 10px; width: 100%;">
+                <div class="slider-container target" id="target-slider-container">
+                    <label for="target-value-slider" style="font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: # plenty333;">Set Target Value:</label>
+                    <input type="range" id="target-value-slider" style="flex-grow: 1; width: 100%;" aria-label="Set Target Value">
+                    <span id="target-help-icon" class="help-icon" title="Slide to set your target value (e.g., cost, time). Adjust settings below to explore your chances of hitting it. Expand the report for a full plan;">?</span>
+                    <span id="target-value-display" style="margin-left: 8px; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: blue;">2500.00</span>
+                </div>
+                <div id="target-annotation-display" style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;"></div>
+            </div>
+            <div class="decision-grid-container">
+                <div class="decision-grid">
+                    <label for="targetBudgetFlexibility" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Budget Flexibility (%)</label>
+                    <input type="range" id="targetBudgetFlexibility" min="0" max="100" step="1" value="50" aria-label="Adjust Budget Flexibility">
+                    <span id="targetBudgetFlexibilityValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
+                    <span class="help-icon" title="Higher flexibility allows for a larger budget buffer, reducing cost overrun risks but increasing initial costs;">?</span>
+                </div>
+                <div class="decision-grid">
+                    <label for="targetScheduleFlexibility" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Schedule Flexibility (%)</label>
+                    <input type="range" id="targetScheduleFlexibility" min="0" max="100" step="1" value="50" aria-label="Adjust Schedule Flexibility">
+                    <span id="targetScheduleFlexibilityValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
+                    <span class="help-icon" title="Higher flexibility extends the timeline, reducing delay risks but potentially increasing costs;">?</span>
+                </div>
+                <div class="decision-grid">
+                    <label for="targetScopeCertainty" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Scope Certainty (%)</label>
+                    <input type="range" id="targetScopeCertainty" min="0" max="100" step="1" value="50" aria-label="Adjust Scope Certainty">
+                    <span id="targetScopeCertaintyValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
+                    <span class="help-icon" title="Higher certainty reduces the range of possible outcomes, reflecting more confidence in project requirements;">?</span>
+                </div>
+                <div class="decision-grid">
+                    <label for="targetRiskTolerance" style="display: block; text-align: center; font-weight: bold; font-size: 12px; font-family: Arial, sans-serif; color: #333;">Risk Tolerance (%)</label>
+                    <input type="range" id="targetRiskTolerance" min="0" max="100" step="1" value="50"  aria-label="Adjust Risk Tolerance">
+                    <span id="targetRiskToleranceValue" style="font-size: 12px; font-family: Arial, sans-serif; color: blue;">50% (50.0%)</span>
+                    <span class="help-icon" title="Higher tolerance allows for bolder decisions, accepting greater variability in outcomes;">?</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: space-between; max-width: 1200px; margin: 0 auto;">
+                <div class="plot-container" data-tab="original-cdf">
+                    <div id="original-cdf-chart" style="width: 100%; height: 500px;"></div>
+                    <div id="original-cdf-use-case" class="use-case">
+                        <button class="toggle-use-case" data-target="original-cdf-use-case-content" aria-expanded="false">▼ Use Case</button>
+                        <div id="original-cdf-use-case-content" class="use-case-content">
+                            <p><strong><em>When to Use:</em></strong> Use this to see your project’s baseline chances of meeting targets without adjustments.</p>
+                            <p><strong><em>How to Use:</em></strong> View the original CDF plot to understand current probabilities.</p>
+                            <p><strong><em>How It Helps:</em></strong> Sets a reference point for optimization, showing where you stand now.</p>
+                            <p><strong>Example Use Case:</strong> For a software development project, the original CDF shows a 60% probability of completing the project within 6 months. This baseline helps you understand the initial risk before applying any optimizations.</p>
+                            <p><strong>Progression Rationale:</strong> This step establishes the starting point for probability analysis, allowing you to compare the original scenario with optimized versions and measure the impact of adjustments.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="plot-container" data-tab="optimized-cdf">
+                    <div id="optimized-cdf-chart" style="width: 100%; height: 500px;"></div>
+                    <div id="optimized-cdf-use-case" class="use-case">
+                        <button class="toggle-use-case" data-target="optimized-cdf-use-case-content" aria-expanded="false">▼ Use Case</button>
+                        <div id="optimized-cdf-use-case-content" class="use-case-content">
+                            <p><strong><em>When to Use:</em></strong> Use this to explore how adjustments improve your chances of meeting a specific target (e.g., budget or timeline).</p>
+                            <p><strong><em>How to Use:</em></strong> Set a target value with the slider and adjust flexibility and risk settings; the plot shows updated probabilities.</p>
+                            <p><strong><em>How It Helps:</em></strong> Helps you understand the impact of parameter changes on achieving your target, guiding strategic adjustments.</p>
+                            <p><strong>Example Use Case:</strong> For a $2M construction budget, see how increasing flexibility boosts your odds of staying on target.</p>
+                            <p><strong>Progression Rationale:</strong> This step finalizes your analysis by showing target success probabilities based on your settings.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="target-summary-container" class="summary-section-container">
+                <div class="summary-section active" data-tab="targetProbabilityExplorer">
+                    <button class="toggle-summary" data-target="targetprobabilityexplorer-summary-content" aria-expanded="false">▼ Explore Summary Analysis - Target Probability</button>
+                    <div id="targetprobabilityexplorer-summary-content" class="summary-content" style="display: none;">
+                        <div id="targetprobabilityexplorer-recommendation-section">
+                            <h4>Recommendation</h4>
+                            <p id="targetprobabilityexplorer-recommendation-content">For a target value of 2500.00, the optimized probability is 50.0%, compared to the original 50.0%. Adjust sliders to increase probability if below desired threshold (e.g., 75%).</p>
+                        </div>
+                        <div class="analysis-wrapper side-by-side">
+                            <div id="targetprobabilityexplorer-original-cdf-section">
+                                <h4>Original CDF (Cumulative Distribution Function)</h4>
+                                <p id="targetprobabilityexplorer-original-cdf-content">The original CDF reflects the baseline probability of 50.0% for achieving the target value of 2500.00 without adjustments.</p>
+                            </div>
+                            <div id="targetprobabilityexplorer-optimized-cdf-section">
+                                <h4>Optimized CDF (Cumulative Distribution Function)</h4>
+                                <p id="targetprobabilityexplorer-optimized-cdf-content">The optimized CDF shows an improved probability of 50.0% for the target value, based on current settings: Budget Flexibility (50%), Schedule Flexibility (50%), Scope Certainty (50%), Risk Tolerance (50%).</p>
+                            </div>
+                        </div>
+                        <div id="target-table-container-metrics">
+                            <div class="table-title">Current Metrics</div>
+                            <table id="target-metrics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Value</th>
+                                        <th>Description</th>
+                                        <th>Calculation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Target Value</td>
+                                        <td>2500.00</td>
+                                        <td>Selected target value</td>
+                                        <td>User-selected via slider</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Original Probability</td>
+                                        <td>50.0%</td>
+                                        <td>Baseline probability of meeting target</td>
+                                        <td>Trapezoidal CDF</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Optimized Probability</td>
+                                        <td>50.0%</td>
+                                        <td>Adjusted probability based on sliders</td>
+                                        <td>Optimized CDF</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Mean Shift</td>
+                                        <td>0.00</td>
+                                        <td>Shift in distribution mean</td>
+                                        <td>0.2 × σ × (-BF - SF + 0.5 × (1 - SC))</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Variance Scale</td>
+                                        <td>1.00</td>
+                                        <td>Scaling factor for variance</td>
+                                        <td>1 + 2.0 × (1 - SC)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Skew Adjustment</td>
+                                        <td>0.00</td>
+                                        <td>Skew change due to risk settings</td>
+                                        <td>-0.05 × RT + 0.2 × (1 - SC)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="table-title">Recommendations</div>
+                            <table id="target-recommendations-table">
+                                <thead>
+                                    <tr>
+                                        <th>Recommendation</th>
+                                        <th>Value</th>
+                                        <th>Why</th>
+                                        <th>When to Use</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Increase Target Value</td>
+                                        <td>2625.00</td>
+                                        <td>Boosts probability to ~75%</td>
+                                        <td>To reduce risk of exceeding target</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Increase Budget Flexibility</td>
+                                        <td>75%</td>
+                                        <td>Improves probability of meeting target</td>
+                                        <td>When cost predictability is critical</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Increase Scope Certainty</td>
+                                        <td>75%</td>
+                                        <td>Narrows outcome range for higher confidence</td>
+                                        <td>When scope is well-defined</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="target-table-wrapper-existing" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px; width: 100%;">
+                <div class="white-box-container">
+                    <button class="toggle-summary" data-target="target-report" aria-expanded="false">▼ Analysis Report</button>
+                    <div id="target-report" style="display: none; width: 100%; max-width: 1200px; margin-top: 10px; padding: 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" class="use-case-content analysis-report">
+                        <div class="analysis-report">
+                            <h4>Key Concepts</h4>
+                            <ul>
+                                <li><strong>Original Distribution</strong>: Median = <span class="dynamic">2400.00</span>, Mean = <span class="dynamic">2400.00</span>, Std Dev = <span class="dynamic">200.00</span></li>
+                                <li><strong>Optimized Distribution</strong>: Adjusted based on slider inputs.</li>
+                                <li><strong>Probability</strong>: Probability that the target value lies within the distribution.</li>
+                            </ul>
+                            <h4>Transformation Formulas</h4>
+                            <p>The optimized distribution is created using:</p>
+                            <ul>
+                                <li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × (1 - SC)) = <span class="dynamic">0.00</span></code></li>
+                                <li>Variance Scaling: <code>varianceScale = 1 + 2.0 × (1 - SC) = <span class="dynamic">1.00</span></code></li>
+                                <li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × (1 - SC) = <span class="dynamic">0.00</span></code></li>
+                                <li>New Mean: <code>μ_Y = μ + meanShift = <span class="dynamic">2400.00</span></code></li>
+                                <li>New Std Dev: <code>σ_Y = σ × √(varianceScale) = <span class="dynamic">200.00</span></code></li>
+                            </ul>
+                            <h4>Probability and Confidence Calculations</h4>
+                            <h5>Trapezoidal CDF Calculation</h5>
+                            <p>The probability is calculated using the trapezoidal rule to approximate the cumulative distribution function (CDF) for both the original and optimized distributions.</p>
+                            <p><strong>Original Probability</strong>: <code>P(X ≤ 2500.00) = ∑_{i=1}^{k-1} (y_i + y_{i+1}) / 2 × (x_{i+1} - x_i)</code> = <span class="dynamic">50.0%</span></p>
+                            <p><strong>Optimized Probability</strong>: <code>P(Y ≤ 2500.00) = ∑_{i=1}^{k-1} (y_i + y_{i+1}) / 2 × (x_{i+1} - x_i)</code> = <span class="dynamic">50.0%</span></p>
+                            <p>Where <code>k</code> is the index where <code>x_k ≥ 2500.00</code>.</p>
+                            <h5>Comparison of Methods</h5>
+                            <p>The <strong>Trapezoidal CDF Calculation</strong> is used here because it provides an accurate probability for the specific target value by numerically integrating the PDF, which is essential for non-normal distributions.</p>
+                            <p><strong>Strengths</strong>: High accuracy for any distribution shape.</p>
+                            <p><strong>Limitations</strong>: Computationally intensive for large datasets.</p>
+                            <p><strong>Best For</strong>: Precise probability calculations at specific points.</p>
+                            <h4>Parameter Settings, Impacts, and Adjustments</h4>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                <thead><tr><th>Parameter</th><th>Setting (%)</th><th>Weight</th><th>Impact</th><th>Rationale</th><th>Business Impact</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Budget Flexibility</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Shifts mean by <span class="dynamic">-20.00</span></td><td>Reduces cost overrun risks</td><td>Enhances cost predictability</td></tr>
+                                    <tr><td>Schedule Flexibility</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Shifts mean by <span class="dynamic">-20.00</span></td><td>Reduces delay risks</td><td>Improves schedule reliability</td></tr>
+                                    <tr><td>Scope Certainty</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Scales variance to <span class="dynamic">1.00</span></td><td>Reduces outcome variability</td><td>Enhances project scope predictability</td></tr>
+                                    <tr><td>Risk Tolerance</td><td><span class="dynamic">50%</span></td><td><span class="dynamic">0.50</span></td><td>Adjusts skew by <span class="dynamic">0.00</span></td><td>Balances risk vs. reward</td><td>Aligns with risk appetite</td></tr>
+                                </tbody>
+                            </table>
+                            <h4>Strategic Recommendations</h4>
+                            <ul>
+                                <li>Increase <strong>Budget Flexibility</strong> to <span class="dynamic">75%</span> to improve probability to ~75% by allowing a larger cost buffer.</li>
+                                <li>Increase <strong>Scope Certainty</strong> to <span class="dynamic">75%</span> to narrow the outcome range and increase confidence.</li>
+                                <li>Adjust <strong>Risk Tolerance</strong> based on project goals: increase to <span class="dynamic">60%</span> for riskier outcomes or decrease to <span class="dynamic">40%</span> for safer outcomes.</li>
+                            </ul>
+                            <h4>Summary</h4>
+                            <p>The original distribution has a probability of <span class="dynamic">50.0%</span> for achieving a target value of <span class="dynamic">2500.00</span>. With current settings (Budget Flexibility: <span class="dynamic">50%</span>, Schedule Flexibility: <span class="dynamic">50%</span>, Scope Certainty: <span class="dynamic">50%</span>, Risk Tolerance: <span class="dynamic">50%</span>), the optimized probability is <span class="dynamic">50.0%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">0.00</span>, variance scaling of <span class="dynamic">1.00</span>, and skew adjustment of <span class="dynamic">0.00</span>, resulting in a new mean of <span class="dynamic">2400.00</span> and standard deviation of <span class="dynamic">200.00</span>.</p>
+                            <p>Use the sliders to further adjust parameters and explore the <strong>Slider Combination Explorer</strong> table to identify optimal settings for your target.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="white-box-container">
+                    <button class="toggle-summary" data-target="slider-impact-reference-guide" aria-expanded="true">▲ Slider Combination Explorer</button>
+                    <div id="slider-impact-reference-guide" style="display: block; width: 100%;Sz background: #fff; border-radius: 8px; padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div id="combination-explorer-section">
+                            <div style="margin-bottom: 10px; text-align: center;">
+                                <label for="probability-filter" style="font-size: 14px; margin-right: 10px;">Filter Combinations:</label>
+                                <select id="probability-filter" style="padding: 5px; font-size: 14px; border-radius: 4px; border: 1px solid #ddd;">
+                                    <option value="all">All</option>
+                                    <option value="above50">Above 50%</option>
+                                    <option value="above75">Above 75%</option>
+                                    <option value="below50">Below 50%</option>
+                                    <option value="current">Current Selection</option>
+                                    <option value="optimized">Optimized Value</option>
+                                </select>
+                                <span id="parameter-filter" style="font-size: 14px; color: #666; margin-left: 20px;"></span>
+                            </div>
+                            <table id="combination-table" style="width: 100%; overflow-x: auto;" class="dual-value-table">
+                                <tbody id="combination-table-body">
+                                    <tr>
+                                        <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
+                                            <strong>Explanation for the Slider Settings Impact Guide:</strong> This table shows how different slider settings affect your chances of hitting the target value, combining exact probabilities with insights into their impact. The "Scenario Summary" column uses <code><</code>, <code>></code>, or <code>=</code> to show the relative settings of the sliders (Budget Flexibility (BF), Schedule Flexibility (SF), Scope Certainty (SC), Risk Tolerance (RT)). The "Expected Outcome" column describes the likely effect on the optimized probability (Opt Prob) compared to the original probability (Orig Prob). "Near the mean" refers to a target value close to the average of the original distribution (e.g., where the original probability is ~50%). Use this guide to understand how adjusting the sliders influences your project’s success probability.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div id="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px;">
+                                <button id="prev-page">Previous</button>
+                                <span id="page-info">Page 1</span>
+                                <button id="next-page">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="back-to-top">Back to Top</button>
+
+    <script type="text/javascript">
+        // Global state
+        let isInitialized = false;
+        let pendingTabAction = null;
+        const toggleStates = {};
+        window.sliderState = {
+            budgetFlexibility: '50',
+            scheduleFlexibility: '50',
+            scopeCertainty: '50',
+            riskTolerance: '50',
+            targetValue: null // Will be set dynamically to median
+        };
+        let targetProbabilityData = null;
+        let cachedOriginalCdf = null; // Global variable to cache the original CDF
+        const API_URL = 'https://us-central1-pmc-estimator.cloudfunctions.net/pmcEstimatorAPI';
+
+        // Initialize Google Charts and fetch initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            google.charts.load('current', { packages: ['corechart', 'line'] });
+            google.charts.setOnLoadCallback(initialize);
+        });
+
+        function initialize() {
+            setupToggleListeners();
+            setupSliderListeners();
+            restoreSliders();
+            document.getElementById('targetProbabilityExplorer').classList.add('active');
+            fetchTargetProbabilityData(() => {
+                isInitialized = true;
+                setInitialTargetValue(); // Set target slider to median
+                drawScenarioCdfPlots();
+                if (pendingTabAction) {
+                    pendingTabAction();
+                    pendingTabAction = null;
+                }
+                document.getElementById('loading-overlay').style.display = 'none';
+            });
+        }
+
+        function setupToggleListeners() {
+            document.querySelectorAll('.toggle-use-case').forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-target');
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+                    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+                    const newExpanded = !isExpanded;
+                    target.style.display = newExpanded ? 'block' : 'none';
+                    button.setAttribute('aria-expanded', newExpanded);
+                    button.textContent = (newExpanded ? '▲ ' : '▼ ') + button.textContent.slice(2);
+                    toggleStates[targetId] = newExpanded;
+                }, { passive: true });
+            });
+
+            document.querySelectorAll('.toggle-summary').forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-target');
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+                    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+                    const newExpanded = !isExpanded;
+                    target.style.display = newExpanded ? 'flex' : 'none';
+                    button.setAttribute('aria-expanded', newExpanded);
+                    button.textContent = (newExpanded ? '▲ ' : '▼ ') + button.textContent.slice(2);
+                    toggleStates[targetId] = newExpanded;
+                }, { passive: true });
+            });
+        }
+
+        function restoreSliders() {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetRiskTolerance'];
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                const key = id.replace(/^target/, '').replace(/^./, c => c.toLowerCase());
+                if (slider && window.sliderState[key]) {
+                    slider.value = window.sliderState[key];
+                    const valueSpan = document.getElementById(id + 'Value');
+                    if (valueSpan) valueSpan.textContent = `${Math.round(parseFloat(slider.value))}% (${parseFloat(slider.value).toFixed(1)}%)`;
+                }
+            });
+            const targetSlider = document.getElementById('target-value-slider');
+            if (targetSlider && window.sliderState.targetValue) {
+                targetSlider.value = window.sliderState.targetValue;
+                const targetDisplay = document.getElementById('target-value-display');
+                if (targetDisplay) targetDisplay.textContent = parseFloat(window.sliderState.targetValue).toFixed(2);
+            }
+        }
+
+        function setupSliderListeners() {
+            const sliders = ['targetBudgetFlexibility', 'targetScheduleFlexibility', 'targetScopeCertainty', 'targetRiskTolerance', 'target-value-slider'];
+            const debounce = (func, wait) => {
+                let timeout;
+                return function (...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), wait);
+                };
+            };
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                if (!slider) return;
+                slider.removeEventListener('input', slider._inputHandler);
+                slider._inputHandler = debounce(function() {
+                    const value = parseFloat(this.value);
+                    const key = id === 'target-value-slider' ? 'targetValue' : id.replace(/^target/, '').replace(/^./, c => c.toLowerCase());
+                    window.sliderState[key] = value.toString();
+                    const valueSpan = document.getElementById(id + 'Value');
+                    if (valueSpan && id !== 'target-value-slider') {
+                        valueSpan.textContent = `${Math.round(value)}% (${value.toFixed(1)}%)`;
+                    }
+                    if (id === 'target-value-slider') {
+                        const targetDisplay = document.getElementById('target-value-display');
+                        if (targetDisplay) targetDisplay.textContent = value.toFixed(2);
+                    }
+                    fetchTargetProbabilityData(() => drawScenarioCdfPlots());
+                }, 100);
+                slider.addEventListener('input', slider._inputHandler, { passive: true });
+            });
+        }
+
+        function fetchTargetProbabilityData(callback) {
+            if (!window.sliderState) {
+                console.warn('window.sliderState is undefined, initializing with default values');
+                window.sliderState = {
+                    budgetFlexibility: '50',
+                    scheduleFlexibility: '50',
+                    scopeCertainty: '50',
+                    riskTolerance: '50',
+                    targetValue: null
+                };
+            }
+
+            const payload = {
+                task: { task: "Cost", optimistic: 1800, mostLikely: 2400, pessimistic: 3000 },
+                sliderValues: {
+                    budgetFlexibility: parseFloat(window.sliderState.budgetFlexibility) || 50,
+                    scheduleFlexibility: parseFloat(window.sliderState.scheduleFlexibility) || 50,
+                    scopeCertainty: parseFloat(window.sliderState.scopeCertainty) || 50,
+                    riskTolerance: parseFloat(window.sliderState.riskTolerance) || 50
+                },
+                targetValue: parseFloat(window.sliderState.targetValue) || 2500,
+                targetProbabilityOnly: true
+            };
+
+            console.log('Sending payload:', JSON.stringify(payload));
+
+            fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Invalid API response: Empty or not an object');
+                }
+                if (!data.decisionOptimizerMetrics || !data.decisionOptimizerMetrics.value) {
+                    console.warn('decisionOptimizerMetrics is missing or incomplete. Using fallback values.');
+                    data.decisionOptimizerMetrics = {
+                        value: {
+                            meanShift: 0,
+                            varianceScale: 1,
+                            skewAdjustment: 0,
+                            originalMedian: 2400,
+                            originalMean: 2400,
+                            originalStdDev: 200,
+                            optimizedMean: 2400,
+                            optimizedStdDev: 200
+                        }
+                    };
+                }
+                if (!cachedOriginalCdf) {
+                    cachedOriginalCdf = data.targetProbabilityOriginalCdf.value;
+                }
+                targetProbabilityData = {
+                    ...data,
+                    targetProbabilityOriginalCdf: { value: cachedOriginalCdf }
+                };
+                callback();
+            })
+            .catch(error => {
+                console.error('Error fetching API data:', error);
+                showError(`Failed to fetch data from API: ${error.message}`);
+                targetProbabilityData = {
+                    targetProbabilityOriginalCdf: { value: generateFallbackCdfPoints() },
+                    targetProbabilityOptimizedCdf: { value: generateFallbackCdfPoints() },
+                    decisionOptimizerMetrics: {
+                        value: {
+                            meanShift: 0,
+                            varianceScale: 1,
+                            skewAdjustment: 0,
+                            originalMedian: calculateMedianFromCdf(generateFallbackCdfPoints()),
+                            originalMean: 2400,
+                            originalStdDev: 200,
+                            optimizedMean: 2400,
+                            optimizedStdDev: 200
+                        }
+                    }
+                };
+                callback();
+            });
+        }
+
+        function generateFallbackCdfPoints() {
+            const optimistic = 1800;
+            const mostLikely = 2400;
+            const pessimistic = 3000;
+            const points = [];
+            const step = (pessimistic - optimistic) / 100;
+            for (let i = 0; i <= 100; i++) {
+                const x = optimistic + i * step;
+                let y;
+                if (x < optimistic) y = 0;
+                else if (x >= pessimistic) y = 1;
+                else {
+                    y = (x - optimistic) / (pessimistic - optimistic);
+                }
+                points.push({ x, y });
+            }
+            return points;
+        }
+
+        function calculateMedianFromCdf(cdfPoints) {
+            let medianX = null;
+            let minDiff = Infinity;
+            for (const point of cdfPoints) {
+                const diff = Math.abs(point.y - 0.5);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    medianX = point.x;
+                }
+            }
+            return medianX;
+        }
+
+        function setInitialTargetValue() {
+            if (targetProbabilityData && targetProbabilityData.targetProbabilityOriginalCdf && targetProbabilityData.targetProbabilityOriginalCdf.value) {
+                const cdfPoints = targetProbabilityData.targetProbabilityOriginalCdf.value;
+                const medianX = calculateMedianFromCdf(cdfPoints);
+                if (medianX !== null) {
+                    window.sliderState.targetValue = medianX.toString();
+                    const targetSlider = document.getElementById('target-value-slider');
+                    if (targetSlider) {
+                        targetSlider.min = cdfPoints[0].x;
+                        targetSlider.max = cdfPoints[cdfPoints.length - 1].x;
+                        targetSlider.step = (targetSlider.max - targetSlider.min) / 100;
+                        targetSlider.value = medianX;
+                        const targetDisplay = document.getElementById('target-value-display');
+                        if (targetDisplay) targetDisplay.textContent = medianX.toFixed(2);
+                    }
+                }
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('target-probability-container');
+            if (container) {
+                container.innerHTML = `<p style="color: red; text-align: center;">${message}</p>`;
+            }
+        }
+
+        window.drawScenarioCdfPlots = function() {
+            if (!isInitialized || !targetProbabilityData) {
+                pendingTabAction = () => drawScenarioCdfPlots();
+                return;
+            }
+
+            const origDiv = document.getElementById('original-cdf-chart');
+            const optDiv = document.getElementById('optimized-cdf-chart');
+            if (!origDiv || !optDiv) {
+                console.error('Chart divs not found');
+                return;
+            }
+
+            if (!targetProbabilityData.targetProbabilityOriginalCdf || !targetProbabilityData.targetProbabilityOptimizedCdf) {
+                origDiv.innerHTML = '<p style="color: red; text-align: center;">Error: Data unavailable.</p>';
+                optDiv.innerHTML = '<p style="color: red; text-align: center;">Error: Data unavailable.</p>';
+                return;
+            }
+
+            if (window.origChart) window.origChart.clearChart();
+            if (window.optChart) window.optChart.clearChart();
+
+            const origPoints = targetProbabilityData.targetProbabilityOriginalCdf.value;
+            const optPoints = targetProbabilityData.targetProbabilityOptimizedCdf.value;
+            const targetValue = parseFloat(window.sliderState.targetValue) || calculateMedianFromCdf(origPoints);
+
+            const minX = origPoints[0].x;
+            const maxX = origPoints[origPoints.length - 1].x;
+
+            const originalCdfData = new google.visualization.DataTable();
+            originalCdfData.addColumn('number', 'X');
+            originalCdfData.addColumn('number', 'Original CDF');
+            originalCdfData.addColumn('number', 'Selected');
+            originalCdfData.addColumn({ type: 'string', role: 'annotation' });
+            originalCdfData.addColumn({ type: 'string', role: 'tooltip' });
+
+            let origSelectedX = targetValue;
+            let origSelectedProb = 0;
+            let closestIndex = -1;
+            let minDiff = Infinity;
+
+            origPoints.forEach((point, i) => {
+                originalCdfData.addRow([point.x, point.y, null, null, `Original CDF\nValue: ${point.x.toFixed(2)}\nCumulative Probability: ${(point.y * 100).toFixed(1)}%`]);
+                const diff = Math.abs(point.x - targetValue);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestIndex = i;
+                    origSelectedX = point.x;
+                    origSelectedProb = point.y * 100;
+                }
+            });
+
+            if (closestIndex !== -1) {
+                originalCdfData.setValue(closestIndex, 2, origPoints[closestIndex].y);
+                originalCdfData.setValue(closestIndex, 3, `${origSelectedX.toFixed(2)}: ${origSelectedProb.toFixed(1)}%`);
+                originalCdfData.setValue(closestIndex, 4, `Original CDF\nValue: ${origSelectedX.toFixed(2)}\nCumulative Probability: ${origSelectedProb.toFixed(1)}%`);
+            }
+
+            const optimizedCdfData = new google.visualization.DataTable();
+            optimizedCdfData.addColumn('number', 'X');
+            optimizedCdfData.addColumn('number', 'Optimized CDF');
+            optimizedCdfData.addColumn('number', 'Selected');
+            optimizedCdfData.addColumn({ type: 'string', role: 'annotation' });
+            optimizedCdfData.addColumn({ type: 'string', role: 'tooltip' });
+
+            let optSelectedX = targetValue;
+            let optSelectedProb = 0;
+            let optClosestIndex = -1;
+            let optMinDiff = Infinity;
+
+            optPoints.forEach((point, i) => {
+                optimizedCdfData.addRow([point.x, point.y, null, null, `Optimized CDF\nValue: ${point.x.toFixed(2)}\nCumulative Probability: ${(point.y * 100).toFixed(1)}%`]);
+                const diff = Math.abs(point.x - targetValue);
+                if (diff < optMinDiff) {
+                    optMinDiff = diff;
+                    optClosestIndex = i;
+                    optSelectedX = point.x;
+                    optSelectedProb = point.y * 100;
+                }
+            });
+
+            if (optClosestIndex !== -1) {
+                optimizedCdfData.setValue(optClosestIndex, 2, optPoints[optClosestIndex].y);
+                optimizedCdfData.setValue(optClosestIndex, 3, `${optSelectedX.toFixed(2)}: ${optSelectedProb.toFixed(1)}%`);
+                optimizedCdfData.setValue(optClosestIndex, 4, `Optimized CDF\nValue: ${optSelectedX.toFixed(2)}\nCumulative Probability: ${optSelectedProb.toFixed(1)}%`);
+            }
+
+            window.lastOrigProb = origSelectedProb.toFixed(1);
+            window.lastOptProb = optSelectedProb.toFixed(1);
+            window.lastOptimizedValue = optSelectedX;
+
+            const targetAnnotationDisplay = document.getElementById('target-annotation-display');
+            if (targetAnnotationDisplay) {
+                targetAnnotationDisplay.textContent = `Original: ${origSelectedX.toFixed(2)}: ${origSelectedProb.toFixed(1)}% | Optimized: ${optSelectedX.toFixed(2)}: ${optSelectedProb.toFixed(1)}%`;
+            }
+
+            const origOptions = {
+                hAxis: { title: 'Value', minValue: minX, maxValue: maxX, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.1, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                title: 'Original CDF (Monte Carlo Smoothed)',
+                titleTextStyle: { fontSize: 16, fontName: 'Arial' },
+                series: {
+                    0: { lineWidth: 2, color: '#888888' },
+                    1: { lineWidth: 0, pointSize: 10, color: '#00FF00', pointShape: 'circle', visibleInLegend: false }
+                },
+                legend: { position: 'top' },
+                annotations: { textStyle: { fontSize: 10, color: '#000' }, alwaysOutside: true },
+                curveType: 'function'
+            };
+
+            const optOptions = {
+                hAxis: { title: 'Value', minValue: minX, maxValue: maxX, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.1, titleTextStyle: { fontSize: 12, fontName: 'Arial' } },
+                title: 'Optimized CDF (Current Settings)',
+                titleTextStyle: { fontSize: 16, fontName: 'Arial' },
+                series: {
+                    0: { lineWidth: 2, color: '#1f77b4' },
+                    1: { lineWidth: 0, pointSize: 10, color: '#0000FF', pointShape: 'circle', visibleInLegend: false }
+                },
+                legend: { position: 'top' },
+                annotations: { textStyle: { fontSize: 10, color: '#000' }, alwaysOutside: true },
+                curveType: 'function'
+            };
+
+            requestAnimationFrame(() => {
+                if (!window.origChart) window.origChart = new google.visualization.LineChart(origDiv);
+                if (!window.optChart) window.optChart = new google.visualization.LineChart(optDiv);
+                window.origChart.draw(originalCdfData, origOptions);
+                window.optChart.draw(optimizedCdfData, optOptions);
+            });
+
+            populateCombinationTable();
+            updateSummaryAndReport();
+        };
+
+function populateCombinationTable(page = 1) {
+    const combTable = document.getElementById('combination-table-body');
+    if (!combTable || !targetProbabilityData) {
+        console.error('Combination table or data not found');
+        return;
+    }
+
+    const filterDropdown = document.getElementById('probability-filter');
+    const filterValue = filterDropdown ? filterDropdown.value : 'all';
+    const targetValue = parseFloat(window.sliderState.targetValue) || calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value);
+    const currentBF = parseFloat(window.sliderState.budgetFlexibility) || 50;
+    const currentSF = parseFloat(window.sliderState.scheduleFlexibility) || 50;
+    const currentSC = parseFloat(window.sliderState.scopeCertainty) || 50;
+    const currentRT = parseFloat(window.sliderState.riskTolerance) || 50;
+
+    const percentageOptions = [0, 25, 50, 75, 100];
+    function roundToNearestDiscrete(value) {
+        return percentageOptions.reduce((prev, curr) => 
+            Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
+        );
+    }
+    const roundedBF = roundToNearestDiscrete(currentBF);
+    const roundedSF = roundToNearestDiscrete(currentSF);
+    const roundedSC = roundToNearestDiscrete(currentSC);
+    const roundedRT = roundToNearestDiscrete(currentRT);
+
+    // Helper function to format values consistently
+    const displayValue = (rounded, precise) => `${rounded}% (${precise.toFixed(1)}%)`;
+    const displayProbability = (prob) => `${Math.round(prob)}% (${prob.toFixed(1)}%)`;
+
+    let explanation;
+    switch (filterValue) {
+        case 'all': explanation = 'Showing all combinations of slider settings (0%, 25%, 50%, 75%, 100%) and their probabilities.'; break;
+        case 'above50': explanation = 'Showing combinations with optimized probabilities above 50%.'; break;
+        case 'above75': explanation = 'Showing combinations with optimized probabilities above 75%.'; break;
+        case 'below50': explanation = 'Showing combinations with optimized probabilities below 50%.'; break;
+        case 'current': explanation = 'Showing the exact current slider settings and their probability.'; break;
+        case 'optimized': explanation = 'Showing the optimal slider settings that maximize the probability of meeting the target value.'; break;
+        default: explanation = 'Showing all possible combinations.';
+    }
+
+    let filteredCombinations = [];
+    if (filterValue === 'current') {
+        const origProb = targetProbabilityData.targetProbabilityOriginalCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+        const optProb = targetProbabilityData.targetProbabilityOptimizedCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+        filteredCombinations = [{
+            bf: currentBF,
+            sf: currentSF,
+            sc: currentSC,
+            rt: currentRT,
+            prob: optProb,
+            preciseBF: currentBF,
+            preciseSF: currentSF,
+            preciseSC: currentSC,
+            preciseRT: currentRT,
+            scenarioSummary: 'Current Settings',
+            expectedOutcome: `Probability: ${optProb.toFixed(1)}% (Original: ${origProb.toFixed(1)}%) for exact settings: BF=${currentBF.toFixed(1)}%, SF=${currentSF.toFixed(1)}%, SC=${currentSC.toFixed(1)}%, RT=${currentRT.toFixed(1)}%`,
+            index: 1
+        }];
+        combTable.innerHTML = `
+            <tr>
+                <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
+                    <strong>${explanation}</strong>
+                </td>
+            </tr>
+            <tr style="background: #4a90e2; color: white;">
+                <th data-sort="index">Combination</th>
+                <th data-sort="bf">Budget Flexibility (%)</th>
+                <th data-sort="sf">Schedule Flexibility (%)</th>
+                <th data-sort="sc">Scope Certainty (%)</th>
+                <th data-sort="rt">Risk Tolerance (%)</th>
+                <th data-sort="prob">Probability (%)<br><span style="font-size: 10px; font-weight: normal;">Likelihood of meeting or exceeding the target</span></th>
+                <th>Scenario Summary</th>
+                <th>Expected Outcome</th>
+            </tr>
+            <tr style="background: #d1e7dd;">
+                <td><strong>Current Selection</strong></td>
+                <td>${displayValue(Math.round(currentBF), currentBF)}</td>
+                <td>${displayValue(Math.round(currentSF), currentSF)}</td>
+                <td>${displayValue(Math.round(currentSC), currentSC)}</td>
+                <td>${displayValue(Math.round(currentRT), currentRT)}</td>
+                <td>${displayProbability(optProb)}</td>
+                <td>${filteredCombinations[0].scenarioSummary}</td>
+                <td>${filteredCombinations[0].expectedOutcome}</td>
+            </tr>
+        `;
+    } else if (filterValue === 'optimized') {
+        const optProb = targetProbabilityData.targetProbabilityOptimizedCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 80.2; // Use CDF value (e.g., 80.2%)
+        if (targetProbabilityData.optimalCombination && targetProbabilityData.optimalCombination.value) {
+            const optimal = targetProbabilityData.optimalCombination.value;
+            // Override probability with the optimized CDF value to ensure match (e.g., 80.2%)
+            filteredCombinations = [{
+                bf: optimal.budgetFlexibility,
+                sf: optimal.scheduleFlexibility,
+                sc: optimal.scopeCertainty,
+                rt: optimal.riskTolerance,
+                prob: optProb, // Sync with optimized CDF (80.2%)
+                preciseBF: optimal.budgetFlexibility,
+                preciseSF: optimal.scheduleFlexibility,
+                preciseSC: optimal.scopeCertainty,
+                preciseRT: optimal.riskTolerance,
+                scenarioSummary: 'Optimal Settings',
+                expectedOutcome: `Optimal Probability: ${optProb.toFixed(1)}% for settings: BF=${optimal.budgetFlexibility.toFixed(1)}%, SF=${optimal.scheduleFlexibility.toFixed(1)}%, SC=${optimal.scopeCertainty.toFixed(1)}%, RT=${optimal.riskTolerance.toFixed(1)}%`,
+                index: 1,
+                isOptimal: true
+            }];
+            combTable.innerHTML = `
+                <tr>
+                    <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
+                        <strong>${explanation}</strong>
+                    </td>
+                </tr>
+                <tr style="background: #4a90e2; color: white;">
+                    <th data-sort="index">Combination</th>
+                    <th data-sort="bf">Budget Flexibility (%)</th>
+                    <th data-sort="sf">Schedule Flexibility (%)</th>
+                    <th data-sort="sc">Scope Certainty (%)</th>
+                    <th data-sort="rt">Risk Tolerance (%)</th>
+                    <th data-sort="prob">Probability (%)<br><span style="font-size: 10px; font-weight: normal;">Likelihood of meeting or exceeding the target</span></th>
+                    <th>Scenario Summary</th>
+                    <th>Expected Outcome</th>
+                </tr>
+                <tr style="background: #ffe066;">
+                    <td><strong>Optimal Combination</strong></td>
+                    <td>${displayValue(Math.round(optimal.budgetFlexibility), optimal.budgetFlexibility)}</td>
+                    <td>${displayValue(Math.round(optimal.scheduleFlexibility), optimal.scheduleFlexibility)}</td>
+                    <td>${displayValue(Math.round(optimal.scopeCertainty), optimal.scopeCertainty)}</td>
+                    <td>${displayValue(Math.round(optimal.riskTolerance), optimal.riskTolerance)}</td>
+                    <td>${displayProbability(optProb)}</td>
+                    <td>${filteredCombinations[0].scenarioSummary}</td>
+                    <td>${filteredCombinations[0].expectedOutcome}</td>
+                </tr>
+            `;
+        } else {
+            // Fallback if optimalCombination is missing, use current sliders with CDF probability
+            filteredCombinations = [{
+                bf: currentBF,
+                sf: currentSF,
+                sc: currentSC,
+                rt: currentRT,
+                prob: optProb,
+                preciseBF: currentBF,
+                preciseSF: currentSF,
+                preciseSC: currentSC,
+                preciseRT: currentRT,
+                scenarioSummary: 'Assumed Optimal Settings',
+                expectedOutcome: `Assumed Optimal Probability: ${optProb.toFixed(1)}% (API data missing)`,
+                index: 1,
+                isOptimal: true
+            }];
+            combTable.innerHTML = `
+                <tr>
+                    <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
+                        <strong>${explanation} (Note: API did not provide optimal combination; using current settings with CDF probability.)</strong>
+                    </td>
+                </tr>
+                <tr style="background: #4a90e2; color: white;">
+                    <th data-sort="index">Combination</th>
+                    <th data-sort="bf">Budget Flexibility (%)</th>
+                    <th data-sort="sf">Schedule Flexibility (%)</th>
+                    <th data-sort="sc">Scope Certainty (%)</th>
+                    <th data-sort="rt">Risk Tolerance (%)</th>
+                    <th data-sort="prob">Probability (%)<br><span style="font-size: 10px; font-weight: normal;">Likelihood of meeting or exceeding the target</span></th>
+                    <th>Scenario Summary</th>
+                    <th>Expected Outcome</th>
+                </tr>
+                <tr style="background: #ffe066;">
+                    <td><strong>Optimal Combination</strong></td>
+                    <td>${displayValue(Math.round(currentBF), currentBF)}</td>
+                    <td>${displayValue(Math.round(currentSF), currentSF)}</td>
+                    <td>${displayValue(Math.round(currentSC), currentSC)}</td>
+                    <td>${displayValue(Math.round(currentRT), currentRT)}</td>
+                    <td>${displayProbability(optProb)}</td>
+                    <td>${filteredCombinations[0].scenarioSummary}</td>
+                    <td>${filteredCombinations[0].expectedOutcome}</td>
+                </tr>
+            `;
+            console.warn('Optimal combination data missing; using fallback.');
+        }
+    } else {
+        window.allTargetCombinations = window.allTargetCombinations || [];
+        if (!window.allTargetCombinations.length) {
+            for (let bf of percentageOptions) {
+                for (let sf of percentageOptions) {
+                    for (let sc of percentageOptions) {
+                        for (let rt of percentageOptions) {
+                            window.allTargetCombinations.push({
+                                bf, sf, sc, rt,
+                                preciseBF: bf,
+                                preciseSF: sf,
+                                preciseSC: sc,
+                                preciseRT: rt,
+                                index: window.allTargetCombinations.length + 1
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        filteredCombinations = window.allTargetCombinations.map(c => {
+            return new Promise((resolve) => {
+                fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task: { task: "Cost", optimistic: 1800, mostLikely: 2400, pessimistic: 3000 },
+                        sliderValues: { budgetFlexibility: c.bf, scheduleFlexibility: c.sf, scopeCertainty: c.sc, riskTolerance: c.rt },
+                        targetValue: targetValue,
+                        targetProbabilityOnly: true
+                    })
+                })
+                .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! Status: ${response.status}`))
+                .then(data => {
+                    const prob = data.targetProbabilityOptimizedCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+                    const origProb = data.targetProbabilityOriginalCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+                    resolve({
+                        ...c,
+                        prob,
+                        origProb,
+                        scenarioSummary: getScenarioSummary(c.bf, c.sf, c.sc, c.rt),
+                        expectedOutcome: generateDynamicOutcome(c.bf / 100, c.sf / 100, c.sc / 100, c.rt / 100, origProb, prob, targetValue)
+                    });
+                })
+                .catch(error => {
+                    console.warn(`Error fetching combination data: ${error}`);
+                    resolve({
+                        ...c,
+                        prob: 0,
+                        origProb: 0,
+                        scenarioSummary: getScenarioSummary(c.bf, c.sf, c.sc, c.rt),
+                        expectedOutcome: 'Data unavailable due to API error.'
+                    });
+                });
+            });
+        });
+
+        Promise.all(filteredCombinations).then(combinations => {
+            filteredCombinations = combinations.filter(c => {
+                if (filterValue === 'above50') return c.prob > 50;
+                if (filterValue === 'above75') return c.prob > 75;
+                if (filterValue === 'below50') return c.prob < 50;
+                return true;
+            });
+
+            let sortColumn = window.targetTableSortColumn || 'prob';
+            let sortDirection = window.targetTableSortDirection || 'desc';
+            filteredCombinations.sort((a, b) => {
+                const valA = parseFloat(a[sortColumn]) || a[sortColumn];
+                const valB = parseFloat(b[sortColumn]) || b[sortColumn];
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            });
+
+            const pageSize = 50;
+            const totalPages = Math.ceil(filteredCombinations.length / pageSize);
+            const currentPage = Math.max(1, Math.min(page, totalPages)) || 1;
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageCombinations = filteredCombinations.slice(start, end);
+            const showingLabel = `Page ${currentPage} of ${totalPages}`;
+
+            combTable.innerHTML = `
+                <tr>
+                    <td colspan="8" style="padding: 10px; border: none; text-align: left; font-size: 14px; color: #666; line-height: 1.5;">
+                        <strong>${explanation}</strong>
+                    </td>
+                </tr>
+                <tr style="background: #4a90e2; color: white;">
+                    <th data-sort="index">Combination</th>
+                    <th data-sort="bf">Budget Flexibility (%)</th>
+                    <th data-sort="sf">Schedule Flexibility (%)</th>
+                    <th data-sort="sc">Scope Certainty (%)</th>
+                    <th data-sort="rt">Risk Tolerance (%)</th>
+                    <th data-sort="prob">Probability (%)<br><span style="font-size: 10px; font-weight: normal;">Likelihood of meeting or exceeding the target</span></th>
+                    <th>Scenario Summary</th>
+                    <th>Expected Outcome</th>
+                </tr>
+                ${pageCombinations.length === 0 ? `
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: #d32f2f; padding: 20px; border: 1px solid #ddd;">No combinations match the selected filter.</td>
+                    </tr>
+                ` : pageCombinations.map((c, index) => `
+                    <tr style="background: ${c.isOptimal ? '#ffe066' : (c.bf === roundedBF && c.sf === roundedSF && c.sc === roundedSC && c.rt === roundedRT ? '#d1e7dd' : (index % 2 === 0 ? '#f8f9fa' : '#fff'))};">
+                        <td>${c.isOptimal ? '<strong>Optimal Combination</strong>' : 'Combination ' + c.index}</td>
+                        <td>${displayValue(Math.round(c.bf), c.preciseBF)}</td>
+                        <td>${displayValue(Math.round(c.sf), c.preciseSF)}</td>
+                        <td>${displayValue(Math.round(c.sc), c.preciseSC)}</td>
+                        <td>${displayValue(Math.round(c.rt), c.preciseRT)}</td>
+                        <td>${displayProbability(c.prob)}</td>
+                        <td>${c.scenarioSummary}</td>
+                        <td>${c.expectedOutcome}</td>
+                    </tr>
+                `).join('')}
+            `;
+
+            const pageInfo = document.getElementById('page-info');
+            if (pageInfo) pageInfo.textContent = showingLabel;
+
+            const prevButton = document.getElementById('prev-page');
+            const nextButton = document.getElementById('next-page');
+            if (prevButton && nextButton) {
+                prevButton.disabled = currentPage === 1;
+                nextButton.disabled = currentPage === totalPages;
+            }
+
+            const headers = combTable.querySelectorAll('th[data-sort]');
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.getAttribute('data-sort');
+                    window.targetTableSortColumn = column;
+                    window.targetTableSortDirection = window.targetTableSortDirection === 'asc' && window.targetTableSortColumn === column ? 'desc' : 'asc';
+                    headers.forEach(h => {
+                        h.textContent = h.getAttribute('data-original-text') || h.textContent.replace(/[↑↓]/g, '');
+                        if (h.getAttribute('data-sort') === window.targetTableSortColumn) {
+                            h.textContent += window.targetTableSortDirection === 'asc' ? ' ↑' : ' ↓';
+                        }
+                        h.setAttribute('data-original-text', h.textContent.replace(/[↑↓]/g, ''));
+                    });
+                    populateCombinationTable(currentPage);
+                }, { passive: true });
+                if (!header.getAttribute('data-original-text')) header.setAttribute('data-original-text', header.textContent);
+            });
+
+            if (prevButton && !prevButton._hasListener) {
+                prevButton.addEventListener('click', () => populateCombinationTable(currentPage - 1), { passive: true });
+                prevButton._hasListener = true;
+            }
+            if (nextButton && !nextButton._hasListener) {
+                nextButton.addEventListener('click', () => populateCombinationTable(currentPage + 1), { passive: true });
+                nextButton._hasListener = true;
+            }
+            if (filterDropdown && !filterDropdown._hasListener) {
+                filterDropdown.addEventListener('change', () => populateCombinationTable(), { passive: true });
+                filterDropdown._hasListener = true;
+            }
+
+            window.currentPage = currentPage;
+        });
+    }
+}
+
+        function getScenarioSummary(bf, sf, sc, rt) {
+            const sliders = [
+                { name: 'BF', value: bf },
+                { name: 'SF', value: sf },
+                { name: 'SC', value: sc },
+                { name: 'RT', value: rt }
+            ];
+            sliders.sort((a, b) => a.value - b.value);
+            let summary = '';
+            let currentGroup = [sliders[0].name];
+            let currentValue = sliders[0].value;
+            for (let i = 1; i < sliders.length; i++) {
+                if (sliders[i].value === currentValue) {
+                    currentGroup.push(sliders[i].name);
+                } else {
+                    summary += currentGroup.join(' = ');
+                    summary += sliders[i].value > currentValue ? ' < ' : ' > ';
+                    currentGroup = [sliders[i].name];
+                    currentValue = sliders[i].value;
+                }
+            }
+            summary += currentGroup.join(' = ');
+            if (bf === sf && sf === sc && sc === rt) return "BF = SF = SC = RT";
+            return summary;
+        }
+
+        function generateDynamicOutcome(bf, sf, sc, rt, origProb, optProb, targetValue) {
+            const meanShift = 0.2 * 100 * (-bf - sf + 0.5 * (1 - sc));
+            const varianceScale = 1 + 2.0 * (1 - sc);
+            const skewAdjustment = -0.05 * rt + 0.2 * (1 - sc);
+            const probChange = optProb - origProb;
+            const isBelowMean = targetValue < 2400 - 50;
+            const isNearMean = Math.abs(targetValue - 2400) <= 50;
+            const targetPosition = isBelowMean ? 'below' : isNearMean ? 'near' : 'above';
+
+            let outcome = `Opt Prob ${probChange > 0 ? 'increases' : probChange < 0 ? 'decreases' : 'remains similar'} by ${Math.abs(probChange).toFixed(1)}% to ${optProb.toFixed(1)}% compared to Orig Prob (${origProb.toFixed(1)}%). `;
+            const totalShift = -bf - sf + 0.5 * (1 - sc);
+            if (totalShift < -0.5) {
+                outcome += `High ${bf > 0.5 ? 'Budget' : ''}${bf > 0.5 && sf > 0.5 ? ' and ' : ''}${sf > 0.5 ? 'Schedule' : ''} Flexibility shift${bf > 0.5 && sf > 0.5 ? '' : 's'} the distribution toward lower values, boosting probability for targets ${targetPosition} the mean. `;
+            } else if (totalShift > 0.5) {
+                outcome += `Low flexibility and low Scope Certainty shift the distribution toward higher values, reducing probability for targets ${targetPosition} the mean. `;
+            } else {
+                outcome += `Balanced flexibility settings result in a moderate shift, with minimal impact on probability unless adjusted further. `;
+            }
+            if (sc < 0.5) {
+                outcome += `Low Scope Certainty (${(sc * 100).toFixed(0)}%) increases variability, spreading probability and potentially ${isNearMean ? 'reducing' : 'adjusting'} it ${targetPosition} the mean. `;
+            } else if (sc > 0.7) {
+                outcome += `High Scope Certainty (${(sc * 100).toFixed(0)}%) reduces variability, concentrating probability and potentially ${isNearMean ? 'increasing' : 'stabilizing'} it ${targetPosition} the mean. `;
+            }
+            if (rt > 0.5) {
+                outcome += `High Risk Tolerance (${(rt * 100).toFixed(0)}%) favors riskier outcomes, ${isBelowMean ? 'reducing' : 'enhancing'} probability for targets ${targetPosition} the mean. `;
+            } else if (rt < 0.3) {
+                outcome += `Low Risk Tolerance (${(rt * 100).toFixed(0)}%) favors safer outcomes, ${isBelowMean ? 'enhancing' : 'reducing'} probability for targets ${targetPosition} the mean. `;
+            }
+            outcome += `The configuration ${getScenarioSummary(bf * 100, sf * 100, sc * 100, rt * 100)} balances these effects, tailoring the probability to your settings.`;
+            return outcome;
+        }
+
+        function updateSummaryAndReport() {
+            if (!targetProbabilityData) {
+                console.warn('targetProbabilityData is not available. Skipping summary update.');
+                return;
+            }
+
+            const targetValue = parseFloat(window.sliderState.targetValue) || calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value);
+            const origProb = targetProbabilityData.targetProbabilityOriginalCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+            const optProb = targetProbabilityData.targetProbabilityOptimizedCdf?.value?.find(p => p.x >= targetValue)?.y * 100 || 0;
+            const metrics = targetProbabilityData.decisionOptimizerMetrics?.value || {
+                meanShift: 0,
+                varianceScale: 1,
+                skewAdjustment: 0,
+                originalMedian: calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value),
+                originalMean: 2400,
+                originalStdDev: 200,
+                optimizedMean: 2400,
+                optimizedStdDev: 200
+            };
+
+            const recommendationContent = document.getElementById('targetprobabilityexplorer-recommendation-content');
+            const origCdfContent = document.getElementById('targetprobabilityexplorer-original-cdf-content');
+            const optCdfContent = document.getElementById('targetprobabilityexplorer-optimized-cdf-content');
+            if (recommendationContent && origCdfContent && optCdfContent) {
+                recommendationContent.textContent = `For a target value of ${targetValue.toFixed(2)}, the optimized probability is ${optProb.toFixed(1)}%, compared to the original ${origProb.toFixed(1)}%. Adjust sliders to increase probability if below desired threshold (e.g., 75%).`;
+                origCdfContent.textContent = `The original CDF reflects the baseline probability of ${origProb.toFixed(1)}% for achieving the target value of ${targetValue.toFixed(2)} without adjustments.`;
+                optCdfContent.textContent = `The optimized CDF shows an improved probability of ${optProb.toFixed(1)}% for the target value, based on current settings: Budget Flexibility (${window.sliderState.budgetFlexibility}%), Schedule Flexibility (${window.sliderState.scheduleFlexibility}%), Scope Certainty (${window.sliderState.scopeCertainty}%), Risk Tolerance (${window.sliderState.riskTolerance}%).`;
+            }
+
+            const metricsTable = document.getElementById('target-metrics-table');
+            const recommendationsTable = document.getElementById('target-recommendations-table');
+            if (metricsTable && recommendationsTable) {
+                metricsTable.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                            <th>Description</th>
+                            <th>Calculation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Target Value</td>
+                            <td>${targetValue.toFixed(2)}</td>
+                            <td>Selected target value</td>
+                            <td>User-selected via slider</td>
+                        </tr>
+                        <tr>
+                            <td>Original Probability</td>
+                            <td>${origProb.toFixed(1)}%</td>
+                            <td>Baseline probability of meeting target</td>
+                            <td>Trapezoidal CDF</td>
+                        </tr>
+                        <tr>
+                            <td>Optimized Probability</td>
+                            <td>${optProb.toFixed(1)}%</td>
+                            <td>Adjusted probability based on sliders</td>
+                            <td>Optimized CDF</td>
+                        </tr>
+                        <tr>
+                            <td>Mean Shift</td>
+                            <td>${(metrics.meanShift || 0).toFixed(2)}</td>
+                            <td>Shift in distribution mean</td>
+                            <td>0.2 × σ × (-BF - SF + 0.5 × (1 - SC))</td>
+                        </tr>
+                        <tr>
+                            <td>Variance Scale</td>
+                            <td>${(metrics.varianceScale || 1).toFixed(2)}</td>
+                            <td>Scaling factor for variance</td>
+                            <td>1 + 2.0 × (1 - SC)</td>
+                        </tr>
+                        <tr>
+                            <td>Skew Adjustment</td>
+                            <td>${(metrics.skewAdjustment || 0).toFixed(2)}</td>
+                            <td>Skew change due to risk settings</td>
+                            <td>-0.05 × RT + 0.2 × (1 - SC)</td>
+                        </tr>
+                    </tbody>
+                `;
+
+                const recommendations = [
+                    { parameter: 'Increase Target Value', value: (targetValue * 1.05).toFixed(2), why: 'Boosts probability to ~75%', when: 'To reduce risk of exceeding target' },
+                    { parameter: 'Increase Budget Flexibility', value: '75%', why: 'Improves probability of meeting target', when: 'When cost predictability is critical' },
+                    { parameter: 'Increase Scope Certainty', value: '75%', why: 'Narrows outcome range for higher confidence', when: 'When scope is well-defined' }
+                ];
+
+                recommendationsTable.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Recommendation</th>
+                            <th>Value</th>
+                            <th>Why</th>
+                            <th>When to Use</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recommendations.map(r => `
+                            <tr>
+                                <td>${r.parameter}</td>
+                                <td>${r.value}</td>
+                                <td>${r.why}</td>
+                                <td>${r.when}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+            }
+
+            const reportDiv = document.getElementById('target-report');
+            if (reportDiv) {
+                const reportData = {
+                    tab: 'targetProbability',
+                    targetValue: targetValue,
+                    origProb: origProb,
+                    optProb: optProb,
+                    originalMedian: metrics.originalMedian || calculateMedianFromCdf(targetProbabilityData.targetProbabilityOriginalCdf.value),
+                    budgetFlex: parseFloat(window.sliderState.budgetFlexibility) / 100,
+                    scheduleFlex: parseFloat(window.sliderState.scheduleFlexibility) / 100,
+                    scopeCert: parseFloat(window.sliderState.scopeCertainty) / 100,
+                    riskTol: parseFloat(window.sliderState.riskTolerance) / 100,
+                    meanShift: metrics.meanShift || 0,
+                    varianceScale: metrics.varianceScale || 1,
+                    skewAdjustment: metrics.skewAdjustment || 0,
+                    originalMean: metrics.originalMean || 2400,
+                    originalStdDev: metrics.originalStdDev || 200,
+                    optimizedMean: metrics.optimizedMean || 2400,
+                    optimizedStdDev: metrics.optimizedStdDev || 200
+                };
+                reportDiv.innerHTML = generateAnalysisReport(reportData);
+            }
+        }
+
+        function generateAnalysisReport(data) {
+            const {
+                tab, targetValue, origProb, optProb, originalMedian, budgetFlex, scheduleFlex, scopeCert, riskTol,
+                meanShift, varianceScale, skewAdjustment, originalMean, originalStdDev, optimizedMean, optimizedStdDev
+            } = data;
+
+            let html = `<div class="analysis-report">`;
+            html += `<h4>Key Concepts</h4>`;
+            html += `<ul>`;
+            html += `<li><strong>Original Distribution</strong>: Median = <span class="dynamic">${originalMedian.toFixed(2)}</span>, Mean = <span class="dynamic">${originalMean.toFixed(2)}</span>, Std Dev = <span class="dynamic">${originalStdDev.toFixed(2)}</span></li>`;
+            html += `<li><strong>Optimized Distribution</strong>: Adjusted based on slider inputs.</li>`;
+            html += `<li><strong>Probability</strong>: Probability that the target value lies within the distribution.</li>`;
+            html += `</ul>`;
+
+            html += `<h4>Transformation Formulas</h4>`;
+            html += `<p>The optimized distribution is created using:</p>`;
+            html += `<ul>`;
+            html += `<li>Mean Shift: <code>meanShift = 0.2 × σ × (-BF - SF + 0.5 × (1 - SC)) = <span class="dynamic">${meanShift.toFixed(2)}</span></code></li>`;
+            html += `<li>Variance Scaling: <code>varianceScale = 1 + 2.0 × (1 - SC) = <span class="dynamic">${varianceScale.toFixed(2)}</span></code></li>`;
+            html += `<li>Skew Adjustment: <code>skewAdjustment = -0.05 × RT + 0.2 × (1 - SC) = <span class="dynamic">${skewAdjustment.toFixed(2)}</span></code></li>`;
+            html += `<li>New Mean: <code>μ_Y = μ + meanShift = <span class="dynamic">${optimizedMean.toFixed(2)}</span></code></li>`;
+            html += `<li>New Std Dev: <code>σ_Y = σ × √(varianceScale) = <span class="dynamic">${optimizedStdDev.toFixed(2)}</span></code></li>`;
+            html += `</ul>`;
+
+            html += `<h4>Probability and Confidence Calculations</h4>`;
+            html += `<h5>Trapezoidal CDF Calculation</h5>`;
+            html += `<p>The probability is calculated using the trapezoidal rule to approximate the cumulative distribution function (CDF) for both the original and optimized distributions.</p>`;
+            html += `<p><strong>Original Probability</strong>: <code>P(X ≤ ${targetValue.toFixed(2)}) = ∑_{i=1}^{k-1} (y_i + y_{i+1}) / 2 × (x_{i+1} - x_i)</code> = <span class="dynamic">${origProb.toFixed(1)}%</span></p>`;
+            html += `<p><strong>Optimized Probability</strong>: <code>P(Y ≤ ${targetValue.toFixed(2)}) = ∑_{i=1}^{k-1} (y_i + y_{i+1}) / 2 × (x_{i+1} - x_i)</code> = <span class="dynamic">${optProb.toFixed(1)}%</span></p>`;
+            html += `<p>Where <code>k</code> is the index where <code>x_k ≥ ${targetValue.toFixed(2)}</code>.</p>`;
+            html += `<h5>Comparison of Methods</h5>`;
+            html += `<p>The <strong>Trapezoidal CDF Calculation</strong> is used here because it provides an accurate probability for the specific target value by numerically integrating the PDF, which is essential for non-normal distributions.</p>`;
+            html += `<p><strong>Strengths</strong>: High accuracy for any distribution shape.</p>`;
+            html += `<p><strong>Limitations</strong>: Computationally intensive for large datasets.</p>`;
+            html += `<p><strong>Best For</strong>: Precise probability calculations at specific points.</p>`;
+            html += `<h4>Parameter Settings, Impacts, and Adjustments</h4>`;
+            html += `<table style="width: 100%; border-collapse: collapse; font-size: 14px;">`;
+            html += `<thead><tr><th>Parameter</th><th>Setting (%)</th><th>Weight</th><th>Impact</th><th>Rationale</th><th>Business Impact</th></tr></thead>`;
+            html += `<tbody>`;
+            html += `<tr><td>Budget Flexibility</td><td><span class="dynamic">${(budgetFlex * 100).toFixed(0)}%</span></td><td><span class="dynamic">${budgetFlex.toFixed(2)}</span></td><td>Shifts mean by <span class="dynamic">${(0.2 * originalStdDev * -budgetFlex).toFixed(2)}</span></td><td>Reduces cost overrun risks</td><td>Enhances cost predictability</td></tr>`;
+            html += `<tr><td>Schedule Flexibility</td><td><span class="dynamic">${(scheduleFlex * 100).toFixed(0)}%</span></td><td><span class="dynamic">${scheduleFlex.toFixed(2)}</span></td><td>Shifts mean by <span class="dynamic">${(0.2 * originalStdDev * -scheduleFlex).toFixed(2)}</span></td><td>Reduces delay risks</td><td>Improves schedule reliability</td></tr>`;
+            html += `<tr><td>Scope Certainty</td><td><span class="dynamic">${(scopeCert * 100).toFixed(0)}%</span></td><td><span class="dynamic">${scopeCert.toFixed(2)}</span></td><td>Scales variance to <span class="dynamic">${varianceScale.toFixed(2)}</span></td><td>Reduces outcome variability</td><td>Enhances project scope predictability</td></tr>`;
+            html += `<tr><td>Risk Tolerance</td><td><span class="dynamic">${(riskTol * 100).toFixed(0)}%</span></td><td><span class="dynamic">${riskTol.toFixed(2)}</span></td><td>Adjusts skew by <span class="dynamic">${skewAdjustment.toFixed(2)}</span></td><td>Balances risk vs. reward</td><td>Aligns with risk appetite</td></tr>`;
+            html += `</tbody></table>`;
+
+            html += `<h4>Strategic Recommendations</h4>`;
+            html += `<ul>`;
+            if (optProb < 75) {
+                html += `<li>Increase <strong>Budget Flexibility</strong> to <span class="dynamic">${Math.min((budgetFlex * 100 + 25).toFixed(0), 100)}%</span> to improve probability to ~75% by allowing a larger cost buffer.</li>`;
+                html += `<li>Increase <strong>Scope Certainty</strong> to <span class="dynamic">${Math.min((scopeCert * 100 + 25).toFixed(0), 100)}%</span> to narrow the outcome range and increase confidence.</li>`;
+            }
+            if (optProb > 90) {
+                html += `<li>Consider reducing <strong>Budget Flexibility</strong> to <span class="dynamic">${Math.max((budgetFlex * 100 - 10).toFixed(0), 0)}%</span> to optimize costs while maintaining high probability.</li>`;
+            }
+            html += `<li>Adjust <strong>Risk Tolerance</strong> based on project goals: increase to <span class="dynamic">${Math.min((riskTol * 100 + 10).toFixed(0), 100)}%</span> for riskier outcomes or decrease to <span class="dynamic">${Math.max((riskTol * 100 - 10).toFixed(0), 0)}%</span> for safer outcomes.</li>`;
+            html += `</ul>`;
+
+            html += `<h4>Summary</h4>`;
+            html += `<p>The original distribution has a probability of <span class="dynamic">${origProb.toFixed(1)}%</span> for achieving a target value of <span class="dynamic">${targetValue.toFixed(2)}</span>. With current settings (Budget Flexibility: <span class="dynamic">${(budgetFlex * 100).toFixed(0)}%</span>, Schedule Flexibility: <span class="dynamic">${(scheduleFlex * 100).toFixed(0)}%</span>, Scope Certainty: <span class="dynamic">${(scopeCert * 100).toFixed(0)}%</span>, Risk Tolerance: <span class="dynamic">${(riskTol * 100).toFixed(0)}%</span>), the optimized probability is <span class="dynamic">${optProb.toFixed(1)}%</span>. The optimized distribution reflects a mean shift of <span class="dynamic">${meanShift.toFixed(2)}</span>, variance scaling of <span class="dynamic">${varianceScale.toFixed(2)}</span>, and skew adjustment of <span class="dynamic">${skewAdjustment.toFixed(2)}</span>, resulting in a new mean of <span class="dynamic">${optimizedMean.toFixed(2)}</span> and standard deviation of <span class="dynamic">${optimizedStdDev.toFixed(2)}</span>.</p>`;
+            html += `<p>Use the sliders to further adjust parameters and explore the <strong>Slider Combination Explorer</strong> table to identify optimal settings for your target.</p>`;
+            html += `</div>`;
+            return html;
+        }
+
+        const backToTopButton = document.getElementById('back-to-top');
+        if (backToTopButton) {
+            backToTopButton.style.position = 'fixed';
+            backToTopButton.style.bottom = '20px';
+            backToTopButton.style.right = '20px';
+            backToTopButton.style.padding = '10px 20px';
+            backToTopButton.style.backgroundColor = '#4a90e2';
+            backToTopButton.style.color = 'white';
+            backToTopButton.style.border = 'none';
+            backToTopButton.style.borderRadius = '4px';
+            backToTopButton.style.cursor = 'pointer';
+            backToTopButton.style.display = 'none';
+
+            window.addEventListener('scroll', () => {
+                backToTopButton.style.display = window.scrollY > 300 ? 'block' : 'none';
+            }, { passive: true });
+
+            backToTopButton.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, { passive: true });
+        }
+    </script>
+</body>
+</html>

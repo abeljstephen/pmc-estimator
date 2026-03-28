@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <!-- Materialize CSS for styling -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <!-- Google Charts -->
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <!-- Materialize JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    h2 {
+      margin-top: 40px;
+    }
+    .chart-container {
+      width: 100%;
+      height: 300px;
+      margin-bottom: 30px;
+    }
+    .slider-label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+    input[type=range] {
+      width: 100%;
+    }
+    .toggle-button {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 12px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+    .toggle-button:hover {
+      background-color: #ddd;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 13px;
+    }
+    .summary-table th, .summary-table td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: center;
+    }
+    .summary-table th {
+      background-color: #f2f2f2;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var tabs = document.querySelectorAll('.tabs');
+      M.Tabs.init(tabs);
+    });
+
+    function toggleSection(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+  </script>
+</head>
+<body>
+  <h4>Estimation Plots & Explorer</h4>
+
+  <div class="row">
+    <div class="col s12">
+      <ul class="tabs">
+        <li class="tab col s2"><a href="#tab-triangle" class="active">Triangle</a></li>
+        <li class="tab col s2"><a href="#tab-pert">PERT Beta</a></li>
+        <li class="tab col s2"><a href="#tab-beta">Beta</a></li>
+        <li class="tab col s2"><a href="#tab-montecarlo">Monte Carlo</a></li>
+        <li class="tab col s2"><a href="#tab-smoothed">Smoothed MC</a></li>
+        <li class="tab col s2"><a href="#tab-optimizer">Optimizer</a></li>
+        <li class="tab col s2"><a href="#tab-target">Target Explorer</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const estimateResultsRaw = <?!= JSON.stringify(estimateResults) ?>;
+    console.log("Injected estimateResults:", estimateResultsRaw);
+
+    const estimateResults = estimateResultsRaw.results[0];
+    if (!estimateResults) {
+      console.error("No first result found!");
+    }
+
+    const MC_SMOOTHED_POINTS = estimateResults?.smoothedHistogram || [];
+    const MC_UNSMOOTHED_SAMPLES = estimateResults?.mcBetaSamples || [];
+
+    function initializePage() {
+      if (!estimateResults) {
+        console.error("estimateResults not available");
+        document.body.innerHTML = "<p style='color:red;'>No estimation data found. Please run estimation first.</p>";
+        return;
+      }
+      console.log("initializePage() called.");
+      drawTriangleChart();
+      updateTriangleSummary();
+      drawPertChart();
+      updatePertSummary();
+      drawBetaChart();
+      updateBetaSummary();
+      drawMonteCarloChart();
+      updateMonteCarloSummary();
+      drawSmoothedChart();
+      updateSmoothedSummary();
+    }
+  </script>
+ 
+
+
+<!-- ============================
+Section: Triangle Tab
+============================ -->
+<div id="tab-triangle" class="tab-content active">
+  <h2>Triangle Distribution</h2>
+
+  <div id="triangle-chart" class="chart-container"></div>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('triangle-usecase')">Use Case & Explanation</button>
+    <div id="triangle-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> Start here with your initial guesses for project variables like cost or time. This step creates a simple range to visualize uncertainty, helping you set a baseline for your project’s budget or timeline.</p>
+      <p><strong>How to Use:</strong> Input your best, most likely, and worst-case estimates into the Google Sheet to see a basic range.</p>
+      <p><strong>How It Helps:</strong> Provides a quick, intuitive view of possible outcomes, ideal for early planning when data is limited.</p>
+      <p><strong>Example Use Case:</strong> For a new product launch, input $1,000 (best), $1,500 (most likely), and $2,000 (worst). The plot shows a range, helping you propose a $1,600 budget as a starting point.</p>
+      <p><strong>Progression Rationale:</strong> This step uses a simple model to kick off the process, setting the stage for more refined estimates in later steps.</p>
+    </div>
+  </div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('triangle-summary')">Explore Summary</button>
+    <div id="triangle-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>For a balanced estimate, aim for the value at 50% confidence, which is <span id="triangle-50"></span> units.</p>
+      <p>For a more cautious estimate, use the 90% confidence value of <span id="triangle-90"></span> units.</p>
+      <p>See the 'Triangular Distribution Metrics and Recommendation' table below for details.</p>
+
+      <p><strong>Step 1: Visualize Initial Estimates with the Triangular Distribution</strong></p>
+      <p>
+        Range: <span id="triangle-range"></span> units |
+        Mean: <span id="triangle-mean"></span> units<br>
+        Mode: <span id="triangle-mode"></span> units (most likely estimate)<br>
+        Standard Deviation: <span id="triangle-stddev"></span> units (measure of variability)
+      </p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>Metric</th><th>Value</th><th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Confidence</td><td id="triangle-conf">50%</td><td>Selected confidence level</td></tr>
+          <tr><td>Value at Confidence</td><td id="triangle-value"></td><td>Interpolated percentile</td></tr>
+          <tr><td>Mean</td><td id="triangle-mean2"></td><td>Average estimate</td></tr>
+          <tr><td>Mode</td><td id="triangle-mode2"></td><td>Most likely estimate</td></tr>
+          <tr><td>Standard Deviation</td><td id="triangle-stddev2"></td><td>Measure of variability</td></tr>
+          <tr><td>Skewness</td><td id="triangle-skew"></td><td>Symmetry of distribution</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Recommendations Table -->
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>Recommendation</th><th>Value</th><th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Use Mean</td><td id="triangle-mean3"></td><td>Balanced estimate</td></tr>
+          <tr><td>Use 90th Percentile</td><td id="triangle-90b"></td><td>Covers 90% of scenarios</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw chart
+function drawTriangleChart() {
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'Triangle PDF');
+
+  const points = estimateResults.trianglePoints || [];
+  const rows = points.map(p => [p.x, p.y]);
+  data.addRows(rows);
+
+  const chart = new google.visualization.AreaChart(document.getElementById('triangle-chart'));
+  chart.draw(data, {
+    title: 'Triangle Distribution',
+    hAxis: { title: 'Estimate Value' },
+    vAxis: { title: 'Probability' },
+    legend: 'none'
+  });
+}
+
+// Populate metrics
+function updateTriangleSummary() {
+  const m = estimateResults.triangleMetrics;
+  document.getElementById('triangle-50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('triangle-90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('triangle-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
+  document.getElementById('triangle-mean').innerText = m.mean.toFixed(2);
+  document.getElementById('triangle-mode').innerText = m.mode.toFixed(2);
+  document.getElementById('triangle-stddev').innerText = m.stdDev.toFixed(2);
+  document.getElementById('triangle-value').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('triangle-mean2').innerText = m.mean.toFixed(2);
+  document.getElementById('triangle-mode2').innerText = m.mode.toFixed(2);
+  document.getElementById('triangle-stddev2').innerText = m.stdDev.toFixed(2);
+  document.getElementById('triangle-skew').innerText = m.skewness.toFixed(2);
+  document.getElementById('triangle-mean3').innerText = m.mean.toFixed(2);
+  document.getElementById('triangle-90b').innerText = m.percentiles["90"].toFixed(2);
+}
+</script>
+
+
+<!-- ============================
+Section: PERT Beta Tab
+============================ -->
+<div id="tab-pert" class="tab-content" style="display:none;">
+  <h2>PERT Beta Distribution</h2>
+
+  <div id="pert-chart" class="chart-container"></div>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('pert-usecase')">Use Case & Explanation</button>
+    <div id="pert-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> Use the PERT Beta distribution when you want a more statistically realistic estimate that accounts for weighting toward the most likely value.</p>
+      <p><strong>How to Use:</strong> The system automatically computes the PERT Beta curve based on your three estimates. This distribution better models skewed data.</p>
+      <p><strong>How It Helps:</strong> Provides an improved, smooth probability curve suitable for planning and risk analysis.</p>
+      <p><strong>Example Use Case:</strong> When estimating software delivery timelines, where the most likely duration is much more probable than extremes.</p>
+      <p><strong>Progression Rationale:</strong> After establishing a baseline with the Triangle distribution, PERT refines estimates to account for weighted likelihoods.</p>
+    </div>
+  </div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('pert-summary')">Explore Summary</button>
+    <div id="pert-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>For a balanced estimate, use the value at 50% confidence, <span id="pert-50"></span> units.</p>
+      <p>For conservative planning, consider the 90% percentile value, <span id="pert-90"></span> units.</p>
+      <p>See the 'PERT Beta Distribution Metrics and Recommendation' table below for details.</p>
+
+      <p><strong>Step 2: Refine Estimates with the PERT Beta Distribution</strong></p>
+      <p>
+        Range: <span id="pert-range"></span> units |
+        Mean: <span id="pert-mean"></span> units<br>
+        Mode: <span id="pert-mode"></span> units<br>
+        Standard Deviation: <span id="pert-stddev"></span> units
+      </p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Metric</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Confidence</td><td id="pert-conf">50%</td><td>Selected confidence level</td></tr>
+          <tr><td>Value at Confidence</td><td id="pert-value"></td><td>Precomputed percentile</td></tr>
+          <tr><td>Mean</td><td id="pert-mean2"></td><td>Expected value</td></tr>
+          <tr><td>Mode</td><td id="pert-mode2"></td><td>Most likely value</td></tr>
+          <tr><td>Standard Deviation</td><td id="pert-stddev2"></td><td>Measure of uncertainty</td></tr>
+          <tr><td>Skewness</td><td id="pert-skew"></td><td>Shape asymmetry</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Recommendations Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Recommendation</th><th>Value</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Use Mean</td><td id="pert-mean3"></td><td>Balanced planning value</td></tr>
+          <tr><td>Use 90th Percentile</td><td id="pert-90b"></td><td>Covers most scenarios</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw PERT Beta Chart
+function drawPertChart() {
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'PERT Beta PDF');
+
+  const points = estimateResults.betaPoints || [];
+  data.addRows(points.map(p => [p.x, p.y]));
+
+  const chart = new google.visualization.AreaChart(document.getElementById('pert-chart'));
+  chart.draw(data, {
+    title: 'PERT Beta Distribution',
+    hAxis: { title: 'Estimate Value' },
+    vAxis: { title: 'Probability' },
+    legend: 'none'
+  });
+}
+
+// Populate summary
+function updatePertSummary() {
+  const m = estimateResults.betaMetrics;
+  document.getElementById('pert-50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('pert-90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('pert-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
+  document.getElementById('pert-mean').innerText = m.mean.toFixed(2);
+  document.getElementById('pert-mode').innerText = m.mode.toFixed(2);
+  document.getElementById('pert-stddev').innerText = m.stdDev.toFixed(2);
+  document.getElementById('pert-value').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('pert-mean2').innerText = m.mean.toFixed(2);
+  document.getElementById('pert-mode2').innerText = m.mode.toFixed(2);
+  document.getElementById('pert-stddev2').innerText = m.stdDev.toFixed(2);
+  document.getElementById('pert-skew').innerText = m.skewness.toFixed(2);
+  document.getElementById('pert-mean3').innerText = m.mean.toFixed(2);
+  document.getElementById('pert-90b').innerText = m.percentiles["90"].toFixed(2);
+}
+</script>
+
+<!-- ============================
+Section: Beta Distribution Tab
+============================ -->
+<div id="tab-beta" class="tab-content" style="display:none;">
+  <h2>Beta Distribution (Alternate View)</h2>
+
+  <div id="beta-chart" class="chart-container"></div>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('beta-usecase')">Use Case & Explanation</button>
+    <div id="beta-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> Use the Beta Distribution view if you want to understand the impact of shape parameters (alpha and beta) on the probability curve more explicitly.</p>
+      <p><strong>How to Use:</strong> This visualization helps you see whether your estimate distribution is symmetric or skewed.</p>
+      <p><strong>How It Helps:</strong> Gives a more advanced perspective of uncertainty and the distribution shape, which can be important in risk analysis.</p>
+      <p><strong>Example Use Case:</strong> When you need to justify to stakeholders why certain estimate ranges are more probable.</p>
+      <p><strong>Progression Rationale:</strong> This is a more technical view building upon the PERT Beta estimation.</p>
+    </div>
+  </div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('beta-summary')">Explore Summary</button>
+    <div id="beta-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>Use the 50% percentile value of <span id="beta-50"></span> units for balanced planning.</p>
+      <p>Consider the 90% percentile value of <span id="beta-90"></span> units for conservative estimates.</p>
+      <p>See the 'Beta Distribution Metrics and Recommendations' table below for details.</p>
+
+      <p><strong>Step 3: Visualize Beta Shape and Statistics</strong></p>
+      <p>
+        Range: <span id="beta-range"></span> units |
+        Mean: <span id="beta-mean"></span> units<br>
+        Mode: <span id="beta-mode"></span> units<br>
+        Standard Deviation: <span id="beta-stddev"></span> units
+      </p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Metric</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Confidence</td><td id="beta-conf">50%</td><td>Selected confidence level</td></tr>
+          <tr><td>Value at Confidence</td><td id="beta-value"></td><td>Precomputed percentile</td></tr>
+          <tr><td>Mean</td><td id="beta-mean2"></td><td>Expected value</td></tr>
+          <tr><td>Mode</td><td id="beta-mode2"></td><td>Most likely value</td></tr>
+          <tr><td>Standard Deviation</td><td id="beta-stddev2"></td><td>Variability measure</td></tr>
+          <tr><td>Skewness</td><td id="beta-skew"></td><td>Shape asymmetry</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Recommendations Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Recommendation</th><th>Value</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Use Mean</td><td id="beta-mean3"></td><td>Balanced estimate</td></tr>
+          <tr><td>Use 90th Percentile</td><td id="beta-90b"></td><td>More conservative planning</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw Beta Chart
+function drawBetaChart() {
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'Beta PDF');
+
+  const points = estimateResults.betaPoints || [];
+  data.addRows(points.map(p => [p.x, p.y]));
+
+  const chart = new google.visualization.AreaChart(document.getElementById('beta-chart'));
+  chart.draw(data, {
+    title: 'Beta Distribution',
+    hAxis: { title: 'Estimate Value' },
+    vAxis: { title: 'Probability' },
+    legend: 'none'
+  });
+}
+
+// Populate Beta Summary
+function updateBetaSummary() {
+  const m = estimateResults.betaMetrics;
+  document.getElementById('beta-50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('beta-90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('beta-range').innerText = estimateResults.estimates.bestCase + " to " + estimateResults.estimates.worstCase;
+  document.getElementById('beta-mean').innerText = m.mean.toFixed(2);
+  document.getElementById('beta-mode').innerText = m.mode.toFixed(2);
+  document.getElementById('beta-stddev').innerText = m.stdDev.toFixed(2);
+  document.getElementById('beta-value').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('beta-mean2').innerText = m.mean.toFixed(2);
+  document.getElementById('beta-mode2').innerText = m.mode.toFixed(2);
+  document.getElementById('beta-stddev2').innerText = m.stdDev.toFixed(2);
+  document.getElementById('beta-skew').innerText = m.skewness.toFixed(2);
+  document.getElementById('beta-mean3').innerText = m.mean.toFixed(2);
+  document.getElementById('beta-90b').innerText = m.percentiles["90"].toFixed(2);
+}
+</script>
+
+
+<!-- ============================
+Section: Monte Carlo Simulation Tab
+============================ -->
+<div id="tab-montecarlo" class="tab-content" style="display:none;">
+  <h2>Monte Carlo Simulation</h2>
+  <div id="mc-chart" class="chart-container"></div>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('mc-usecase')">Use Case & Explanation</button>
+    <div id="mc-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> After estimating with PERT and Beta, run a Monte Carlo simulation to see the full range of possible outcomes and their frequencies.</p>
+      <p><strong>How to Use:</strong> This histogram shows thousands of simulated outcomes. The height of each bar represents the frequency of outcomes in that range.</p>
+      <p><strong>How It Helps:</strong> It gives a granular view of uncertainty, helping you visualize variability and identify potential risks.</p>
+      <p><strong>Example Use Case:</strong> If your project involves volatile inputs, this simulation shows how often extreme outcomes occur.</p>
+      <p><strong>Progression Rationale:</strong> Monte Carlo is the most data-rich model in this workflow, offering detailed probabilistic insights.</p>
+    </div>
+  </div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('mc-summary')">Explore Summary</button>
+    <div id="mc-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>For balanced planning, consider the 50% percentile value of <span id="mc-50"></span> units.</p>
+      <p>For cautious planning, use the 90% percentile value of <span id="mc-90"></span> units.</p>
+      <p>See the Monte Carlo Simulation metrics and recommendations below for more detail.</p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Metric</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mean</td><td id="mc-mean"></td><td>Average outcome across all samples</td></tr>
+          <tr><td>Standard Deviation</td><td id="mc-stddev"></td><td>Spread of simulation outcomes</td></tr>
+          <tr><td>50th Percentile</td><td id="mc-p50"></td><td>Median estimate (balanced)</td></tr>
+          <tr><td>90th Percentile</td><td id="mc-p90"></td><td>More conservative estimate</td></tr>
+          <tr><td>Skewness</td><td id="mc-skew"></td><td>Asymmetry of distribution</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Recommendations Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Recommendation</th><th>Value</th><th>When to Use</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Use Mean</td><td id="mc-mean2"></td><td>For balanced planning</td></tr>
+          <tr><td>Use 90th Percentile</td><td id="mc-90b"></td><td>For risk-averse planning</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw Monte Carlo Histogram
+function drawMonteCarloChart() {
+  const samples = estimateResults.mcUnsmoothedSamples || [];
+  if (!samples.length) {
+    document.getElementById('mc-chart').innerHTML = "<p style='color:red;'>No Monte Carlo samples available.</p>";
+    return;
+  }
+
+  const bins = 30;
+  const min = Math.min(...samples);
+  const max = Math.max(...samples);
+  const binWidth = (max - min) / bins;
+
+  const histogram = Array.from({ length: bins }, (_, i) => [min + i * binWidth, 0]);
+  samples.forEach(s => {
+    const idx = Math.min(Math.floor((s - min) / binWidth), bins - 1);
+    histogram[idx][1]++;
+  });
+
+  const norm = samples.length * binWidth;
+  histogram.forEach(h => h[1] /= norm);
+
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'Density');
+  data.addRows(histogram);
+
+  const chart = new google.visualization.AreaChart(document.getElementById('mc-chart'));
+  chart.draw(data, {
+    title: 'Monte Carlo Samples Histogram',
+    hAxis: { title: 'Estimate Value' },
+    vAxis: { title: 'Density' },
+    legend: 'none'
+  });
+}
+
+// Update Monte Carlo Metrics Summary
+function updateMonteCarloSummary() {
+  const m = estimateResults.mcMetrics;
+  document.getElementById('mc-50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('mc-90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('mc-mean').innerText = m.mean.toFixed(2);
+  document.getElementById('mc-stddev').innerText = m.stdDev.toFixed(2);
+  document.getElementById('mc-p50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('mc-p90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('mc-skew').innerText = m.skewness.toFixed(2);
+  document.getElementById('mc-mean2').innerText = m.mean.toFixed(2);
+  document.getElementById('mc-90b').innerText = m.percentiles["90"].toFixed(2);
+}
+</script>
+
+
+<!-- ============================
+Section: Smoothed Monte Carlo Density Tab
+============================ -->
+<div id="tab-smoothed" class="tab-content" style="display:none;">
+  <h2>Smoothed Monte Carlo Density</h2>
+  <div id="smoothed-chart" class="chart-container"></div>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('smoothed-usecase')">Use Case & Explanation</button>
+    <div id="smoothed-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> Use this smoothed visualization after running Monte Carlo to get a clearer sense of probability density.</p>
+      <p><strong>How to Use:</strong> This chart smooths the raw histogram, removing noise and highlighting central tendencies.</p>
+      <p><strong>How It Helps:</strong> Smoothing makes it easier to interpret the likelihood of specific outcomes.</p>
+      <p><strong>Example Use Case:</strong> If you need to communicate findings to stakeholders, this chart is more intuitive than a raw histogram.</p>
+      <p><strong>Progression Rationale:</strong> It refines the raw simulation output into actionable insights.</p>
+    </div>
+  </div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('smoothed-summary')">Explore Summary</button>
+    <div id="smoothed-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>For balanced planning, consider the 50% percentile value of <span id="smoothed-50"></span> units.</p>
+      <p>For cautious planning, use the 90% percentile value of <span id="smoothed-90"></span> units.</p>
+      <p>See the Smoothed Monte Carlo metrics and recommendations below for details.</p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Metric</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mean</td><td id="smoothed-mean"></td><td>Average of smoothed outcomes</td></tr>
+          <tr><td>Standard Deviation</td><td id="smoothed-stddev"></td><td>Spread of smoothed outcomes</td></tr>
+          <tr><td>50th Percentile</td><td id="smoothed-p50"></td><td>Median estimate (balanced)</td></tr>
+          <tr><td>90th Percentile</td><td id="smoothed-p90"></td><td>More conservative estimate</td></tr>
+          <tr><td>Skewness</td><td id="smoothed-skew"></td><td>Asymmetry of smoothed distribution</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Recommendations Table -->
+      <table class="summary-table">
+        <thead>
+          <tr><th>Recommendation</th><th>Value</th><th>When to Use</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Use Mean</td><td id="smoothed-mean2"></td><td>For balanced planning</td></tr>
+          <tr><td>Use 90th Percentile</td><td id="smoothed-90b"></td><td>For risk-averse planning</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw Smoothed Density
+function drawSmoothedChart() {
+  const points = estimateResults.smoothedHistogram || [];
+  if (!points.length) {
+    document.getElementById('smoothed-chart').innerHTML = "<p style='color:red;'>No smoothed data available.</p>";
+    return;
+  }
+
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'Density');
+  data.addRows(points.map(p => [p.x, p.y]));
+
+  const chart = new google.visualization.AreaChart(document.getElementById('smoothed-chart'));
+  chart.draw(data, {
+    title: 'Smoothed Monte Carlo Density',
+    hAxis: { title: 'Estimate Value' },
+    vAxis: { title: 'Density' },
+    legend: 'none'
+  });
+}
+
+// Update Smoothed Summary
+function updateSmoothedSummary() {
+  const m = estimateResults.mcMetrics;
+  document.getElementById('smoothed-50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('smoothed-90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('smoothed-mean').innerText = m.mean.toFixed(2);
+  document.getElementById('smoothed-stddev').innerText = m.stdDev.toFixed(2);
+  document.getElementById('smoothed-p50').innerText = m.percentiles["50"].toFixed(2);
+  document.getElementById('smoothed-p90').innerText = m.percentiles["90"].toFixed(2);
+  document.getElementById('smoothed-skew').innerText = m.skewness.toFixed(2);
+  document.getElementById('smoothed-mean2').innerText = m.mean.toFixed(2);
+  document.getElementById('smoothed-90b').innerText = m.percentiles["90"].toFixed(2);
+}
+</script>
+
+
+<!-- ============================
+Section: Decision Optimizer Tab
+============================ -->
+<div id="tab-optimizer" class="tab-content" style="display:none;">
+  <h2>Decision Optimizer</h2>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('optimizer-usecase')">Use Case & Explanation</button>
+    <div id="optimizer-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> You want to see how flexibility and risk preferences change probability of success.</p>
+      <p><strong>How to Use:</strong> Move sliders to adjust budget flexibility, schedule flexibility, scope uncertainty, and risk tolerance. The CDF updates in real time.</p>
+      <p><strong>How It Helps:</strong> Lets you explore tradeoffs visually, helping stakeholders understand risks and buffers.</p>
+      <p><strong>Example Use Case:</strong> If you need to show how reducing scope uncertainty shifts your success probability, drag the Scope slider to see the effect.</p>
+    </div>
+  </div>
+
+  <!-- Sliders -->
+  <div class="slider-section">
+    <label class="slider-label">Budget Flexibility: <span id="slider-budget-value">0%</span></label>
+    <input type="range" id="slider-budget" min="0" max="100" value="0">
+    
+    <label class="slider-label">Schedule Flexibility: <span id="slider-schedule-value">0%</span></label>
+    <input type="range" id="slider-schedule" min="0" max="100" value="0">
+    
+    <label class="slider-label">Scope Uncertainty: <span id="slider-scope-value">0%</span></label>
+    <input type="range" id="slider-scope" min="0" max="100" value="0">
+    
+    <label class="slider-label">Risk Tolerance: <span id="slider-risk-value">0%</span></label>
+    <input type="range" id="slider-risk" min="0" max="100" value="0">
+  </div>
+
+  <!-- Chart -->
+  <div id="optimized-cdf-chart" class="chart-container"></div>
+
+  <!-- Analysis Report -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('optimizer-report')">Analysis Report</button>
+    <div id="optimizer-report" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p>Adjust sliders to align your scenario with acceptable risk thresholds. The chart will show how probability distribution shifts.</p>
+      <table class="summary-table">
+        <thead>
+          <tr><th>Parameter</th><th>Setting (%)</th><th>Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Budget Flexibility</td><td id="optimizer-budget-val">0</td><td>More budget increases buffer</td></tr>
+          <tr><td>Schedule Flexibility</td><td id="optimizer-schedule-val">0</td><td>More time reduces risk</td></tr>
+          <tr><td>Scope Uncertainty</td><td id="optimizer-scope-val">0</td><td>More scope uncertainty increases variance</td></tr>
+          <tr><td>Risk Tolerance</td><td id="optimizer-risk-val">0</td><td>More risk tolerance shifts towards optimistic outcomes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Slider Combination Explorer -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('optimizer-combos')">Slider Combination Explorer</button>
+    <div id="optimizer-combos" class="toggle-content" style="display:none;">
+      <p><strong>Presets:</strong> Click to apply a common scenario.</p>
+      <button onclick="setOptimizerPreset(0,0,0,0)">Baseline (0% all)</button>
+      <button onclick="setOptimizerPreset(20,20,10,20)">Moderate Flexibility</button>
+      <button onclick="setOptimizerPreset(50,50,25,50)">High Flexibility</button>
+      <button onclick="setOptimizerPreset(80,80,50,80)">Aggressive Flexibility</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw Optimized CDF Chart
+function drawOptimizedCdf() {
+  const sliders = {
+    budget: parseFloat(document.getElementById("slider-budget").value)/100,
+    schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
+    scope: parseFloat(document.getElementById("slider-scope").value)/100,
+    risk: parseFloat(document.getElementById("slider-risk").value)/100
+  };
+
+  const optimized = computeTargetOptimizedCdf(
+    sliders.budget,
+    sliders.schedule,
+    sliders.scope,
+    sliders.risk,
+    estimateResults.mcSmoothedVaR90
+  );
+
+  const data = new google.visualization.DataTable();
+  data.addColumn('number', 'X');
+  data.addColumn('number', 'CDF');
+  data.addRows(optimized.map(p => [p.x, p.y]));
+
+  const chart = new google.visualization.LineChart(document.getElementById('optimized-cdf-chart'));
+  chart.draw(data, {
+    title: 'Optimized CDF',
+    hAxis: { title: 'Value' },
+    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
+    legend: 'none'
+  });
+
+  // Update table
+  document.getElementById('optimizer-budget-val').innerText = (sliders.budget*100).toFixed(0);
+  document.getElementById('optimizer-schedule-val').innerText = (sliders.schedule*100).toFixed(0);
+  document.getElementById('optimizer-scope-val').innerText = (sliders.scope*100).toFixed(0);
+  document.getElementById('optimizer-risk-val').innerText = (sliders.risk*100).toFixed(0);
+}
+
+// Attach slider listeners
+function attachOptimizerSliders() {
+  ["budget","schedule","scope","risk"].forEach(s => {
+    const slider = document.getElementById("slider-"+s);
+    slider.addEventListener("input", () => {
+      document.getElementById("slider-"+s+"-value").innerText = slider.value + "%";
+      drawOptimizedCdf();
+    });
+  });
+}
+
+// Presets
+function setOptimizerPreset(b,s,sc,r) {
+  document.getElementById("slider-budget").value = b;
+  document.getElementById("slider-schedule").value = s;
+  document.getElementById("slider-scope").value = sc;
+  document.getElementById("slider-risk").value = r;
+  attachOptimizerSliders();
+  drawOptimizedCdf();
+}
+</script>
+
+
+<!-- ============================
+Section: Target Probability Explorer Tab
+============================ -->
+<div id="tab-target" class="tab-content" style="display:none;">
+  <h2>Target Probability Explorer</h2>
+
+  <!-- Use Case -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('target-usecase')">Use Case & Explanation</button>
+    <div id="target-usecase" class="toggle-content" style="display:none;">
+      <p><strong>When to Use:</strong> You want to test specific target thresholds (like deadlines or budgets) and see probability of success.</p>
+      <p><strong>How to Use:</strong> Move the Target Value slider to set your target. The Original and Optimized CDFs update in real time.</p>
+      <p><strong>How It Helps:</strong> Helps you decide whether your targets are realistic, given current risks and assumptions.</p>
+      <p><strong>Example Use Case:</strong> Set a target budget of $2,500 to see the probability that you’ll stay under this amount.</p>
+    </div>
+  </div>
+
+  <!-- Target Value Slider -->
+  <div style="margin-top:10px;">
+    <label class="slider-label">Target Value: <span id="target-value-display"></span></label>
+    <input type="range" id="target-value-slider" min="0" max="10000" step="1" value="0">
+  </div>
+
+  <!-- CDF Charts -->
+  <div id="original-cdf-chart" class="chart-container" style="margin-top:20px;"></div>
+  <div id="optimized-cdf-chart" class="chart-container" style="margin-top:20px;"></div>
+
+  <!-- Explore Summary -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('target-summary')">Explore Summary</button>
+    <div id="target-summary" class="toggle-content" style="display:none;">
+      <p><strong>Recommendation:</strong></p>
+      <p id="target-recommendation-text">
+        Adjust the target to find the confidence level that aligns with your project goals.
+      </p>
+
+      <!-- Current Metrics Table -->
+      <table class="summary-table" style="margin-top:15px;">
+        <thead>
+          <tr><th>Metric</th><th>Value</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Selected Target</td><td id="target-metric-value">—</td><td>The target threshold you set</td></tr>
+          <tr><td>Original Probability</td><td id="target-metric-original">—</td><td>Probability of success without adjustments</td></tr>
+          <tr><td>Optimized Probability</td><td id="target-metric-optimized">—</td><td>Probability of success with adjustments</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Analysis Report -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('target-report')">Analysis Report</button>
+    <div id="target-report" class="toggle-content" style="display:none;">
+      <p>
+        This analysis compares your baseline scenario with the optimized scenario.
+        Use this to assess whether additional flexibility or risk tolerance improves your chance of success.
+      </p>
+    </div>
+  </div>
+
+  <!-- Slider Combination Explorer -->
+  <div class="toggle-section">
+    <button class="toggle-button" onclick="toggleSection('target-combos')">Slider Combination Explorer</button>
+    <div id="target-combos" class="toggle-content" style="display:none;">
+      <p><strong>Presets:</strong> Quickly apply common scenarios.</p>
+      <button onclick="setOptimizerPreset(0,0,0,0)">Baseline (0% all)</button>
+      <button onclick="setOptimizerPreset(25,25,10,25)">Moderate Flexibility</button>
+      <button onclick="setOptimizerPreset(50,50,25,50)">High Flexibility</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Draw CDFs for the selected target
+function drawTargetCdfs() {
+  const targetValue = parseFloat(document.getElementById("target-value-slider").value);
+
+  // Original CDF
+  const originalCdf = computeCdfFromHistogram(MC_SMOOTHED_POINTS);
+  const origData = new google.visualization.DataTable();
+  origData.addColumn('number', 'X');
+  origData.addColumn('number', 'CDF');
+  origData.addRows(originalCdf.map(p => [p.x, p.y]));
+
+  const origChart = new google.visualization.LineChart(document.getElementById('original-cdf-chart'));
+  origChart.draw(origData, {
+    title: 'Original CDF',
+    hAxis: { title: 'Value' },
+    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
+    legend: 'none'
+  });
+
+  // Optimized CDF
+  const sliders = {
+    budget: parseFloat(document.getElementById("slider-budget").value)/100,
+    schedule: parseFloat(document.getElementById("slider-schedule").value)/100,
+    scope: parseFloat(document.getElementById("slider-scope").value)/100,
+    risk: parseFloat(document.getElementById("slider-risk").value)/100
+  };
+  const optimizedCdf = computeTargetOptimizedCdf(
+    sliders.budget,
+    sliders.schedule,
+    sliders.scope,
+    sliders.risk,
+    estimateResults.mcSmoothedVaR90
+  );
+  const optData = new google.visualization.DataTable();
+  optData.addColumn('number', 'X');
+  optData.addColumn('number', 'CDF');
+  optData.addRows(optimizedCdf.map(p => [p.x, p.y]));
+
+  const optChart = new google.visualization.LineChart(document.getElementById('optimized-cdf-chart'));
+  optChart.draw(optData, {
+    title: 'Optimized CDF',
+    hAxis: { title: 'Value' },
+    vAxis: { title: 'Cumulative Probability', minValue: 0, maxValue: 1.05 },
+    legend: 'none'
+  });
+
+  // Update Metrics
+  const originalProb = getProbabilityAtTarget(originalCdf, targetValue);
+  const optimizedProb = getProbabilityAtTarget(optimizedCdf, targetValue);
+  document.getElementById("target-value-display").innerText = targetValue.toFixed(2);
+  document.getElementById("target-metric-value").innerText = targetValue.toFixed(2);
+  document.getElementById("target-metric-original").innerText = (originalProb * 100).toFixed(1) + "%";
+  document.getElementById("target-metric-optimized").innerText = (optimizedProb * 100).toFixed(1) + "%";
+
+  // Recommendation Text
+  document.getElementById("target-recommendation-text").innerText =
+    `At a target of ${targetValue.toFixed(2)} units, your baseline probability of success is ${(originalProb*100).toFixed(1)}%. 
+     With adjustments, this increases to ${(optimizedProb*100).toFixed(1)}%.`;
+}
+
+// Get probability from CDF at target
+function getProbabilityAtTarget(cdf, target) {
+  for (let i = 0; i < cdf.length; i++) {
+    if (cdf[i].x >= target) return cdf[i].y;
+  }
+  return 1;
+}
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+      attachTargetSlider();
+      attachOptimizerSliders();
+    });
+  </script>
+
+  <script>
+    window.onload = function() {
+      google.charts.load('current', { packages: ['corechart'] });
+      google.charts.setOnLoadCallback(() => {
+        console.log("Google Charts loaded");
+        initializePage();
+      });
+    };
+  </script>
+</body>
+</html>

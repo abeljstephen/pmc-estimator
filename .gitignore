@@ -115,13 +115,13 @@ web_modules/
 
 
 # --- Secrets / credentials (NEVER COMMIT) ---
-system-google-cloud-functions-api/private_key/
-system-google-cloud-functions-api/test_scripts/*.json
-system-google-cloud-functions-api/*key*.json
+_archive/system-google-cloud-functions-api/private_key/
+_archive/system-google-cloud-functions-api/test_scripts/*.json
+_archive/system-google-cloud-functions-api/*key*.json
 
 
 # --- Secrets / credentials (NEVER COMMIT) ---
 .env
 .env.*
 !.env.example
-wordpress-plugin/wp-config.php
+integrations/wordpress/wp-config.php
