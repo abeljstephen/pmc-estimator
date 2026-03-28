@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PMC Estimator — Live Plot</title>
+  <title>ProjectCare by iCareNOW — Live Plot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- CSP: allow CDN scripts + icarenow.io for session polling -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://abeljstephen.github.io; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io; font-src https://cdn.jsdelivr.net data:;" />
@@ -46,31 +46,31 @@
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
   <!-- SACO computation engine — load order matters -->
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/helpers/rng.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/helpers/validation.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/helpers/metrics.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/utilis.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/triangle-points.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/beta-points.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/pert-points.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/monte-carlo-raw.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/monte-carlo-smoothed.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/baseline/coordinator.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/optimization/kl-divergence.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/optimization/matrix-utils.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/reshaping/copula-utils.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/reshaping/slider-normalization.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/reshaping/slider-adjustments.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/optimization/sensitivity-analysis.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/optimization/optimizer.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/reshaping/outcome-summary.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/variable_map/adapter.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/report/playbooks.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/report/reshaping_report.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/visuals/annotations.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/visuals/heatmap-data.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/visuals/sankey-flow.js"></script>
-  <script src="https://abeljstephen.github.io/pmc-estimator/engines/saco-browser/main.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/rng.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/validation.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/metrics.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/utilis.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/triangle-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/beta-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/pert-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/monte-carlo-raw.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/monte-carlo-smoothed.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/coordinator.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/kl-divergence.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/matrix-utils.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/copula-utils.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/slider-normalization.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/slider-adjustments.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/sensitivity-analysis.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/optimizer.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/outcome-summary.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/variable_map/adapter.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/report/playbooks.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/report/reshaping_report.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/annotations.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/heatmap-data.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/sankey-flow.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/main.js"></script>
 
   <style>
     :root {
@@ -2051,7 +2051,7 @@
 
   <!-- No-data overlay (shown when page opened without params) -->
   <div id="pmcNoDataOverlay">
-    <div class="nd-title">PMC Estimator</div>
+    <div class="nd-title">ProjectCare</div>
     <div class="nd-sub">Enter your three-point estimate to get started. All computation runs locally in your browser — no data is sent anywhere.</div>
     <div class="nd-form">
       <div>
@@ -2087,7 +2087,7 @@
     <button class="hm-close" onclick="pmcCloseHelp()">&times;</button>
     <h3>How to use this page</h3>
     <ul>
-      <li>This page was generated from your ChatGPT PMC Estimator session.</li>
+      <li>This page was generated from your ProjectCare GPT session.</li>
       <li>Drag the sliders on the left to explore trade-offs — no credits used.</li>
       <li>Ask ChatGPT to re-run with new inputs — your open chart updates automatically.</li>
       <li>Share this link — it stays live for 7 days.</li>
@@ -2113,7 +2113,7 @@
   };
   </script>
   <div class="wrap">
-    <h1 title="Probability Plots Dashboard">PMC Estimator</h1>
+    <h1 title="Probability Plots Dashboard">ProjectCare by iCareNOW</h1>
 
 <!-- ── Horizontal wizard nav ──────────────────────────────────────────── -->
 <nav class="pmc-wiz-nav" id="pmcWizNav" role="navigation" aria-label="Estimation wizard steps">
@@ -13029,7 +13029,7 @@ window.TM = {
 
     if (allTabs.length === 0) {
       container.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">' +
-        'No sheet tabs found. Make sure this dialog was opened from the PMC Estimator menu in Google Sheets. ' +
+        'No sheet tabs found. Make sure this dialog was opened from the ProjectCare menu in Google Sheets. ' +
         '<br><span style="font-size:10px;color:#9CA3AF;">Debug: tabName filter="' + _escHtml(pmc) + '"</span></div>';
       return;
     }

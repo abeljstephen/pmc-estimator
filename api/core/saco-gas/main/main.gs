@@ -847,14 +847,14 @@ function processTask(task) {
 /* ------------------------------------------------------------------ *
  * API entry
  * ------------------------------------------------------------------ */
-function pmcEstimatorAPI(tasks) {
+function projectcareAPI(tasks) {
   try {
     if (!Array.isArray(tasks) || tasks.length === 0) {
       throw new Error('Tasks must be a non-empty array');
     }
 
     // Extract top-level options (cpmOptions may be passed alongside tasks array
-    // by wrapping the call: pmcEstimatorAPI([...tasks], { cpmOptions: {...} })
+    // by wrapping the call: projectcareAPI([...tasks], { cpmOptions: {...} })
     // or by passing cpmOptions as a property on each task. We support both.
     // For simplicity, read cpmOptions from the first task that carries it, or
     // fall back to defaults.

@@ -1,4 +1,4 @@
-# PMC Estimator GPT — Capabilities & Q&A Reference
+# ProjectCare by iCareNOW GPT — Capabilities & Q&A Reference
 
 **Purpose:** Internal reference for GPT reasoning. Verified against openapi.yaml, instructions.md, main.gs, webapp.gs, cpm-engine.gs, stochastic-cpm.gs, and cpm-adapter.gs. Do not invent fields beyond what is documented here.
 

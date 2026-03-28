@@ -1,4 +1,4 @@
-/* PMC Estimator — plot.js
+/* ProjectCare by iCareNOW — plot.js
  * Handles: URL parsing, data decoding, all chart rendering,
  * live polling, browser-side slider re-computation.
  */
@@ -84,7 +84,7 @@ var PlotApp = (function () {
 
   function doPoll() {
     if (!S.pollToken) return;
-    fetch(WP_BASE + '/wp-json/pmc/v1/plot-data/' + S.pollToken, {
+    fetch(WP_BASE + '/wp-json/projectcare/v1/plot-data/' + S.pollToken, {
       method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store'
     })
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })

@@ -1,5 +1,5 @@
 /************************************************************
- * Code.gs — PMC (PERT + PLOT) - FINAL CLEAN VERSION
+ * Code.gs — ProjectCare Free (PERT + PLOT)
  * - Normalization function is now simply normalizePoints (no V3 suffix)
  * - Only checks isNumber(x) — no y condition
  * - All code in one file — no external files, no duplicates
@@ -402,7 +402,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Add "Run?" Checkbox Column', 'pmcAddCheckboxColumn')
     .addItem('Clear Validation Highlights', 'pmcClearHighlights');
-  ui.createMenu('PMC')
+  ui.createMenu('ProjectCare')
     .addSubMenu(pert)
     .addItem('PLOT', 'openPlotUi')
     .addSubMenu(settings)
@@ -437,7 +437,7 @@ function openPlotUi() {
     ';</script>';
   html.setContent(inject + html.getContent());
 
-  SpreadsheetApp.getUi().showModelessDialog(html, 'PMC Estimator');
+  SpreadsheetApp.getUi().showModelessDialog(html, 'ProjectCare');
 }
 
 /************************************************************
@@ -446,7 +446,7 @@ function openPlotUi() {
 function callEstimatorAPI_(payloadObj, label) {
   try {
     const tasks = Array.isArray(payloadObj) ? payloadObj : (payloadObj.tasks || [payloadObj]);
-    const result = pmcEstimatorAPI(tasks);
+    const result = projectcareAPI(tasks);
     Logger.log(`Local core call (${label}): Success`);
     return { ok: true, code: 200, body: result };
   } catch (e) {
@@ -992,7 +992,7 @@ function preflightConfirm_(sheetName, valid, invalid) {
   lines.push('');
   lines.push('Invalid cells are highlighted in red. Proceed with ' + valid.length + ' valid row(s)?');
   const ui       = SpreadsheetApp.getUi();
-  const response = ui.alert('PMC \u2014 Pre-flight Check', lines.join('\n'), ui.ButtonSet.OK_CANCEL);
+  const response = ui.alert('ProjectCare \u2014 Pre-flight Check', lines.join('\n'), ui.ButtonSet.OK_CANCEL);
   return response === ui.Button.OK;
 }
 
@@ -2005,7 +2005,7 @@ function testCoreCall() {
   }];
   
   try {
-    const result = pmcEstimatorAPI(payload);
+    const result = projectcareAPI(payload);
     Logger.log('TEST CORE CALL RESULT: ' + JSON.stringify(result, null, 2));
   } catch (e) {
     Logger.log('TEST CORE CALL ERROR: ' + e.message + ' (stack: ' + e.stack + ')');
@@ -2033,7 +2033,7 @@ function testPointNormalization() {
 
 var PMC_TAB_SCHEMA     = ['task_name','best_case','most_likely','worst_case','risk_weight','active','notes'];
 var PMC_TAB_HDR_LABELS = ['Task Name','Best Case','Most Likely','Worst Case','Risk Weight','Active','Notes'];
-var PMC_TAB_DEFAULT_NAME = 'PMC Tasks';
+var PMC_TAB_DEFAULT_NAME = 'ProjectCare Tasks';
 var PMC_SETTINGS_KEY   = 'pmc_settings_v1';
 var PMC_TAB_ID_KEY     = 'pmc_tab_id_v1';
 
@@ -2226,7 +2226,7 @@ function importFromExistingTab(tabName, mapping) {
 
 function loadPMCTasks() {
   var sheet = getPMCSheet_();
-  if (!sheet) return { ok: false, needsSetup: true, error: 'PMC Tasks tab not found' };
+  if (!sheet) return { ok: false, needsSetup: true, error: 'ProjectCare Tasks tab not found' };
 
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { ok: true, tasks: [], tabName: sheet.getName(), tabId: sheet.getSheetId() };
@@ -2270,7 +2270,7 @@ function savePMCTasksAndRun(payload) {
   if (payload.settings) savePMCSettings(payload.settings);
 
   var sheet = getPMCSheet_();
-  if (!sheet) return { ok: false, error: 'PMC Tasks tab not found after init' };
+  if (!sheet) return { ok: false, error: 'ProjectCare Tasks tab not found after init' };
 
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, PMC_TAB_SCHEMA.length).clearContent();

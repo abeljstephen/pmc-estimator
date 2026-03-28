@@ -1,4 +1,4 @@
-# Step 4 Display Rules — PMC Estimator
+# Step 4 Display Rules — ProjectCare by iCareNOW
 # Full formatting reference for presenting estimation results
 
 ---
@@ -48,7 +48,7 @@ Explain the spread: if P90 − P10 is large relative to P50 (>50% of P50), note 
 
 Source: `results[i].targetProbability.value` — fields: `original`, `adjusted`, `adjustedOptimized`
 
-Only show when a `targetValue` was provided. This is the core differentiator of PMC Estimator.
+Only show when a `targetValue` was provided. This is the core differentiator of ProjectCare by iCareNOW.
 
 Always format as a comparison table:
 ```

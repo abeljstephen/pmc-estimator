@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PMC Estimator — Report</title>
+  <title>ProjectCare by iCareNOW — Report</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -167,14 +167,14 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1>PMC Estimator</h1>
+    <h1>ProjectCare by iCareNOW</h1>
     <div class="subtitle">iCareNOW &mdash; Probability-Based Estimation Report</div>
   </div>
   <div id="report-root"></div>
   <div class="footer">
     <a href="https://icarenow.io" target="_blank" rel="noopener">icarenow.io</a>
     &nbsp;&middot;&nbsp;
-    <a href="/pmc-estimator/plot/" id="plot-link">Open Interactive Chart</a>
+    <a href="/projectcare/plot/" id="plot-link">Open Interactive Chart</a>
   </div>
 </div>
 
@@ -262,7 +262,7 @@
     var sess = getParam('session');
     if (sess) {
       var pl = document.getElementById('plot-link');
-      if (pl) pl.href = '/pmc-estimator/plot/?session=' + encodeURIComponent(sess);
+      if (pl) pl.href = '/projectcare/plot/?session=' + encodeURIComponent(sess);
     }
   }
 

@@ -1,4 +1,4 @@
-# Security & Data Handling — PMC Estimator
+# Security & Data Handling — ProjectCare by iCareNOW
 
 ## Architecture
 - Requests flow: GPT → Google Apps Script Web App → WordPress REST API (icarenow.io)
@@ -15,7 +15,7 @@
 
 ## Security Controls
 - API keys are validated server-side on every request; never exposed in responses
-- GAS ↔ WordPress communication uses a shared secret (`X-PMC-Secret` header)
+- GAS ↔ WordPress communication uses a shared secret (`X-Projectcare-Secret` header)
 - Stripe webhook payloads are verified using HMAC-SHA256 signature validation
 - WordPress admin credentials and SMTP passwords are stored in `wp-config.php` (not in the database, not committed to source control)
 - All API endpoints served over HTTPS

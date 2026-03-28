@@ -79,7 +79,7 @@ function pmc_page_settings(): void {
             <h2>API Secrets</h2>
             <table class="form-table" role="presentation">
                 <tr>
-                    <th><label>GAS API Secret <?php echo pmc_tip('Secret sent in X-PMC-Secret header from GAS to WordPress'); ?></label></th>
+                    <th><label>GAS API Secret <?php echo pmc_tip('Secret sent in X-Projectcare-Secret header from GAS to WordPress'); ?></label></th>
                     <td><input type="password" name="pmc_api_secret" value="<?php echo esc_attr(pmc_secret()); ?>" class="regular-text" autocomplete="off"></td>
                 </tr>
                 <tr>
@@ -210,13 +210,13 @@ function pmc_page_settings(): void {
             <tbody>
             <?php
             $endpoints = [
-                ['POST', $site . '/wp-json/pmc/v1/trial',        'X-PMC-Secret', 'Issue trial key'],
-                ['POST', $site . '/wp-json/pmc/v1/validate',     'X-PMC-Secret', 'Validate API key'],
-                ['POST', $site . '/wp-json/pmc/v1/deduct',       'X-PMC-Secret', 'Deduct credits'],
-                ['POST', $site . '/wp-json/pmc/v1/quota',        'X-PMC-Secret', 'Get quota'],
-                ['POST', $site . '/wp-json/pmc/v1/stripe',       'Stripe sig',   'Stripe webhook'],
-                ['POST', $site . '/wp-json/pmc/v1/session/save', 'X-PMC-Secret', 'Save session'],
-                ['POST', $site . '/wp-json/pmc/v1/session/load', 'X-PMC-Secret', 'Load sessions'],
+                ['POST', $site . '/wp-json/projectcare/v1/trial',        'X-Projectcare-Secret', 'Issue trial key'],
+                ['POST', $site . '/wp-json/projectcare/v1/validate',     'X-Projectcare-Secret', 'Validate API key'],
+                ['POST', $site . '/wp-json/projectcare/v1/deduct',       'X-Projectcare-Secret', 'Deduct credits'],
+                ['POST', $site . '/wp-json/projectcare/v1/quota',        'X-Projectcare-Secret', 'Get quota'],
+                ['POST', $site . '/wp-json/projectcare/v1/stripe',       'Stripe sig',   'Stripe webhook'],
+                ['POST', $site . '/wp-json/projectcare/v1/session/save', 'X-Projectcare-Secret', 'Save session'],
+                ['POST', $site . '/wp-json/projectcare/v1/session/load', 'X-Projectcare-Secret', 'Load sessions'],
             ];
             foreach ($endpoints as [$m,$u,$a,$d]): ?>
                 <tr>

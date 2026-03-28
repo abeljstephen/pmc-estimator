@@ -74,7 +74,7 @@ function pmc_gas_ping(): array {
 
     $start = microtime(true);
     $resp  = wp_remote_post($endpoint, [
-        'headers'     => ['X-PMC-Secret' => pmc_secret(), 'Content-Type' => 'application/json'],
+        'headers'     => ['X-Projectcare-Secret' => pmc_secret(), 'Content-Type' => 'application/json'],
         'body'        => wp_json_encode(['action' => 'ping']),
         'timeout'     => 10,
         'sslverify'   => true,

@@ -1,9 +1,9 @@
-# Data Usage Disclosure — PMC Estimator
+# Data Usage Disclosure — ProjectCare by iCareNOW
 
-PMC Estimator is provided by iCareNOW (icarenow.io).
+ProjectCare by iCareNOW is provided by iCareNOW (icarenow.io).
 
 When you use this GPT:
-- Your task estimates (optimistic, most likely, pessimistic values) are sent to the PMC Estimator API to run probability calculations.
+- Your task estimates (optimistic, most likely, pessimistic values) are sent to the ProjectCare by iCareNOW API to run probability calculations.
 - Your API key is transmitted with each request solely to authenticate and track credit usage.
 - Your email address is collected only if you request a free trial key, and is used to deliver that key.
 - No input data, estimates, or results are stored beyond what is needed to process your request.

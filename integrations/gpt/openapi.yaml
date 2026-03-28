@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: PMC Estimator API
+  title: ProjectCare API
   description: >
     Probability-based project cost and schedule estimation using the SACO engine
     (Shape-Adaptive Copula Optimization) by iCareNOW.
@@ -14,9 +14,9 @@ paths:
   /macros/s/AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp/exec:
     post:
       operationId: callPMCEstimator
-      summary: Call the PMC Estimator API
+      summary: Call the ProjectCare API
       description: >
-        All PMC Estimator operations via the "action" field:
+        All ProjectCare by iCareNOW operations via the "action" field:
         request_trial (email → free trial key),
         call_api (key + tasks → P10/P50/P90 SACO results),
         check_quota (key → credit balance).

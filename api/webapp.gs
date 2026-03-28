@@ -1,13 +1,13 @@
 /**
- * webapp.gs — PMC Estimator Web App
+ * webapp.gs — ProjectCare API
  *
- * Exposes pmcEstimatorAPI to the Custom GPT via HTTP POST.
+ * Exposes projectcareAPI to the Custom GPT via HTTP POST.
  * All key validation and quota management is handled by the
- * WordPress PMC CRM plugin at icarenow.io/wp-json/pmc/v1/
+ * WordPress ProjectCare CRM plugin at icarenow.io/wp-json/projectcare/v1/
  *
  * Script Properties required (set via setup-wp-crm-connection.gs):
  *   WP_URL        — https://icarenow.io
- *   WP_API_SECRET — shared secret matching WordPress PMC CRM settings
+ *   WP_API_SECRET — shared secret matching WordPress ProjectCare CRM settings
  *
  * Endpoints (all POST to this web app URL):
  *   action: "request_trial"  — forward trial request to WordPress
@@ -45,7 +45,7 @@ function doPost(e) {
     return jsonOut({ error: 'Unknown action: ' + action });
 
   } catch (err) {
-    console.error('[PMC webapp] doPost error:', err.message, err.stack);
+    console.error('[ProjectCare API] doPost error:', err.message, err.stack);
     return jsonOut({ error: 'Server error. Please try again or contact support at icarenow.io.' });
   }
 }
@@ -58,7 +58,7 @@ function handleTrial(body) {
   if (!email || !emailPattern.test(email))
     return jsonOut({ error: 'A valid email address is required' });
 
-  var resp = wpPost('/pmc/v1/trial', { email: email });
+  var resp = wpPost('/projectcare/v1/trial', { email: email });
   return jsonOut(resp);
 }
 
@@ -76,7 +76,7 @@ function handleCallApi(body) {
   }
 
   // 1. Validate key + get quota from WordPress CRM
-  var auth = wpPost('/pmc/v1/validate', { key: key });
+  var auth = wpPost('/projectcare/v1/validate', { key: key });
   if (!auth.valid) return jsonOut({ error: auth.error, upgrade_url: auth.upgrade_url });
 
   // 2. Determine credit cost
@@ -170,9 +170,9 @@ function handleCallApi(body) {
   var engineStart = Date.now();
   var result;
   try {
-    result = pmcEstimatorAPI(tasks);
+    result = projectcareAPI(tasks);
   } catch (err) {
-    console.error('[PMC webapp] Engine error:', err.message, err.stack);
+    console.error('[ProjectCare API] Engine error:', err.message, err.stack);
     return jsonOut({ error: 'Estimation engine error. Please try again or contact support at icarenow.io.' });
   }
   var durationMs = Date.now() - engineStart;
@@ -228,7 +228,7 @@ function handleCallApi(body) {
           try {
             rItem.sensitivity = computeSensitivityBlock(rInTask, rBasePoints);
           } catch (e) {
-            console.error('[PMC webapp] Sensitivity error for task ' + ri + ':', e.message);
+            console.error('[ProjectCare API] Sensitivity error for task ' + ri + ':', e.message);
           }
         } else {
           rItem.sensitivitySkipped = true;  // omitted to prevent execution timeout
@@ -240,7 +240,7 @@ function handleCallApi(body) {
         try {
           rItem.scenarios = computeScenarioBatch(rInTask, rBasePoints);
         } catch (e) {
-          console.error('[PMC webapp] Scenario error for task ' + ri + ':', e.message);
+          console.error('[ProjectCare API] Scenario error for task ' + ri + ':', e.message);
         }
       }
 
@@ -351,7 +351,7 @@ function handleCallApi(body) {
         method: hasParallel ? 'pert_critical_path' : 'pert_sum'
       };
     } else {
-      console.error('[PMC webapp] Portfolio NaN: seqMean=' + seqMean + ' pStd=' + pStd);
+      console.error('[ProjectCare API] Portfolio NaN: seqMean=' + seqMean + ' pStd=' + pStd);
     }
   }
 
@@ -377,7 +377,7 @@ function handleCallApi(body) {
     : 0;
 
   // 7. Deduct credits in WordPress CRM
-  var deduct = wpPost('/pmc/v1/deduct', {
+  var deduct = wpPost('/projectcare/v1/deduct', {
     key:             key,
     cost:            cost,
     operation:       opType,
@@ -445,12 +445,12 @@ function handleCallApi(body) {
       result._sessionToken = sessionToken;
       // Save slim payload to WordPress for live-update polling (non-fatal)
       try {
-        wpPost('/pmc/v1/plot-data/save', { token: sessionToken, data: sessionPayload });
+        wpPost('/projectcare/v1/plot-data/save', { token: sessionToken, data: sessionPayload });
       } catch (saveErr) {
-        console.error('[PMC webapp] plot-data save failed:', saveErr.message);
+        console.error('[ProjectCare API] plot-data save failed:', saveErr.message);
       }
     } catch (plotErr) {
-      console.error('[PMC webapp] buildPlotUrl error:', plotErr.message);
+      console.error('[ProjectCare API] buildPlotUrl error:', plotErr.message);
       result._sessionToken = sessionToken;
     }
   }
@@ -507,7 +507,7 @@ function handleCheckQuota(body) {
   var key = (body.key || '').trim();
   if (!key) return jsonOut({ error: 'API key is required' });
 
-  var resp = wpPost('/pmc/v1/quota', { key: key });
+  var resp = wpPost('/projectcare/v1/quota', { key: key });
   return jsonOut(resp);
 }
 
@@ -521,14 +521,14 @@ function wpPost(path, payload) {
   var secret = PropertiesService.getScriptProperties().getProperty('WP_API_SECRET') || '';
 
   if (!wpUrl || !secret) {
-    console.error('[PMC webapp] WP_URL or WP_API_SECRET not set in Script Properties');
+    console.error('[ProjectCare API] WP_URL or WP_API_SECRET not set in Script Properties');
     return { error: 'WordPress connection not configured' };
   }
 
   // Guard against SSRF — WP_URL must be icarenow.io over HTTPS.
   var _allowed = ['https://icarenow.io', 'https://www.icarenow.io'];
   if (_allowed.indexOf(wpUrl.toLowerCase().replace(/\/$/, '')) === -1) {
-    console.error('[PMC webapp] WP_URL rejected: ' + wpUrl);
+    console.error('[ProjectCare API] WP_URL rejected: ' + wpUrl);
     return { error: 'WordPress connection misconfigured' };
   }
 
@@ -536,7 +536,7 @@ function wpPost(path, payload) {
     var resp = UrlFetchApp.fetch(wpUrl + '/wp-json' + path, {
       method:             'post',
       contentType:        'application/json',
-      headers:            { 'X-PMC-Secret': secret },
+      headers:            { 'X-Projectcare-Secret': secret },
       payload:            JSON.stringify(payload),
       muteHttpExceptions: true,
       followRedirects:    false
@@ -546,14 +546,14 @@ function wpPost(path, payload) {
     var text = resp.getContentText();
 
     if (code !== 200) {
-      console.error('[PMC webapp] WP error ' + code + ':', text.substring(0, 200));
+      console.error('[ProjectCare API] WP error ' + code + ':', text.substring(0, 200));
       return { error: 'WordPress returned HTTP ' + code };
     }
 
     return JSON.parse(text);
 
   } catch (err) {
-    console.error('[PMC webapp] WP fetch error:', err.message);
+    console.error('[ProjectCare API] WP fetch error:', err.message);
     return { error: 'Could not reach WordPress: ' + err.message };
   }
 }
@@ -605,8 +605,8 @@ function slimResult(result) {
 // ── CHART URL BUILDERS (QuickChart.io) ───────────────────────────────────────
 function buildChartUrls(res, task) {
   var urls = {};
-  try { urls.distribution  = buildDistributionChart(res, task); } catch(e) { console.error('[PMC webapp] Distribution chart error:', e.message); }
-  try { urls.probabilities = buildProbBarChart(res, task);       } catch(e) { console.error('[PMC webapp] Prob bar chart error:', e.message); }
+  try { urls.distribution  = buildDistributionChart(res, task); } catch(e) { console.error('[ProjectCare API] Distribution chart error:', e.message); }
+  try { urls.probabilities = buildProbBarChart(res, task);       } catch(e) { console.error('[ProjectCare API] Prob bar chart error:', e.message); }
   return urls;
 }
 
@@ -699,7 +699,7 @@ function buildReportUrl(res, task) {
       p90: cdf.length ? invertCdf(cdf, 0.90) : null
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(data)));
-    return 'https://abeljstephen.github.io/pmc-estimator/report/?data=' + encoded;
+    return 'https://abeljstephen.github.io/projectcare/report/?data=' + encoded;
   } catch(e) {
     return null;
   }
@@ -717,9 +717,9 @@ function buildPlotUrl(slimTasks, tasks, token, portfolio) {
       portfolio: portfolio || null
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(slim)));
-    return 'https://abeljstephen.github.io/pmc-estimator/plot/?data=' + encoded + '&session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/plot/?data=' + encoded + '&session=' + token;
   } catch (e) {
-    return 'https://abeljstephen.github.io/pmc-estimator/plot/?session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/plot/?session=' + token;
   }
 }
 
@@ -877,7 +877,7 @@ function handleSaveSession(body) {
   if (sessionSize > 50000)
     return jsonOut({ error: 'Session data too large (max 50 KB)' });
 
-  var resp = wpPost('/pmc/v1/session/save', { key: key, email: email, session: session });
+  var resp = wpPost('/projectcare/v1/session/save', { key: key, email: email, session: session });
   return jsonOut(resp);
 }
 
@@ -890,7 +890,7 @@ function handleLoadSessions(body) {
   if (!email || !emailPattern.test(email))
     return jsonOut({ error: 'A valid email address is required' });
 
-  var resp = wpPost('/pmc/v1/session/load', { key: key, email: email });
+  var resp = wpPost('/projectcare/v1/session/load', { key: key, email: email });
   return jsonOut(resp);
 }
 

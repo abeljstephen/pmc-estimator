@@ -3,23 +3,23 @@ defined('ABSPATH') || exit;
 
 add_action('rest_api_init', function () {
     $auth = ['permission_callback' => 'pmc_check_secret'];
-    register_rest_route('pmc/v1', '/trial',        ['methods' => 'POST', 'callback' => 'pmc_rest_trial']        + $auth);
-    register_rest_route('pmc/v1', '/validate',     ['methods' => 'POST', 'callback' => 'pmc_rest_validate']     + $auth);
-    register_rest_route('pmc/v1', '/deduct',       ['methods' => 'POST', 'callback' => 'pmc_rest_deduct']       + $auth);
-    register_rest_route('pmc/v1', '/quota',        ['methods' => 'POST', 'callback' => 'pmc_rest_quota']        + $auth);
-    register_rest_route('pmc/v1', '/stripe',       ['methods' => 'POST', 'callback' => 'pmc_stripe_webhook',
+    register_rest_route('projectcare/v1', '/trial',        ['methods' => 'POST', 'callback' => 'pmc_rest_trial']        + $auth);
+    register_rest_route('projectcare/v1', '/validate',     ['methods' => 'POST', 'callback' => 'pmc_rest_validate']     + $auth);
+    register_rest_route('projectcare/v1', '/deduct',       ['methods' => 'POST', 'callback' => 'pmc_rest_deduct']       + $auth);
+    register_rest_route('projectcare/v1', '/quota',        ['methods' => 'POST', 'callback' => 'pmc_rest_quota']        + $auth);
+    register_rest_route('projectcare/v1', '/stripe',       ['methods' => 'POST', 'callback' => 'pmc_stripe_webhook',
         'permission_callback' => '__return_true']);
-    register_rest_route('pmc/v1', '/session/save', ['methods' => 'POST', 'callback' => 'pmc_rest_session_save'] + $auth);
-    register_rest_route('pmc/v1', '/session/load', ['methods' => 'POST', 'callback' => 'pmc_rest_session_load'] + $auth);
-    register_rest_route('pmc/v1', '/plot-data/save',
+    register_rest_route('projectcare/v1', '/session/save', ['methods' => 'POST', 'callback' => 'pmc_rest_session_save'] + $auth);
+    register_rest_route('projectcare/v1', '/session/load', ['methods' => 'POST', 'callback' => 'pmc_rest_session_load'] + $auth);
+    register_rest_route('projectcare/v1', '/plot-data/save',
         ['methods' => 'POST', 'callback' => 'pmc_rest_plot_data_save'] + $auth);
-    register_rest_route('pmc/v1', '/plot-data/(?P<token>[a-f0-9]{32,64})',
+    register_rest_route('projectcare/v1', '/plot-data/(?P<token>[a-f0-9]{32,64})',
         ['methods' => 'GET', 'callback' => 'pmc_rest_plot_data_read',
          'permission_callback' => '__return_true']);
 });
 
 /**
- * Auth middleware — checks X-PMC-Secret header against stored secret.
+ * Auth middleware — checks X-Projectcare-Secret header against stored secret.
  */
 function pmc_check_secret(): bool {
     $header = $_SERVER['HTTP_X_PMC_SECRET'] ?? '';
@@ -489,7 +489,7 @@ function pmc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
 
 // ── PLOT DATA SAVE ─────────────────────────────────────────────────────────────
 // Called by GAS after each call_api. Upserts full distribution data by token.
-// Auth: X-PMC-Secret (server-to-server from GAS only).
+// Auth: X-Projectcare-Secret (server-to-server from GAS only).
 function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
     $token = sanitize_text_field($req->get_param('token') ?? '');
     if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {

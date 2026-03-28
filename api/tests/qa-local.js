@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * QA Local Test Harness for PMC Estimator
+ * QA Local Test Harness for ProjectCare
  * Tests all pure logic functions against the 11-row QA dataset
  * Run: node tests/qa-local.js
  */
@@ -123,7 +123,7 @@ const QA_ROWS = [
 // 5. RUN TESTS
 // ============================================================
 console.log('\n========================================');
-console.log('  PMC ESTIMATOR — LOCAL QA TEST SUITE');
+console.log('  PROJECTCARE — LOCAL QA TEST SUITE');
 console.log('========================================\n');
 
 // --- Load Status ---

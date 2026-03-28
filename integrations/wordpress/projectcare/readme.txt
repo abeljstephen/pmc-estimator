@@ -1,4 +1,4 @@
-===  PMC Estimator ===
+===  ProjectCare by iCareNOW ===
 Contributors:      icarenow
 Tags:              project management, probability, estimation, PERT, monte carlo, schedule, cost
 Requires at least: 6.0
@@ -12,7 +12,7 @@ Probability-based project cost & schedule estimator. Enter Optimistic / Most Lik
 
 == Description ==
 
-PMC Estimator uses three-point estimation (PERT / Beta distribution) combined with SACO (Shape-Adaptive Copula Optimization) to turn your O/M/P estimates into actionable probability curves.
+ProjectCare by iCareNOW uses three-point estimation (PERT / Beta distribution) combined with SACO (Shape-Adaptive Copula Optimization) to turn your O/M/P estimates into actionable probability curves.
 
 **Features:**
 * Instant PDF and CDF probability curves from three-point estimates
@@ -24,16 +24,16 @@ PMC Estimator uses three-point estimation (PERT / Beta distribution) combined wi
 * Runs offline once loaded
 
 **Usage:**
-Add `[pmc_estimator]` to any page or post.
+Add `[projectcare]` to any page or post.
 
 == Installation ==
 
-1. Upload the `pmc-estimator` folder to `/wp-content/plugins/`
+1. Upload the `projectcare` folder to `/wp-content/plugins/`
 2. Activate the plugin in WordPress admin → Plugins
-3. Create or edit a page, add `[pmc_estimator]` to the content
+3. Create or edit a page, add `[projectcare]` to the content
 4. Publish the page
 
 == Changelog ==
 
 = 1.0.0 =
-* Initial release
+* Rebranded to ProjectCare by iCareNOW

@@ -17,5 +17,8 @@ runScriptPropertiesKeyStorage/
 *.bak
 *._*
 
+# Runtime logs
+config/logs/
+
 # macOS noise
 .DS_Store

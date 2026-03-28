@@ -77,7 +77,7 @@ function testCoreCall() {
 
   // Header
   sheet.getRange("A1")
-    .setValue("PMC Core Test — " + ts)
+    .setValue("ProjectCare Core Test — " + ts)
     .setFontWeight("bold")
     .setFontSize(14)
     .setBackground("#e6f3ff");

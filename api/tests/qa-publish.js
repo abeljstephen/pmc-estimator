@@ -305,7 +305,7 @@ function phase3_preflight() {
 // ────────────────────────────────────────────────
 function run() {
   console.log(`${C.bold}╔══════════════════════════════════════════════╗${C.reset}`);
-  console.log(`${C.bold}║  PMC Estimator — QA Gate (Pre-Publish)       ║${C.reset}`);
+  console.log(`${C.bold}║  ProjectCare — QA Gate (Pre-Publish)       ║${C.reset}`);
   console.log(`${C.bold}╚══════════════════════════════════════════════╝${C.reset}`);
   if (DRY_RUN) console.log(`${C.dim}  Mode: --dry-run (skipping clasp checks)${C.reset}`);
 

@@ -1,5 +1,5 @@
 /**
- * PMC Estimator — Full UI Application (WordPress)
+ * ProjectCare by iCareNOW — Full UI Application (WordPress)
  * Depends on: window.PMCBaseline, window.PMCCopula, window.PMCOptimizer, window.PMCSACO
  * Depends on: Chart.js 4.x
  *
@@ -215,9 +215,9 @@
   //  TABS
   // ════════════════════════════════════════════════════════════════════════
   function wireTabs() {
-    document.querySelectorAll('#pmc-estimator .tab').forEach(tab => {
+    document.querySelectorAll('#projectcare .tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('#pmc-estimator .tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#projectcare .tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         S.tab = tab.dataset.tab;
         updateTabVisibility();
@@ -253,7 +253,7 @@
   //  SERIES TOGGLES
   // ════════════════════════════════════════════════════════════════════════
   function wireSeriesToggles() {
-    document.querySelectorAll('#pmc-estimator .tg[data-series]').forEach(btn => {
+    document.querySelectorAll('#projectcare .tg[data-series]').forEach(btn => {
       btn.setAttribute('aria-pressed', S.seriesOn[btn.dataset.series] ? 'true' : 'false');
       btn.addEventListener('click', () => {
         const s = btn.dataset.series;
@@ -1444,9 +1444,9 @@
   //  REPORT / NARRATIVE
   // ════════════════════════════════════════════════════════════════════════
   function wireReportTabs() {
-    document.querySelectorAll('#pmc-estimator .rep-tab-btn').forEach(btn => {
+    document.querySelectorAll('#projectcare .rep-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#pmc-estimator .rep-tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#projectcare .rep-tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const rep = btn.dataset.rep;
         qs('pmc-rep-narrative').style.display = rep === 'narrative' ? '' : 'none';
@@ -1542,7 +1542,7 @@
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href: url, download: 'pmc-estimator-' + Date.now() + '.csv' });
+    const a    = Object.assign(document.createElement('a'), { href: url, download: 'projectcare-' + Date.now() + '.csv' });
     a.click();
     URL.revokeObjectURL(url);
     showToast('CSV exported.');
@@ -1552,7 +1552,7 @@
     if (S.O == null) { showToast('Run an estimation first.'); return; }
     const pert = (S.O + 4*S.M + S.P) / 6;
     const lines = [
-      'PMC Estimator — ' + S.taskName,
+      'ProjectCare — ' + S.taskName,
       'O: ' + fmtN(S.O,2) + '  M: ' + fmtN(S.M,2) + '  P: ' + fmtN(S.P,2),
       'PERT Mean: ' + fmtN(pert,2),
       'Target (τ): ' + (S.target != null ? fmtN(S.target,2) : '–'),
