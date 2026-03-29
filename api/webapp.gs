@@ -44,6 +44,7 @@ function doPost(e) {
     if (action === 'save_session')  return handleSaveSession(body);
     if (action === 'load_sessions') return handleLoadSessions(body);
     if (action === 'ping')          return handlePing(body);
+    if (action === 'benchmark')     return handleBenchmark(body);
 
     return jsonOut({ error: 'Unknown action: ' + action });
 
@@ -90,11 +91,12 @@ function handleCallApi(body) {
     return handleCallApiSlim(body, key, auth, sessionToken);
   }
 
-  // 2. Determine credit cost
+  // 2. Determine credit cost — prefer WP-stored costs over hardcoded fallback
   var opType = body.operationType || 'full_saco';
   if (!CREDIT_COSTS[opType])
     return jsonOut({ error: 'Unknown operationType: ' + opType + '. Valid values: baseline_only, full_saco, saco_explain' });
-  var cost = CREDIT_COSTS[opType];
+  var liveCosts = (auth.credit_costs && typeof auth.credit_costs === 'object') ? auth.credit_costs : {};
+  var cost = (liveCosts[opType] != null && liveCosts[opType] > 0) ? parseInt(liveCosts[opType], 10) : CREDIT_COSTS[opType];
 
   if (auth.remaining < cost) {
     return jsonOut({
@@ -616,10 +618,13 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
       return jsonOut({ error: 'Task "' + t.task + '": values must satisfy optimistic ≤ mostLikely ≤ pessimistic' });
   }
 
-  // Credit check
-  if (auth.remaining < SLIM_CREDIT_COST) {
+  // Credit check — prefer WP-stored slim cost over hardcoded fallback
+  var liveCostsSlim = (auth.credit_costs && typeof auth.credit_costs === 'object') ? auth.credit_costs : {};
+  var slimCost = (liveCostsSlim['slim'] != null && liveCostsSlim['slim'] > 0)
+    ? parseInt(liveCostsSlim['slim'], 10) : SLIM_CREDIT_COST;
+  if (auth.remaining < slimCost) {
     return jsonOut({
-      error:       'Insufficient credits — need ' + SLIM_CREDIT_COST + ', have ' + auth.remaining + '.',
+      error:       'Insufficient credits — need ' + slimCost + ', have ' + auth.remaining + '.',
       upgrade_url: auth.upgrade_url || getWpUrl()
     });
   }
@@ -712,10 +717,10 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     console.error('[ProjectCare API] slim plot-data save failed:', saveErr.message);
   }
 
-  // Deduct 1 credit
+  // Deduct credit (cost resolved from WP or fallback to SLIM_CREDIT_COST)
   var deduct = wpPost('/projectcare/v1/deduct', {
     key:             key,
-    cost:            SLIM_CREDIT_COST,
+    cost:            slimCost,
     operation:       'baseline_only',
     duration_ms:     durationMs,
     gas_exec_count:  getDailyExecCount(),
@@ -724,7 +729,7 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     feasibility_avg: 0
   });
 
-  var remaining = deduct.remaining != null ? deduct.remaining : (auth.remaining - SLIM_CREDIT_COST);
+  var remaining = deduct.remaining != null ? deduct.remaining : (auth.remaining - slimCost);
   var total     = deduct.total     != null ? deduct.total     : auth.total;
   var bar       = deduct.bar       || buildBar(total - remaining, total);
 
@@ -738,7 +743,7 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
       plan:              auth.plan,
       expires:           auth.expires,
       operation:         'baseline_only',
-      credits_this_call: SLIM_CREDIT_COST,
+      credits_this_call: slimCost,
       credits_remaining: remaining,
       credits_total:     total,
       bar:               bar
@@ -1159,6 +1164,43 @@ function getDailyExecCount() {
     return count;
   } catch (e) {
     return 0;
+  }
+}
+
+// ── BENCHMARK HANDLER ─────────────────────────────────────────────────────────
+// Times GAS compute overhead for slim (PERT) and a WP round-trip.
+// Called by the ProjectCare CRM → GAS Status → Benchmark button.
+// No auth required — only returns timing data, no user data exposed.
+function handleBenchmark(body) {
+  try {
+    // Time PERT math on 5 synthetic tasks (mirrors slim tier compute)
+    var syntheticTasks = [
+      { optimistic:10, mostLikely:15, pessimistic:25 },
+      { optimistic:5,  mostLikely:8,  pessimistic:14 },
+      { optimistic:20, mostLikely:30, pessimistic:50 },
+      { optimistic:3,  mostLikely:5,  pessimistic:8  },
+      { optimistic:12, mostLikely:18, pessimistic:28 },
+    ];
+    var slimStart = Date.now();
+    for (var i = 0; i < syntheticTasks.length; i++) {
+      _pertStats(syntheticTasks[i]);
+    }
+    var slimComputeMs = Date.now() - slimStart;
+
+    // Time a WP round-trip (ping action — no DB load)
+    var pingStart = Date.now();
+    wpPost('/projectcare/v1/quota', { key: '__benchmark__' });
+    var wpRoundtripMs = Date.now() - pingStart;
+
+    return jsonOut({
+      ok:               true,
+      slim_compute_ms:  slimComputeMs,
+      wp_roundtrip_ms:  wpRoundtripMs,
+      daily_exec_count: getDailyExecCount(),
+      ts:               new Date().toISOString()
+    });
+  } catch (err) {
+    return jsonOut({ ok: false, error: err.message });
   }
 }
 

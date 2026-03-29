@@ -231,19 +231,21 @@ function pc_rest_validate(WP_REST_Request $req): WP_REST_Response {
         'action' => 'validate', 'result' => 'success', 'ip_address' => pc_get_ip(),
         'credits_before' => $total, 'credits_after' => $remaining]);
 
-    $plan_row = pc_get_plan($user->plan);
-    $gas_tier = isset($plan_row['gas_tier']) ? $plan_row['gas_tier'] : 'full';
+    $plan_row    = pc_get_plan($user->plan);
+    $gas_tier    = isset($plan_row['gas_tier']) ? $plan_row['gas_tier'] : 'full';
+    $credit_costs = pc_get_credit_costs();
 
     return rest_ensure_response([
-        'valid'     => true,
-        'email'     => $user->email,
-        'plan'      => $user->plan,
-        'gas_tier'  => $gas_tier,
-        'total'     => $total,
-        'used'      => $used,
-        'remaining' => $remaining,
-        'expires'   => $expiry,
-        'bar'       => pc_bar($used, $total),
+        'valid'        => true,
+        'email'        => $user->email,
+        'plan'         => $user->plan,
+        'gas_tier'     => $gas_tier,
+        'credit_costs' => $credit_costs,
+        'total'        => $total,
+        'used'         => $used,
+        'remaining'    => $remaining,
+        'expires'      => $expiry,
+        'bar'          => pc_bar($used, $total),
     ]);
 }
 
