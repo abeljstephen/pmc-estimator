@@ -2,47 +2,48 @@
 defined('ABSPATH') || exit;
 
 add_action('rest_api_init', function () {
-    $auth = ['permission_callback' => 'pmc_check_secret'];
-    register_rest_route('projectcare/v1', '/trial',        ['methods' => 'POST', 'callback' => 'pmc_rest_trial']        + $auth);
-    register_rest_route('projectcare/v1', '/validate',     ['methods' => 'POST', 'callback' => 'pmc_rest_validate']     + $auth);
-    register_rest_route('projectcare/v1', '/deduct',       ['methods' => 'POST', 'callback' => 'pmc_rest_deduct']       + $auth);
-    register_rest_route('projectcare/v1', '/quota',        ['methods' => 'POST', 'callback' => 'pmc_rest_quota']        + $auth);
-    register_rest_route('projectcare/v1', '/stripe',       ['methods' => 'POST', 'callback' => 'pmc_stripe_webhook',
+    $auth = ['permission_callback' => 'pc_check_secret'];
+
+    register_rest_route('projectcare/v1', '/trial',        ['methods' => 'POST', 'callback' => 'pc_rest_trial']        + $auth);
+    register_rest_route('projectcare/v1', '/validate',     ['methods' => 'POST', 'callback' => 'pc_rest_validate']     + $auth);
+    register_rest_route('projectcare/v1', '/deduct',       ['methods' => 'POST', 'callback' => 'pc_rest_deduct']       + $auth);
+    register_rest_route('projectcare/v1', '/quota',        ['methods' => 'POST', 'callback' => 'pc_rest_quota']        + $auth);
+    register_rest_route('projectcare/v1', '/stripe',       ['methods' => 'POST', 'callback' => 'pc_stripe_webhook',
         'permission_callback' => '__return_true']);
-    register_rest_route('projectcare/v1', '/session/save', ['methods' => 'POST', 'callback' => 'pmc_rest_session_save'] + $auth);
-    register_rest_route('projectcare/v1', '/session/load', ['methods' => 'POST', 'callback' => 'pmc_rest_session_load'] + $auth);
+    register_rest_route('projectcare/v1', '/session/save', ['methods' => 'POST', 'callback' => 'pc_rest_session_save'] + $auth);
+    register_rest_route('projectcare/v1', '/session/load', ['methods' => 'POST', 'callback' => 'pc_rest_session_load'] + $auth);
     register_rest_route('projectcare/v1', '/plot-data/save',
-        ['methods' => 'POST', 'callback' => 'pmc_rest_plot_data_save'] + $auth);
+        ['methods' => 'POST', 'callback' => 'pc_rest_plot_data_save'] + $auth);
     register_rest_route('projectcare/v1', '/plot-data/(?P<token>[a-f0-9]{32,64})',
-        ['methods' => 'GET', 'callback' => 'pmc_rest_plot_data_read',
+        ['methods' => 'GET', 'callback' => 'pc_rest_plot_data_read',
          'permission_callback' => '__return_true']);
 });
 
 /**
  * Auth middleware — checks X-Projectcare-Secret header against stored secret.
  */
-function pmc_check_secret(): bool {
-    $header = $_SERVER['HTTP_X_PMC_SECRET'] ?? '';
-    $secret = pmc_secret();
+function pc_check_secret(): bool {
+    $header = $_SERVER['HTTP_X_PROJECTCARE_SECRET'] ?? '';
+    $secret = pc_secret();
     $result = $secret !== '' && hash_equals($secret, $header);
     if (!$result && $header !== '') {
-        error_log('[PMC CRM] Auth failure from ' . pmc_get_ip()
+        error_log('[ProjectCare CRM] Auth failure from ' . pc_get_ip()
             . ' path=' . ($_SERVER['REQUEST_URI'] ?? ''));
     }
     return $result;
 }
 
 // ── TRIAL ──────────────────────────────────────────────────────────────────────
-function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
-    $trial_max = (int) pmc_setting('rl_trial_max', '5');
-    if (!pmc_rate_limit('trial', max(1, $trial_max), 60)) {
+function pc_rest_trial(WP_REST_Request $req): WP_REST_Response {
+    $trial_max = (int) pc_setting('rl_trial_max', '5');
+    if (!pc_rate_limit('trial', max(1, $trial_max), 60)) {
         return rest_ensure_response(['error' => 'Too many requests. Please wait before trying again.']);
     }
-    if (!pmc_global_rate_limit()) {
+    if (!pc_global_rate_limit()) {
         return rest_ensure_response(['error' => 'Service busy. Please try again shortly.']);
     }
 
-    if (pmc_setting('trial_paused') === '1') {
+    if (pc_setting('trial_paused') === '1') {
         return rest_ensure_response(['error' => 'Trial issuance is temporarily paused. Please check back soon.']);
     }
 
@@ -53,22 +54,22 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
 
     $promo_code   = sanitize_text_field($req->get_param('promo') ?? '');
     $promo_result = null;
-    if ($promo_code !== '' && pmc_setting('promos_enabled', '1') === '1') {
-        $promo_result = pmc_validate_promo($promo_code);
+    if ($promo_code !== '' && pc_setting('promos_enabled', '1') === '1') {
+        $promo_result = pc_validate_promo($promo_code);
         if (!$promo_result['valid']) {
             return rest_ensure_response(['error' => $promo_result['error']]);
         }
     }
 
-    $existing = pmc_get_user_by_email($email);
+    $existing = pc_get_user_by_email($email);
     if ($existing && !empty($existing->api_key)) {
         return rest_ensure_response([
-            'error' => 'A trial was already issued for this email. Check your inbox or subscribe for full access: ' . pmc_stripe_link(),
+            'error' => 'A trial was already issued for this email. Check your inbox or subscribe for full access: ' . pc_stripe_link(),
         ]);
     }
 
     $plan   = 'trial';
-    $config = pmc_get_plan($plan) ?? ['credits' => 20, 'days' => 10];
+    $config = pc_get_plan($plan) ?? ['credits' => 20, 'days' => 10];
 
     // Apply promo overrides
     if ($promo_result && !empty($promo_result['promo'])) {
@@ -82,18 +83,18 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
     $expiry = date('Y-m-d', strtotime('+' . (int) $config['days'] . ' days'));
 
     if ($existing) {
-        pmc_update_user((int) $existing->id, [
+        pc_update_user((int) $existing->id, [
             'api_key'       => $key,
             'plan'          => $plan,
             'credits_total' => (int) $config['credits'],
             'credits_used'  => 0,
             'key_expires'   => $expiry,
             'key_status'    => 'active',
-            'ip_address'    => pmc_get_ip(),
+            'ip_address'    => pc_get_ip(),
         ]);
         $user_id = (int) $existing->id;
     } else {
-        $user_id = (int) pmc_create_user([
+        $user_id = (int) pc_create_user([
             'email'         => $email,
             'api_key'       => $key,
             'plan'          => $plan,
@@ -102,31 +103,31 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
             'key_expires'   => $expiry,
             'key_status'    => 'active',
             'source'        => 'trial',
-            'ip_address'    => pmc_get_ip(),
+            'ip_address'    => pc_get_ip(),
         ]);
     }
 
     if ($promo_result && !empty($promo_result['promo'])) {
-        pmc_use_promo((int) $promo_result['promo']->id);
+        pc_use_promo((int) $promo_result['promo']->id);
     }
 
     // Record key in history table (supersede any previous active key first)
-    pmc_revoke_user_keys($user_id, 'superseded', 'trial re-issued');
-    pmc_create_api_key($user_id, $email, $key, 'trial issued');
+    pc_revoke_user_keys($user_id, 'superseded', 'trial re-issued');
+    pc_create_api_key($user_id, $email, $key, 'trial issued');
 
-    pmc_log_activity([
+    pc_log_activity([
         'user_id'        => $user_id,
         'email'          => $email,
         'action'         => 'trial_request',
         'operation_type' => 'trial',
         'credits_after'  => (int) $config['credits'],
         'result'         => 'success',
-        'ip_address'     => pmc_get_ip(),
+        'ip_address'     => pc_get_ip(),
         'notes'          => 'Trial issued. expires=' . $expiry
             . ($promo_code ? ' promo=' . $promo_code : ''),
     ]);
 
-    pmc_send_email($email, 'trial_issued', [
+    pc_send_email($email, 'trial_issued', [
         'email'   => $email,
         'key'     => $key,
         'plan'    => ucfirst($plan),
@@ -134,14 +135,14 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
         'expiry'  => $expiry,
     ]);
 
-    if (pmc_setting('notify_new_trial', '1') === '1') {
-        pmc_send_admin_email('PMC Trial Request',
+    if (pc_setting('notify_new_trial', '1') === '1') {
+        pc_send_admin_email('PMC Trial Request',
             "New trial\n\nEmail:   {$email}\nExpires: {$expiry}\nCredits: {$config['credits']}"
             . ($promo_code ? "\nPromo:   {$promo_code}" : ''));
     }
 
-    $user = pmc_get_user_by_id($user_id);
-    if ($user) pmc_fluentcrm_sync_user($user, ['trial', 'active']);
+    $user = pc_get_user_by_id($user_id);
+    if ($user) pc_fluentcrm_sync_user($user, ['trial', 'active']);
 
     return rest_ensure_response([
         'success' => true,
@@ -153,13 +154,13 @@ function pmc_rest_trial(WP_REST_Request $req): WP_REST_Response {
 }
 
 // ── VALIDATE ──────────────────────────────────────────────────────────────────
-function pmc_rest_validate(WP_REST_Request $req): WP_REST_Response {
-    $validate_max = (int) pmc_setting('rl_validate_max', '30');
-    if (!pmc_rate_limit('validate', max(1, $validate_max), 60)) {
-        pmc_log_activity(['action' => 'validate', 'result' => 'rate_limited', 'ip_address' => pmc_get_ip()]);
+function pc_rest_validate(WP_REST_Request $req): WP_REST_Response {
+    $validate_max = (int) pc_setting('rl_validate_max', '30');
+    if (!pc_rate_limit('validate', max(1, $validate_max), 60)) {
+        pc_log_activity(['action' => 'validate', 'result' => 'rate_limited', 'ip_address' => pc_get_ip()]);
         return rest_ensure_response(['valid' => false, 'error' => 'Too many requests. Please wait before trying again.']);
     }
-    if (!pmc_global_rate_limit()) {
+    if (!pc_global_rate_limit()) {
         return rest_ensure_response(['valid' => false, 'error' => 'Service busy. Please try again shortly.']);
     }
 
@@ -168,26 +169,26 @@ function pmc_rest_validate(WP_REST_Request $req): WP_REST_Response {
         return rest_ensure_response(['valid' => false, 'error' => 'Invalid key']);
     }
 
-    $user = pmc_get_user_by_key($key);
+    $user = pc_get_user_by_key($key);
     if (!$user) {
         // Check if key exists in history (superseded/revoked) for a better message
         global $wpdb;
         $hist = $wpdb->get_row($wpdb->prepare(
-            "SELECT k.status, u.email FROM `{$wpdb->prefix}pmc_api_keys` k
-             JOIN `{$wpdb->prefix}pmc_users` u ON u.id = k.user_id
+            "SELECT k.status, u.email FROM `{$wpdb->prefix}pc_api_keys` k
+             JOIN `{$wpdb->prefix}pc_users` u ON u.id = k.user_id
              WHERE k.api_key = %s LIMIT 1",
             $key
         ));
         if ($hist) {
-            pmc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(),
+            pc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pc_get_ip(),
                 'email' => $hist->email, 'notes' => 'key ' . $hist->status]);
             $msg = $hist->status === 'superseded'
                 ? 'This key has been replaced. Check your inbox for your latest key.'
                 : 'This key has been revoked. Subscribe for access.';
-            return rest_ensure_response(['valid' => false, 'error' => $msg, 'upgrade_url' => pmc_stripe_link()]);
+            return rest_ensure_response(['valid' => false, 'error' => $msg, 'upgrade_url' => pc_stripe_link()]);
         }
-        error_log('[PMC CRM] Invalid key attempt from ' . pmc_get_ip());
-        pmc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(), 'notes' => 'invalid key']);
+        error_log('[ProjectCare CRM] Invalid key attempt from ' . pc_get_ip());
+        pc_log_activity(['action' => 'validate', 'result' => 'fail', 'ip_address' => pc_get_ip(), 'notes' => 'invalid key']);
         return rest_ensure_response(['valid' => false, 'error' => 'Invalid key']);
     }
 
@@ -198,47 +199,51 @@ function pmc_rest_validate(WP_REST_Request $req): WP_REST_Response {
     $remaining = $total - $used;
 
     if ($status !== 'active') {
-        pmc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
-            'action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(),
+        pc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
+            'action' => 'validate', 'result' => 'fail', 'ip_address' => pc_get_ip(),
             'notes'  => 'key status=' . $status]);
         return rest_ensure_response(['valid' => false,
             'error'       => 'Key inactive. Subscribe for access.',
-            'upgrade_url' => pmc_stripe_link()]);
+            'upgrade_url' => pc_stripe_link()]);
     }
 
     $expiry_ts = $expiry ? strtotime($expiry) : false;
     if ($expiry_ts === false || $expiry_ts < time()) {
-        pmc_update_user((int) $user->id, ['key_status' => 'expired']);
-        pmc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
-            'action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(),
+        pc_update_user((int) $user->id, ['key_status' => 'expired']);
+        pc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
+            'action' => 'validate', 'result' => 'fail', 'ip_address' => pc_get_ip(),
             'notes'  => 'key expired on ' . $expiry]);
         return rest_ensure_response(['valid' => false,
             'error'       => 'Key inactive. Subscribe for access.',
-            'upgrade_url' => pmc_stripe_link()]);
+            'upgrade_url' => pc_stripe_link()]);
     }
 
     if ($remaining <= 0) {
-        pmc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
-            'action' => 'validate', 'result' => 'fail', 'ip_address' => pmc_get_ip(),
+        pc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
+            'action' => 'validate', 'result' => 'fail', 'ip_address' => pc_get_ip(),
             'notes'  => 'quota exhausted']);
         return rest_ensure_response(['valid' => false,
             'error'       => 'Quota exhausted — no credits remaining.',
-            'upgrade_url' => pmc_stripe_link()]);
+            'upgrade_url' => pc_stripe_link()]);
     }
 
-    pmc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
-        'action' => 'validate', 'result' => 'success', 'ip_address' => pmc_get_ip(),
+    pc_log_activity(['user_id' => (int) $user->id, 'email' => $user->email,
+        'action' => 'validate', 'result' => 'success', 'ip_address' => pc_get_ip(),
         'credits_before' => $total, 'credits_after' => $remaining]);
+
+    $plan_row = pc_get_plan($user->plan);
+    $gas_tier = isset($plan_row['gas_tier']) ? $plan_row['gas_tier'] : 'full';
 
     return rest_ensure_response([
         'valid'     => true,
         'email'     => $user->email,
         'plan'      => $user->plan,
+        'gas_tier'  => $gas_tier,
         'total'     => $total,
         'used'      => $used,
         'remaining' => $remaining,
         'expires'   => $expiry,
-        'bar'       => pmc_bar($used, $total),
+        'bar'       => pc_bar($used, $total),
     ]);
 }
 
@@ -248,11 +253,11 @@ function pmc_rest_validate(WP_REST_Request $req): WP_REST_Response {
  * Results cached 24 h per IP using WordPress transients.
  * Returns ['country' => 'US', 'region' => 'California'] or empty strings on failure.
  */
-function pmc_geo_lookup(string $ip): array {
+function pc_geo_lookup(string $ip): array {
     if (empty($ip) || in_array($ip, ['127.0.0.1', '::1'], true)) {
         return ['country' => '', 'region' => ''];
     }
-    $cache_key = 'pmc_geo_' . md5($ip);
+    $cache_key = 'pc_geo_' . md5($ip);
     $cached    = get_transient($cache_key);
     if ($cached !== false) return $cached;
 
@@ -275,7 +280,7 @@ function pmc_geo_lookup(string $ip): array {
 }
 
 // ── DEDUCT ────────────────────────────────────────────────────────────────────
-function pmc_rest_deduct(WP_REST_Request $req): WP_REST_Response {
+function pc_rest_deduct(WP_REST_Request $req): WP_REST_Response {
     $key = sanitize_text_field($req->get_param('key') ?? '');
     if (strlen($key) > 256) return rest_ensure_response(['error' => 'Invalid key']);
 
@@ -288,12 +293,12 @@ function pmc_rest_deduct(WP_REST_Request $req): WP_REST_Response {
     $feasibility_avg = round((float) ($req->get_param('feasibility_avg') ?? 0), 2);
     if (strlen($operation) > 64) $operation = 'estimation';
 
-    $ip  = pmc_get_ip();
-    $geo = pmc_geo_lookup($ip);
+    $ip  = pc_get_ip();
+    $geo = pc_geo_lookup($ip);
 
-    $user = pmc_get_user_by_key($key);
+    $user = pc_get_user_by_key($key);
     if (!$user) {
-        error_log('[PMC CRM] Deduct with invalid key from ' . $ip);
+        error_log('[ProjectCare CRM] Deduct with invalid key from ' . $ip);
         return rest_ensure_response(['error' => 'Invalid key']);
     }
 
@@ -302,12 +307,12 @@ function pmc_rest_deduct(WP_REST_Request $req): WP_REST_Response {
     $new_used  = $used + $cost;
     $remaining = max(0, $total - $new_used);
 
-    pmc_update_user((int) $user->id, [
+    pc_update_user((int) $user->id, [
         'credits_used'    => $new_used,
         'last_estimation' => current_time('mysql'),
     ]);
 
-    pmc_log_activity([
+    pc_log_activity([
         'user_id'         => (int) $user->id,
         'email'           => $user->email,
         'action'          => 'deduct',
@@ -327,24 +332,24 @@ function pmc_rest_deduct(WP_REST_Request $req): WP_REST_Response {
         'notes'           => ucfirst($operation) . ' — ' . $cost . ' credit(s). Remaining: ' . $remaining . '/' . $total,
     ]);
 
-    pmc_maybe_warn($user->email, $user->plan, $remaining, $total);
-    pmc_fluentcrm_sync_user(pmc_get_user_by_id((int) $user->id) ?? $user);
+    pc_maybe_warn($user->email, $user->plan, $remaining, $total);
+    pc_fluentcrm_sync_user(pc_get_user_by_id((int) $user->id) ?? $user);
 
     return rest_ensure_response([
         'success'   => true,
         'used'      => $new_used,
         'remaining' => $remaining,
         'total'     => $total,
-        'bar'       => pmc_bar($new_used, $total),
+        'bar'       => pc_bar($new_used, $total),
     ]);
 }
 
 // ── QUOTA ─────────────────────────────────────────────────────────────────────
-function pmc_rest_quota(WP_REST_Request $req): WP_REST_Response {
+function pc_rest_quota(WP_REST_Request $req): WP_REST_Response {
     $key = sanitize_text_field($req->get_param('key') ?? '');
     if (strlen($key) > 256) return rest_ensure_response(['error' => 'Invalid key']);
 
-    $user = pmc_get_user_by_key($key);
+    $user = pc_get_user_by_key($key);
     if (!$user) return rest_ensure_response(['error' => 'Invalid key']);
 
     $total     = (int) $user->credits_total;
@@ -358,18 +363,18 @@ function pmc_rest_quota(WP_REST_Request $req): WP_REST_Response {
         'remaining' => $remaining,
         'expires'   => $user->key_expires,
         'status'    => $user->key_status,
-        'bar'       => pmc_bar($used, $total),
+        'bar'       => pc_bar($used, $total),
         'last_used' => $user->last_estimation ?: 'Never',
     ]);
 }
 
 // ── SESSION SAVE ──────────────────────────────────────────────────────────────
-function pmc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
-    if (pmc_setting('sessions_enabled', '1') !== '1') {
+function pc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
+    if (pc_setting('sessions_enabled', '1') !== '1') {
         return rest_ensure_response(['error' => 'Session storage is disabled.']);
     }
-    $session_max = (int) pmc_setting('rl_session_max', '20');
-    if (!pmc_rate_limit('session', max(1, $session_max), 60)) {
+    $session_max = (int) pc_setting('rl_session_max', '20');
+    if (!pc_rate_limit('session', max(1, $session_max), 60)) {
         return rest_ensure_response(['error' => 'Too many requests. Please wait before trying again.']);
     }
 
@@ -383,7 +388,7 @@ function pmc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
         return rest_ensure_response(['error' => 'session must be a JSON object']);
     }
 
-    $user = pmc_get_user_by_key($key);
+    $user = pc_get_user_by_key($key);
     if (!$user) return rest_ensure_response(['error' => 'Invalid key']);
     if (strtolower($user->email) !== $email) {
         return rest_ensure_response(['error' => 'Email does not match key']);
@@ -406,7 +411,7 @@ function pmc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
         'data'       => $session,
     ];
 
-    pmc_log_activity([
+    pc_log_activity([
         'user_id' => (int) $user->id,
         'email'   => $email,
         'action'  => 'session_save',
@@ -416,7 +421,7 @@ function pmc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
 
     // Prune: keep last 10 session_save entries per user
     global $wpdb;
-    $table    = $wpdb->prefix . 'pmc_activity';
+    $table    = $wpdb->prefix . 'pc_activity';
     $all_ids  = $wpdb->get_col($wpdb->prepare(
         "SELECT id FROM `{$table}` WHERE user_id = %d AND action = 'session_save' ORDER BY created_at DESC",
         (int) $user->id
@@ -438,12 +443,12 @@ function pmc_rest_session_save(WP_REST_Request $req): WP_REST_Response {
 }
 
 // ── SESSION LOAD ──────────────────────────────────────────────────────────────
-function pmc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
-    if (pmc_setting('sessions_enabled', '1') !== '1') {
+function pc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
+    if (pc_setting('sessions_enabled', '1') !== '1') {
         return rest_ensure_response(['error' => 'Session storage is disabled.']);
     }
-    $session_max = (int) pmc_setting('rl_session_max', '20');
-    if (!pmc_rate_limit('session', max(1, $session_max), 60)) {
+    $session_max = (int) pc_setting('rl_session_max', '20');
+    if (!pc_rate_limit('session', max(1, $session_max), 60)) {
         return rest_ensure_response(['error' => 'Too many requests. Please wait before trying again.']);
     }
 
@@ -453,14 +458,14 @@ function pmc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
     if (strlen($key) > 256) return rest_ensure_response(['error' => 'Invalid key']);
     if (!is_email($email))  return rest_ensure_response(['error' => 'A valid email address is required']);
 
-    $user = pmc_get_user_by_key($key);
+    $user = pc_get_user_by_key($key);
     if (!$user) return rest_ensure_response(['error' => 'Invalid key']);
     if (strtolower($user->email) !== $email) {
         return rest_ensure_response(['error' => 'Email does not match key']);
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
+    $table = $wpdb->prefix . 'pc_activity';
     $rows  = $wpdb->get_results($wpdb->prepare(
         "SELECT notes, created_at FROM `{$table}`
          WHERE user_id = %d AND action = 'session_save'
@@ -490,7 +495,7 @@ function pmc_rest_session_load(WP_REST_Request $req): WP_REST_Response {
 // ── PLOT DATA SAVE ─────────────────────────────────────────────────────────────
 // Called by GAS after each call_api. Upserts full distribution data by token.
 // Auth: X-Projectcare-Secret (server-to-server from GAS only).
-function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
+function pc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
     $token = sanitize_text_field($req->get_param('token') ?? '');
     if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
         return rest_ensure_response(['error' => 'Invalid token format']);
@@ -507,7 +512,7 @@ function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
     }
 
     global $wpdb;
-    $table    = $wpdb->prefix . 'pmc_plot_data';
+    $table    = $wpdb->prefix . 'pc_plot_data';
     $saved_at = current_time('mysql');
 
     $result = $wpdb->query($wpdb->prepare(
@@ -518,7 +523,7 @@ function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
     ));
 
     if ($result === false) {
-        error_log('[PMC CRM] plot_data save failed: ' . $wpdb->last_error);
+        error_log('[ProjectCare CRM] plot_data save failed: ' . $wpdb->last_error);
         return rest_ensure_response(['error' => 'Storage error']);
     }
 
@@ -528,14 +533,14 @@ function pmc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
 // ── PLOT DATA READ ─────────────────────────────────────────────────────────────
 // Public GET — called by plot.html polling loop. Token is the secret.
 // Returns the latest data for a token, or {"status":"not_found"}.
-function pmc_rest_plot_data_read(WP_REST_Request $req): WP_REST_Response {
+function pc_rest_plot_data_read(WP_REST_Request $req): WP_REST_Response {
     $token = sanitize_text_field($req->get_param('token') ?? '');
     if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
         return rest_ensure_response(['status' => 'not_found']);
     }
 
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_plot_data';
+    $table = $wpdb->prefix . 'pc_plot_data';
     $row   = $wpdb->get_row($wpdb->prepare(
         "SELECT data, saved_at FROM `{$table}` WHERE token = %s LIMIT 1",
         $token
@@ -554,3 +559,6 @@ function pmc_rest_plot_data_read(WP_REST_Request $req): WP_REST_Response {
 
     return $response;
 }
+
+// NOTE: GPT proxy removed — GoDaddy blocks outbound SSL to script.google.com.
+// GPT calls GAS directly via openapi.yaml. If hosting changes, proxy can be re-added.

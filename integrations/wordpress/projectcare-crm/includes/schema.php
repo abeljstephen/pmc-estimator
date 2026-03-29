@@ -1,12 +1,12 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_create_tables(): void {
+function pc_create_tables(): void {
     global $wpdb;
     $charset = $wpdb->get_charset_collate();
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-    $p = $wpdb->prefix . 'pmc_';
+    $p = $wpdb->prefix . 'pc_';
 
     $sql = [];
 
@@ -77,6 +77,7 @@ function pmc_create_tables(): void {
         price_min_cents INT          NOT NULL DEFAULT 0,
         is_active       TINYINT(1)   NOT NULL DEFAULT 1,
         display_order   INT          NOT NULL DEFAULT 0,
+        gas_tier        VARCHAR(16)  NOT NULL DEFAULT 'full',
         PRIMARY KEY (id),
         UNIQUE KEY uq_slug (slug)
     ) $charset;";
@@ -200,5 +201,14 @@ function pmc_create_tables(): void {
 
     foreach ($sql as $query) {
         dbDelta($query);
+    }
+
+    // Migration: add gas_tier to existing pc_plans tables that predate this column.
+    // dbDelta does not add columns to existing tables, so we handle it manually.
+    $col = $wpdb->get_results("SHOW COLUMNS FROM `{$p}plans` LIKE 'gas_tier'");
+    if (empty($col)) {
+        $wpdb->query("ALTER TABLE `{$p}plans` ADD COLUMN gas_tier VARCHAR(16) NOT NULL DEFAULT 'full'");
+        // Seed sensible defaults for existing plans: trial + starter → slim, rest → full
+        $wpdb->query("UPDATE `{$p}plans` SET gas_tier = 'slim' WHERE slug IN ('trial', 'starter')");
     }
 }

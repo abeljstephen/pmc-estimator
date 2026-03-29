@@ -22,6 +22,9 @@ var CREDIT_COSTS = {
   saco_explain:  4
 };
 
+// Credit cost for slim tier — always 1 regardless of operationType
+var SLIM_CREDIT_COST = 1;
+
 // ── ENTRY POINT ───────────────────────────────────────────────────────────────
 function doPost(e) {
   try {
@@ -78,6 +81,14 @@ function handleCallApi(body) {
   // 1. Validate key + get quota from WordPress CRM
   var auth = wpPost('/projectcare/v1/validate', { key: key });
   if (!auth.valid) return jsonOut({ error: auth.error, upgrade_url: auth.upgrade_url });
+
+  // 1b. Branch to slim handler when plan tier is 'slim'.
+  //     gas_tier is returned by /validate once WordPress has the column (step 2).
+  //     Until then defaults to 'full' so existing plans are unaffected.
+  var gasTier = (auth.gas_tier || 'full').toLowerCase();
+  if (gasTier === 'slim') {
+    return handleCallApiSlim(body, key, auth, sessionToken);
+  }
 
   // 2. Determine credit cost
   var opType = body.operationType || 'full_saco';
@@ -436,7 +447,28 @@ function handleCallApi(body) {
           optimizedPercentiles: res.optimizedPercentiles  || {},
           feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
           winningSliders:       winSliders,
-          userSliders:          uSliders
+          userSliders:          uSliders,
+          reportUrl:            (function() {
+            try {
+              var tp  = (res.targetProbability && res.targetProbability.value) || {};
+              var pct = res.percentiles || {};
+              var d = {
+                task:          task.task,
+                O:             task.optimistic,
+                M:             task.mostLikely,
+                P:             task.pessimistic,
+                target:        task.targetValue != null ? task.targetValue : null,
+                baselineProb:  tp.original          != null ? tp.original          : null,
+                adjustedProb:  tp.adjusted          != null ? tp.adjusted          : null,
+                optimizedProb: tp.adjustedOptimized != null ? tp.adjustedOptimized : null,
+                p10:           pct.p10 != null ? pct.p10 : null,
+                p50:           pct.p50 != null ? pct.p50 : null,
+                p90:           pct.p90 != null ? pct.p90 : null
+              };
+              return 'https://abeljstephen.github.io/projectcare/report/?data=' +
+                     encodeURIComponent(Utilities.base64Encode(JSON.stringify(d)));
+            } catch(e) { return null; }
+          })()
         };
       });
       var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
@@ -502,6 +534,219 @@ function handleCallApi(body) {
   return jsonOut(result);
 }
 
+// ── SLIM TIER HANDLER ─────────────────────────────────────────────────────────
+// PERT-only path: no SACO engine, no CPM.
+// Runs in < 2 seconds, costs 1 credit.
+// GPT gets PERT means + baseline probability approximation.
+// The plot URL is pre-seeded with O/M/P so the browser runs full SACO on load.
+
+/**
+ * Abramowitz & Stegun 26.2.17 normal CDF approximation.
+ * Max absolute error: 7.5e-8. Sufficient for conversational probability display.
+ */
+function _normalCdf(x) {
+  if (x < -8) return 0;
+  if (x >  8) return 1;
+  var t   = 1 / (1 + 0.2316419 * Math.abs(x));
+  var pdf = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  var p   = 1 - pdf * t * (0.319381530
+              + t * (-0.356563782
+              + t * ( 1.781477937
+              + t * (-1.821255978
+              + t *   1.330274429))));
+  return x >= 0 ? p : 1 - p;
+}
+
+/**
+ * PERT statistics for a single task.
+ * Returns { mean, std, p10, p25, p50, p75, p90 } using normal approximation.
+ * Returns null if inputs are invalid.
+ */
+function _pertStats(task) {
+  var O = Number(task.optimistic), M = Number(task.mostLikely), P = Number(task.pessimistic);
+  if (!Number.isFinite(O) || !Number.isFinite(M) || !Number.isFinite(P)) return null;
+  var mean = (O + 4 * M + P) / 6;
+  var std  = (P - O) / 6;
+  if (std <= 0) {
+    // Degenerate: all three values equal
+    return { mean: mean, std: 0, p10: mean, p25: mean, p50: mean, p75: mean, p90: mean };
+  }
+  var r = function(v) { return Math.round(v * 100) / 100; };
+  return {
+    mean: r(mean),
+    std:  r(std),
+    p10:  r(mean - 1.282 * std),
+    p25:  r(mean - 0.674 * std),
+    p50:  r(mean),
+    p75:  r(mean + 0.674 * std),
+    p90:  r(mean + 1.282 * std)
+  };
+}
+
+/**
+ * P(X ≤ target) under normal(mean, std). Returns null when std = 0 or target absent.
+ */
+function _pertProbAtTarget(task) {
+  if (task.targetValue == null) return null;
+  var stats = _pertStats(task);
+  if (!stats || stats.std === 0) return null;
+  var z = (Number(task.targetValue) - stats.mean) / stats.std;
+  return Math.round(_normalCdf(z) * 10000) / 10000;
+}
+
+/**
+ * Slim tier: validates key, computes PERT stats, builds plot URL, deducts 1 credit.
+ * Called from handleCallApi when auth.gas_tier === 'slim'.
+ */
+function handleCallApiSlim(body, key, auth, sessionToken) {
+  var tasks = body.tasks;
+  if (!Array.isArray(tasks) || tasks.length === 0)
+    return jsonOut({ error: 'At least one task is required' });
+  if (tasks.length > 10)
+    return jsonOut({ error: 'Maximum 10 tasks per request, got ' + tasks.length });
+
+  // Basic task validation (same guards as full path)
+  for (var i = 0; i < tasks.length; i++) {
+    var t = tasks[i];
+    if (!t.task)           return jsonOut({ error: 'Task ' + (i+1) + ' is missing a name' });
+    if (t.optimistic  == null) return jsonOut({ error: 'Task "' + t.task + '" is missing optimistic value' });
+    if (t.mostLikely  == null) return jsonOut({ error: 'Task "' + t.task + '" is missing mostLikely value' });
+    if (t.pessimistic == null) return jsonOut({ error: 'Task "' + t.task + '" is missing pessimistic value' });
+    if (t.optimistic > t.mostLikely || t.mostLikely > t.pessimistic)
+      return jsonOut({ error: 'Task "' + t.task + '": values must satisfy optimistic ≤ mostLikely ≤ pessimistic' });
+  }
+
+  // Credit check
+  if (auth.remaining < SLIM_CREDIT_COST) {
+    return jsonOut({
+      error:       'Insufficient credits — need ' + SLIM_CREDIT_COST + ', have ' + auth.remaining + '.',
+      upgrade_url: auth.upgrade_url || getWpUrl()
+    });
+  }
+
+  var engineStart = Date.now();
+
+  // Per-task PERT results (no SACO)
+  var taskResults = tasks.map(function(task) {
+    var stats     = _pertStats(task);
+    var baseProb  = _pertProbAtTarget(task);
+    return {
+      task:         task.task,
+      pert:         stats,
+      baselineProb: baseProb,
+      target:       task.targetValue != null ? task.targetValue : null
+    };
+  });
+
+  // Portfolio: PERT sum (sequential) / critical path (parallel) — same logic as full path
+  var portfolio = null;
+  if (tasks.length > 1) {
+    var seqMean = 0, seqVar = 0;
+    var parMeans = [], parVars = [];
+    var hasParallel = false;
+    for (var pi = 0; pi < tasks.length; pi++) {
+      var pt = tasks[pi];
+      var s  = _pertStats(pt);
+      if (!s) continue;
+      var tVar = s.std * s.std;
+      if (pt.parallel === true) {
+        hasParallel = true;
+        parMeans.push(s.mean);
+        parVars.push(tVar);
+      } else {
+        seqMean += s.mean;
+        seqVar  += tVar;
+      }
+    }
+    if (parMeans.length > 0) {
+      seqMean += Math.max.apply(null, parMeans);
+      seqVar  += Math.max.apply(null, parVars);
+    }
+    var pStd = Math.sqrt(seqVar);
+    if (Number.isFinite(seqMean) && Number.isFinite(pStd)) {
+      portfolio = {
+        taskCount: tasks.length,
+        p10:    Math.round((seqMean - 1.282 * pStd) * 100) / 100,
+        p50:    Math.round(seqMean                   * 100) / 100,
+        p90:    Math.round((seqMean + 1.282 * pStd)  * 100) / 100,
+        method: hasParallel ? 'pert_critical_path' : 'pert_sum'
+      };
+    }
+  }
+
+  var durationMs = Date.now() - engineStart;
+
+  // Build slim task array for plot URL — same schema as full path.
+  // winningSliders / optimizedPercentiles are absent (browser runs SACO on load).
+  var slimTasks = tasks.map(function(task, i) {
+    var stats    = _pertStats(task);
+    var baseProb = _pertProbAtTarget(task);
+    return {
+      task:              task.task,
+      O:                 task.optimistic,
+      M:                 task.mostLikely,
+      P:                 task.pessimistic,
+      target:            task.targetValue != null ? task.targetValue : null,
+      // targetProbability: only baseline available; adjusted/optimized left for browser SACO
+      targetProbability: baseProb != null ? { original: baseProb } : {},
+      percentiles:       stats ? {
+        p10: stats.p10, p25: stats.p25, p50: stats.p50,
+        p75: stats.p75, p90: stats.p90
+      } : {},
+      optimizedPercentiles: {},
+      feasibilityScore:  null,
+      winningSliders:    null,
+      userSliders:       null,
+      reportUrl:         null   // no SACO data → no report
+    };
+  });
+
+  // Build plot URL and save to WP for session polling
+  var plotUrl = buildPlotUrl(slimTasks, tasks, sessionToken, portfolio);
+  try {
+    wpPost('/projectcare/v1/plot-data/save', {
+      token: sessionToken,
+      data:  { tasks: slimTasks, portfolio: portfolio }
+    });
+  } catch (saveErr) {
+    console.error('[ProjectCare API] slim plot-data save failed:', saveErr.message);
+  }
+
+  // Deduct 1 credit
+  var deduct = wpPost('/projectcare/v1/deduct', {
+    key:             key,
+    cost:            SLIM_CREDIT_COST,
+    operation:       'baseline_only',
+    duration_ms:     durationMs,
+    gas_exec_count:  getDailyExecCount(),
+    task_count:      tasks.length,
+    has_sliders:     0,
+    feasibility_avg: 0
+  });
+
+  var remaining = deduct.remaining != null ? deduct.remaining : (auth.remaining - SLIM_CREDIT_COST);
+  var total     = deduct.total     != null ? deduct.total     : auth.total;
+  var bar       = deduct.bar       || buildBar(total - remaining, total);
+
+  return jsonOut({
+    tier:            'slim',
+    results:         taskResults,
+    _portfolio:      portfolio,
+    _plotUrl:        plotUrl,
+    _sessionToken:   sessionToken,
+    _quota: {
+      plan:              auth.plan,
+      expires:           auth.expires,
+      operation:         'baseline_only',
+      credits_this_call: SLIM_CREDIT_COST,
+      credits_remaining: remaining,
+      credits_total:     total,
+      bar:               bar
+    },
+    _note: 'PERT approximation only — full SACO optimization runs automatically in the browser when the plot page opens.'
+  });
+}
+
 // ── CHECK QUOTA ───────────────────────────────────────────────────────────────
 function handleCheckQuota(body) {
   var key = (body.key || '').trim();
@@ -539,7 +784,7 @@ function wpPost(path, payload) {
       headers:            { 'X-Projectcare-Secret': secret },
       payload:            JSON.stringify(payload),
       muteHttpExceptions: true,
-      followRedirects:    false
+      followRedirects:    true
     });
 
     var code = resp.getResponseCode();
@@ -902,14 +1147,14 @@ function getDailyExecCount() {
     var props   = PropertiesService.getScriptProperties();
     var tz      = Session.getScriptTimeZone();
     var today   = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-    var stored  = props.getProperty('pmc_exec_date')  || '';
-    var count   = parseInt(props.getProperty('pmc_exec_count') || '0', 10);
+    var stored  = props.getProperty('pc_exec_date')  || '';
+    var count   = parseInt(props.getProperty('pc_exec_count') || '0', 10);
     if (stored !== today) {
       count = 1;
-      props.setProperties({ pmc_exec_date: today, pmc_exec_count: '1' });
+      props.setProperties({ pc_exec_date: today, pc_exec_count: '1' });
     } else {
       count += 1;
-      props.setProperty('pmc_exec_count', String(count));
+      props.setProperty('pc_exec_count', String(count));
     }
     return count;
   } catch (e) {
@@ -925,9 +1170,9 @@ function handlePing(body) {
     var props  = PropertiesService.getScriptProperties();
     var tz     = Session.getScriptTimeZone();
     var today  = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-    var stored = props.getProperty('pmc_exec_date') || '';
+    var stored = props.getProperty('pc_exec_date') || '';
     var count  = stored === today
-      ? parseInt(props.getProperty('pmc_exec_count') || '0', 10)
+      ? parseInt(props.getProperty('pc_exec_count') || '0', 10)
       : 0;
     return jsonOut({
       ok:               true,

@@ -1,27 +1,29 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_plans(): void {
+function pc_page_plans(): void {
     if (!current_user_can('manage_options')) return;
 
     $notice = '';
 
-    if (isset($_POST['pmc_save_plans_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_save_plans_nonce'])), 'pmc_save_plans')) {
+    if (isset($_POST['pc_save_plans_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_save_plans_nonce'])), 'pc_save_plans')) {
             global $wpdb;
-            $table = $wpdb->prefix . 'pmc_plans';
+            $table = $wpdb->prefix . 'pc_plans';
 
-            $slugs   = array_map('sanitize_text_field', (array) ($_POST['plan_slug']          ?? []));
-            $labels  = array_map('sanitize_text_field', (array) ($_POST['plan_label']         ?? []));
-            $credits = array_map('intval',               (array) ($_POST['plan_credits']       ?? []));
-            $days    = array_map('intval',               (array) ($_POST['plan_days']          ?? []));
-            $prices  = array_map('floatval',             (array) ($_POST['plan_price_dollars'] ?? []));
-            $orders  = array_map('intval',               (array) ($_POST['plan_order']         ?? []));
-            $active  = (array) ($_POST['plan_active'] ?? []);
-            $ids     = array_map('intval',               (array) ($_POST['plan_id']            ?? []));
+            $slugs    = array_map('sanitize_text_field', (array) ($_POST['plan_slug']          ?? []));
+            $labels   = array_map('sanitize_text_field', (array) ($_POST['plan_label']         ?? []));
+            $credits  = array_map('intval',               (array) ($_POST['plan_credits']       ?? []));
+            $days     = array_map('intval',               (array) ($_POST['plan_days']          ?? []));
+            $prices   = array_map('floatval',             (array) ($_POST['plan_price_dollars'] ?? []));
+            $orders   = array_map('intval',               (array) ($_POST['plan_order']         ?? []));
+            $active   = (array) ($_POST['plan_active'] ?? []);
+            $ids      = array_map('intval',               (array) ($_POST['plan_id']            ?? []));
+            $gas_tiers = array_map('sanitize_text_field', (array) ($_POST['plan_gas_tier']      ?? []));
 
             foreach ($slugs as $i => $slug) {
                 if (empty($slug)) continue;
+                $tier = in_array($gas_tiers[$i] ?? '', ['slim', 'full'], true) ? $gas_tiers[$i] : 'full';
                 $data = [
                     'slug'            => $slug,
                     'label'           => $labels[$i]  ?? $slug,
@@ -30,6 +32,7 @@ function pmc_page_plans(): void {
                     'price_min_cents' => (int) round(($prices[$i] ?? 0) * 100),
                     'is_active'       => in_array($i, array_keys($active)) ? 1 : 0,
                     'display_order'   => $orders[$i]  ?? $i,
+                    'gas_tier'        => $tier,
                 ];
                 $plan_id = (int) ($ids[$i] ?? 0);
                 if ($plan_id > 0) {
@@ -45,7 +48,7 @@ function pmc_page_plans(): void {
         }
     }
 
-    $plans = pmc_get_plans();
+    $plans = pc_get_plans();
     ?>
     <div class="wrap">
         <h1>Plans Editor</h1>
@@ -59,16 +62,19 @@ function pmc_page_plans(): void {
         </p>
 
         <form method="post">
-            <?php wp_nonce_field('pmc_save_plans', 'pmc_save_plans_nonce'); ?>
+            <?php wp_nonce_field('pc_save_plans', 'pc_save_plans_nonce'); ?>
             <table class="widefat" style="margin-bottom:16px">
                 <thead>
                     <tr>
                         <th>Slug</th><th>Label</th><th>Credits</th><th>Days</th>
                         <th>Min Price ($)</th><th>Active</th><th>Display Order</th>
+                        <th>GAS Tier <?php echo pc_tip('slim = PERT only, 1 credit, fast. full = SACO + CPM, 2–4 credits, ~90s.'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($plans as $i => $p): ?>
+                <?php foreach ($plans as $i => $p):
+                    $tier = isset($p['gas_tier']) ? $p['gas_tier'] : 'full';
+                ?>
                     <tr>
                         <td>
                             <input type="hidden" name="plan_id[]" value="<?php echo esc_attr($p['id']); ?>">
@@ -80,6 +86,12 @@ function pmc_page_plans(): void {
                         <td><input type="number" name="plan_price_dollars[]" value="<?php echo esc_attr(number_format($p['price_min_cents'] / 100, 2, '.', '')); ?>" min="0" step="0.01" style="width:80px"></td>
                         <td style="text-align:center"><input type="checkbox" name="plan_active[<?php echo esc_attr($i); ?>]" value="1" <?php checked((int) $p['is_active'], 1); ?>></td>
                         <td><input type="number" name="plan_order[]" value="<?php echo esc_attr($p['display_order']); ?>" min="0" style="width:60px"></td>
+                        <td>
+                            <select name="plan_gas_tier[]" style="width:70px">
+                                <option value="slim" <?php selected($tier, 'slim'); ?>>slim</option>
+                                <option value="full" <?php selected($tier, 'full'); ?>>full</option>
+                            </select>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 <!-- New plan row -->
@@ -91,6 +103,12 @@ function pmc_page_plans(): void {
                     <td><input type="number" name="plan_price_dollars[]" value="" min="0" step="0.01" style="width:80px"></td>
                     <td style="text-align:center"><input type="checkbox" name="plan_active[<?php echo count($plans); ?>]" value="1" checked></td>
                     <td><input type="number" name="plan_order[]" value="<?php echo count($plans); ?>" style="width:60px"></td>
+                    <td>
+                        <select name="plan_gas_tier[]" style="width:70px">
+                            <option value="full" selected>full</option>
+                            <option value="slim">slim</option>
+                        </select>
+                    </td>
                 </tr>
                 </tbody>
             </table>

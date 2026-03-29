@@ -93,7 +93,7 @@
     html,body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;color:var(--fg);background:var(--panel);margin:0;min-height:100%;}
     *{box-sizing:border-box;}
     .wrap{padding:12px 16px;max-width:1480px;margin:0 auto;}
-    h1{font-size:16px;font-weight:700;margin:0 0 12px;letter-spacing:.2px;}
+    h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.2px;}
     label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.2px;}
     .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
 
@@ -1997,12 +1997,69 @@
     #pmcNoDataOverlay .nd-err { color: #DC2626; font-size: 12px; display: none; }
     #pmcNoDataOverlay .nd-hint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
 
+    /* Persistent task toolbar */
+    .pct-title-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .pct-title-row h1 { margin: 0; }
+    .pct-title-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    #pcToolbar {
+      display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+      padding: 7px 10px; margin-bottom: 10px;
+      background: #F8FAFF; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 12px;
+    }
+    .pct-sep { width: 1px; height: 20px; background: var(--line); flex-shrink: 0; margin: 0 3px; }
+    #pcToolbar #taskSel {
+      flex: 1; min-width: 100px; max-width: 280px; padding: 5px 8px;
+      border: 1px solid var(--line); border-radius: 7px; font-size: 12px; font-weight: 500;
+    }
+    #pcToolbar .tm-mode-toggle {
+      flex-shrink: 0; display: inline-flex;
+      border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    }
+    #pcToolbar .tm-mode-btn {
+      font-size: 11px; padding: 4px 10px; cursor: pointer;
+      background: var(--chip); color: var(--muted);
+      border: none; font-weight: 600; transition: all .15s; font-family: inherit;
+    }
+    #pcToolbar .tm-mode-btn:hover { background: var(--hover); }
+    #pcToolbar .tm-mode-btn.active { background: #111827; color: #fff; }
+    #pcToolbar .tm-mode-btn + .tm-mode-btn { border-left: 1px solid var(--line); }
+    .pct-ompp {
+      display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0;
+    }
+    .pct-stat { font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .pct-stat strong { color: var(--fg); font-weight: 700; font-size: 11px; }
+    .pct-pert { border-left: 1px solid var(--line); padding-left: 8px; }
+    #pcToolbar #tmGroupPicker { flex: 1; min-width: 180px; }
+    #pcToolbar .tm-actions { display: flex; gap: 4px; }
+    #pcToolbar .tm-btn { padding: 4px 9px; font-size: 11px; min-height: 26px; }
+    #pcToolbar .tm-btn.primary { background: #111827; color: #fff; border-color: #111827; }
+    #pcToolbar .tm-btn.primary:hover { background: #374151; }
+    #pcToolbar .tm-btn.danger { color: #DC2626; border-color: #FCA5A5; }
+    #pcToolbar .tm-btn.danger:hover { background: #FEE2E2; }
+    #pcToolbar #refreshBtn {
+      min-height: 24px; padding: 2px 9px; font-size: 13px; flex-shrink: 0;
+      background: #111827; color: #fff; border: 1px solid #111827;
+      border-radius: 7px; cursor: pointer; font-family: inherit;
+    }
+    #pcToolbar #refreshBtn:hover { background: #374151; border-color: #374151; }
+    #pcToolbar .status { font-size: 9px; padding: 2px 7px; min-height: 20px; border-radius: 6px; flex-shrink: 0; }
+    #pcToolbar .status:not(.fetching) { display: none; }
+    @media (max-width: 600px) {
+      #pcToolbar { gap: 4px; }
+      .pct-ompp { display: none; }
+      #pcToolbar #taskSel { max-width: 100%; }
+    }
+
     /* Help button + modal */
     #pmcHelpBtn {
-      position: fixed; top: 10px; right: 14px; z-index: 800;
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
       border: 1.5px solid #E5E7EB; background: #fff; color: #6B7280;
-      font-size: 15px; font-weight: 700; line-height: 30px; text-align: center;
+      font-size: 14px; font-weight: 700; line-height: 26px; text-align: center;
       cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.12);
       transition: background .15s, color .15s;
     }
@@ -2032,9 +2089,10 @@
 
     /* Live badge indicator */
     #pmcLiveBadge {
-      display: none; position: fixed; top: 10px; right: 54px; z-index: 800;
+      display: none;
       font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
       background: #F0FDF4; color: #166534; border: 1px solid #86EFAC;
+      white-space: nowrap; flex-shrink: 0;
     }
     #pmcLiveBadge.visible { display: block; }
     #pmcLiveBadge.polling { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
@@ -2080,8 +2138,6 @@
     </div>
   </div>
 
-  <!-- How to use help button -->
-  <button id="pmcHelpBtn" onclick="pmcShowHelp()" title="How to use this page">?</button>
   <div id="pmcHelpBackdrop" onclick="pmcCloseHelp()"></div>
   <div id="pmcHelpModal">
     <button class="hm-close" onclick="pmcCloseHelp()">&times;</button>
@@ -2097,9 +2153,6 @@
     <div style="font-size:11px;color:#9CA3AF;border-top:1px solid #F3F4F6;padding-top:10px;margin-top:4px;">Powered by SACO — Shape-Adaptive Copula Optimization</div>
   </div>
 
-  <!-- Live session badge -->
-  <div id="pmcLiveBadge" class="polling">Connecting…</div>
-
   <div id="errorBanner" style="display:none;background:#FEE2E2;color:#991B1B;padding:8px 12px;font-size:12px;font-family:monospace;position:fixed;top:0;left:0;right:0;z-index:9999;max-height:200px;overflow-y:auto;border-bottom:2px solid #DC2626;"></div>
   <script>
   window.onerror = function(msg, url, line, col) {
@@ -2113,7 +2166,57 @@
   };
   </script>
   <div class="wrap">
-    <h1 title="Probability Plots Dashboard">ProjectCare by iCareNOW</h1>
+    <!-- ── Title row ── -->
+    <div class="pct-title-row">
+      <h1 title="Probability Plots Dashboard">ProjectCare by iCareNOW</h1>
+      <div class="pct-title-actions">
+        <div id="pmcLiveBadge" class="polling">Connecting&#8230;</div>
+        <button id="pmcHelpBtn" onclick="pmcShowHelp()" title="How to use this page">?</button>
+      </div>
+    </div>
+
+    <!-- ── Persistent task toolbar ── -->
+    <div id="pcToolbar">
+      <!-- Manage + Settings -->
+      <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Manage tasks</button>
+      <button class="stp1-meta-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task settings">&#9881;</button>
+      <div class="pct-sep"></div>
+      <!-- Mode toggle -->
+      <div class="tm-mode-toggle" title="Single: analyze one task. Group: combine multiple tasks into one distribution.">
+        <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single</button>
+        <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Group</button>
+      </div>
+      <!-- Task selector -->
+      <select id="taskSel" title="Select a task"></select>
+      <!-- Group mode: inline multi-select checklist -->
+      <div id="tmGroupPicker" style="display:none;">
+        <div class="grp-header">
+          <span class="grp-count" id="grpCount">0 selected</span>
+          <button class="grp-quick-btn" onclick="TM._aggSelectAll(true)" title="Select all tasks">All</button>
+          <button class="grp-quick-btn" onclick="TM._aggSelectAll(false)" title="Deselect all tasks">None</button>
+          <button class="grp-quick-btn" id="grpToggleBtn" onclick="TM._toggleGroupList()" title="Expand/collapse task list">Collapse</button>
+        </div>
+        <div class="grp-list" id="grpList"></div>
+      </div>
+      <!-- Save/Discard buttons (shown only when editing) -->
+      <div class="tm-actions">
+        <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
+        <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
+      </div>
+      <!-- O / M / P / PERT inline display -->
+      <div class="pct-ompp">
+        <span class="pct-stat">O <strong id="oVal">&#8211;</strong></span>
+        <span class="pct-stat">M <strong id="mVal">&#8211;</strong></span>
+        <span class="pct-stat">P <strong id="pVal">&#8211;</strong></span>
+        <span class="pct-stat pct-pert">PERT <strong id="pertVal">&#8211;</strong></span>
+      </div>
+      <div class="pct-sep"></div>
+      <!-- Status + refresh + report -->
+      <span id="tmDirtyBadge" style="display:none;font-size:10px;color:#D97706;font-weight:700;">&#9679; Unsaved</span>
+      <a id="tmReportLink" href="#" target="_blank" rel="noopener" style="display:none;font-size:11px;font-weight:600;color:#4338CA;text-decoration:none;padding:3px 8px;border:1px solid #C7D2FE;border-radius:6px;background:#EEF2FF;white-space:nowrap;" title="View one-page report for this task">&#128203; Report</a>
+      <span id="fetchStatus" class="status">Ready</span>
+      <button id="refreshBtn" class="primary">&#x21bb;</button>
+    </div><!-- /#pcToolbar -->
 
 <!-- ── Horizontal wizard nav ──────────────────────────────────────────── -->
 <nav class="pmc-wiz-nav" id="pmcWizNav" role="navigation" aria-label="Estimation wizard steps">
@@ -2124,52 +2227,14 @@
   <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="Apply management conditions to improve project odds — Benchmarked, Unconstrained, and Your Conditions">
     <span class="pmc-wiz-num">2</span>Optimize
   </div>
-  <button class="pmc-wiz-setup-btn" onclick="pmcWizGo(1)" title="Return to step-by-step setup">&#9664; Setup</button>
 </nav>
 
 <!-- ══ STEP 1 — ESTIMATE ═══════════════════════════════════════════════ -->
 <div class="pmc-wiz-panel" data-wiz="1" id="wizPanel1">
 
-<!-- ── TASK CARD ── -->
-<div class="stp1-card stp1-task-card" id="tmBar">
-  <div class="stp1-hdr">
-    <span class="stp1-label">Task</span>
-    <div class="stp1-task-meta">
-      <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Manage tasks</button>
-      <button class="stp1-meta-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task settings">&#9881;</button>
-    </div>
-  </div>
-
-  <div class="tm-mode-toggle" title="Single: analyze one task. Group: combine multiple tasks into one distribution.">
-    <button class="tm-mode-btn active" id="tmModeSingle" onclick="TM.setMode('single')" title="Analyze one task at a time">Single task</button>
-    <button class="tm-mode-btn" id="tmModeAggregate" onclick="TM.setMode('aggregate')" title="Combine selected tasks into one distribution">Group</button>
-  </div>
-
-  <select id="taskSel" title="Select a task"></select>
-
-  <!-- Group mode: inline multi-select checklist -->
-  <div id="tmGroupPicker" style="display:none;">
-    <div class="grp-header">
-      <span class="grp-count" id="grpCount">0 selected</span>
-      <button class="grp-quick-btn" onclick="TM._aggSelectAll(true)" title="Select all tasks">All</button>
-      <button class="grp-quick-btn" onclick="TM._aggSelectAll(false)" title="Deselect all tasks">None</button>
-      <button class="grp-quick-btn" id="grpToggleBtn" onclick="TM._toggleGroupList()" title="Expand/collapse task list">Collapse</button>
-    </div>
-    <div class="grp-list" id="grpList"></div>
-  </div>
-
-  <div class="tm-actions">
-    <button class="tm-btn primary" id="btnSaveRun" style="display:none;" onclick="TM.saveAndRun()">Save &amp; Run</button>
-    <button class="tm-btn danger" id="btnDiscard" style="display:none;" onclick="TM.discard()">Discard</button>
-  </div>
-
-  <div class="stp1-task-footer">
-    <span id="tmTaskInfo" class="stp1-task-info">Initializing…</span>
-    <span id="tmDirtyBadge" style="display:none;">&#9679; Unsaved</span>
-    <span id="fetchStatus" class="status">Ready</span>
-    <button id="refreshBtn" class="primary">&#x21bb;</button>
-  </div>
-</div><!-- /task card -->
+<!-- Ghost divs: IDs kept for JS/CSS references; all controls moved to #pcToolbar above -->
+<div id="tmBar" style="display:none!important;"></div>
+<span id="tmTaskInfo" style="display:none;"></span>
 
 <!-- ── CALIBRATE WITH TEAM HISTORY (RCF) ── -->
 <details id="histCtxBox" class="pmc-ref-class-box">
@@ -2273,99 +2338,62 @@
 
 </div><!-- /target card -->
 
-<!-- ── ESTIMATES COLLAPSE ── -->
-<details class="stp1-est-detail">
-  <summary class="stp1-est-summary">
-    <span class="stp1-est-arrow">&#9654;</span>
-    <span id="estSubtitle">3-point estimate (O / M / P)</span>
-  </summary>
-  <div class="stp1-est-body">
+<!-- Ghost: single-mode O/M/P/PERT IDs now live in #pcToolbar toolbar above -->
+<!-- estSingleStack kept for JS show/hide logic (setMode toggles it) — kept as zero-height ghost -->
+<div class="stp1-est-strip" id="estSingleStack" style="display:none;"></div>
 
-    <!-- SINGLE MODE: O / M / P / Expected (PERT mean) -->
-    <div class="stp1-est-strip" id="estSingleStack">
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="Optimistic Estimate" data-body="Best-case scenario — minimum reasonable estimate if everything goes well. Represents the fastest or cheapest plausible outcome.">?</span>
-          Optimistic
-        </span>
-        <span class="stp1-est-val" id="oVal">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="Most Likely Estimate" data-body="Most realistic scenario — what you'd expect under normal conditions. This value receives 4× the weight in the PERT formula.">?</span>
-          Most Likely
-        </span>
-        <span class="stp1-est-val" id="mVal">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="Pessimistic Estimate" data-body="Worst-case scenario — maximum reasonable estimate if things go poorly. Represents the slowest or most expensive plausible outcome.">?</span>
-          Pessimistic
-        </span>
-        <span class="stp1-est-val" id="pVal">–</span>
-      </div>
-      <div class="stp1-est-item stp1-pert">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="PERT Mean" data-body="PERT weighted average: (O + 4×M + P) ÷ 6. Extra weight on Most Likely produces a realistic expected mean. More accurate than a simple average of the three points.">?</span>
-          Expected
-        </span>
-        <span class="stp1-est-val" id="pertVal">–</span>
-      </div>
+<!-- Group mode stats — shown by JS when in aggregate mode -->
+<div class="stp1-card" id="estAggStack" style="display:none; margin-bottom:8px;">
+  <span id="estSubtitle" style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;">Group distribution</span>
+  <div class="stp1-est-strip" style="display:flex;">
+    <div class="stp1-est-item">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="Task Count" data-body="Number of tasks combined in this Group simulation.">?</span>
+        Tasks
+      </span>
+      <span class="stp1-est-val" id="aggStatTasks">–</span>
     </div>
-
-    <!-- GROUP MODE: combined distribution stats -->
-    <div class="stp1-est-strip" id="estAggStack" style="display:none;">
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="Task Count" data-body="Number of tasks combined in this Group simulation.">?</span>
-          Tasks
-        </span>
-        <span class="stp1-est-val" id="aggStatTasks">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="Aggregate Mean" data-body="Average outcome across all 5,000 Monte Carlo simulations of the combined tasks.">?</span>
-          Mean
-        </span>
-        <span class="stp1-est-val" id="aggStatMean">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="P50 — Median" data-body="50th percentile: 50% probability of finishing at or below this value.">?</span>
-          P50
-        </span>
-        <span class="stp1-est-val" id="aggStatP50">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="P80 — Risk-Adjusted" data-body="80th percentile: industry standard for risk-adjusted planning commitments.">?</span>
-          P80
-        </span>
-        <span class="stp1-est-val" id="aggStatP80">–</span>
-      </div>
-      <div class="stp1-est-item">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="P90 — High Confidence" data-body="90th percentile: used for high-confidence external commitments.">?</span>
-          P90
-        </span>
-        <span class="stp1-est-val" id="aggStatP90">–</span>
-      </div>
-      <div class="stp1-est-item stp1-pert">
-        <span class="stp1-est-lbl">
-          <span class="help-icon" data-title="P(≤τ) — Target Probability" data-body="Probability of finishing at or below your target value (τ) based on the combined group distribution.">?</span>
-          P(≤τ)
-        </span>
-        <span class="stp1-est-val" id="aggStatProb">–</span>
-      </div>
+    <div class="stp1-est-item">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="Aggregate Mean" data-body="Average outcome across all 5,000 Monte Carlo simulations of the combined tasks.">?</span>
+        Mean
+      </span>
+      <span class="stp1-est-val" id="aggStatMean">–</span>
     </div>
-
-    <!-- Group mode: awaiting first run -->
-    <div class="est-pending" id="estAggPending" style="display:none;">
-      Check tasks above,<br>then Save &amp; Run ▶
+    <div class="stp1-est-item">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="P50 — Median" data-body="50th percentile: 50% probability of finishing at or below this value.">?</span>
+        P50
+      </span>
+      <span class="stp1-est-val" id="aggStatP50">–</span>
     </div>
-
+    <div class="stp1-est-item">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="P80 — Risk-Adjusted" data-body="80th percentile: industry standard for risk-adjusted planning commitments.">?</span>
+        P80
+      </span>
+      <span class="stp1-est-val" id="aggStatP80">–</span>
+    </div>
+    <div class="stp1-est-item">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="P90 — High Confidence" data-body="90th percentile: used for high-confidence external commitments.">?</span>
+        P90
+      </span>
+      <span class="stp1-est-val" id="aggStatP90">–</span>
+    </div>
+    <div class="stp1-est-item stp1-pert">
+      <span class="stp1-est-lbl">
+        <span class="help-icon" data-title="P(≤τ) — Target Probability" data-body="Probability of finishing at or below your target value (τ) based on the combined group distribution.">?</span>
+        P(≤τ)
+      </span>
+      <span class="stp1-est-val" id="aggStatProb">–</span>
+    </div>
   </div>
-</details><!-- /estimates -->
+  <!-- Group mode: awaiting first run -->
+  <div class="est-pending" id="estAggPending" style="display:none;">
+    Check tasks above,<br>then Save &amp; Run ▶
+  </div>
+</div>
 
 <!-- tmAggBar: kept in DOM for JS (always hidden) -->
 <div id="tmAggBar" style="display:none!important;"></div>
@@ -2407,6 +2435,26 @@
 <div id="stp2-rcf-banner" class="stp2-rcf-banner" style="display:none;">
   <span class="stp2-rcf-icon">&#9432;</span>
   <span id="stp2-rcf-text">Baseline adjusted for historical overrun — applied equally to all strategies.</span>
+</div>
+
+<!-- ══ RECOMMENDATION BANNER — top of Step 2 ═════════════════════════ -->
+<div id="recBanner" class="rec-banner stp2-rec-banner" style="display:none;">
+  <div id="recActiveBar"></div>
+  <div class="rec-statement" id="recStatement"></div>
+  <div class="rec-context" id="recContext"></div>
+  <div class="rec-details" id="recDetails"></div>
+</div>
+
+<!-- ══ PROBABILITY SUMMARY BAR — above cards ═════════════════════════ -->
+<div class="stp2-scenario-zone" id="stp2-scenario-zone">
+  <div id="probSummaryBar" style="display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 12px; margin-bottom:6px; background:rgba(248,250,255,0.97); border:1px solid rgba(148,163,184,0.30); border-radius:8px; font-size:11px; line-height:1;">
+    <span style="font-size:10px; color:#94a3b8; font-weight:600; white-space:nowrap; margin-right:2px;">AT TARGET:</span>
+    <span id="psbTau"       style="padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#92400E; border:1px solid rgba(245,158,11,0.45); font-weight:700; white-space:nowrap;"></span>
+    <span id="psbBase"      style="padding:2px 8px; border-radius:12px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbGuided"    style="display:none; padding:2px 8px; border-radius:12px; background:rgba(139,92,246,0.08); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbOptimized" style="display:none; padding:2px 8px; border-radius:12px; background:rgba(59,130,246,0.08); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600; white-space:nowrap;"></span>
+    <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
+  </div>
 </div>
 
 <!-- ══ ZONE 2: Framing header ═════════════════════════════════════════ -->
@@ -2642,7 +2690,7 @@
     </div>
 
     <!-- Question text — updates with mode toggle -->
-    <span class="stp2-card-clarifier" id="stp2-opt-clarifier">Same SACO algorithm, wider search space &#8212; no external benchmark anchors. Typically finds higher probability.</span>
+    <span class="stp2-card-clarifier" id="stp2-opt-clarifier">SACO searched thousands of condition combinations and found these. The sliders below are <strong>read-only</strong> &#8212; they are the optimizer&#8217;s output, not your input. No external benchmark anchors the search.</span>
     <span class="stp2-card-question" id="stp2-opt-question">&#8220;How much can the probability of hitting the target be improved, without benchmark constraints?&#8221;</span>
 
     <!-- ── UNCONSTRAINED SECTION (default visible) ── -->
@@ -2652,8 +2700,8 @@
         <span class="stp2-card-help-link help-icon" data-title="Not Benchmarked Optimization" data-body="Uses the same SACO policy search as Benchmarked, but with wider constraint boundaries — not anchored to PMBOK or CII norms. This gives the algorithm a larger search space and typically produces higher probability, but the resulting conditions may be harder to defend to external stakeholders. Use it for internal planning and to understand the maximum achievable probability.">?</span>
       </div>
       <div class="stp2-conditions-body" id="stp2-cond-body-optimized" aria-hidden="false">
-        <div class="stp2-conditions-intro">Management conditions selected by optimizer (read-only)
-          <span class="help-icon" data-title="Management Conditions" data-body="These 7 levers represent project management decisions that directly affect delivery probability: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. SACO searched an unconstrained space and selected the combination that maximises P(completion ≤ target). Results may exceed PMBOK/CII norms — use for internal planning.">?</span>
+        <div class="stp2-conditions-intro">Optimizer&#8217;s prescription &#8212; read-only. To use your own values, set them in (C) below.
+          <span class="help-icon" data-title="Why are these sliders read-only?" data-body="These 7 values are what SACO chose — they are the optimizer's output, not your input. SACO searched an unconstrained space (no PMBOK/CII anchors) and selected the combination that maximises P(completion ≤ target). Because they are computed results, you cannot edit them here. To explore your own management conditions, use card (C) — Your Conditions.">?</span>
         </div>
         <div class="stp2-stance-bars" id="stp2-stance-optimized"></div>
       </div>
@@ -2680,8 +2728,8 @@
         <span class="stp2-card-help-link help-icon" data-title="Benchmarked Optimization" data-body="SACO searches thousands of condition combinations, but only considers those within conservative bounds derived from PMBOK Chapter 6 and CII benchmarks. It returns the combination that maximizes P(completion at or below target). Because the search space is anchored to defensible norms, this result is most justifiable to stakeholders and auditors.">?</span>
       </div>
       <div class="stp2-conditions-body" id="stp2-cond-body-guided" aria-hidden="false">
-        <div class="stp2-conditions-intro">Management conditions selected by optimizer (read-only)
-          <span class="help-icon" data-title="Management Conditions" data-body="These 7 levers represent project management decisions that directly affect delivery probability: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. SACO searched within PMBOK/CII-anchored bounds and selected the combination that maximises P(completion ≤ target).">?</span>
+        <div class="stp2-conditions-intro">Optimizer&#8217;s prescription &#8212; read-only. To use your own values, set them in (C) below.
+          <span class="help-icon" data-title="Why are these sliders read-only?" data-body="These 7 values are what SACO chose — they are the optimizer's output, not your input. SACO searched within PMBOK/CII-anchored bounds and selected the combination that maximises P(completion ≤ target). Because they are computed results, you cannot edit them here. To explore your own management conditions, use card (C) — Your Conditions.">?</span>
         </div>
         <div class="stp2-stance-bars" id="stp2-stance-guided"></div>
       </div>
@@ -2747,19 +2795,19 @@
     </div>
 
     <!-- Clarifier + question -->
-    <span class="stp2-card-clarifier">You set all 7 conditions below. The algorithm evaluates the probability for your choices &#8212; it does not search for a better set.</span>
-    <span class="stp2-card-question">&#8220;What probability do my management decisions produce, with and without PMBOK benchmarks applied?&#8221;</span>
+    <span class="stp2-card-clarifier">You set all 7 conditions &#8212; SACO evaluates the result. Sliders are <strong>interactive</strong>: drag them to reflect your actual management decisions. The algorithm does not search for better values; it only scores what you choose.</span>
+    <span class="stp2-card-question">&#8220;What probability do my specific management decisions produce, without benchmark constraints?&#8221;</span>
 
     <!-- Footer — no collapse toggle, sliders always visible -->
     <div class="stp2-card-footer">
       <button class="stp2-card-toggle stp2-card-toggle-off" id="rowTglManual" role="switch" aria-pressed="false" title="Evaluate Your Conditions">Evaluate my conditions</button>
-      <span class="stp2-card-help-link help-icon" data-title="Your Conditions" data-body="You set each of the 7 management levers yourself. The algorithm computes the resulting probability — it does not search for a better answer. The 'Not Benchmarked' result uses your exact slider values. The 'Benchmarked' result applies PMBOK/CII ceilings to each slider, then evaluates. Use this for what-if analysis: 'What would our odds be if we committed to exactly these conditions?'">?</span>
+      <span class="stp2-card-help-link help-icon" data-title="Your Conditions — how it works" data-body="You set the 7 management levers; SACO scores the result. This is the opposite of card (B): here you are the input, SACO is the calculator. Not Benchmarked uses your exact values. Benchmarked applies PMBOK/CII ceilings to any slider that exceeds them, then evaluates. Use this for what-if analysis: 'What would our probability be if we committed to exactly these conditions?'">?</span>
     </div>
 
     <!-- Interactive condition sliders — always visible -->
     <div class="stp2-conditions-body stp2-scenario-conds" id="stp2-cond-body-scenario" aria-hidden="false">
-      <div class="stp2-conditions-intro">Your management conditions &#8212; drag to adjust
-        <span class="help-icon" data-title="Your Management Conditions" data-body="Set each of the 7 management levers to reflect your project's actual conditions: budget flexibility, schedule flexibility, scope certainty, scope reduction allowance, rework %, risk tolerance, and confidence. Higher values generally mean more favourable conditions. The algorithm evaluates — but does not search for — the probability at your chosen settings.">?</span>
+      <div class="stp2-conditions-intro">Your conditions &#8212; drag to adjust. SACO evaluates; it does not optimise.
+        <span class="help-icon" data-title="Why can I move these sliders?" data-body="These sliders are your inputs — you are telling SACO what management conditions apply to your project. Unlike card (B) where SACO searches for the best combination, here you decide. SACO then evaluates the probability for exactly the values you set. Drag any slider to see how that condition affects your result in real time.">?</span>
       </div>
       <div class="stp2-stance-interactive" id="stp2-stance-scenario"></div>
     </div>
@@ -2784,31 +2832,10 @@
   <span class="pmc-export-hint" id="pmcExportHint">Includes original inputs &#183; PERT column highlighted</span>
 </div>
 
-<!-- ══ RECOMMENDATION BANNER — below cards, always visible ═══════════ -->
-<div id="recBanner" class="rec-banner stp2-rec-banner" style="display:none;">
-  <div id="recActiveBar"></div>
-  <div class="rec-statement" id="recStatement"></div>
-  <div class="rec-context" id="recContext"></div>
-  <div class="rec-details" id="recDetails"></div>
-</div>
-
-<!-- ══ ZONE 5: Probability summary bar ════════════════════════════════ -->
-<div class="stp2-scenario-zone" id="stp2-scenario-zone">
-  <!-- Probability summary bar (JS writes here) — shows all strategies at target once any run -->
-  <div id="probSummaryBar" style="display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 12px; margin-bottom:6px; background:rgba(248,250,255,0.97); border:1px solid rgba(148,163,184,0.30); border-radius:8px; font-size:11px; line-height:1;">
-    <span style="font-size:10px; color:#94a3b8; font-weight:600; white-space:nowrap; margin-right:2px;">AT TARGET:</span>
-    <span id="psbTau"       style="padding:2px 8px; border-radius:12px; background:#FEF3C7; color:#92400E; border:1px solid rgba(245,158,11,0.45); font-weight:700; white-space:nowrap;"></span>
-    <span id="psbBase"      style="padding:2px 8px; border-radius:12px; background:#F1F5F9; color:#475569; border:1px solid rgba(148,163,184,0.40); font-weight:600; white-space:nowrap;"></span>
-    <span id="psbGuided"    style="display:none; padding:2px 8px; border-radius:12px; background:rgba(139,92,246,0.08); color:#6d28d9; border:1px solid rgba(139,92,246,0.40); font-weight:600; white-space:nowrap;"></span>
-    <span id="psbOptimized" style="display:none; padding:2px 8px; border-radius:12px; background:rgba(59,130,246,0.08); color:#1d4ed8; border:1px solid rgba(59,130,246,0.40); font-weight:600; white-space:nowrap;"></span>
-    <span id="psbExplorer"  style="display:none; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.08); color:#065f46; border:1px solid rgba(16,185,129,0.40); font-weight:600; white-space:nowrap;"></span>
-  </div>
-</div>
-
 <!-- ══ ZONE 6: Charts disclosure ══════════════════════════════════════ -->
 <div class="stp2-charts-disclosure" id="stp2-charts-disclosure">
-  <button class="stp2-charts-toggle-btn" id="stp2-charts-toggle" aria-expanded="false" aria-controls="stp2-charts-area" onclick="stp2ToggleCharts()">View probability curves <span class="stp2-charts-caret">&#9660;</span></button>
-  <div class="stp2-charts-area" id="stp2-charts-area" aria-hidden="true">
+  <button class="stp2-charts-toggle-btn" id="stp2-charts-toggle" aria-expanded="true" aria-controls="stp2-charts-area" onclick="stp2ToggleCharts()">Probability curves <span class="stp2-charts-caret stp2-open">&#9660;</span></button>
+  <div class="stp2-charts-area" id="stp2-charts-area" aria-hidden="false">
 
     <!-- Tabs now live inside the chart area -->
     <div class="tabs stp2-tabs-inner" id="tabs">
@@ -7080,7 +7107,8 @@
             winningSliders:       t.winningSliders       || null,
             // userSliders: the exact slider values the user gave GPT (UI units). null if not given.
             userSliders:          (t.userSliders && typeof t.userSliders === 'object' &&
-                                   Object.keys(t.userSliders).length > 0) ? t.userSliders : null
+                                   Object.keys(t.userSliders).length > 0) ? t.userSliders : null,
+            reportUrl:            t.reportUrl || null
           };
         }
 
@@ -7203,6 +7231,17 @@
         s.O = t.optimistic; s.M = t.mostLikely; s.P = t.pessimistic;
         // Seed target from bootstrap task data so baselineProb is computed against the right value
         if (t.target != null) s.target = Number(t.target);
+        // Update per-task report link
+        (function() {
+          var rl = document.getElementById('tmReportLink');
+          if (!rl) return;
+          if (t.reportUrl) {
+            rl.href = t.reportUrl;
+            rl.style.display = '';
+          } else {
+            rl.style.display = 'none';
+          }
+        })();
         // Refresh triangle plot if visible
         if (typeof window._drawTriPlot === 'function') window._drawTriPlot();
         // Clear ALL stale data from previous task
@@ -8645,7 +8684,7 @@
         _setBadge('Session expired', '');
         return;
       }
-      fetch('https://icarenow.io/wp-json/pmc/v1/plot-data/' + encodeURIComponent(token))
+      fetch('https://icarenow.io/wp-json/projectcare/v1/plot-data/' + encodeURIComponent(token))
         .then(function(r) { return r.json(); })
         .then(function(payload) {
           if (payload.status === 'not_found') {
